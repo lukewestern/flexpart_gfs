@@ -31,4 +31,11 @@ module conv_mod
 
   integer :: nconvlev,nconvtop
 
+  ! openmp change
+!$OMP THREADPRIVATE( ft, fq, fmass, sub, fmassfrac, &
+!$OMP pconv, phconv, dpr, pconv_hpa, phconv_hpa, &
+!$OMP tconv, qconv, qsconv, psconv, tt2conv, td2conv, &
+!$OMP nconvtop)
+  ! openmp change end
+  
 end module conv_mod

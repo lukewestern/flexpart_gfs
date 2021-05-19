@@ -571,6 +571,10 @@ module com_mod
   integer(kind=1) :: landinvent(1200,600,6)
   real :: z0(numclass)
 
+  ! openmp change
+!$OMP THREADPRIVATE (z0)
+  ! openmp change end
+
   ! landinvent         landuse inventory (numclass=11 classes)
   ! z0                  roughness length for the landuse classes
 

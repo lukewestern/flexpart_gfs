@@ -15,6 +15,13 @@ module interpol_mod
   logical :: depoindicator(maxspec)
   logical :: indzindicator(nzmax)
 
+  ! openmp change
+!$OMP THREADPRIVATE(uprof,vprof,wprof,usigprof,vsigprof,wsigprof, &
+!$OMP rhoprof,rhogradprof,u,v,w,usig,vsig,wsig,pvi, &
+!$OMP p1,p2,p3,p4,ddx,ddy,rddx,rddy,dtt,dt1,dt2,ix,jy,ixp,jyp, &
+!$OMP ngrid,indz,indzp,depoindicator,indzindicator)
+  ! openmp change end
+  
 end module interpol_mod
 
 
