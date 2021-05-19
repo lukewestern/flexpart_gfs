@@ -51,6 +51,12 @@ subroutine convmix(itime,metdata_format)
   integer :: itage,nage
   real,parameter :: eps=nxmax/3.e5
 
+  ! openmp change
+  integer :: cnt,kk
+  integer,allocatable,dimension(:) :: frst
+  double precision :: tmarray(2)
+  integer :: conv_cnt, thread, part_cnt
+  ! openmp change end
 
   !monitoring variables
   !real sumconv,sumall
@@ -82,6 +88,9 @@ subroutine convmix(itime,metdata_format)
   ! Also, initialize index vector ipoint
   !************************************************************************
 
+  ! openmp change
+!$OMP PARALLEL private(ipart, j, x, y, ngrid, xtn, ytn, ix, jy)
+!$OMP DO
   do ipart=1,numpart
     igrid(ipart)=-1
     do j=numbnests,1,-1
@@ -89,7 +98,7 @@ subroutine convmix(itime,metdata_format)
     end do
     ipoint(ipart)=ipart
   ! do not consider particles that are (yet) not part of simulation
-    if (itra1(ipart).ne.itime) goto 20
+    if (itra1(ipart).ne.itime) cycle
     x = xtra1(ipart)
     y = ytra1(ipart)
 
@@ -98,13 +107,13 @@ subroutine convmix(itime,metdata_format)
 
     ngrid=0
     if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-    do j=numbnests,1,-1
-      if ( x.gt.xln(j)+eps .and. x.lt.xrn(j)-eps .and. &
-           y.gt.yln(j)+eps .and. y.lt.yrn(j)-eps ) then
-        ngrid=j
-        goto 23
-      endif
-    end do
+      do j=numbnests,1,-1
+        if ( x.gt.xln(j)+eps .and. x.lt.xrn(j)-eps .and. &
+             y.gt.yln(j)+eps .and. y.lt.yrn(j)-eps ) then
+          ngrid=j
+          goto 23
+        endif
+      end do
     else
       do j=numbnests,1,-1
         if ( x.gt.xln(j) .and. x.lt.xrn(j) .and. &
@@ -125,16 +134,21 @@ subroutine convmix(itime,metdata_format)
       ytn=(y-yln(ngrid))*yresoln(ngrid)
       ix=nint(xtn)
       jy=nint(ytn)
-      igridn(ipart,ngrid) = 1 + jy*nxn(ngrid) + ix
+      ! igridn(ipart,ngrid) = 1 + jy*nxn(ngrid) + ix
+      igridn(ipart,ngrid) = 1 + ix*nyn(ngrid) + jy
     else if(ngrid.eq.0) then
   ! mother grid
       ix=nint(x)
       jy=nint(y)
-      igrid(ipart) = 1 + jy*nx + ix
+      !igrid(ipart) = 1 + jy*nx + ix
+      igrid(ipart) = 1 + ix*ny + jy
     endif
 
  20 continue
   end do
+!$OMP END DO
+!$OMP END PARALLEL
+  ! openmp change end
 
   ! sumall = 0.
   ! sumconv = 0.
@@ -154,72 +168,97 @@ subroutine convmix(itime,metdata_format)
   ! Now visit all grid columns where particles are present
   ! by going through the sorted particles
 
-  igrold = -1
+  ! openmp change closely following the CTM version
+  allocate(frst(nx*(ny+1)+1))
+  frst(1) = 1
+  cnt = 2
+  igrold = igrid(1)
   do kpart=1,numpart
-    igr = igrid(kpart)
-    if (igr .eq. -1) goto 50
-    ipart = ipoint(kpart)
-  ! sumall = sumall + 1
-    if (igr .ne. igrold) then
-  ! we are in a new grid column
-      jy = (igr-1)/nx
-      ix = igr - jy*nx - 1
+    if (igrold.ne.igrid(kpart)) then
+      !print*, 'cgz igrid():', kpart, igrid(kpart)
+      !call flush()
+      frst(cnt) = kpart
+      igrold=igrid(kpart)
+      cnt=cnt+1
+    endif
+  enddo 
+  frst(cnt) = numpart+1
+
+  conv_cnt = 0
+  part_cnt = 0
+
+!$OMP PARALLEL PRIVATE(kk,jy,ix,thread,tmarray,j,kz,ktop,lconv,kpart,ipart,ztold,nage,ipconv) REDUCTION(+:conv_cnt,part_cnt)
+!$    thread = OMP_GET_THREAD_NUM()
+
+!$OMP DO SCHEDULE(static)
+  do kk=1,cnt-1
+    if (igrid(frst(kk)).eq.-1) cycle
+
+    ix = (igrid(frst(kk))-1)/ny
+    jy = igrid(frst(kk)) - ix*ny - 1
+    ! jy = (igrid(frst(kk))-1)/nx
+    ! ix = igrid(frst(kk)) - jy*nx - 1
 
   ! Interpolate all meteorological data needed for the convection scheme
-      psconv=(ps(ix,jy,1,mind1)*dt2+ps(ix,jy,1,mind2)*dt1)*dtt
-      tt2conv=(tt2(ix,jy,1,mind1)*dt2+tt2(ix,jy,1,mind2)*dt1)*dtt
-      td2conv=(td2(ix,jy,1,mind1)*dt2+td2(ix,jy,1,mind2)*dt1)*dtt
-!!$      do kz=1,nconvlev+1      !old
-      if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-        do kz=1,nuvz-1           !bugfix
+    psconv=(ps(ix,jy,1,mind1)*dt2+ps(ix,jy,1,mind2)*dt1)*dtt
+    tt2conv=(tt2(ix,jy,1,mind1)*dt2+tt2(ix,jy,1,mind2)*dt1)*dtt
+    td2conv=(td2(ix,jy,1,mind1)*dt2+td2(ix,jy,1,mind2)*dt1)*dtt
+
+    if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
+      do kz=1,nuvz-1           !bugfix
         tconv(kz)=(tth(ix,jy,kz+1,mind1)*dt2+ &
              tth(ix,jy,kz+1,mind2)*dt1)*dtt
         qconv(kz)=(qvh(ix,jy,kz+1,mind1)*dt2+ &
              qvh(ix,jy,kz+1,mind2)*dt1)*dtt
       end do
-      else
-        do kz=1,nuvz-1           !bugfix
-          pconv(kz)=(pplev(ix,jy,kz,mind1)*dt2+ &
-              pplev(ix,jy,kz,mind2)*dt1)*dtt
-          tconv(kz)=(tt(ix,jy,kz,mind1)*dt2+ &
-              tt(ix,jy,kz,mind2)*dt1)*dtt
-          qconv(kz)=(qv(ix,jy,kz,mind1)*dt2+ &
-              qv(ix,jy,kz,mind2)*dt1)*dtt
-        end do
-      end if
+    else
+      do kz=1,nuvz-1           !bugfix
+        pconv(kz)=(pplev(ix,jy,kz,mind1)*dt2+ &
+            pplev(ix,jy,kz,mind2)*dt1)*dtt
+        tconv(kz)=(tt(ix,jy,kz,mind1)*dt2+ &
+            tt(ix,jy,kz,mind2)*dt1)*dtt
+        qconv(kz)=(qv(ix,jy,kz,mind1)*dt2+ &
+            qv(ix,jy,kz,mind2)*dt1)*dtt
+      end do
+    end if
 
   ! Calculate translocation matrix
-      call calcmatrix(lconv,delt,cbaseflux(ix,jy),metdata_format)
-      igrold = igr
-      ktop = 0
-    endif
-
+    call calcmatrix(lconv,delt,cbaseflux(ix,jy),metdata_format)
+    
   ! treat particle only if column has convection
     if (lconv .eqv. .true.) then
-  ! assign new vertical position to particle
-
-      ztold=ztra1(ipart)
-      call redist(ipart,ktop,ipconv)
+      ktop = 0
+  !   assign new vertical position to particle
+      do kpart=frst(kk), frst(kk+1)-1
+        ipart = ipoint(kpart)
+        ztold=ztra1(ipart)
+        call redist(ipart,ktop,ipconv)
   !    if (ipconv.le.0) sumconv = sumconv+1
 
   ! Calculate the gross fluxes across layer interfaces
   !***************************************************
 
-      if (iflux.eq.1) then
-        itage=abs(itra1(ipart)-itramem(ipart))
-        do nage=1,nageclass
-          if (itage.lt.lage(nage)) goto 37
-        end do
- 37     continue
+        if (iflux.eq.1) then
+          itage=abs(itra1(ipart)-itramem(ipart))
+          do nage=1,nageclass
+            if (itage.lt.lage(nage)) goto 37
+          end do
+   37     continue
 
-        if (nage.le.nageclass) &
-             call calcfluxes(nage,ipart,real(xtra1(ipart)), &
-             real(ytra1(ipart)),ztold)
-      endif
+          if (nage.le.nageclass) &
+               call calcfluxes(nage,ipart,real(xtra1(ipart)), &
+               real(ytra1(ipart)),ztold)
+        endif
+      enddo
 
     endif   !(lconv .eqv. .true)
  50 continue
   end do
+!$OMP END DO
+!$OMP END PARALLEL
+
+  deallocate(frst)
+  ! openmp change end
 
 
   !*****************************************************************************
