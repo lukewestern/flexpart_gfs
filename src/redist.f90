@@ -19,13 +19,16 @@ subroutine redist (ipart,ktop,ipconv)
   use com_mod
   use conv_mod
   use random_mod
+  ! openmp change
+  use omp_lib
+  ! openmp change end
 
   implicit none
 
   real,parameter :: const=r_air/ga
   integer :: ipart, ktop,ipconv
   integer :: k, kz, levnew, levold
-  real,save :: uvzlev(nuvzmax)
+  real :: uvzlev(nuvzmax)
   real :: wsub(nuvzmax)
   real :: totlevmass, wsubpart
   real :: temp_levold,temp_levold1
@@ -33,9 +36,17 @@ subroutine redist (ipart,ktop,ipconv)
   real :: pint, pold, rn, tv, tvold, dlevfrac
   real :: ew,ztold,ffraction
   real :: tv1, tv2, dlogp, dz, dz1, dz2
+  ! openmp change
+  save :: iseed, uvzlev
+  ! openmp change end
   integer :: iseed = -88
 
-
+  ! openmp change
+!$OMP THREADPRIVATE(iseed,uvzlev)
+!$  if (iseed.eq.-88) then
+!$    iseed = iseed - OMP_GET_THREAD_NUM()
+!$  endif
+  ! openmp change end
 
   ! ipart   ... number of particle to be treated
 
@@ -57,6 +68,7 @@ subroutine redist (ipart,ktop,ipconv)
     tv1 = tconv(1)*(1.+0.608*qconv(1))
     tv2 = tconv(2)*(1.+0.608*qconv(2))
   !  interpolate virtual temperature to half-level
+    tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
     tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
     if (abs(tv-tvold).gt.0.2) then
       uvzlev(2) = uvzlev(1) + &
@@ -83,6 +95,8 @@ subroutine redist (ipart,ktop,ipconv)
   !    interpolate virtual temperature to half-level
       tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
            (pconv(kz-1)-pconv(kz))
+      tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
+           (pconv(kz-1)-pconv(kz))
       if (abs(tv-tvold).gt.0.2) then
         uvzlev(kz) = uvzlev(kz-1) + &
              const*log(pold/pint)* &
@@ -94,6 +108,7 @@ subroutine redist (ipart,ktop,ipconv)
       tvold=tv
       tv1=tv2
       pold=pint
+
 
     end do
 
