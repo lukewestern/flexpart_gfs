@@ -141,21 +141,21 @@ subroutine calcmatrix(lconv,delt,cbmf,metdata_format)
   ! account for mass displaced from level k to level k
 
   lconv = .true.
-  ! do k=1,nconvtop
-  !   rlevmass = dpr(k)/ga
-  !   summe = 0.
-  !   do kk=1,nconvtop
-  !     fmassfrac(k,kk) = delt*fmass(k,kk)
-  !     summe = summe + fmassfrac(k,kk)
-  !   end do
-  !   fmassfrac(k,k)=fmassfrac(k,k) + rlevmass - summe
-  ! end do
-  ! LB 04.05.2021, replace above with array operations (not the problem)
-  fmassfrac(1:nconvtop,1:nconvtop) = delt*fmass(1:nconvtop,1:nconvtop)
-  do k=1, nconvtop
-      fmassfrac(k, k) = fmassfrac(k, k) + dpr(k)/ga - sum(fmassfrac(k, 1:nconvtop))
+  do k=1,nconvtop
+    rlevmass = dpr(k)/ga
+    summe = 0.
+    do kk=1,nconvtop
+      fmassfrac(k,kk) = delt*fmass(k,kk)
+      summe = summe + fmassfrac(k,kk)
+    end do
+    fmassfrac(k,k)=fmassfrac(k,k) + rlevmass - summe
   end do
-  fmassfrac(nconvtop+1:, nconvtop+1:)=0.
+  ! LB 04.05.2021, replace above with array operations (doesn't work?)
+  ! fmassfrac(1:nconvtop,1:nconvtop) = delt*fmass(1:nconvtop,1:nconvtop)
+  ! do k=1, nconvtop
+  !     fmassfrac(k, k) = fmassfrac(k, k) + dpr(k)/ga - sum(fmassfrac(k, 1:nconvtop))
+  ! end do
+  ! fmassfrac(nconvtop+1:, nconvtop+1:)=0.
   ! LB end
 
 200   continue
