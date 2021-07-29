@@ -94,7 +94,7 @@ subroutine calcmatrix(lconv,delt,cbmf,metdata_format)
   do k = 1,nuvz-1
     qsconv(k) = f_qvsat( pconv(k), tconv(k) )
   end do
-  ! fmassfrac(1:nuvz-1,1:nconvlev)=0. ! LB initialise at end
+  fmassfrac(1:nuvz-1,1:nconvlev)=0. ! LB initialise at end
   ! LB end
 
   !note that Emanuel says it is important
