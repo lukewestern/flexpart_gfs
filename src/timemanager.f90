@@ -336,7 +336,7 @@ endif
 45      format(i13,' Seconds simulated: ',i13, ' Particles:    Uncertainty: ',3f7.3)
 46      format(' Simulated ',f7.1,' hours (',i13,' s), ',i13, ' particles')
         if (ipout.ge.1) then
-          if (mod(itime,604800).eq.0) then
+          if (mod(itime,ipoutfac*loutstep).eq.0) then
             call SYSTEM_CLOCK(count_clock, count_rate, count_max)
             s_temp = (count_clock - count_clock0)/real(count_rate)
             call partoutput(itime) ! dump particle positions

@@ -25,7 +25,7 @@ subroutine partoutput(itime)
   real(kind=dp) :: jul
   integer :: itime,i,j,jjjjmmdd,ihmmss
   integer :: ix,jy,ixp,jyp,indexh,m,il,ind,indz,indzp
-  real :: xlon,ylat
+  real :: xlon,ylat,ztemp
   real :: dt1,dt2,dtt,ddx,ddy,rddx,rddy,p1,p2,p3,p4,dz1,dz2,dz
   real :: topo,hm(2),hmixi,pv1(2),pvprof(2),pvi,qv1(2),qvprof(2),qvi
   real :: tt1(2),ttprof(2),tti,rho1(2),rhoprof(2),rhoi
@@ -107,44 +107,46 @@ subroutine partoutput(itime)
   ! Potential vorticity, specific humidity, temperature, and density
   !*****************************************************************
 
+      indz=nz-1
+      indzp=nz
+      dz1=1.
+      dz2=0.
+      dz=1.
       do il=2,nz
-        if (height(il).gt.ztra1(i)) then
+        if (uvheight(il).lt.ztra1eta(i)) then
           indz=il-1
           indzp=il
-          goto 6
+          dz1=ztra1eta(i)-uvheight(indz)
+          dz2=uvheight(indzp)-ztra1eta(i)
+          dz=1./(dz1+dz2)
+          exit
         endif
       end do
-6     continue
-
-      dz1=ztra1(i)-height(indz)
-      dz2=height(indzp)-ztra1(i)
-      dz=1./(dz1+dz2)
-
 
       do ind=indz,indzp
         do m=1,2
           indexh=memind(m)
 
   ! Potential vorticity
-          pv1(m)=p1*pv(ix ,jy ,ind,indexh) &
-               +p2*pv(ixp,jy ,ind,indexh) &
-               +p3*pv(ix ,jyp,ind,indexh) &
-               +p4*pv(ixp,jyp,ind,indexh)
+          pv1(m)=p1*pveta(ix ,jy ,ind,indexh) &
+               +p2*pveta(ixp,jy ,ind,indexh) &
+               +p3*pveta(ix ,jyp,ind,indexh) &
+               +p4*pveta(ixp,jyp,ind,indexh)
   ! Specific humidity
-          qv1(m)=p1*qv(ix ,jy ,ind,indexh) &
-               +p2*qv(ixp,jy ,ind,indexh) &
-               +p3*qv(ix ,jyp,ind,indexh) &
-               +p4*qv(ixp,jyp,ind,indexh)
+          qv1(m)=p1*qveta(ix ,jy ,ind,indexh) &
+               +p2*qveta(ixp,jy ,ind,indexh) &
+               +p3*qveta(ix ,jyp,ind,indexh) &
+               +p4*qveta(ixp,jyp,ind,indexh)
   ! Temperature
-          tt1(m)=p1*tt(ix ,jy ,ind,indexh) &
-               +p2*tt(ixp,jy ,ind,indexh) &
-               +p3*tt(ix ,jyp,ind,indexh) &
-               +p4*tt(ixp,jyp,ind,indexh)
+          tt1(m)=p1*tteta(ix ,jy ,ind,indexh) &
+               +p2*tteta(ixp,jy ,ind,indexh) &
+               +p3*tteta(ix ,jyp,ind,indexh) &
+               +p4*tteta(ixp,jyp,ind,indexh)
   ! Density
-          rho1(m)=p1*rho(ix ,jy ,ind,indexh) &
-               +p2*rho(ixp,jy ,ind,indexh) &
-               +p3*rho(ix ,jyp,ind,indexh) &
-               +p4*rho(ixp,jyp,ind,indexh)
+          rho1(m)=p1*rhoeta(ix ,jy ,ind,indexh) &
+               +p2*rhoeta(ixp,jy ,ind,indexh) &
+               +p3*rhoeta(ix ,jyp,ind,indexh) &
+               +p4*rhoeta(ixp,jyp,ind,indexh)
         end do
         pvprof(ind-indz+1)=(pv1(1)*dt2+pv1(2)*dt1)*dtt
         qvprof(ind-indz+1)=(qv1(1)*dt2+qv1(2)*dt1)*dtt
@@ -181,8 +183,9 @@ subroutine partoutput(itime)
 
   ! Write the output
   !*****************
+      call zeta_to_z(itime,xtra1(j),ytra1(j),ztra1eta(j),ztemp)
 
-      write(unitpartout) npoint(i),xlon,ylat,ztra1(i), &
+      write(unitpartout) npoint(i),xlon,ylat,ztemp, &
            itramem(i),topo,pvi,qvi,rhoi,hmixi,tri,tti, &
            (xmass1(i,j),j=1,nspec)
     endif
