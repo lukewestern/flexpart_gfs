@@ -353,15 +353,15 @@ module com_mod
 
   ! 3d fields
   !**********
-  real :: uueta(0:nxmax-1,0:nymax-1,nzmax+1,numwfmem)
-  real :: vveta(0:nxmax-1,0:nymax-1,nzmax+1,numwfmem)
+  real :: uueta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: vveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
   real :: uupoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
   real :: vvpoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
   real :: wweta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: tteta(0:nxmax-1,0:nymax-1,nzmax+1,numwfmem)
-  real :: qveta(0:nxmax-1,0:nymax-1,nzmax+1,numwfmem)
-  real :: pveta(0:nxmax-1,0:nymax-1,nzmax+1,numwfmem)
-  real :: rhoeta(0:nxmax-1,0:nymax-1,nzmax+1,numwfmem)
+  real :: tteta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: qveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: pveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: rhoeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
   real :: drhodzeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
 
   real :: uu(0:nxmax-1,0:nymax-1,nzmax,numwfmem)

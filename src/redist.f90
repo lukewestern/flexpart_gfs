@@ -114,12 +114,9 @@ subroutine redist (itime,ipart,ktop,ipconv)
         ztra1eta(abs(ipart)) = wheight(levnew)+dlogp
         ! if (ztra1eta(abs(ipart)).gt.uvheight(2)) &
         !     ztra1eta(abs(ipart))=uvheight(2)-(ztra1eta(abs(ipart))-uvheight(2))
-        if (abs(ipart).eq.822467) write(*,*) 'lc1: ', ztra1eta(abs(ipart))
-        if (abs(ipart).eq.17) write(*,*) 'hc1: ', ztra1eta(abs(ipart))
         if (ztra1eta(abs(ipart)).ge.1.) ztra1eta(abs(ipart))=1.-(ztra1eta(abs(ipart))-1.)
         if (ztra1eta(abs(ipart)).eq.1.) ztra1eta(abs(ipart))=ztra1eta(abs(ipart))-1.e-5
-        if (abs(ipart).eq.822467) write(*,*) 'lc2: ', ztra1eta(abs(ipart))
-        if (abs(ipart).eq.17) write(*,*) 'hc2: ', ztra1eta(abs(ipart))
+        ! if (ztra1eta(abs(ipart)).ge.uvheight(2)) ztra1eta(abs(ipart))=uvheight(2) -(ztra1eta(abs(ipart))-uvheight(2))
         if (ipconv.gt.0) ipconv=-1
       endif
     endif
@@ -192,11 +189,8 @@ subroutine redist (itime,ipart,ktop,ipconv)
        ztra1eta(abs(ipart)) = uvheight(nz-1)+1.e-5
   ! if (ztra1eta(abs(ipart)).gt.uvheight(2)) &
   !     ztra1eta(abs(ipart))=uvheight(2)-(ztra1eta(abs(ipart))-uvheight(2))
-  if (abs(ipart).eq.822467) write(*,*) 'lc3: ', ztra1eta(abs(ipart))
-  if (abs(ipart).eq.17) write(*,*) 'hc3: ', ztra1eta(abs(ipart))
   if (ztra1eta(abs(ipart)).ge.1.) ztra1eta(abs(ipart))=1.-(ztra1eta(abs(ipart))-1.)
   if (ztra1eta(abs(ipart)).eq.1.) ztra1eta(abs(ipart))=ztra1eta(abs(ipart))-1.e-5
-  if (abs(ipart).eq.822467) write(*,*) 'lc4: ', ztra1eta(abs(ipart))
-  if (abs(ipart).eq.17) write(*,*) 'hc4: ', ztra1eta(abs(ipart))
+  ! if (ztra1eta(abs(ipart)).ge.uvheight(2)) ztra1eta(abs(ipart))=uvheight(2) -(ztra1eta(abs(ipart))-uvheight(2))
 
 end subroutine redist

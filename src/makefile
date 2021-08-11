@@ -198,7 +198,8 @@ ohreaction.o            getvdep_nests.o \
 initial_cond_calc.o     initial_cond_output.o initial_cond_output_inversion.o \
 dynamic_viscosity.o     get_settling.o	\
 initialize_cbl_vel.o	re_initialize_particle.o \
-cbl.o
+cbl.o \
+zeta_to_z.o		z_to_zeta.o
 
 ifeq ($(ncf), no)
 	OBJECTS	:= $(OBJECTS)
@@ -411,3 +412,5 @@ writeheader_surf.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeheader_txt.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeprecip.o: com_mod.o par_mod.o point_mod.o
 zenithangle.o: par_mod.o
+zeta_to_z.o: com_mod.o par_mod.o interpol_mod.o
+z_to_zeta.o: com_mod.o par_mod.o interpol_mod.o

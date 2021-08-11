@@ -60,16 +60,14 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
   dt2=real(memtime(2)-itime)
   dtt=1./(dt1+dt2)
 
+  k=nz-1
+  frac=1.
   do k=2,nz-1
     if (zteta.ge.uvheight(k)) then
       frac=(zteta-uvheight(k-1))/(uvheight(k)-uvheight(k-1))
-      goto 20
+      exit
     endif
   end do
-  k=nz-1
-  frac=1.
-
-20  continue
 
   do m=1,2
     indexh=memind(m)

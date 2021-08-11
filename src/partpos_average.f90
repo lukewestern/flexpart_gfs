@@ -65,22 +65,22 @@ subroutine partpos_average(itime,j)
 
  ! Potential vorticity, specific humidity, temperature, and density
   !*****************************************************************
-  indz=nz-2
-  indzp=nz-1
-  do il=2,nz-1
+  indz=nz-1
+  indzp=nz
+  dz1=1.
+  dz2=0.
+  dz=1.
+  do il=2,nz
     if (uvheight(il).lt.ztra1eta(j)) then
       indz=il-1
       indzp=il
       dz1=ztra1eta(j)-uvheight(indz)
       dz2=uvheight(indzp)-ztra1eta(j)
       dz=1./(dz1+dz2)
-      goto 6
+      exit
     endif
   end do
-  dz1=1.
-  dz2=0.
-  dz=1.
-6 continue
+
 
   do ind=indz,indzp
     do m=1,2

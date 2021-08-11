@@ -330,9 +330,9 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   ! BEGIN TIME LOOP
   !================
-
     loop=0
-100   loop=loop+1
+    pbl_loop : do
+      loop=loop+1
       if (method.eq.1) then
         ldt=min(ldt,abs(lsynctime-itimec+itime))
         itimec=itimec+ldt*ldirect
@@ -667,7 +667,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
         call z_to_zeta(itime,xt,yt,zt,zteta)
         goto 99  ! finished
       endif
-      goto 100
+    end do pbl_loop
 
   ! END TIME LOOP
   !==============
@@ -769,6 +769,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   if (zteta.ge.1.) zteta=1.-(zteta-1.)
   if (zteta.eq.1.) zteta=zteta-eps_eta
+  ! if (zteta.ge.uvheight(2)) zteta=uvheight(2) -(zteta - uvheight(2))
 
 
 99   continue
@@ -802,6 +803,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   if (zteta.ge.1.) zteta=1.-(zteta-1.)
   if (zteta.eq.1.) zteta=zteta-eps_eta
+  ! if (zteta.ge.uvheight(2)) zteta=uvheight(2) -(zteta - uvheight(2))
 
   !*************************************************************
   ! Transform along and cross wind components to xy coordinates,
@@ -990,6 +992,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   if (zteta.ge.1.) zteta=1.-(zteta-1.)
   if (zteta.eq.1.) zteta=zteta-eps_eta
+  ! if (zteta.ge.uvheight(2)) zteta=uvheight(2) -(zteta - uvheight(2))
 
   if (ngrid.ge.0) then
     cosfact=dxconst/cos((real(yt)*dy+ylat0)*pi180)

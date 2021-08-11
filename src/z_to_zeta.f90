@@ -96,16 +96,14 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
 
     if (ztemp2.gt.zold) then
       frac = (zold-ztemp1)/(ztemp2-ztemp1)
-      goto 66
+      exit
     else if (i.eq.nz-1) then
       frac = 1.
-      goto 66
+      exit
     endif
     ttemp_old=ttemp_new
     ztemp1=ztemp2
   end do
-
-66  continue
 
   zteta=uvheight(i-1)*(1.-frac)+uvheight(i)*frac
 

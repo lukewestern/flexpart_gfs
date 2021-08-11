@@ -183,8 +183,8 @@ subroutine partoutput(itime)
 
   ! Write the output
   !*****************
-      call zeta_to_z(itime,xtra1(j),ytra1(j),ztra1eta(j),ztemp)
-
+      call zeta_to_z(itime,xtra1(i),ytra1(i),ztra1eta(i),ztemp)
+      
       write(unitpartout) npoint(i),xlon,ylat,ztemp, &
            itramem(i),topo,pvi,qvi,rhoi,hmixi,tri,tti, &
            (xmass1(i,j),j=1,nspec)

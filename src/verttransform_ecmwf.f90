@@ -2,7 +2,7 @@
 ! SPDX-License-Identifier: GPL-3.0-or-later
 
 subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
-!                         i  i   i   i   i
+!                              i  i   i   i   i
 !*****************************************************************************
 !                                                                            *
 !     This subroutine transforms temperature, dew point temperature and      *
@@ -183,10 +183,9 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     do kz=1,nz
       if (height(kz).gt.hmixmax) then
         nmixz=kz
-        goto 9
+        exit
       endif
     end do
-9   continue
 
 ! Do not repeat initialization of the Cartesian z grid
 !*****************************************************
@@ -450,18 +449,24 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
   end do
 
 ! Keep original fields
-  uueta(:,:,1,n) = 0.
-  vveta(:,:,1,n) = 0.
-  tteta(:,:,1,n) = tt2(:,:,1,n) ! 2 m temperature
-  qveta(:,:,1,n) = 0.378/0.608*ew(td2(:,:,1,n))/ps(:,:,1,n) ! there is probably a better way to define this
-  pveta(:,:,1,n) = pvh(:,:,1)
-  rhoeta(:,:,1,n) = rhoh(:,:,1)
-  uueta(:,:,2:,n) = uuh(:,:,:)
-  vveta(:,:,2:,n) = vvh(:,:,:)
-  tteta(:,:,2:,n) = tth(:,:,:,n)
-  qveta(:,:,2:,n) = qvh(:,:,:,n)
-  pveta(:,:,2:,n) = pvh(:,:,:)
-  rhoeta(:,:,2:,n) = rhoh(:,:,:)
+  ! uueta(:,:,1,n) = 0.
+  ! vveta(:,:,1,n) = 0.
+  ! tteta(:,:,1,n) = tt2(:,:,1,n) ! 2 m temperature
+  ! qveta(:,:,1,n) = qvh(:,:,1,n) ! 0.378/0.608*ew(td2(:,:,1,n))/ps(:,:,1,n) ! there is probably a better way to define this
+  ! pveta(:,:,1,n) = pvh(:,:,1)
+  ! rhoeta(:,:,1,n) = rhoh(:,:,1)
+  ! uueta(:,:,2:,n) = uuh(:,:,:)
+  ! vveta(:,:,2:,n) = vvh(:,:,:)
+  ! tteta(:,:,2:,n) = tth(:,:,:,n)
+  ! qveta(:,:,2:,n) = qvh(:,:,:,n)
+  ! pveta(:,:,2:,n) = pvh(:,:,:)
+  ! rhoeta(:,:,2:,n) = rhoh(:,:,:)
+  uueta(:,:,:,n) = uuh(:,:,:)
+  vveta(:,:,:,n) = vvh(:,:,:)
+  tteta(:,:,:,n) = tth(:,:,:,n)
+  qveta(:,:,:,n) = qvh(:,:,:,n)
+  pveta(:,:,:,n) = pvh(:,:,:)
+  rhoeta(:,:,:,n) = rhoh(:,:,:)
   drhodzeta(:,:,1,n)=(rhoeta(:,:,2,n)-rhoeta(:,:,1,n))/ &
        (height(2)-height(1))
   do kz=2,nz-1
