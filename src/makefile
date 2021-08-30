@@ -106,7 +106,7 @@ unc_mod.o               oh_mod.o \
 xmass_mod.o             flux_mod.o \
 point_mod.o             outg_mod.o \
 mean_mod.o	 	random_mod.o \
-class_gribfile_mod.o
+class_gribfile_mod.o	coordinates_ecmwf.o
 
 MPI_MODOBJS = \
 mpi_mod.o
@@ -197,8 +197,7 @@ ohreaction.o            getvdep_nests.o \
 initial_cond_calc.o     initial_cond_output.o initial_cond_output_inversion.o \
 dynamic_viscosity.o     get_settling.o	\
 initialize_cbl_vel.o	re_initialize_particle.o \
-cbl.o  \
-z_to_zeta.o		zeta_to_z.o
+cbl.o 
 
 ifeq ($(ncf), no)
 	OBJECTS	:= $(OBJECTS)
@@ -247,7 +246,7 @@ cleanall:
 
 ## DEPENDENCIES
 advance.o: cmapf_mod.o com_mod.o hanna_mod.o interpol_mod.o par_mod.o \
-	point_mod.o random_mod.o
+	point_mod.o random_mod.o coordinates_ecmwf.o
 assignland.o: com_mod.o par_mod.o
 boundcond_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o
 boundcond_domainfill_mpi.o: com_mod.o mpi_mod.o par_mod.o point_mod.o \
@@ -317,13 +316,15 @@ gridcheck_nests.o: com_mod.o par_mod.o
 hanna.o: com_mod.o hanna_mod.o par_mod.o
 hanna1.o: com_mod.o hanna_mod.o par_mod.o
 hanna_short.o: com_mod.o hanna_mod.o par_mod.o
-init_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o
+init_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
+       interpol_mod.o coordinates_ecmwf.o
 init_domainfill_mpi.o: com_mod.o mpi_mod.o par_mod.o point_mod.o random_mod.o
 initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o
 initial_cond_output.o: com_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o
 initial_cond_output_inversion.o: com_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
-initialize.o: com_mod.o hanna_mod.o interpol_mod.o par_mod.o random_mod.o
+initialize.o: com_mod.o hanna_mod.o interpol_mod.o par_mod.o random_mod.o \
+	interpol_mod.o coordinates_ecmwf.o
 initialize_cbl_vel.o: com_mod.o par_mod.o random_mod.o
 interpol_mod.o: par_mod.o com_mod.o hanna_mod.o
 juldate.o: par_mod.o
@@ -340,13 +341,13 @@ outgrid_init.o: com_mod.o flux_mod.o oh_mod.o outg_mod.o par_mod.o unc_mod.o
 outgrid_init_nest.o: com_mod.o outg_mod.o par_mod.o unc_mod.o
 part0.o: par_mod.o
 partdep.o: com_mod.o par_mod.o
-partoutput.o: com_mod.o par_mod.o
+partoutput.o: com_mod.o par_mod.o interpol_mod.o coordinates_ecmwf.o
 partoutput_average.o: com_mod.o par_mod.o
 partoutput_average_mpi.o: com_mod.o mpi_mod.o par_mod.o
 partoutput_mpi.o: com_mod.o mpi_mod.o par_mod.o
 partoutput_short.o: com_mod.o par_mod.o
 partoutput_short_mpi.o: com_mod.o mpi_mod.o par_mod.o
-partpos_average.o: com_mod.o par_mod.o
+partpos_average.o: com_mod.o par_mod.o interpol_mod.o coordinates_ecmwf.o
 pbl_profile.o: par_mod.o
 plumetraj.o: com_mod.o mean_mod.o par_mod.o point_mod.o
 psih.o: par_mod.o
@@ -372,9 +373,10 @@ readwind_ecmwf_mpi.o: com_mod.o mpi_mod.o par_mod.o
 readwind_emos.o: com_mod.o par_mod.o
 readwind_gfs.o: com_mod.o par_mod.o
 readwind_nests.o: com_mod.o par_mod.o
-redist.o: com_mod.o conv_mod.o par_mod.o random_mod.o
+redist.o: com_mod.o conv_mod.o par_mod.o random_mod.o interpol_mod.o coordinates_ecmwf.o
 redist_mpi.o: com_mod.o conv_mod.o mpi_mod.o par_mod.o random_mod.o
-releaseparticles.o: com_mod.o par_mod.o point_mod.o random_mod.o xmass_mod.o
+releaseparticles.o: com_mod.o par_mod.o point_mod.o random_mod.o xmass_mod.o \
+	interpol_mod.o coordinates_ecmwf.o
 releaseparticles_mpi.o: com_mod.o mpi_mod.o par_mod.o point_mod.o \
 	random_mod.o xmass_mod.o
 richardson.o: par_mod.o
@@ -399,5 +401,4 @@ writeheader_surf.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeheader_txt.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeprecip.o: com_mod.o par_mod.o point_mod.o
 zenithangle.o: par_mod.o
-z_to_zeta.o: com_mod.o par_mod.o interpol_mod.o
-zeta_to_z.o: com_mod.o par_mod.o interpol_mod.o
+coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o
