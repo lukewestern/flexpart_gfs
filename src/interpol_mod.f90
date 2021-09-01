@@ -1833,7 +1833,7 @@ subroutine interpol_all_meter(zt)
       call compute_standard_deviation(vv,vsigprof(n),n,n,nzmax)
     endif
     call bilinear_horizontal_interpolation(ww,y3,n,nwzmax)
-    call bilinear_horizontal_interpolation(drhodzeta,rhograd1,n,nzmax)
+    call bilinear_horizontal_interpolation(drhodz,rhograd1,n,nzmax)
     call bilinear_horizontal_interpolation(rho,rho1,n,nzmax)
 
     call temporal_interpolation(y1(1),y1(2),uprof(n))
@@ -1909,14 +1909,14 @@ subroutine interpol_misslev_meter(n)
     call compute_standard_deviation(uu,usigprof(n),n,n,nzmax)
     call compute_standard_deviation(vv,vsigprof(n),n,n,nzmax)
   endif
-  ! call bilinear_horizontal_interpolation(drhodz,rhograd1,n,nzmax)
+  call bilinear_horizontal_interpolation(drhodz,rhograd1,n,nzmax)
   call bilinear_horizontal_interpolation(rho,rho1,n,nzmax)
 
   call temporal_interpolation(y1(1),y1(2),uprof(n))
   call temporal_interpolation(y2(1),y2(2),vprof(n))
   call temporal_interpolation(y3(1),y3(2),wprof(n))
   call temporal_interpolation(rho1(1),rho1(2),rhoprof(n))
-  ! call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(n)) 
+  call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(n)) 
 end subroutine interpol_misslev_meter
 
 subroutine interpol_wind_eta(zt,zteta)
@@ -2094,11 +2094,11 @@ subroutine interpol_wind_short_meter(zt)
   call temporal_interpolation(wh(1),wh(2),w)
 
   if (ngrid.lt.0) then
-    call bilinear_spatial_interpolation(uupoleta,uh,indz,dz1,dz2,nzmax)
-    call bilinear_spatial_interpolation(vvpoleta,vh,indz,dz1,dz2,nzmax)
+    call bilinear_spatial_interpolation(uupol,uh,indz,dz1,dz2,nzmax)
+    call bilinear_spatial_interpolation(vvpol,vh,indz,dz1,dz2,nzmax)
   else
-    call bilinear_spatial_interpolation(uueta,uh,indz,dz1,dz2,nzmax)
-    call bilinear_spatial_interpolation(vveta,vh,indz,dz1,dz2,nzmax)
+    call bilinear_spatial_interpolation(uu,uh,indz,dz1,dz2,nzmax)
+    call bilinear_spatial_interpolation(vv,vh,indz,dz1,dz2,nzmax)
   endif
   call temporal_interpolation(uh(1),uh(2),u)
   call temporal_interpolation(vh(1),vh(2),v)
