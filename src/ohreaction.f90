@@ -31,7 +31,7 @@ subroutine ohreaction(itime,ltsample,loutnext)
   implicit none
 
   integer :: jpart,itime,ltsample,loutnext,ldeltat,j,k,ix,jy!,ijx,jjy
-  integer :: ngrid,interp_time,n,m,h,indz,i!,ia,il
+  integer :: ngrid,interp_time,m,n,h,indz,i!,ia,il
   integer :: jjjjmmdd,hhmmss,OHx,OHy,OHz
   real, dimension(nzOH) :: altOHtop
   real :: xlon,ylat 
@@ -57,7 +57,11 @@ subroutine ohreaction(itime,ltsample,loutnext)
 
   ! Loop over particles
   !*****************************************
+!$OMP PARALLEL PRIVATE(jpart,xtn,ytn,j,k,ix,jy,interp_time, &
+!$OMP n,indz,i,xlon,ylat,OHx,OHy,OHz,oh_average,temp,ohrate, &
+!$OMP restmass,ohreacted,altOHtop,ngrid)
 
+!$OMP DO
   do jpart=1,numpart
 
     ! Determine which nesting level to be used
@@ -66,10 +70,9 @@ subroutine ohreaction(itime,ltsample,loutnext)
       if ((xtra1(jpart).gt.xln(j)).and.(xtra1(jpart).lt.xrn(j)).and. &
            (ytra1(jpart).gt.yln(j)).and.(ytra1(jpart).lt.yrn(j))) then
         ngrid=j
-        goto 23
+        exit
       endif
     end do
-23  continue
 
     ! Determine nested grid coordinates
     if (ngrid.gt.0) then
@@ -89,10 +92,9 @@ subroutine ohreaction(itime,ltsample,loutnext)
     do i=2,nz
       if (height(i).gt.ztra1(jpart)) then
         indz=i-1
-        goto 6
+        exit
       endif
     end do
-6   continue
 
     ! Get OH from nearest grid-cell and specific month 
     !*************************************************
@@ -152,6 +154,8 @@ subroutine ohreaction(itime,ltsample,loutnext)
 
   end do  !continue loop over all particles
 
+!$OMP END DO
+!$OMP END PARALLEL
 
 end subroutine ohreaction
 
