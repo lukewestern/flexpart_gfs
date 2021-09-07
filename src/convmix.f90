@@ -179,7 +179,7 @@ subroutine convmix(itime,metdata_format)
       igrold=igrid(kpart)
       cnt=cnt+1
     endif
-  enddo 
+  end do 
   frst(cnt) = numpart+1
 
   conv_cnt = 0
@@ -241,9 +241,8 @@ subroutine convmix(itime,metdata_format)
         if (iflux.eq.1) then
           itage=abs(itra1(ipart)-itramem(ipart))
           do nage=1,nageclass
-            if (itage.lt.lage(nage)) goto 37
+            if (itage.lt.lage(nage)) exit
           end do
-   37     continue
 
           if (nage.le.nageclass) &
             call calcfluxes(nage,ipart,real(xtra1(ipart)), &
@@ -252,7 +251,6 @@ subroutine convmix(itime,metdata_format)
       enddo
 
     endif   !(lconv .eqv. .true)
- 50 continue
   end do
 !$OMP END DO
 !$OMP END PARALLEL
@@ -279,7 +277,7 @@ subroutine convmix(itime,metdata_format)
     igrold = -1
     do kpart=1,numpart
       igr = igrid(kpart)
-      if (igr .eq. -1) goto 60
+      if (igr .eq. -1) cycle
       ipart = ipoint(kpart)
       ! sumall = sumall + 1
       if (igr .ne. igrold) then
@@ -322,9 +320,8 @@ subroutine convmix(itime,metdata_format)
         if (iflux.eq.1) then
           itage=abs(itra1(ipart)-itramem(ipart))
           do nage=1,nageclass
-            if (itage.lt.lage(nage)) goto 47
+            if (itage.lt.lage(nage)) exit
           end do
- 47       continue
 
           if (nage.le.nageclass) &
                call calcfluxes(nage,ipart,real(xtra1(ipart)), &
@@ -333,8 +330,6 @@ subroutine convmix(itime,metdata_format)
 
       endif !(lconv .eqv. .true.)
 
-
-60    continue
     end do
   end do
   !--------------------------------------------------------------------------
