@@ -110,7 +110,7 @@ subroutine convmix(itime,metdata_format)
         if ( x.gt.xln(j)+eps .and. x.lt.xrn(j)-eps .and. &
              y.gt.yln(j)+eps .and. y.lt.yrn(j)-eps ) then
           ngrid=j
-          goto 23
+          exit
         endif
       end do
     else
@@ -118,11 +118,11 @@ subroutine convmix(itime,metdata_format)
         if ( x.gt.xln(j) .and. x.lt.xrn(j) .and. &
              y.gt.yln(j) .and. y.lt.yrn(j) ) then
           ngrid=j
-          goto 23
+          exit
         endif
       end do
     endif
- 23   continue
+ ! 23   continue
 
   ! Determine nested grid coordinates
   !**********************************
@@ -142,8 +142,6 @@ subroutine convmix(itime,metdata_format)
       !igrid(ipart) = 1 + jy*nx + ix
       igrid(ipart) = 1 + ix*ny + jy
     endif
-
- 20 continue
   end do
 !$OMP END DO
 !$OMP END PARALLEL

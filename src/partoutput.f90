@@ -113,6 +113,7 @@ subroutine partoutput(itime)
   if (lnetcdfout.eq.1) then 
 #ifdef USE_NCF
   j=1
+  call partoutput_netcdf(itime,xlon,'TI',j)
   call partoutput_netcdf(itime,xlon,'LO',j)
   call partoutput_netcdf(itime,ylat,'LA',j)
   call partoutput_netcdf(itime,ztra1,'ZZ',j)

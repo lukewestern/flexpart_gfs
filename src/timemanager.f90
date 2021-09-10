@@ -145,8 +145,6 @@ subroutine timemanager(metdata_format)
 
   write(*,46) float(itime)/3600,itime,numpart
 
-  call writeheader_partoutput(ibtime,ibdate)
-
   do itime=0,ideltas,lsynctime
 
   ! Computation of wet deposition, OH reaction and mass transfer
@@ -181,6 +179,7 @@ subroutine timemanager(metdata_format)
   ! In case of ETA coordinates being read from file, convert the z positions
   !*************************************************************************
     if ((ipin.eq.1).and.(itime.eq.0).and.(wind_coord_type.eq.'ETA')) then 
+      if (numpart.le.0) stop 'Something is going wrong reading the old particle file!'
 !$OMP PARALLEL PRIVATE(i)
 !$OMP DO
       do i=1,numpart
@@ -207,6 +206,10 @@ subroutine timemanager(metdata_format)
     else
       call releaseparticles(itime)
     endif
+
+#ifdef USE_NCF
+    if (itime.eq.0) call writeheader_partoutput(ibtime,ibdate)
+#endif
 
   ! Compute convective mixing for forward runs
   ! for backward runs it is done before next windfield is read in
