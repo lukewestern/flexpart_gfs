@@ -312,10 +312,10 @@ subroutine redist (itime,ipart,ktop,ipconv)
       if (ztra1(abs(ipart)) .gt. height(nz)-0.5) &
            ztra1(abs(ipart)) = height(nz)-0.5
 
-      if (ztra1eta(abs(ipart)) .lt. uvheight(nz-1)) &
-           ztra1eta(abs(ipart)) = uvheight(nz-1)+1.e-5
+      if (ztra1eta(abs(ipart)) .lt. uvheight(nz)) &
+           ztra1eta(abs(ipart)) = uvheight(nz)+1.e-4
       if (ztra1eta(abs(ipart)).ge.1.) ztra1eta(abs(ipart))=1.-(ztra1eta(abs(ipart))-1.)
-      if (ztra1eta(abs(ipart)).eq.1.) ztra1eta(abs(ipart))=ztra1eta(abs(ipart))-1.e-5
+      if (ztra1eta(abs(ipart)).eq.1.) ztra1eta(abs(ipart))=ztra1eta(abs(ipart))-1.e-4
     case ('METER')
       if (ztra1(abs(ipart)) .gt. height(nz)-0.5) &
            ztra1(abs(ipart)) = height(nz)-0.5
