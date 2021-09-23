@@ -186,7 +186,7 @@ contains
     if (mp_ierr /= 0) goto 100
     call MPI_COMM_SIZE(MPI_COMM_WORLD, mp_np, mp_ierr)
     if (mp_ierr /= 0) goto 100
-    write(*,*) 'Proces: ', mp_pid
+
 
 ! Variable mpi_mode is used to handle subroutines common to parallel/serial version
     if (lmp_sync) then
@@ -284,10 +284,8 @@ contains
         mp_partgroup_rank(i) = j
       end do
 
-      write(*,*) 'There are ', mp_np, ' processes running.'
       call MPI_Group_incl (world_group_id, mp_np-1, mp_partgroup_rank, &
            &mp_partgroup_pid, mp_ierr)
-      write(*,*) mp_partgroup_rank, mp_partgroup_pid
       if (mp_ierr /= 0) goto 100
       call MPI_Comm_create (MPI_COMM_WORLD, mp_partgroup_pid, mp_partgroup_comm, mp_ierr)
       if (mp_ierr /= 0) goto 100

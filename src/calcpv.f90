@@ -53,11 +53,7 @@ subroutine calcpv(n,uuh,vvh,pvh)
 
 !  ppmk(:,:,1:nuvz)=(100000./ppml(:,:,1:nuvz))**kappa
   ppmk(0:nxmin1,0:nymin1,1:nuvz)=(100000./ppml(0:nxmin1,0:nymin1,1:nuvz))**kappa
-!$OMP PARALLEL PRIVATE(jy,ix,kl,phi,f,tanphi,cosphi,jyvp,jyvm,jumpy,juy, &
-!$OMP ixvp,ixvm,jumpx,ivrp,ivrm,jux,theta,klvrp,klvrm,klpt,thetap,thetam,dthetadp, &
-!$OMP ii,i,ivr,kdn,kch,kup,thdn,thup,dt1,dt2,dt,vx,k,dvdx, &
-!$OMP jj,j,uy,dudy)
-!$OMP DO
+
   do jy=0,nymin1
     if (sglobal.and.jy.eq.0) goto 10
     if (nglobal.and.jy.eq.nymin1) goto 10
@@ -66,22 +62,22 @@ subroutine calcpv(n,uuh,vvh,pvh)
     tanphi = tan(phi)
     cosphi = cos(phi)
   ! Provide a virtual jy+1 and jy-1 in case we are on domain edge (Lat)
-    jyvp=jy+1
-    jyvm=jy-1
-    if (jy.eq.0) jyvm=0
-    if (jy.eq.nymin1) jyvp=nymin1
+      jyvp=jy+1
+      jyvm=jy-1
+      if (jy.eq.0) jyvm=0
+      if (jy.eq.nymin1) jyvp=nymin1
   ! Define absolute gap length
-    jumpy=2
-    if (jy.eq.0.or.jy.eq.nymin1) jumpy=1
-    if (sglobal.and.jy.eq.1) then
-      jyvm=1
-      jumpy=1
-    end if
-    if (nglobal.and.jy.eq.ny-2) then
-      jyvp=ny-2
-      jumpy=1
-    end if
-    juy=jumpy
+      jumpy=2
+      if (jy.eq.0.or.jy.eq.nymin1) jumpy=1
+      if (sglobal.and.jy.eq.1) then
+         jyvm=1
+         jumpy=1
+      end if
+      if (nglobal.and.jy.eq.ny-2) then
+         jyvp=ny-2
+         jumpy=1
+      end if
+      juy=jumpy
   !
     do ix=0,nxmin1
   ! Provide a virtual ix+1 and ix-1 in case we are on domain edge (Long)
@@ -186,22 +182,22 @@ subroutine calcpv(n,uuh,vvh,pvh)
           endif
           goto 40
   ! This section used when no values were found
-21        continue
+21      continue
   ! Must use vv at current level and long. jux becomes smaller by 1
-          vx(ii)=vvh(ix,jy,kl)
-          jux=jux-1
+        vx(ii)=vvh(ix,jy,kl)
+        jux=jux-1
   ! Otherwise OK
 20        continue
         end do
-        if (jux.gt.0) then
-          dvdx=(vx(2)-vx(1))/real(jux)/(dx*pi/180.)
-        else
-          dvdx=vvh(ivrp,jy,kl)-vvh(ivrm,jy,kl)
-          dvdx=dvdx/real(jumpx)/(dx*pi/180.)
+      if (jux.gt.0) then
+      dvdx=(vx(2)-vx(1))/real(jux)/(dx*pi/180.)
+      else
+      dvdx=vvh(ivrp,jy,kl)-vvh(ivrm,jy,kl)
+      dvdx=dvdx/real(jumpx)/(dx*pi/180.)
   ! Only happens if no equivalent theta value
   ! can be found on either side, hence must use values
   ! from either side, same pressure level.
-        end if
+      end if
 
   ! b) in y direction
 
@@ -259,7 +255,7 @@ subroutine calcpv(n,uuh,vvh,pvh)
           endif
           goto 70
   ! This section used when no values were found
-51        continue
+51      continue
   ! Must use uu at current level and lat. juy becomes smaller by 1
           uy(jj)=uuh(ix,jy,kl)
           juy=juy-1
@@ -285,37 +281,35 @@ subroutine calcpv(n,uuh,vvh,pvh)
     end do
 10  continue
   end do
-!$OMP END DO 
-!$OMP END PARALLEL
   !
   ! Fill in missing PV values on poles, if present
   ! Use mean PV of surrounding latitude ring
   !
-  if (sglobal) then
-     do kl=1,nuvz
-        pvavr=0.
-        do ix=0,nxmin1
-           pvavr=pvavr+pvh(ix,1,kl)
-        end do
-        pvavr=pvavr/real(nx)
-        jy=0
-        do ix=0,nxmin1
-           pvh(ix,jy,kl)=pvavr
-        end do
-     end do
-  end if
-  if (nglobal) then
-     do kl=1,nuvz
-        pvavr=0.
-        do ix=0,nxmin1
-           pvavr=pvavr+pvh(ix,ny-2,kl)
-        end do
-        pvavr=pvavr/real(nx)
-        jy=nymin1
-        do ix=0,nxmin1
-           pvh(ix,jy,kl)=pvavr
-        end do
-     end do
-  end if
+      if (sglobal) then
+         do kl=1,nuvz
+            pvavr=0.
+            do ix=0,nxmin1
+               pvavr=pvavr+pvh(ix,1,kl)
+            end do
+            pvavr=pvavr/real(nx)
+            jy=0
+            do ix=0,nxmin1
+               pvh(ix,jy,kl)=pvavr
+            end do
+         end do
+      end if
+      if (nglobal) then
+         do kl=1,nuvz
+            pvavr=0.
+            do ix=0,nxmin1
+               pvavr=pvavr+pvh(ix,ny-2,kl)
+            end do
+            pvavr=pvavr/real(nx)
+            jy=nymin1
+            do ix=0,nxmin1
+               pvh(ix,jy,kl)=pvavr
+            end do
+         end do
+      end if
 
 end subroutine calcpv

@@ -73,9 +73,7 @@ subroutine timemanager(metdata_format)
   ! maxpart            maximum number of trajectories                          *
   !                                                                            *
   !*****************************************************************************
-  ! openmp change
-  use omp_lib
-  ! openmp change end
+
   use unc_mod
   use point_mod
   use xmass_mod
@@ -88,30 +86,25 @@ subroutine timemanager(metdata_format)
   use netcdf_output_mod, only: concoutput_netcdf,concoutput_nest_netcdf,&
        &concoutput_surf_netcdf,concoutput_surf_nest_netcdf,writeheader_partoutput
 #endif
-  use coordinates_ecmwf, only: z_to_zeta
 
   implicit none
-  real, parameter ::        &
-    e_inv = 1.0/exp(1.0)  
-  integer, intent(in) ::    &
-    metdata_format            ! Data type of the windfields
-  integer ::                &
-    j,i,                    & ! loop variable
-    ks,                     & ! loop variable species
-    kp,                     & ! loop variable for maxpointspec_act
-    l,                      & ! loop variable over nclassunc
-    n,                      & ! loop variable over particles
-    itime=0,                & ! time index
-    nstop(maxpart),                  & ! particle fate flag
-    nstop1,                 & ! windfield existence flag
-    loutnext,               & ! following timestep
-    loutstart,loutend,      & ! concentration calculation starting and ending time
-    ix,jy,                  & ! gridcell indices
-    ldeltat,                & ! radioactive decay time
-    itage,nage,             & ! related to age classes
-    idummy,                 & ! used for the random routines
-    i_nan=0,ii_nan,total_nan_intl=0, &  !added by mc to check instability in CBL scheme 
-    thread                    ! openmp change (not sure if necessary)
+
+  integer :: metdata_format
+  integer :: j,ks,kp,l,n,itime=0,nstop,nstop1,i
+! integer :: ksp
+  integer :: loutnext,loutstart,loutend
+  integer :: ix,jy,ldeltat,itage,nage,idummy
+  integer :: i_nan=0,ii_nan,total_nan_intl=0  !added by mc to check instability in CBL scheme 
+  real :: outnum,weight,prob_rec(maxspec),prob(maxspec),decfact,wetscav
+  ! real :: uap(maxpart),ucp(maxpart),uzp(maxpart)
+  ! real :: us(maxpart),vs(maxpart),ws(maxpart)
+  ! integer(kind=2) :: cbt(maxpart)
+  real(sp) :: gridtotalunc
+  real(dep_prec) :: drydeposit(maxspec),wetgridtotalunc,drygridtotalunc
+  real :: xold,yold,zold,xmassfract
+  real :: grfraction(3)
+  real, parameter :: e_inv = 1.0/exp(1.0)
+
 #ifdef USE_NCF
   real ::                   &
     filesize                  ! Keeping track of the size of the particledump output, so it can be splitted
@@ -120,24 +113,13 @@ subroutine timemanager(metdata_format)
   integer ::                &
     jjjjmmdd,ihmmss
 #endif
-  real ::                   &
-    outnum,                 & ! concentration calculation sample number
-    weight,                 & ! concentration calculation sample weight
-    prob_rec(maxspec),      & ! dry deposition related
-    prob(maxpart,maxspec),  & ! dry deposition ground absorption probability
-    prob_temp(maxspec),     & ! temporary for storing prob values
-    decfact,                & ! radioactive decay factor
-    wetscav,                & ! wet scavenging
-    xold(maxpart),yold(maxpart),zold(maxpart),         & ! storing old positions
-    xmassfract,             & ! dry deposition related
-    grfraction(3)             ! wet deposition related
-  real(sp) ::               &
-    gridtotalunc              ! concentration calculation related
-  real(dep_prec) ::         &
-    drydeposit(maxspec),    & ! dry deposition related
-    wetgridtotalunc,        & ! concentration calculation related
-    drygridtotalunc           ! concentration calculation related
 
+  !double precision xm(maxspec,maxpointspec_act),
+  !    +                 xm_depw(maxspec,maxpointspec_act),
+  !    +                 xm_depd(maxspec,maxpointspec_act)
+
+
+  !open(88,file='TEST.dat')
 
   ! First output for time 0
   !************************
@@ -147,15 +129,37 @@ subroutine timemanager(metdata_format)
   loutstart=loutnext-loutaver/2
   loutend=loutnext+loutaver/2
 
+#ifdef USE_NCF
+  filesize=0.
+#endif
+
+  !  open(127,file=path(2)(1:length(2))//'depostat.dat'
+  !    +  ,form='unformatted')
+  !write (*,*) 'writing deposition statistics depostat.dat!'
+
   !**********************************************************************
   ! Loop over the whole modelling period in time steps of mintime seconds
   !**********************************************************************
 
+!ZHG 2015
+!CGZ-lifetime: set lifetime to 0
+  ! checklifetime(:,:)=0
+  ! species_lifetime(:,:)=0
+  ! print*, 'Initialized lifetime'
+!CGZ-lifetime: set lifetime to 0
+  
+  if (.not.lusekerneloutput) write(*,*) 'Not using the kernel'
+  if (turboff) write(*,*) 'Turbulence switched off'
+
   write(*,46) float(itime)/3600,itime,numpart
 
-#ifdef USE_NCF
-  filesize=0.
-#endif
+  if (verbosity.gt.0) then
+    write (*,*) 'timemanager> starting simulation'
+    if (verbosity.gt.1) then
+      CALL SYSTEM_CLOCK(count_clock)
+      WRITE(*,*) 'timemanager> SYSTEM CLOCK',(count_clock - count_clock0)/real(count_rate)
+    endif     
+  endif
 
   do itime=0,ideltas,lsynctime
 
@@ -170,67 +174,104 @@ subroutine timemanager(metdata_format)
   !********************************************************************
 
     if (WETDEP .and. itime .ne. 0 .and. numpart .gt. 0) then
-      call wetdepo(itime,lsynctime,loutnext)
+        if (verbosity.gt.0) then
+           write (*,*) 'timemanager> call wetdepo'
+        endif     
+         call wetdepo(itime,lsynctime,loutnext)
     endif
 
     if (OHREA .and. itime .ne. 0 .and. numpart .gt. 0) &
-      call ohreaction(itime,lsynctime,loutnext)
+         call ohreaction(itime,lsynctime,loutnext)
+
+    if (ASSSPEC .and. itime .ne. 0 .and. numpart .gt. 0) then
+       stop 'associated species not yet implemented!'
+  !     call transferspec(itime,lsynctime,loutnext)
+    endif
 
   ! compute convection for backward runs
   !*************************************
 
-    if ((ldirect.eq.-1).and.(lconvection.eq.1).and.(itime.lt.0)) then    
+   if ((ldirect.eq.-1).and.(lconvection.eq.1).and.(itime.lt.0)) then
+        if (verbosity.gt.0) then
+           write (*,*) 'timemanager> call convmix -- backward'
+        endif         
       call convmix(itime,metdata_format)
-    endif
+        if (verbosity.gt.1) then
+          !CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
+          CALL SYSTEM_CLOCK(count_clock)
+          WRITE(*,*) 'timemanager> SYSTEM CLOCK',(count_clock - count_clock0)/real(count_rate)
+        endif 
+   endif
 
   ! Get necessary wind fields if not available
   !*******************************************
+    if (verbosity.gt.0) then
+           write (*,*) 'timemanager> call getfields'
+    endif 
     call getfields(itime,nstop1,metdata_format)
+        if (verbosity.gt.1) then
+          CALL SYSTEM_CLOCK(count_clock)
+          WRITE(*,*) 'timemanager> SYSTEM CLOCK',(count_clock - count_clock0)/real(count_rate)
+        endif 
     if (nstop1.gt.1) stop 'NO METEO FIELDS AVAILABLE'
-
-  ! In case of ETA coordinates being read from file, convert the z positions
-  !*************************************************************************
-    if ((ipin.eq.1).and.(itime.eq.0).and.(wind_coord_type.eq.'ETA')) then 
-      if (numpart.le.0) stop 'Something is going wrong reading the old particle file!'
-!$OMP PARALLEL PRIVATE(i)
-!$OMP DO
-      do i=1,numpart
-        call z_to_zeta(itime,xtra1(i),ytra1(i),ztra1(i),ztra1eta(i))
-      end do
-!$OMP END DO
-!$OMP END PARALLEL
-    endif
 
   ! Get hourly OH fields if not available 
   !****************************************************
     if (OHREA) then
+      if (verbosity.gt.0) then
+             write (*,*) 'timemanager> call gethourlyOH'
+      endif
       call gethourlyOH(itime)
+          if (verbosity.gt.1) then
+            CALL SYSTEM_CLOCK(count_clock)
+            WRITE(*,*) 'timemanager> SYSTEM CLOCK',(count_clock - count_clock0)/real(count_rate)
+          endif
     endif
         
   ! Release particles
   !******************
+
+    if (verbosity.gt.0) then
+           write (*,*) 'timemanager>  Release particles'
+    endif 
+
     if (mdomainfill.ge.1) then
-      if (itime.eq.0) then   
+      if (itime.eq.0) then
+        if (verbosity.gt.0) then
+          write (*,*) 'timemanager>  call init_domainfill'
+        endif       
         call init_domainfill
-      else 
+      else
+        if (verbosity.gt.0) then
+          write (*,*) 'timemanager>  call boundcond_domainfill'
+        endif   
         call boundcond_domainfill(itime,loutend)
       endif
     else
+      if (verbosity.gt.0) then
+        print*,'call releaseparticles'  
+      endif
       call releaseparticles(itime)
+      if (verbosity.gt.1) then
+        CALL SYSTEM_CLOCK(count_clock)
+        WRITE(*,*) 'timemanager> SYSTEM CLOCK',(count_clock - count_clock0)/real(count_rate)
+      endif 
     endif
 
 #ifdef USE_NCF
     if (ipout.ge.1) then
       if (itime.eq.0) then 
-        call writeheader_partoutput(ibtime,ibdate,ibtime,ibdate)
+        call writeheader_partoutput(ibtime,ibdate)
       else if (mod(itime,ipoutfac*loutstep).eq.0) then
-        if (filesize.ge.max_partoutput_filesize) then 
-          jul=bdate+real(itime,kind=dp)/86400._dp
-          call caldate(jul,jjjjmmdd,ihmmss)
-          call writeheader_partoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
-          filesize = 0.
-        endif
-        filesize = filesize + numpart*13.*4./1000000.
+          if (filesize.ge.max_partoutput_filesize) then 
+            jul=bdate+real(itime,kind=dp)/86400._dp
+            call caldate(jul,jjjjmmdd,ihmmss)
+            call writeheader_partoutput(ihmmss,jjjjmmdd)
+            filesize = 0.
+          endif
+          do i=1,numpoint
+            filesize = filesize + npart(i)*13.*4./1000000.
+          end do
       endif
     endif
 #endif
@@ -238,14 +279,18 @@ subroutine timemanager(metdata_format)
   ! Compute convective mixing for forward runs
   ! for backward runs it is done before next windfield is read in
   !**************************************************************
-    if ((ldirect.eq.1).and.(lconvection.eq.1)) then
-      call convmix(itime,metdata_format)
-    endif
+
+   if ((ldirect.eq.1).and.(lconvection.eq.1)) then
+     if (verbosity.gt.0) then
+       write (*,*) 'timemanager> call convmix -- forward'
+     endif    
+     call convmix(itime,metdata_format)
+   endif
 
   ! If middle of averaging period of output fields is reached, accumulated
   ! deposited mass radioactively decays
   !***********************************************************************
-  ! This should go in a subroutine
+
     if (DEP.and.(itime.eq.loutnext).and.(ldirect.gt.0)) then
       do ks=1,nspec
       do kp=1,maxpointspec_act
@@ -283,9 +328,50 @@ subroutine timemanager(metdata_format)
       end do
     endif
 
+  !!! CHANGE: These lines may be switched on to check the conservation
+  !!! of mass within FLEXPART
+  !   if (itime.eq.loutnext) then
+  !   do 247 ksp=1, nspec
+  !   do 247 kp=1, maxpointspec_act
+  !47         xm(ksp,kp)=0.
+
+  !   do 249 ksp=1, nspec
+  !     do 249 j=1,numpart
+  !          if (ioutputforeachrelease.eq.1) then
+  !            kp=npoint(j)
+  !          else
+  !            kp=1
+  !          endif
+  !       if (itra1(j).eq.itime) then
+  !          xm(ksp,kp)=xm(ksp,kp)+xmass1(j,ksp)
+  !         write(*,*) 'xmass: ',xmass1(j,ksp),j,ksp,nspec
+  !       endif
+  !49     continue
+  !  do 248 ksp=1,nspec
+  !  do 248 kp=1,maxpointspec_act
+  !  xm_depw(ksp,kp)=0.
+  !  xm_depd(ksp,kp)=0.
+  !     do 248 nage=1,nageclass
+  !       do 248 ix=0,numxgrid-1
+  !         do 248 jy=0,numygrid-1
+  !           do 248 l=1,nclassunc
+  !              xm_depw(ksp,kp)=xm_depw(ksp,kp)
+  !    +                  +wetgridunc(ix,jy,ksp,kp,l,nage)
+  !48                 xm_depd(ksp,kp)=xm_depd(ksp,kp)
+  !    +                  +drygridunc(ix,jy,ksp,kp,l,nage)
+  !             do 246 ksp=1,nspec
+  !46                    write(88,'(2i10,3e12.3)')
+  !    +              itime,ksp,(xm(ksp,kp),kp=1,maxpointspec_act),
+  !    +                (xm_depw(ksp,kp),kp=1,maxpointspec_act),
+  !    +                (xm_depd(ksp,kp),kp=1,maxpointspec_act)
+  !  endif
+  !!! CHANGE
+
+
+
   ! Check whether concentrations are to be calculated
   !**************************************************
-  ! Put all of the concentration stuff in a subroutine
+
     if ((ldirect*itime.ge.ldirect*loutstart).and. &
          (ldirect*itime.le.ldirect*loutend)) then ! add to grid
       if (mod(itime-loutstart,loutsample).eq.0) then
@@ -303,12 +389,16 @@ subroutine timemanager(metdata_format)
         call conccalc(itime,weight)
       endif
 
+
+      if ((mquasilag.eq.1).and.(itime.eq.(loutstart+loutend)/2)) &
+           call partoutput_short(itime)    ! dump particle positions in extremely compressed format
+
+
   ! Output and reinitialization of grid
   ! If necessary, first sample of new grid is also taken
   !*****************************************************
 
       if ((itime.eq.loutend).and.(outnum.gt.0.)) then
-if (grid_output.eq.1) then
         if ((iout.le.3.).or.(iout.eq.5)) then
           if (surf_only.ne.1) then 
             if (lnetcdfout.eq.1) then 
@@ -320,9 +410,9 @@ if (grid_output.eq.1) then
             endif
           else  
             if (verbosity.eq.1) then
-              print*,'call concoutput_surf '
-              call system_clock(count_clock)
-              write(*,*) 'system clock',count_clock - count_clock0   
+             print*,'call concoutput_surf '
+             call system_clock(count_clock)
+             write(*,*) 'system clock',count_clock - count_clock0   
             endif
             if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
@@ -337,7 +427,7 @@ if (grid_output.eq.1) then
                   write(*,*) 'system clock',count_clock - count_clock0 
                 endif
               else
-                call concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+              call concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
               endif
               if (verbosity.eq.1) then
                 print*,'called concoutput_surf '
@@ -370,29 +460,24 @@ if (grid_output.eq.1) then
           endif
           outnum=0.
         endif
-endif
         if ((iout.eq.4).or.(iout.eq.5)) call plumetraj(itime)
         if (iflux.eq.1) call fluxoutput(itime)
         write(*,45) itime,numpart,gridtotalunc,wetgridtotalunc,drygridtotalunc
  
+        !CGZ-lifetime: output species lifetime
+!ZHG
+        ! write(*,*) 'Overview species lifetime in days', &
+        !      real((species_lifetime(:,1)/species_lifetime(:,2))/real(3600.0*24.0))
+        ! write(*,*) 'all info:',species_lifetime
+!ZHG
+        !CGZ-lifetime: output species lifetime
 
+        !write(*,46) float(itime)/3600,itime,numpart
 45      format(i13,' Seconds simulated: ',i13, ' Particles:    Uncertainty: ',3f7.3)
 46      format(' Simulated ',f7.1,' hours (',i13,' s), ',i13, ' particles')
         if (ipout.ge.1) then
-          if (mod(itime,ipoutfac*loutstep).eq.0) then
-            call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-            s_temp = (count_clock - count_clock0)/real(count_rate)
-            call partoutput(itime) ! dump particle positions
-            call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-            s_writepart = s_writepart + ((count_clock - count_clock0)/real(count_rate)-s_temp)
-          endif
-          if (ipout.eq.3) then
-            call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-            s_temp = (count_clock - count_clock0)/real(count_rate)
-            call partoutput_average(itime) ! dump particle positions
-            call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-            s_writepartav = s_writepartav + ((count_clock - count_clock0)/real(count_rate)-s_temp)
-          endif
+          if (mod(itime,ipoutfac*loutstep).eq.0) call partoutput(itime) ! dump particle positions
+          if (ipout.eq.3) call partoutput_average(itime) ! dump particle positions
         endif
         loutnext=loutnext+loutstep
         loutstart=loutnext-loutaver/2
@@ -409,7 +494,7 @@ endif
   ! particles also to the new ones; old and new particles both get half the
   ! mass of the old ones
   !************************************************************************
-    ! This can go in a subroutine
+
         if (ldirect*itime.ge.ldirect*itsplit) then
           n=numpart
           do j=1,numpart
@@ -426,7 +511,6 @@ endif
                 xtra1(n)=xtra1(j)
                 ytra1(n)=ytra1(j)
                 ztra1(n)=ztra1(j)
-                ztra1eta(n)=ztra1eta(j)
                 uap(n)=uap(j)
                 ucp(n)=ucp(j)
                 uzp(n)=uzp(j)
@@ -469,38 +553,40 @@ endif
     avg_h=0.
     avg_air_dens=0.  !erase vector to obtain air density at particle positions: modified by mc
   !-----------------------------------------------------------------------------
-
-  ! openmp change
-  ! LB, openmp following CTM version, need to be very careful due to big differences
-  ! between the openmp loop in this and the CTM version
-!$OMP PARALLEL PRIVATE(prob_rec,prob_temp,ks,thread,j)
-
-#if (defined _OPENMP)
-        thread = OMP_GET_THREAD_NUM()
-#endif
-
-!$OMP DO
     do j=1,numpart
 
 
   ! If integration step is due, do it
   !**********************************
-      if (itra1(j).ne.itime) cycle
+
+      if (itra1(j).eq.itime) then
+
+        if (ioutputforeachrelease.eq.1) then
+            kp=npoint(j)
+        else
+            kp=1
+        endif
+  ! Determine age class of the particle
+        itage=abs(itra1(j)-itramem(j))
+        do nage=1,nageclass
+          if (itage.lt.lage(nage)) exit
+        end do
 
   ! Initialize newly released particle
   !***********************************
-      if ((itramem(j).eq.itime).or.(itime.eq.0)) then
-        call initialize(itime,idt(j),uap(j),ucp(j),uzp(j), &
-            us(j),vs(j),ws(j),xtra1(j),ytra1(j),ztra1(j), &
-            ztra1eta(j),cbt(j))
-      endif
+
+        if ((itramem(j).eq.itime).or.(itime.eq.0)) &
+             call initialize(itime,idt(j),uap(j),ucp(j),uzp(j), &
+             us(j),vs(j),ws(j),xtra1(j),ytra1(j),ztra1(j),cbt(j))
 
   ! Memorize particle positions
   !****************************
-      xold(j)=xtra1(j)
-      yold(j)=ytra1(j)
-      zold(j)=ztra1(j)
 
+        xold=xtra1(j)
+        yold=ytra1(j)
+        zold=ztra1(j)
+
+   
   ! RECEPTOR: dry/wet depovel
   !****************************
   ! Before the particle is moved 
@@ -508,59 +594,69 @@ endif
   ! xscav_frac1 was initialised with a negative value
 
       if  (DRYBKDEP) then
-        do ks=1,nspec
-          if  ((xscav_frac1(j,ks).lt.0)) then
+       do ks=1,nspec
+         if  ((xscav_frac1(j,ks).lt.0)) then
             call get_vdep_prob(itime,xtra1(j),ytra1(j),ztra1(j),prob_rec)
             if (DRYDEPSPEC(ks)) then        ! dry deposition
-              xscav_frac1(j,ks)=prob_rec(ks)
-            else
-              xmass1(j,ks)=0.
-              xscav_frac1(j,ks)=0.
-            endif
-          endif
+               xscav_frac1(j,ks)=prob_rec(ks)
+             else
+                xmass1(j,ks)=0.
+                xscav_frac1(j,ks)=0.
+             endif
+         endif
         enddo
-      endif
+       endif
+
+       if (WETBKDEP) then 
+       do ks=1,nspec
+         if  ((xscav_frac1(j,ks).lt.0)) then
+            call get_wetscav(itime,lsynctime,loutnext,j,ks,grfraction,idummy,idummy,wetscav)
+            if (wetscav.gt.0) then
+                xscav_frac1(j,ks)=wetscav* &
+                       (zpoint2(npoint(j))-zpoint1(npoint(j)))*grfraction(1)
+            else
+                xmass1(j,ks)=0.
+                xscav_frac1(j,ks)=0.
+            endif
+         endif
+        enddo
+       endif
 
   ! Integrate Lagevin equation for lsynctime seconds
   !*************************************************
 
-      call advance(itime,npoint(j),idt(j),uap(j),ucp(j),uzp(j), &
-           us(j),vs(j),ws(j),nstop(j),xtra1(j),ytra1(j),ztra1(j),ztra1eta(j),prob_temp, &
-           cbt(j),j)
-      prob(j,:) = prob_temp
+        if (verbosity.gt.0) then
+           if (j.eq.1) then
+             write (*,*) 'timemanager> call advance'
+           endif     
+        endif
+     
+        call advance(itime,npoint(j),idt(j),uap(j),ucp(j),uzp(j), &
+             us(j),vs(j),ws(j),nstop,xtra1(j),ytra1(j),ztra1(j),prob, &
+             cbt(j))
+!        write (*,*) 'advance: ',prob(1),xmass1(j,1),ztra1(j)
+
   ! Calculate average position for particle dump output
   !****************************************************
-      if (ipout.eq.3) call partpos_average(itime,j)
 
-    end do 
+        if (ipout.eq.3) call partpos_average(itime,j)
 
-!$OMP END DO
-!$OMP END PARALLEL
 
-    do j=1,numpart
-  ! If integration step is due, do it
-  !**********************************
-      if (itra1(j).ne.itime) cycle
-
-  ! Determine age class of the particle
-      itage=abs(itra1(j)-itramem(j))
-      do nage=1,nageclass
-        if (itage.lt.lage(nage)) exit
-      end do
   ! Calculate the gross fluxes across layer interfaces
   !***************************************************
 
-      if (iflux.eq.1) call calcfluxes(nage,j,xold(j),yold(j),zold(j)) !OMP reduction necessary for flux array
+        if (iflux.eq.1) call calcfluxes(nage,j,xold,yold,zold)
 
 
   ! Determine, when next time step is due
   ! If trajectory is terminated, mark it
   !**************************************
-      if (nstop(j).gt.1) then
-        if (linit_cond.ge.1) call initial_cond_calc(itime,j) !OMP reduction necessary for init_cond
-        itra1(j)=-999999999
-      else
-        itra1(j)=itime+lsynctime
+
+        if (nstop.gt.1) then
+          if (linit_cond.ge.1) call initial_cond_calc(itime,j)
+          itra1(j)=-999999999
+        else
+          itra1(j)=itime+lsynctime
 
 
   ! Dry deposition and radioactive decay for each species
@@ -568,76 +664,78 @@ endif
   ! if it is below a threshold value, terminate particle
   !*****************************************************************************
 
-        xmassfract=0.
-        do ks=1,nspec
-          if (decay(ks).gt.0.) then             ! radioactive decay
-            decfact=exp(-real(abs(lsynctime))*decay(ks))
-          else
-            decfact=1.
-          endif
-
-          if (DRYDEPSPEC(ks)) then        ! dry deposition
-            drydeposit(ks)=xmass1(j,ks)*prob(j,ks)*decfact
-            xmass1(j,ks)=xmass1(j,ks)*(1.-prob(j,ks))*decfact
-            if (decay(ks).gt.0.) then   ! correct for decay (see wetdepo)
-              drydeposit(ks)=drydeposit(ks)* &
-                   exp(real(abs(ldeltat))*decay(ks))
+          xmassfract=0.
+          do ks=1,nspec
+            if (decay(ks).gt.0.) then             ! radioactive decay
+              decfact=exp(-real(abs(lsynctime))*decay(ks))
+            else
+              decfact=1.
             endif
-          else                           ! no dry deposition
-            xmass1(j,ks)=xmass1(j,ks)*decfact
+
+            if (DRYDEPSPEC(ks)) then        ! dry deposition
+              drydeposit(ks)=xmass1(j,ks)*prob(ks)*decfact
+              xmass1(j,ks)=xmass1(j,ks)*(1.-prob(ks))*decfact
+              if (decay(ks).gt.0.) then   ! correct for decay (see wetdepo)
+                drydeposit(ks)=drydeposit(ks)* &
+                     exp(real(abs(ldeltat))*decay(ks))
+              endif
+            else                           ! no dry deposition
+              xmass1(j,ks)=xmass1(j,ks)*decfact
+            endif
+
+! Skip check on mass fraction when npoint represents particle number
+            if (mdomainfill.eq.0.and.mquasilag.eq.0) then
+              if (xmass(npoint(j),ks).gt.0.) &
+                   xmassfract=max(xmassfract,real(npart(npoint(j)))* &
+                   xmass1(j,ks)/xmass(npoint(j),ks))
+!ZHG 2015
+                  !CGZ-lifetime: Check mass fraction left/save lifetime
+                   ! if(real(npart(npoint(j)))*xmass1(j,ks)/xmass(npoint(j),ks).lt.e_inv.and.checklifetime(j,ks).eq.0.)then
+                       !Mass below 1% of initial >register lifetime
+                       ! checklifetime(j,ks)=abs(itra1(j)-itramem(j))
+                       ! species_lifetime(ks,1)=species_lifetime(ks,1)+abs(itra1(j)-itramem(j))
+                       ! species_lifetime(ks,2)= species_lifetime(ks,2)+1
+                   ! endif
+                   !CGZ-lifetime: Check mass fraction left/save lifetime
+!ZHG 2015
+            else
+              xmassfract=1.0
+            end if
+          end do
+
+          if (xmassfract.lt.minmass) then   ! terminate all particles carrying less mass
+            itra1(j)=-999999999
+            if (verbosity.gt.0) then
+              print*,'terminated particle ',j,' for small mass'
+            endif
           endif
 
-  ! Skip check on mass fraction when npoint represents particle number
-          if (mdomainfill.eq.0.and.mquasilag.eq.0) then
-            if (xmass(npoint(j),ks).gt.0.) &
-                 xmassfract=max(xmassfract,real(npart(npoint(j)))* &
-                 xmass1(j,ks)/xmass(npoint(j),ks))
-
-          else
-            xmassfract=1.0
-          end if
-        end do
-
-        if (xmassfract.lt.minmass) then   ! terminate all particles carrying less mass
-          itra1(j)=-999999999
-          if (verbosity.gt.0) then
-            print*,'terminated particle ',j,' for small mass'
+  !        Sabine Eckhardt, June 2008
+  !        don't create depofield for backward runs
+          if (DRYDEP.AND.(ldirect.eq.1)) then
+            call drydepokernel(nclass(j),drydeposit,real(xtra1(j)), &
+                 real(ytra1(j)),nage,kp)
+            if (nested_output.eq.1) call drydepokernel_nest( &
+                 nclass(j),drydeposit,real(xtra1(j)),real(ytra1(j)), &
+                 nage,kp)
           endif
-        endif
-
-!        Sabine Eckhardt, June 2008
-!        don't create depofield for backward runs
-        if (DRYDEP.AND.(ldirect.eq.1)) then !OMP reduction necessary for drygridunc
-
-          if (ioutputforeachrelease.eq.1) then
-              kp=npoint(j)
-          else
-              kp=1
-          endif
-
-          call drydepokernel(nclass(j),drydeposit,real(xtra1(j)), &
-               real(ytra1(j)),nage,kp)
-          if (nested_output.eq.1) call drydepokernel_nest( &
-               nclass(j),drydeposit,real(xtra1(j)),real(ytra1(j)), &
-               nage,kp)
-        endif
 
   ! Terminate trajectories that are older than maximum allowed age
   !***************************************************************
 
-        if (abs(itra1(j)-itramem(j)).ge.lage(nageclass)) then
-          if (linit_cond.ge.1) call initial_cond_calc(itime+lsynctime,j)
-          itra1(j)=-999999999
-          if (verbosity.gt.0) then
-            print*,'terminated particle ',j,' for age'
+          if (abs(itra1(j)-itramem(j)).ge.lage(nageclass)) then
+            if (linit_cond.ge.1) call initial_cond_calc(itime+lsynctime,j)
+            itra1(j)=-999999999
+            if (verbosity.gt.0) then
+              print*,'terminated particle ',j,' for age'
+            endif
           endif
         endif
+
       endif
 
     end do !loop over particles
-
-  ! openmp change end
-
+    
   ! Counter of "unstable" particle velocity during a time scale of
   ! maximumtl=20 minutes (defined in com_mod)
   !***************************************************************
@@ -673,6 +771,8 @@ endif
     endif
   endif
 
+  !close(104)
+
   ! De-allocate memory and end
   !***************************
 
@@ -682,12 +782,10 @@ endif
   if (OHREA) then
       deallocate(OH_field,OH_hourly,lonOH,latOH,altOH)
   endif
-  if (grid_output.eq.1) then
   if (ldirect.gt.0) then
   deallocate(drygridunc,wetgridunc)
   endif
   deallocate(gridunc)
-  endif
   deallocate(xpoint1,xpoint2,ypoint1,ypoint2,zpoint1,zpoint2,xmass)
   deallocate(ireleasestart,ireleaseend,npart,kindz)
   deallocate(xmasssave)
@@ -697,10 +795,8 @@ endif
      deallocate(griduncn,drygriduncn,wetgriduncn)
      endif
   endif
-  if (grid_output.eq.1) then
   deallocate(outheight,outheighthalf)
   deallocate(oroout, area, volume)
-  endif
 
 end subroutine timemanager
 

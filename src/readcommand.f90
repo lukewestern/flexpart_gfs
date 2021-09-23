@@ -98,8 +98,7 @@ subroutine readcommand
   linversionout, &
   ohfields_path, &
   d_trop, &
-  d_strat, &
-  grid_output !LB
+  d_strat
 
   ! Presetting namelist command
   ldirect=0
@@ -134,7 +133,6 @@ subroutine readcommand
   cblflag=0 ! if using old-style COMMAND file, set to 1 here to use mc cbl routine
   linversionout=0
   ohfields_path="../../flexin/"
-  grid_output=1 !LB, option to not write grid
 
   !Af set release-switch
   WETBKDEP=.false.
@@ -229,11 +227,8 @@ subroutine readcommand
     if (old) call skplin(3,unitcommand)
     read(unitcommand,*) surf_only
     ! Removed for backwards compatibility.
-    if (old) call skplin(3,unitcommand)  !added by mc
-    read(unitcommand,*) cblflag          !added by mc
-    !LB grid output option
-    if (old) call skplin(3,unitcommand)
-    read(unitcommand,*) grid_output
+    ! if (old) call skplin(3,unitcommand)  !added by mc
+    ! read(unitcommand,*) cblflag          !added by mc
 
     close(unitcommand)
 
@@ -275,11 +270,6 @@ subroutine readcommand
   endif                   !added by mc
   fine=1./real(ifine)
   ctl=1./ctl
-
-  !LB, warn if grid is not written
-  ! if (grid_output.ne.1) then
-  !   write(*,*) 'WARNING: GRID will not be written to file.'
-  ! endif
 
   ! Set the switches required for the various options for input/output units
   !*************************************************************************

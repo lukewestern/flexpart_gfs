@@ -1429,11 +1429,11 @@ subroutine concoutput_surf_nest_netcdf(itime,outnum)
   print*,'Netcdf output for surface only not yet implemented'
 end subroutine concoutput_surf_nest_netcdf
 
-subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease)
+subroutine writeheader_partoutput(itime,idate)!,irelease)
 
   implicit none
 
-  integer, intent(in) :: itime,idate,itime_start,idate_start
+  integer, intent(in) :: itime,idate
   ! integer, intent(in) :: irelease
   integer,allocatable :: partindices(:)
   integer             :: cache_size,ncid,j,totpart
@@ -1441,7 +1441,7 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   integer             :: timeDimID,partDimID,tID,memDimID
   character(len=11)   :: fprefix
   character(len=3)    :: anspec,arelease
-  character           :: adate*8,atime*6,adate_start*8,atime_start*6,timeunit*32
+  character           :: adate*8,atime*6,timeunit*32
   character(len=255)  :: fname_partoutput
   real                :: fillval
 
@@ -1451,8 +1451,6 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
 
   write(adate,'(i8.8)') idate
   write(atime,'(i6.6)') itime
-  write(adate_start,'(i8.8)') idate_start
-  write(atime_start,'(i6.6)') itime_start
   ! write(arelease, '(i3.3)') irelease
   fprefix = 'partoutput_'!rel'//arelease//'_'
 
@@ -1476,8 +1474,8 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   !*************************
   ! time
   call nf90_err(nf90_def_dim(ncid, 'time', nf90_unlimited, timeDimID))
-  timeunit = 'seconds since '//adate_start(1:4)//'-'//adate_start(5:6)// &
-     '-'//adate_start(7:8)//' '//atime_start(1:2)//':'//atime_start(3:4)
+  timeunit = 'seconds since '//adate(1:4)//'-'//adate(5:6)// &
+     '-'//adate(7:8)//' '//atime(1:2)//':'//atime(3:4)
 
   ! particle
   call nf90_err(nf90_def_dim(ncid, 'particle', nf90_unlimited, partDimID)) !totpart needs to be the actual number of particles

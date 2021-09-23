@@ -30,7 +30,6 @@ subroutine conccalc(itime,weight)
   use outg_mod
   use par_mod
   use com_mod
-  use omp_lib, only: OMP_GET_THREAD_NUM
 
   implicit none
 

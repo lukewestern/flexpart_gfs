@@ -2,7 +2,7 @@
 ! SPDX-License-Identifier: GPL-3.0-or-later
 
 subroutine initialize(itime,ldt,up,vp,wp, &
-       usigold,vsigold,wsigold,xt,yt,zt,zteta,icbt)
+       usigold,vsigold,wsigold,xt,yt,zt,icbt)
   !                        i    i   o  o  o
   !        o       o       o    i  i  i   o
   !*****************************************************************************
@@ -51,36 +51,21 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   use interpol_mod
   use hanna_mod
   use random_mod, only: ran3
-  use interpol_mod
-  use coordinates_ecmwf
-
-  use omp_lib
 
   implicit none
 
-  integer :: itime,i,j,k,m,indexh
+  integer :: itime
   integer :: ldt,nrand
   integer(kind=2) :: icbt
   real :: zt,dz,dz1,dz2,up,vp,wp,usigold,vsigold,wsigold
-  real :: zteta,ttemp,dummy1,dummy2
-  real :: ztemp,ztemp1,ztemp2,frac,psint1(2),psint
   real(kind=dp) :: xt,yt
-  integer :: thread
   save idummy
 
   integer :: idummy = -7
 
-
-!$OMP THREADPRIVATE(idummy)
-!$    if (idummy.eq.-7) then
-!$      thread = OMP_GET_THREAD_NUM()
-!$      idummy = idummy - thread
-!$    endif 
-
   icbt=1           ! initialize particle to "no reflection"
 
   nrand=int(ran3(idummy)*real(maxrand-1))+1
-
 
 
   !******************************
@@ -89,19 +74,11 @@ subroutine initialize(itime,ldt,up,vp,wp, &
 
   ! Compute maximum mixing height around particle position
   !*******************************************************
-  call determine_grid_coordinates(real(xt),real(yt))
-  
-  ! Convert eta z coordinate to meters
-  !***********************************
 
-  select case (wind_coord_type) 
-    case ('ETA')
-      call zeta_to_z(itime,xt,yt,zteta,ztemp)
-    case ('METER')
-      ztemp = zt
-    case default 
-      ztemp = zt 
-  end select
+  ix=int(xt)
+  jy=int(yt)
+  ixp=ix+1
+  jyp=jy+1
 
   h=max(hmix(ix ,jy,1,memind(1)), &
        hmix(ixp,jy ,1,memind(1)), &
@@ -112,7 +89,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
        hmix(ix ,jyp,1,memind(2)), &
        hmix(ixp,jyp,1,memind(2)))
 
-  zeta=ztemp/h
+  zeta=zt/h
 
 
   !*************************************************************
@@ -122,7 +99,8 @@ subroutine initialize(itime,ldt,up,vp,wp, &
 
   if (zeta.le.1.) then
 
-    call interpol_all(itime,real(xt),real(yt),zt,zteta)
+    call interpol_all(itime,real(xt),real(yt),zt)
+
 
   ! Vertical interpolation of u,v,w,rho and drhodz
   !***********************************************
@@ -130,24 +108,14 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   ! Vertical distance to the level below and above current position
   ! both in terms of (u,v) and (w) fields
   !****************************************************************
-    call interpol_mixinglayer(zt,zteta,dummy1,dummy2)
-    ! dz1=zt-height(indz)
-    ! dz2=height(indzp)-zt
-    ! dz=1./(dz1+dz2)
 
-    ! w=(dz1*wprof(indzp)+dz2*wprof(indz))*dz
+    dz1=zt-height(indz)
+    dz2=height(indzp)-zt
+    dz=1./(dz1+dz2)
 
-    ! dz1=zteta-uvheight(induv)
-    ! dz2=uvheight(indpuv)-zteta
-    ! dz=1./(dz1+dz2)
-    ! u=(dz1*uprof(indpuv)+dz2*uprof(induv))*dz
-    ! v=(dz1*vprof(indpuv)+dz2*vprof(induv))*dz
-
-    ! dz1=zteta-wheight(indzeta)
-    ! dz2=wheight(indzpeta)-zteta
-    ! dz=1./(dz1+dz2)
-    ! weta=(dz1*wprofeta(indzpeta)+dz2*wprofeta(indzeta))*dz/ &
-    !   ((dz1*detaprof(indzpeta)+dz2*detaprof(indzeta))*dz)
+    u=(dz1*uprof(indzp)+dz2*uprof(indz))*dz
+    v=(dz1*vprof(indzp)+dz2*vprof(indz))*dz
+    w=(dz1*wprof(indzp)+dz2*wprof(indz))*dz
 
 
   ! Compute the turbulent disturbances
@@ -156,9 +124,9 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   !****************************************
 
     if (turbswitch) then
-      call hanna(ztemp)
+      call hanna(zt)
     else
-      call hanna1(ztemp)
+      call hanna1(zt)
     endif
 
 
@@ -193,12 +161,10 @@ subroutine initialize(itime,ldt,up,vp,wp, &
     endif
     ldt=max(ldt,mintime)
 
-    call interpol_average()
-    ! usig=(usigprof(indzp)+usigprof(indz))/2.
-    ! vsig=(vsigprof(indzp)+vsigprof(indz))/2.
-    ! wsig=(wsigprof(indzp)+wsigprof(indz))/2.
 
-    ! wsigeta=(wsigprofeta(indzpeta)+wsigprofeta(indzeta))/2.
+    usig=(usigprof(indzp)+usigprof(indz))/2.
+    vsig=(vsigprof(indzp)+vsigprof(indz))/2.
+    wsig=(wsigprof(indzp)+wsigprof(indz))/2.
 
   else
 
@@ -214,7 +180,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   ! Interpolate the wind
   !*********************
 
-    call interpol_wind(itime,real(xt),real(yt),zt,zteta,10)
+    call interpol_wind(itime,real(xt),real(yt),zt)
 
 
   ! Compute everything for above the PBL
@@ -248,13 +214,6 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   if (nrand+2.gt.maxrand) nrand=1
   usigold=rannumb(nrand)*usig
   vsigold=rannumb(nrand+1)*vsig
-  select case (wind_coord_type)
-    case ('ETA')
-      wsigold=rannumb(nrand+2)*wsigeta
-    case ('METER')
-      wsigold=rannumb(nrand+2)*wsig
-    case default
-      wsigold=rannumb(nrand+2)*wsig
-  end select  
+  wsigold=rannumb(nrand+2)*wsig
 
 end subroutine initialize

@@ -73,7 +73,7 @@ subroutine partoutput_average(itime)
 
     if (itra1(i).eq.itime) then
       part_av_topo(i)=part_av_topo(i)/float(npart_av(i))
-      !part_av_z(i)=part_av_z(i)/float(npart_av(i))
+      part_av_z(i)=part_av_z(i)/float(npart_av(i))
       part_av_pv(i)=part_av_pv(i)/float(npart_av(i))
       part_av_qv(i)=part_av_qv(i)/float(npart_av(i))
       part_av_tt(i)=part_av_tt(i)/float(npart_av(i))
@@ -189,8 +189,6 @@ subroutine partoutput_average(itime)
 
   ! Write the output
   !*****************
-
-
   do i=1,numpart
     if (itra1(i).eq.itime) then
       write(unitpartout_average,rec=i) ishort_xlon(i),ishort_ylat(i),ishort_z(i), &

@@ -32,18 +32,16 @@ subroutine releaseparticles(itime)
   use par_mod
   use com_mod
   use random_mod, only: ran1
-  use interpol_mod
-  use coordinates_ecmwf
 
   implicit none
 
   !real xaux,yaux,zaux,ran1,rfraction,xmasssave(maxpoint)
   real :: xaux,yaux,zaux,rfraction
-  real :: topo,rhoaux(2),r,t,rhoout
-  real :: dz1,dz2,dz,xlonav,timecorrect(maxspec),press,pressold
+  real :: topo,rhoaux(2),r,t,rhoout,ddx,ddy,rddx,rddy,p1,p2,p3,p4
+  real :: dz1,dz2,dz,xtn,ytn,xlonav,timecorrect(maxspec),press,pressold
   real :: presspart,average_timecorrect
-  integer :: itime,numrel,i,j,k,n,ipart,minpart,ii
-  integer :: kz
+  integer :: itime,numrel,i,j,k,n,ix,jy,ixp,jyp,ipart,minpart,ii
+  integer :: indz,indzp,kz,ngrid
   integer :: nweeks,ndayofweek,nhour,jjjjmmdd,ihmmss,mm
   real(kind=dp) :: juldate,julmonday,jul,jullocal,juldiff
   real,parameter :: eps=nxmax/3.e5,eps2=1.e-6
@@ -52,7 +50,6 @@ subroutine releaseparticles(itime)
   !save idummy,xmasssave
   !data idummy/-7/,xmasssave/maxpoint*0./
 
-  real :: frac,psint,zzlev,zzlev2,ttemp
 
 
   ! Determine the actual date and time in Greenwich (i.e., UTC + correction for daylight savings time)
@@ -207,9 +204,10 @@ subroutine releaseparticles(itime)
                    (ytra1(ipart).gt.yln(k)+eps).and. &
                    (ytra1(ipart).lt.yrn(k)-eps)) then
                 ngrid=k
-                exit
+                goto 43
               endif
             end do
+43          continue
 
   ! Determine (nested) grid coordinates and auxiliary parameters used for interpolation
   !*****************************************************************************
@@ -291,7 +289,6 @@ subroutine releaseparticles(itime)
 71            continue
             endif
 
-
   ! If release positions are given in meters above sea level, subtract the
   ! topography from the starting height
   !***********************************************************************
@@ -302,26 +299,6 @@ subroutine releaseparticles(itime)
                  height(nz)-0.5 ! Maximum starting height is uppermost level - 0.5 meters
 
 
-! Convert to eta coordinates
-!             psint=p1*ps(ix,jy,1,1) &
-!                    +p2*ps(ixp,jy,1,1) &
-!                    +p3*ps(ix,jyp,1,1) &
-!                    +p4*ps(ixp,jyp,1,1)
-
-!             zzlev=0.
-!             do ii=2,nz-1
-!               ttemp=p1*tteta(ix,jy,ii-1,1) &
-!                      +p2*tteta(ixp,jy,ii-1,1) &
-!                      +p3*tteta(ix,jyp,ii-1,1) &
-!                      +p4*tteta(ixp,jyp,ii-1,1)
-!               if (zzlev.gt.ztra1(ipart)) goto 66
-!               zzlev=zzlev+r_air/ga*log((akz(ii+1-1)+bkz(ii+1-1)*psint)/(akz(ii+1)+bkz(ii+1)*psint))*ttemp
-!             end do
-! 66            zzlev2=zzlev+r_air/ga*log((akz(ii+1-1)+bkz(ii+1-1)*psint)/(akz(ii+1)+bkz(ii+1)*psint))*ttemp
-
-!             frac = (ztra1(ipart)-zzlev)/(zzlev2-zzlev)
-!             ztra1eta(ipart)=uvheight(ii-1)*(1.-frac)+uvheight(ii)*frac
-            call z_to_zeta(itime,xtra1(ipart),ytra1(ipart),ztra1(ipart),ztra1eta(ipart))
 
   ! For special simulations, multiply particle concentration air density;
   ! Simply take the 2nd field in memory to do this (accurate enough)

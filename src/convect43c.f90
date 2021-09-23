@@ -212,8 +212,8 @@
   !   ***      be the first model level at which T is defined above    ***
   !   ***                      the surface layer)                      ***
   !
-  INTEGER,PARAMETER :: IPBL=0
-  INTEGER,PARAMETER :: MINORIG=1
+    INTEGER,PARAMETER :: IPBL=0
+    INTEGER,PARAMETER :: MINORIG=1
   !
   !------------------------------------------------------------------------------
   !
@@ -244,20 +244,20 @@
   !   ***   (THEIR STANDARD VALUES ARE  0.20 AND 0.1, RESPECTIVELY)    ***
   !   ***                   (DAMP MUST BE LESS THAN 1)                 ***
   !
-  REAL,PARAMETER :: ELCRIT=.0011
-  REAL,PARAMETER :: TLCRIT=-55.0
-  REAL,PARAMETER :: ENTP=1.5
-  REAL,PARAMETER :: SIGD=0.05
-  REAL,PARAMETER :: SIGS=0.12
-  REAL,PARAMETER :: OMTRAIN=50.0
-  REAL,PARAMETER :: OMTSNOW=5.5
-  REAL,PARAMETER :: COEFFR=1.0
-  REAL,PARAMETER :: COEFFS=0.8
-  REAL,PARAMETER :: CU=0.7
-  REAL,PARAMETER :: BETA=10.0
-  REAL,PARAMETER :: DTMAX=0.9
-  REAL,PARAMETER :: ALPHA=0.025  !original 0.2
-  REAL,PARAMETER :: DAMP=0.1
+    REAL,PARAMETER :: ELCRIT=.0011
+    REAL,PARAMETER :: TLCRIT=-55.0
+    REAL,PARAMETER :: ENTP=1.5
+    REAL,PARAMETER :: SIGD=0.05
+    REAL,PARAMETER :: SIGS=0.12
+    REAL,PARAMETER :: OMTRAIN=50.0
+    REAL,PARAMETER :: OMTSNOW=5.5
+    REAL,PARAMETER :: COEFFR=1.0
+    REAL,PARAMETER :: COEFFS=0.8
+    REAL,PARAMETER :: CU=0.7
+    REAL,PARAMETER :: BETA=10.0
+    REAL,PARAMETER :: DTMAX=0.9
+    REAL,PARAMETER :: ALPHA=0.025  !original 0.2
+    REAL,PARAMETER :: DAMP=0.1
   !
   !   ***        ASSIGN VALUES OF THERMODYNAMIC CONSTANTS,        ***
   !   ***            GRAVITY, AND LIQUID WATER DENSITY.           ***
@@ -287,29 +287,29 @@
   !      ***  INITIALIZE OUTPUT ARRAYS AND PARAMETERS  ***
   !
 
-  ! LB 04.05.2021, array operations
-  FT(:NL+1)=0.0
-  FQ(:NL+1)=0.0
-  FDOWN(:NL+1)=0.0
-  SUB(:NL+1)=0.0
-  FUP(:NL+1)=0.0
-  M(:NL+1)=0.0
-  MP(:NL+1)=0.0
-  FMASS(:NL+1,:NL+1)=0.0
-  MENT(:NL+1,:NL+1)=0.0
-  ! DO I=1,NL+1
-  !   RDCP=(RD*(1.-QCONV(I))+QCONV(I)*RV)/ &
-  !       (CPD*(1.-QCONV(I))+QCONV(I)*CPV)
-  !   TH(I)=TCONV(I)*(1000.0/PCONV_HPA(I))**RDCP
-  ! END DO
-  ! LB 04.05.2021, below is not mentioned anywhere, so I commented it
-  ! TH(:NL+1)=TCONV(:NL+1)*(1000.0/PCONV_HPA(:NL+1))** &
-  !     (RD*(1.-QCONV(:NL+1))+QCONV(:NL+1)*RV)/ (CPD*(1.-QCONV(:NL+1))+QCONV(:NL+1)*CPV)
-  PRECIP=0.0
-  WD=0.0
-  TPRIME=0.0
-  QPRIME=0.0
-  IFLAG=0
+    DO I=1,NL+1
+     FT(I)=0.0
+     FQ(I)=0.0
+     FDOWN(I)=0.0
+     SUB(I)=0.0
+     FUP(I)=0.0
+     M(I)=0.0
+     MP(I)=0.0
+    DO J=1,NL+1
+     FMASS(I,J)=0.0
+     MENT(I,J)=0.0
+    END DO
+    END DO
+    DO I=1,NL+1
+     RDCP=(RD*(1.-QCONV(I))+QCONV(I)*RV)/ &
+          (CPD*(1.-QCONV(I))+QCONV(I)*CPV)
+     TH(I)=TCONV(I)*(1000.0/PCONV_HPA(I))**RDCP
+    END DO
+    PRECIP=0.0
+    WD=0.0
+    TPRIME=0.0
+    QPRIME=0.0
+    IFLAG=0
   !
   !  IF(IPBL.NE.0)THEN
   !
@@ -390,88 +390,85 @@
   !
   !  *** CALCULATE ARRAYS OF GEOPOTENTIAL, HEAT CAPACITY AND STATIC ENERGY
   !
-  GZ(1)=0.0
-  CPN(1)=CPD*(1.-QCONV(1))+QCONV(1)*CPV
-  H(1)=TCONV(1)*CPN(1)
-  LV(1)=LV0-CPVMCL*(TCONV(1)-273.15)
-  HM(1)=LV(1)*QCONV(1)
-  TV(1)=TCONV(1)*(1.+QCONV(1)*EPSI-QCONV(1))
-  AHMIN=1.0E12
-  IHMIN=NL
-
-  DO I=2,NL+1
-    TVX=TCONV(I)*(1.+QCONV(I)*EPSI-QCONV(I))
-    TVY=TCONV(I-1)*(1.+QCONV(I-1)*EPSI-QCONV(I-1))
-    GZ(I)=GZ(I-1)+0.5*RD*(TVX+TVY)*(PCONV_HPA(I-1)-PCONV_HPA(I))/ &
-         PHCONV_HPA(I)
-    CPN(I)=CPD*(1.-QCONV(I))+CPV*QCONV(I)
-    H(I)=TCONV(I)*CPN(I)+GZ(I)
-    LV(I)=LV0-CPVMCL*(TCONV(I)-273.15)
-    HM(I)=(CPD*(1.-QCONV(I))+CL*QCONV(I))*(TCONV(I)-TCONV(1))+ &
-         LV(I)*QCONV(I)+GZ(I)
-    TV(I)=TCONV(I)*(1.+QCONV(I)*EPSI-QCONV(I))
-!
-!  ***  Find level of minimum moist static energy    ***
-!
-    IF(I.GE.MINORIG.AND.HM(I).LT.AHMIN.AND.HM(I).LT.HM(I-1))THEN
-      AHMIN=HM(I)
-      IHMIN=I
-    END IF
-  END DO
-  IHMIN=MIN(IHMIN, NL-1)
+    GZ(1)=0.0
+    CPN(1)=CPD*(1.-QCONV(1))+QCONV(1)*CPV
+    H(1)=TCONV(1)*CPN(1)
+    LV(1)=LV0-CPVMCL*(TCONV(1)-273.15)
+    HM(1)=LV(1)*QCONV(1)
+    TV(1)=TCONV(1)*(1.+QCONV(1)*EPSI-QCONV(1))
+    AHMIN=1.0E12
+    IHMIN=NL
+    DO I=2,NL+1
+      TVX=TCONV(I)*(1.+QCONV(I)*EPSI-QCONV(I))
+      TVY=TCONV(I-1)*(1.+QCONV(I-1)*EPSI-QCONV(I-1))
+      GZ(I)=GZ(I-1)+0.5*RD*(TVX+TVY)*(PCONV_HPA(I-1)-PCONV_HPA(I))/ &
+           PHCONV_HPA(I)
+      CPN(I)=CPD*(1.-QCONV(I))+CPV*QCONV(I)
+      H(I)=TCONV(I)*CPN(I)+GZ(I)
+      LV(I)=LV0-CPVMCL*(TCONV(I)-273.15)
+      HM(I)=(CPD*(1.-QCONV(I))+CL*QCONV(I))*(TCONV(I)-TCONV(1))+ &
+           LV(I)*QCONV(I)+GZ(I)
+      TV(I)=TCONV(I)*(1.+QCONV(I)*EPSI-QCONV(I))
+  !
+  !  ***  Find level of minimum moist static energy    ***
+  !
+      IF(I.GE.MINORIG.AND.HM(I).LT.AHMIN.AND.HM(I).LT.HM(I-1))THEN
+       AHMIN=HM(I)
+       IHMIN=I
+      END IF
+    END DO
+    IHMIN=MIN(IHMIN, NL-1)
   !
   !  ***     Find that model level below the level of minimum moist       ***
   !  ***  static energy that has the maximum value of moist static energy ***
   !
-  AHMAX=0.0
+    AHMAX=0.0
   !  ***  bug fixed: need to assign an initial value to NK
   !  HSO, 05.08.2009
-  NK=MINORIG
-  DO I=MINORIG,IHMIN
-    IF(HM(I).GT.AHMAX)THEN
+    NK=MINORIG
+    DO I=MINORIG,IHMIN
+     IF(HM(I).GT.AHMAX)THEN
       NK=I
       AHMAX=HM(I)
-    END IF
-  END DO
-  ! LB 04.05.2021, replace above with array operations (maxloc not working)
-  ! NK=MINORIG+maxloc(HM(MINORIG:IHMIN))-1
-
+     END IF
+    END DO
   !
   !  ***  CHECK WHETHER PARCEL LEVEL TEMPERATURE AND SPECIFIC HUMIDITY   ***
   !  ***                          ARE REASONABLE                         ***
   !  ***      Skip convection if HM increases monotonically upward       ***
   !
-  IF(TCONV(NK).LT.250.0.OR.QCONV(NK).LE.0.0.OR.IHMIN.EQ.(NL-1)) THEN
-    IFLAG=0
-    CBMF=0.0
-    RETURN
-  END IF
+    IF(TCONV(NK).LT.250.0.OR.QCONV(NK).LE.0.0.OR.IHMIN.EQ.(NL-1)) &
+         THEN
+     IFLAG=0
+     CBMF=0.0
+     RETURN
+    END IF
   !
   !   ***  CALCULATE LIFTED CONDENSATION LEVEL OF AIR AT PARCEL ORIGIN LEVEL ***
   !   ***       (WITHIN 0.2% OF FORMULA OF BOLTON, MON. WEA. REV.,1980)      ***
   !
-  RH=QCONV(NK)/QSCONV(NK)
-  CHI=TCONV(NK)/(1669.0-122.0*RH-TCONV(NK))
-  PLCL=PCONV_HPA(NK)*(RH**CHI)
-  IF(PLCL.LT.200.0.OR.PLCL.GE.2000.0)THEN
-    IFLAG=2
-    CBMF=0.0
-    RETURN
-  END IF
+    RH=QCONV(NK)/QSCONV(NK)
+    CHI=TCONV(NK)/(1669.0-122.0*RH-TCONV(NK))
+    PLCL=PCONV_HPA(NK)*(RH**CHI)
+    IF(PLCL.LT.200.0.OR.PLCL.GE.2000.0)THEN
+     IFLAG=2
+     CBMF=0.0
+     RETURN
+    END IF
   !
   !   ***  CALCULATE FIRST LEVEL ABOVE LCL (=ICB)  ***
   !
-  ICB=NL-1
-  DO I=NK+1,NL
-    IF(PCONV_HPA(I).LT.PLCL)THEN
+    ICB=NL-1
+    DO I=NK+1,NL
+     IF(PCONV_HPA(I).LT.PLCL)THEN
       ICB=MIN(ICB,I)
+     END IF
+    END DO
+    IF(ICB.GE.(NL-1))THEN
+     IFLAG=3
+     CBMF=0.0
+     RETURN
     END IF
-  END DO
-  IF(ICB.GE.(NL-1))THEN
-    IFLAG=3
-    CBMF=0.0
-    RETURN
-  END IF
   !
   !   *** FIND TEMPERATURE UP THROUGH ICB AND TEST FOR INSTABILITY           ***
   !
@@ -479,170 +476,131 @@
   !   ***  TEMPERATURE, THE ACTUAL TEMPERATURE AND THE ADIABATIC             ***
   !   ***                   LIQUID WATER CONTENT                             ***
   !
-  CALL TLIFT(GZ,ICB,NK,TVP,TP,CLW,ND,NL,1)
-  ! DO I=NK,ICB
-  !   TVP(I)=TVP(I)-TP(I)*QCONV(NK)
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations
-  TVP(NK:ICB)=TVP(NK:ICB)-TP(NK:ICB)*QCONV(NK)
+    CALL TLIFT(GZ,ICB,NK,TVP,TP,CLW,ND,NL,1)
+    DO I=NK,ICB
+     TVP(I)=TVP(I)-TP(I)*QCONV(NK)
+    END DO
   !
   !   ***  If there was no convection at last time step and parcel    ***
   !   ***       is stable at ICB then skip rest of calculation        ***
   !
-  IF(CBMF.EQ.0.0.AND.TVP(ICB).LE.(TV(ICB)-DTMAX))THEN
-    IFLAG=0
-    RETURN
-  END IF
+    IF(CBMF.EQ.0.0.AND.TVP(ICB).LE.(TV(ICB)-DTMAX))THEN
+     IFLAG=0
+     RETURN
+    END IF
   !
   !   ***  IF THIS POINT IS REACHED, MOIST CONVECTIVE ADJUSTMENT IS NECESSARY ***
   !
-  IF(IFLAG.NE.4)IFLAG=1
+    IF(IFLAG.NE.4)IFLAG=1
   !
   !   ***  FIND THE REST OF THE LIFTED PARCEL TEMPERATURES          ***
   !
-  CALL TLIFT(GZ,ICB,NK,TVP,TP,CLW,ND,NL,2)
+    CALL TLIFT(GZ,ICB,NK,TVP,TP,CLW,ND,NL,2)
   !
   !   ***  SET THE PRECIPITATION EFFICIENCIES AND THE FRACTION OF   ***
   !   ***          PRECIPITATION FALLING OUTSIDE OF CLOUD           ***
   !   ***      THESE MAY BE FUNCTIONS OF TP(I), PCONV_HPA(I) AND CLW(I)     ***
   !
-  ! DO I=1,NK
-  !   EP(I)=0.0
-  !   SIGP(I)=SIGS
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations, sigp combined with below (NL)
-  EP(1:NK)=0.0
-  SIGP(1:NL)=SIGS
-
-  DO I=NK+1,NL
-    TCA=TP(I)-273.15
-    IF(TCA.GE.0.0)THEN
+    DO I=1,NK
+     EP(I)=0.0
+     SIGP(I)=SIGS
+    END DO
+    DO I=NK+1,NL
+     TCA=TP(I)-273.15
+     IF(TCA.GE.0.0)THEN
       ELACRIT=ELCRIT
-    ELSE
+     ELSE
       ELACRIT=ELCRIT*(1.0-TCA/TLCRIT)
-    END IF
-    ELACRIT=MAX(ELACRIT,0.0)
-    EPMAX=0.999
-    EP(I)=EPMAX*(1.0-ELACRIT/MAX(CLW(I),1.0E-8))
-    EP(I)=MAX(EP(I),0.0)
-    EP(I)=MIN(EP(I),EPMAX)
-    SIGP(I)=SIGS
-  END DO
-  ! LB 04.05.2021, replace above with array operations 
-  ! (this makes it less readable, and not any faster)
-  ! PROBLEM 1 is within the statement below
-  ! EPMAX=0.999
-  ! where ((TP(NK+1:NL)-273.15).ge.0.0)
-  !   EP(NK+1:NL)=EPMAX*(1.0-max(ELCRIT, 0.0)/MAX(CLW(NK+1:NL),1.0E-8))
-  ! elsewhere
-  !   EP(NK+1:NL)=EPMAX*(1.0-max(ELCRIT*(1.0-TCA/TLCRIT), 0.0)/MAX(CLW(NK+1:NL),1.0E-8))
-  ! end where
-  ! where (EP(NK+1:NL).lt.0.0)
-  !   EP(NK+1:NL)=0.0
-  ! elsewhere (EP(NK+1:NL).gt.EPMAX)
-  !   EP(NK+1:NL)=EPMAX
-  ! end where
-
+     END IF
+     ELACRIT=MAX(ELACRIT,0.0)
+     EPMAX=0.999
+     EP(I)=EPMAX*(1.0-ELACRIT/MAX(CLW(I),1.0E-8))
+     EP(I)=MAX(EP(I),0.0)
+     EP(I)=MIN(EP(I),EPMAX)
+     SIGP(I)=SIGS
+    END DO
   !
   !   ***       CALCULATE VIRTUAL TEMPERATURE AND LIFTED PARCEL     ***
   !   ***                    VIRTUAL TEMPERATURE                    ***
-  ! !
-  ! DO I=ICB+1,NL
-  !  TVP(I)=TVP(I)-TP(I)*QCONV(NK)
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations 
-  TVP(ICB+1:NL)=TVP(ICB+1:NL)-TP(ICB+1:NL)*QCONV(NK)
-  TVP(NL+1)=TVP(NL)-(GZ(NL+1)-GZ(NL))/CPD
+  !
+    DO I=ICB+1,NL
+     TVP(I)=TVP(I)-TP(I)*QCONV(NK)
+    END DO
+    TVP(NL+1)=TVP(NL)-(GZ(NL+1)-GZ(NL))/CPD
   !
   !   ***        NOW INITIALIZE VARIOUS ARRAYS USED IN THE COMPUTATIONS       ***
   !
-  ! DO I=1,NL+1
-  !   HP(I)=H(I)
-  !   NENT(I)=0
-  !   WATER(I)=0.0
-  !   EVAP(I)=0.0
-  !   WT(I)=OMTSNOW
-  !   LVCP(I)=LV(I)/CPN(I)
-  !   DO J=1,NL+1
-  !     QENT(I,J)=QCONV(J)
-  !     ELIJ(I,J)=0.0
-  !     SIJ(I,J)=0.0
-  !   END DO
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations
-  HP(:NL+1)=H(:NL+1)
-  NENT(:NL+1)=0
-  WATER(:NL+1)=0.0
-  EVAP(:NL+1)=0.0
-  WT(:NL+1)=OMTSNOW
-  LVCP(:NL+1)=LV(:NL+1)/CPN(:NL+1)
-  ELIJ(:NL+1,:NL+1)=0.0
-  SIJ(:NL+1,:NL+1)=0.0
-  DO I=1,NL+1
-    QENT(I,:NL+1)=QCONV(:NL+1)
-  END DO  
-  QP(1)=QCONV(1)
-  QP(2:NL+1)=QCONV(:NL)
-
+    DO I=1,NL+1
+     HP(I)=H(I)
+     NENT(I)=0
+     WATER(I)=0.0
+     EVAP(I)=0.0
+     WT(I)=OMTSNOW
+     LVCP(I)=LV(I)/CPN(I)
+     DO J=1,NL+1
+      QENT(I,J)=QCONV(J)
+      ELIJ(I,J)=0.0
+      SIJ(I,J)=0.0
+     END DO
+    END DO
+    QP(1)=QCONV(1)
+    DO I=2,NL+1
+     QP(I)=QCONV(I-1)
+    END DO
   !
   !  ***  FIND THE FIRST MODEL LEVEL (INB1) ABOVE THE PARCEL'S      ***
   !  ***          HIGHEST LEVEL OF NEUTRAL BUOYANCY                 ***
   !  ***     AND THE HIGHEST LEVEL OF POSITIVE CAPE (INB)           ***
   !
-  CAPE=0.0
-  CAPEM=0.0
-  INB=ICB+1
-  INB1=INB
-  BYP=0.0
-  DO I=ICB+1,NL-1
-    BY=(TVP(I)-TV(I))*(PHCONV_HPA(I)-PHCONV_HPA(I+1))/PCONV_HPA(I)
-    CAPE=CAPE+BY
-    IF(BY.GE.0.0)INB1=I+1
-    IF(CAPE.GT.0.0)THEN
+    CAPE=0.0
+    CAPEM=0.0
+    INB=ICB+1
+    INB1=INB
+    BYP=0.0
+    DO I=ICB+1,NL-1
+     BY=(TVP(I)-TV(I))*(PHCONV_HPA(I)-PHCONV_HPA(I+1))/PCONV_HPA(I)
+     CAPE=CAPE+BY
+     IF(BY.GE.0.0)INB1=I+1
+     IF(CAPE.GT.0.0)THEN
       INB=I+1
       BYP=(TVP(I+1)-TV(I+1))*(PHCONV_HPA(I+1)-PHCONV_HPA(I+2))/ &
            PCONV_HPA(I+1)
       CAPEM=CAPE
-    END IF
-  END DO
-  INB=MAX(INB,INB1)
-  CAPE=CAPEM+BYP
-  DEFRAC=CAPEM-CAPE
-  DEFRAC=MAX(DEFRAC,0.001)
-  FRAC=-CAPE/DEFRAC
-  FRAC=MIN(FRAC,1.0)
-  FRAC=MAX(FRAC,0.0)
+     END IF
+    END DO
+    INB=MAX(INB,INB1)
+    CAPE=CAPEM+BYP
+    DEFRAC=CAPEM-CAPE
+    DEFRAC=MAX(DEFRAC,0.001)
+    FRAC=-CAPE/DEFRAC
+    FRAC=MIN(FRAC,1.0)
+    FRAC=MAX(FRAC,0.0)
   !
   !   ***   CALCULATE LIQUID WATER STATIC ENERGY OF LIFTED PARCEL   ***
-  ! 
-  ! DO I=ICB,INB
-  !   HP(I)=H(NK)+(LV(I)+(CPD-CPV)*TCONV(I))*EP(I)*CLW(I)
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations
-  HP(ICB:INB)=H(NK)+(LV(ICB:INB)+(CPD-CPV)*TCONV(ICB:INB))*EP(ICB:INB)*CLW(ICB:INB)
+  !
+    DO I=ICB,INB
+     HP(I)=H(NK)+(LV(I)+(CPD-CPV)*TCONV(I))*EP(I)*CLW(I)
+    END DO
   !
   !   ***  CALCULATE CLOUD BASE MASS FLUX AND RATES OF MIXING, M(I),  ***
   !   ***                   AT EACH MODEL LEVEL                       ***
   !
-  
+    DBOSUM=0.0
   !
   !   ***     INTERPOLATE DIFFERENCE BETWEEN LIFTED PARCEL AND      ***
   !   ***  ENVIRONMENTAL TEMPERATURES TO LIFTED CONDENSATION LEVEL  ***
   !
-  TVPPLCL=TVP(ICB-1)-RD*TVP(ICB-1)*(PCONV_HPA(ICB-1)-PLCL)/ &
-       (CPN(ICB-1)*PCONV_HPA(ICB-1))
-  TVAPLCL=TV(ICB)+(TVP(ICB)-TVP(ICB+1))*(PLCL-PCONV_HPA(ICB))/ &
-       (PCONV_HPA(ICB)-PCONV_HPA(ICB+1))
-  DTPBL=0.0
-  ! DO I=NK,ICB-1
-  !   DTPBL=DTPBL+(TVP(I)-TV(I))*(PHCONV_HPA(I)-PHCONV_HPA(I+1))
-  ! END DO
-  ! DTPBL=DTPBL/(PHCONV_HPA(NK)-PHCONV_HPA(ICB))
-  ! LB 04.05.2021, replace above with array operations
-  DTPBL=sum((TVP(NK:ICB-1)-TV(NK:ICB-1))*(PHCONV_HPA(NK:ICB-1)-PHCONV_HPA(NK+1:ICB)))/ &
-        (PHCONV_HPA(NK)-PHCONV_HPA(ICB))
-  DTMIN=TVPPLCL-TVAPLCL+DTMAX+DTPBL
-  DTMA=DTMIN
+    TVPPLCL=TVP(ICB-1)-RD*TVP(ICB-1)*(PCONV_HPA(ICB-1)-PLCL)/ &
+         (CPN(ICB-1)*PCONV_HPA(ICB-1))
+    TVAPLCL=TV(ICB)+(TVP(ICB)-TVP(ICB+1))*(PLCL-PCONV_HPA(ICB))/ &
+         (PCONV_HPA(ICB)-PCONV_HPA(ICB+1))
+    DTPBL=0.0
+    DO I=NK,ICB-1
+     DTPBL=DTPBL+(TVP(I)-TV(I))*(PHCONV_HPA(I)-PHCONV_HPA(I+1))
+    END DO
+    DTPBL=DTPBL/(PHCONV_HPA(NK)-PHCONV_HPA(ICB))
+    DTMIN=TVPPLCL-TVAPLCL+DTMAX+DTPBL
+    DTMA=DTMIN
   !
   !   ***  ADJUST CLOUD BASE MASS FLUX   ***
   !
@@ -656,40 +614,31 @@
   !   *** If cloud base mass flux is zero, skip rest of calculation  ***
   !
   IF(CBMF.EQ.0.0.AND.CBMFOLD.EQ.0.0)THEN
-    RETURN
+   RETURN
   END IF
 
   !
   !   ***   CALCULATE RATES OF MIXING,  M(I)   ***
   !
-  ! DBOSUM=0.0
-  ! M(ICB)=0.0
-  ! DO I=ICB+1,INB
-  !   K=MIN(I,INB1)
-  !   DBO=ABS(TV(K)-TVP(K))+ &
-  !       ENTP*0.02*(PHCONV_HPA(K)-PHCONV_HPA(K+1))
-  !   DBOSUM=DBOSUM+DBO
-  !   M(I)=CBMF*DBO
-  ! END DO
-  ! DO I=ICB+1,INB
-  !   M(I)=M(I)/DBOSUM
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations
   M(ICB)=0.0
-  M(ICB+1:INB1)=ABS(TV(ICB+1:INB1)-TVP(ICB+1:INB1))+ &
-        ENTP*0.02*(PHCONV_HPA(ICB+1:INB1)-PHCONV_HPA(ICB+2:INB1+1))
-  M(INB1:INB)=ABS(TV(INB1)-TVP(INB1))+ &
-        ENTP*0.02*(PHCONV_HPA(INB1)-PHCONV_HPA(INB1+1))
-  M(ICB+1:INB)=CBMF*M(ICB+1:INB)/sum(M(ICB+1:INB))
-
+  DO I=ICB+1,INB
+   K=MIN(I,INB1)
+   DBO=ABS(TV(K)-TVP(K))+ &
+        ENTP*0.02*(PHCONV_HPA(K)-PHCONV_HPA(K+1))
+   DBOSUM=DBOSUM+DBO
+   M(I)=CBMF*DBO
+  END DO
+  DO I=ICB+1,INB
+   M(I)=M(I)/DBOSUM
+  END DO
   !
   !   ***  CALCULATE ENTRAINED AIR MASS FLUX (MENT), TOTAL WATER MIXING  ***
   !   ***     RATIO (QENT), TOTAL CONDENSED WATER (ELIJ), AND MIXING     ***
   !   ***                        FRACTION (SIJ)                          ***
   !
-  DO I=ICB+1,INB
-    QTI=QCONV(NK)-EP(I)*CLW(I)
-    DO J=ICB,INB
+    DO I=ICB+1,INB
+     QTI=QCONV(NK)-EP(I)*CLW(I)
+     DO J=ICB,INB
       BF2=1.+LV(J)*LV(J)*QSCONV(J)/(RV*TCONV(J)*TCONV(J)*CPD)
       ANUM=H(J)-HP(I)+(CPV-CPD)*TCONV(J)*(QTI-QCONV(J))
       DENOM=H(I)-HP(I)+(CPD-CPV)*(QCONV(I)-QTI)*TCONV(J)
@@ -702,175 +651,120 @@
       CWAT=CLW(J)*(1.-EP(J))
       STEMP=SIJ(I,J)
       IF((STEMP.LT.0.0.OR.STEMP.GT.1.0.OR. &
-            ALTEM.GT.CWAT).AND.J.GT.I)THEN
-        ANUM=ANUM-LV(J)*(QTI-QSCONV(J)-CWAT*BF2)
-        DENOM=DENOM+LV(J)*(QCONV(I)-QTI)
-        IF(ABS(DENOM).LT.0.01)DENOM=0.01
-        SIJ(I,J)=ANUM/DENOM
-        ALTEM=SIJ(I,J)*QCONV(I)+(1.-SIJ(I,J))*QTI-QSCONV(J)
-        ALTEM=ALTEM-(BF2-1.)*CWAT
+           ALTEM.GT.CWAT).AND.J.GT.I)THEN
+       ANUM=ANUM-LV(J)*(QTI-QSCONV(J)-CWAT*BF2)
+       DENOM=DENOM+LV(J)*(QCONV(I)-QTI)
+       IF(ABS(DENOM).LT.0.01)DENOM=0.01
+       SIJ(I,J)=ANUM/DENOM
+       ALTEM=SIJ(I,J)*QCONV(I)+(1.-SIJ(I,J))*QTI-QSCONV(J)
+       ALTEM=ALTEM-(BF2-1.)*CWAT
       END IF
       IF(SIJ(I,J).GT.0.0.AND.SIJ(I,J).LT.0.9)THEN
-        QENT(I,J)=SIJ(I,J)*QCONV(I)+(1.-SIJ(I,J))*QTI
-        ELIJ(I,J)=ALTEM
-        ELIJ(I,J)=MAX(0.0,ELIJ(I,J))
-        MENT(I,J)=M(I)/(1.-SIJ(I,J))
-        NENT(I)=NENT(I)+1
+       QENT(I,J)=SIJ(I,J)*QCONV(I)+(1.-SIJ(I,J))*QTI
+       ELIJ(I,J)=ALTEM
+       ELIJ(I,J)=MAX(0.0,ELIJ(I,J))
+       MENT(I,J)=M(I)/(1.-SIJ(I,J))
+       NENT(I)=NENT(I)+1
       END IF
       SIJ(I,J)=MAX(0.0,SIJ(I,J))
       SIJ(I,J)=MIN(1.0,SIJ(I,J))
-    END DO
+     END DO
   !
   !   ***   IF NO AIR CAN ENTRAIN AT LEVEL I ASSUME THAT UPDRAFT DETRAINS  ***
   !   ***   AT THAT LEVEL AND CALCULATE DETRAINED AIR FLUX AND PROPERTIES  ***
   !
-    IF(NENT(I).EQ.0)THEN
+     IF(NENT(I).EQ.0)THEN
       MENT(I,I)=M(I)
       QENT(I,I)=QCONV(NK)-EP(I)*CLW(I)
       ELIJ(I,I)=CLW(I)
       SIJ(I,I)=1.0
-    END IF
-  END DO
-  SIJ(INB,INB)=1.0
-  ! LB 04.05.2021, Attempt to array the loop above: PROBLEM 2 is here
-  ! DO J=ICB,INB
-  !   BF2=1.+LV(J)*LV(J)*QSCONV(J)/(RV*TCONV(J)*TCONV(J)*CPD)
-  !   CWAT=CLW(J)*(1.-EP(J))
-  !   DO I=ICB+1,INB
-  !     QTI=QCONV(NK)-EP(I)*CLW(I)
-  !     ANUM=H(J)-HP(I)+(CPV-CPD)*TCONV(J)*(QTI-QCONV(J))
-  !     DENOM=H(I)-HP(I)+(CPD-CPV)*(QCONV(I)-QTI)*TCONV(J)
-  !     DEI=DENOM
-  !     IF(I.EQ.J)THEN
-  !       SIJ(I,I)=1.0
-  !     ELSE IF(ABS(DENOM).LT.0.01)THEN
-  !       SIJ(I,J)=ANUM/0.01
-  !     ELSE
-  !       SIJ(I,J)=ANUM/DENOM
-  !     END IF
-  !     ALTEM=(SIJ(I,J)*QCONV(I)+(1.-SIJ(I,J))*QTI-QSCONV(J))/BF2
-  !     IF((SIJ(I,J).LT.0.0.OR.SIJ(I,J).GT.1.0.OR. &
-  !           ALTEM.GT.CWAT).AND.J.GT.I)THEN
-  !       ANUM=ANUM-LV(J)*(QTI-QSCONV(J)-CWAT*BF2)
-  !       DENOM=DENOM+LV(J)*(QCONV(I)-QTI)
-  !       IF(ABS(DENOM).LT.0.01)DENOM=0.01
-  !       SIJ(I,J)=ANUM/DENOM
-  !       ALTEM=SIJ(I,J)*QCONV(I)+(1.-SIJ(I,J))*QTI-QSCONV(J)
-  !       ALTEM=ALTEM-(BF2-1.)*CWAT
-  !     END IF
-  !     IF(SIJ(I,J).GT.0.0.AND.SIJ(I,J).LT.0.9)THEN
-  !       QENT(I,J)=SIJ(I,J)*QCONV(I)+(1.-SIJ(I,J))*QTI
-  !       ELIJ(I,J)=ALTEM
-  !       ELIJ(I,J)=MAX(0.0,ELIJ(I,J))
-  !       MENT(I,J)=M(I)/(1.-SIJ(I,J))
-  !       NENT(I)=NENT(I)+1
-  !     END IF
-  !     SIJ(I,J)=MAX(0.0,SIJ(I,J))
-  !     SIJ(I,J)=MIN(1.0,SIJ(I,J))
-  !   END DO
-  ! END DO
-  ! !
-  ! !   ***   IF NO AIR CAN ENTRAIN AT LEVEL I ASSUME THAT UPDRAFT DETRAINS  ***
-  ! !   ***   AT THAT LEVEL AND CALCULATE DETRAINED AIR FLUX AND PROPERTIES  ***
-  ! !
-  ! do I=ICB+1,INB
-  !   IF(NENT(I).EQ.0)THEN
-  !     MENT(I,I)=M(I)
-  !     QENT(I,I)=QCONV(NK)-EP(I)*CLW(I)
-  !     ELIJ(I,I)=CLW(I)
-  !     SIJ(I,I)=1.0
-  !   END IF
-  ! END DO
-  ! SIJ(INB,INB)=1.0
-
-
+     END IF
+    END DO
+    SIJ(INB,INB)=1.0
   !
   !   ***  NORMALIZE ENTRAINED AIR MASS FLUXES TO REPRESENT EQUAL  ***
   !   ***              PROBABILITIES OF MIXING                     ***
   !
-  ! LB 04.05.2021, depending on how often NENT.ne.0, reversing the loop could
-  ! speed it up...
-  DO I=ICB+1,INB
+    DO I=ICB+1,INB
     IF(NENT(I).NE.0)THEN
-      QP1=QCONV(NK)-EP(I)*CLW(I)
-      ANUM=H(I)-HP(I)-LV(I)*(QP1-QSCONV(I))
-      DENOM=H(I)-HP(I)+LV(I)*(QCONV(I)-QP1)
-      IF(ABS(DENOM).LT.0.01)DENOM=0.01
-      SCRIT=ANUM/DENOM
-      ALT=QP1-QSCONV(I)+SCRIT*(QCONV(I)-QP1)
-      IF(ALT.LT.0.0)SCRIT=1.0
-      SCRIT=MAX(SCRIT,0.0)
-      ASIJ=0.0
-      SMIN=1.0
-      DO J=ICB,INB
-        IF(SIJ(I,J).GT.0.0.AND.SIJ(I,J).LT.0.9)THEN
-          IF(J.GT.I)THEN
-            SMID=MIN(SIJ(I,J),SCRIT)
-            SJMAX=SMID
-            SJMIN=SMID
-            IF(SMID.LT.SMIN.AND.SIJ(I,J+1).LT.SMID)THEN
-              SMIN=SMID
-              SJMAX=MIN(SIJ(I,J+1),SIJ(I,J),SCRIT)
-              SJMIN=MAX(SIJ(I,J-1),SIJ(I,J))
-              SJMIN=MIN(SJMIN,SCRIT)
-            END IF
-          ELSE
-            SJMAX=MAX(SIJ(I,J+1),SCRIT)
-            SMID=MAX(SIJ(I,J),SCRIT)
-            SJMIN=0.0
-            IF(J.GT.1)SJMIN=SIJ(I,J-1)
-            SJMIN=MAX(SJMIN,SCRIT)
-          END IF
-          DELP=ABS(SJMAX-SMID)
-          DELM=ABS(SJMIN-SMID)
-          ASIJ=ASIJ+(DELP+DELM)*(PHCONV_HPA(J)-PHCONV_HPA(J+1))
-          MENT(I,J)=MENT(I,J)*(DELP+DELM)* &
-               (PHCONV_HPA(J)-PHCONV_HPA(J+1))
+     QP1=QCONV(NK)-EP(I)*CLW(I)
+     ANUM=H(I)-HP(I)-LV(I)*(QP1-QSCONV(I))
+     DENOM=H(I)-HP(I)+LV(I)*(QCONV(I)-QP1)
+     IF(ABS(DENOM).LT.0.01)DENOM=0.01
+     SCRIT=ANUM/DENOM
+     ALT=QP1-QSCONV(I)+SCRIT*(QCONV(I)-QP1)
+     IF(ALT.LT.0.0)SCRIT=1.0
+     SCRIT=MAX(SCRIT,0.0)
+     ASIJ=0.0
+     SMIN=1.0
+     DO J=ICB,INB
+      IF(SIJ(I,J).GT.0.0.AND.SIJ(I,J).LT.0.9)THEN
+       IF(J.GT.I)THEN
+        SMID=MIN(SIJ(I,J),SCRIT)
+        SJMAX=SMID
+        SJMIN=SMID
+        IF(SMID.LT.SMIN.AND.SIJ(I,J+1).LT.SMID)THEN
+         SMIN=SMID
+         SJMAX=MIN(SIJ(I,J+1),SIJ(I,J),SCRIT)
+         SJMIN=MAX(SIJ(I,J-1),SIJ(I,J))
+         SJMIN=MIN(SJMIN,SCRIT)
         END IF
-      END DO
-      ASIJ=MAX(1.0E-21,ASIJ)
-      ASIJ=1.0/ASIJ
-      DO J=ICB,INB
-        MENT(I,J)=MENT(I,J)*ASIJ
-      END DO
-      BSUM=0.0
-      DO J=ICB,INB
-        BSUM=BSUM+MENT(I,J)
-      END DO
-      IF(BSUM.LT.1.0E-18)THEN
-        NENT(I)=0
-        MENT(I,I)=M(I)
-        QENT(I,I)=QCONV(NK)-EP(I)*CLW(I)
-        ELIJ(I,I)=CLW(I)
-        SIJ(I,I)=1.0
+       ELSE
+        SJMAX=MAX(SIJ(I,J+1),SCRIT)
+        SMID=MAX(SIJ(I,J),SCRIT)
+        SJMIN=0.0
+        IF(J.GT.1)SJMIN=SIJ(I,J-1)
+        SJMIN=MAX(SJMIN,SCRIT)
+       END IF
+       DELP=ABS(SJMAX-SMID)
+       DELM=ABS(SJMIN-SMID)
+       ASIJ=ASIJ+(DELP+DELM)*(PHCONV_HPA(J)-PHCONV_HPA(J+1))
+       MENT(I,J)=MENT(I,J)*(DELP+DELM)* &
+            (PHCONV_HPA(J)-PHCONV_HPA(J+1))
       END IF
+     END DO
+     ASIJ=MAX(1.0E-21,ASIJ)
+     ASIJ=1.0/ASIJ
+     DO J=ICB,INB
+      MENT(I,J)=MENT(I,J)*ASIJ
+     END DO
+     BSUM=0.0
+     DO J=ICB,INB
+      BSUM=BSUM+MENT(I,J)
+     END DO
+     IF(BSUM.LT.1.0E-18)THEN
+      NENT(I)=0
+      MENT(I,I)=M(I)
+      QENT(I,I)=QCONV(NK)-EP(I)*CLW(I)
+      ELIJ(I,I)=CLW(I)
+      SIJ(I,I)=1.0
+     END IF
     END IF
-  END DO
-
+    END DO
   !
   !   ***  CHECK WHETHER EP(INB)=0, IF SO, SKIP PRECIPITATING    ***
   !   ***             DOWNDRAFT CALCULATION                      ***
   !
-  IF(EP(INB).LT.0.0001)GOTO 405
+    IF(EP(INB).LT.0.0001)GOTO 405
   !
   !   ***  INTEGRATE LIQUID WATER EQUATION TO FIND CONDENSED WATER   ***
   !   ***                AND CONDENSED WATER FLUX                    ***
   !
-  JTT=2
+    JTT=2
   !
   !    ***                    BEGIN DOWNDRAFT LOOP                    ***
   !
-  DO I=INB,1,-1
+    DO I=INB,1,-1
   !
   !    ***              CALCULATE DETRAINED PRECIPITATION             ***
   !
     WDTRAIN=G*EP(I)*M(I)*CLW(I)
     IF(I.GT.1)THEN
-      DO J=1,I-1
-        AWAT=ELIJ(J,I)-(1.-EP(I))*CLW(I)
-        AWAT=MAX(0.0,AWAT)
-        WDTRAIN=WDTRAIN+G*AWAT*MENT(J,I)
-      END DO
+     DO J=1,I-1
+     AWAT=ELIJ(J,I)-(1.-EP(I))*CLW(I)
+     AWAT=MAX(0.0,AWAT)
+       WDTRAIN=WDTRAIN+G*AWAT*MENT(J,I)
+     END DO
     END IF
   !
   !    ***    FIND RAIN WATER AND EVAPORATION USING PROVISIONAL   ***
@@ -885,8 +779,8 @@
   !  ***  Value of terminal velocity and coefficient of evaporation for rain   ***
   !
     IF(TCONV(I).GT.273.0)THEN
-      COEFF=COEFFR
-      WT(I)=OMTRAIN
+     COEFF=COEFFR
+     WT(I)=OMTRAIN
     END IF
     QSM=0.5*(QCONV(I)+QP(I+1))
     AFAC=COEFF*PHCONV_HPA(I)*(QSCONV(I)-QSM)/ &
@@ -918,20 +812,20 @@
   !    ***      FORCE MP TO DECREASE LINEARLY TO ZERO                 ***
   !    ***      BETWEEN ABOUT 950 MB AND THE SURFACE                  ***
   !
-    IF(PCONV_HPA(I).GT.(0.949*PCONV_HPA(1)))THEN
-      JTT=MAX(JTT,I)
-      MP(I)=MP(JTT)*(PCONV_HPA(1)-PCONV_HPA(I))/(PCONV_HPA(1)- &
-          PCONV_HPA(JTT))
-    END IF
-360   CONTINUE
+      IF(PCONV_HPA(I).GT.(0.949*PCONV_HPA(1)))THEN
+       JTT=MAX(JTT,I)
+       MP(I)=MP(JTT)*(PCONV_HPA(1)-PCONV_HPA(I))/(PCONV_HPA(1)- &
+            PCONV_HPA(JTT))
+      END IF
+  360   CONTINUE
   !
   !    ***       FIND MIXING RATIO OF PRECIPITATING DOWNDRAFT     ***
   !
     IF(I.EQ.INB)GOTO 400
     IF(I.EQ.1)THEN
-      QSTM=QSCONV(1)
+     QSTM=QSCONV(1)
     ELSE
-      QSTM=QSCONV(I-1)
+     QSTM=QSCONV(I-1)
     END IF
     IF(MP(I).GT.MP(I+1))THEN
       RAT=MP(I+1)/MP(I)
@@ -946,13 +840,13 @@
     QP(I)=MIN(QP(I),QSTM)
     QP(I)=MAX(QP(I),0.0)
 400 CONTINUE
-  END DO
+    END DO
   !
   !   ***  CALCULATE SURFACE PRECIPITATION IN MM/DAY     ***
   !
-  PRECIP=PRECIP+WT(1)*SIGD*WATER(1)*3600.*24000./(ROWL*G)
+    PRECIP=PRECIP+WT(1)*SIGD*WATER(1)*3600.*24000./(ROWL*G)
   !
-405   CONTINUE
+  405   CONTINUE
   !
   !   ***  CALCULATE DOWNDRAFT VELOCITY SCALE AND SURFACE TEMPERATURE AND  ***
   !   ***                    WATER VAPOR FLUCTUATIONS                      ***
@@ -964,31 +858,26 @@
   !   ***  CALCULATE TENDENCIES OF LOWEST LEVEL POTENTIAL TEMPERATURE  ***
   !   ***                      AND MIXING RATIO                        ***
   !
-
-  DPINV=0.01/(PHCONV_HPA(1)-PHCONV_HPA(2))
-  AM=0.0
-  IF(NK.EQ.1)THEN
-    ! DO K=2,INB
-    !   AM=AM+M(K)
-    ! END DO
-    ! LB 04.05.2021, replace above with array operations
-    AM = sum(M(2:INB))
-  END IF
+    DPINV=0.01/(PHCONV_HPA(1)-PHCONV_HPA(2))
+    AM=0.0
+    IF(NK.EQ.1)THEN
+     DO K=2,INB
+       AM=AM+M(K)
+     END DO
+    END IF
   ! save saturated upward mass flux for first level
-  FUP(1)=AM
-  IF((2.*G*DPINV*AM).GE.DELTI)IFLAG=4
-  FT(1)=FT(1)+G*DPINV*AM*(TCONV(2)-TCONV(1)+(GZ(2)-GZ(1))/CPN(1))
-  FT(1)=FT(1)-LVCP(1)*SIGD*EVAP(1)
-  FT(1)=FT(1)+SIGD*WT(2)*(CL-CPD)*WATER(2)*(TCONV(2)- &
-       TCONV(1))*DPINV/CPN(1)
-  FQ(1)=FQ(1)+G*MP(2)*(QP(2)-QCONV(1))* &
-       DPINV+SIGD*EVAP(1)
-  FQ(1)=FQ(1)+G*AM*(QCONV(2)-QCONV(1))*DPINV
-  ! DO J=2,INB
-  !   FQ(1)=FQ(1)+G*DPINV*MENT(J,1)*(QENT(J,1)-QCONV(1))
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations
-  FQ(1)=FQ(1)+G*DPINV*sum(MENT(2:INB,1)*(QENT(2:INB,1)-QCONV(1)))
+    FUP(1)=AM
+    IF((2.*G*DPINV*AM).GE.DELTI)IFLAG=4
+    FT(1)=FT(1)+G*DPINV*AM*(TCONV(2)-TCONV(1)+(GZ(2)-GZ(1))/CPN(1))
+    FT(1)=FT(1)-LVCP(1)*SIGD*EVAP(1)
+    FT(1)=FT(1)+SIGD*WT(2)*(CL-CPD)*WATER(2)*(TCONV(2)- &
+         TCONV(1))*DPINV/CPN(1)
+    FQ(1)=FQ(1)+G*MP(2)*(QP(2)-QCONV(1))* &
+         DPINV+SIGD*EVAP(1)
+    FQ(1)=FQ(1)+G*AM*(QCONV(2)-QCONV(1))*DPINV
+    DO J=2,INB
+     FQ(1)=FQ(1)+G*DPINV*MENT(J,1)*(QENT(J,1)-QCONV(1))
+    END DO
   !
   !   ***  CALCULATE TENDENCIES OF POTENTIAL TEMPERATURE AND MIXING RATIO  ***
   !   ***               AT LEVELS ABOVE THE LOWEST LEVEL                   ***
@@ -996,35 +885,29 @@
   !   ***  FIRST FIND THE NET SATURATED UPDRAFT AND DOWNDRAFT MASS FLUXES  ***
   !   ***                      THROUGH EACH LEVEL                          ***
   !
-  DO I=2,INB
+    DO I=2,INB
     DPINV=0.01/(PHCONV_HPA(I)-PHCONV_HPA(I+1))
     CPINV=1.0/CPN(I)
     AMP1=0.0
     AD=0.0
     IF(I.GE.NK)THEN
-      ! DO K=I+1,INB+1
-      !   AMP1=AMP1+M(K)
-      ! END DO
-      ! LB 04.05.2021, replace above with array operations
-      AMP1 = sum(M(I+1:INB+1))
+     DO K=I+1,INB+1
+       AMP1=AMP1+M(K)
+     END DO
     END IF
-    ! DO K=1,I
-    !   DO J=I+1,INB+1
-    !     AMP1=AMP1+MENT(K,J)
-    !   END DO
-    ! END DO
-    ! LB 04.05.2021, replace above with array operations
-    AMP1 = AMP1 + sum(MENT(1:I,I+1:INB+1))
+    DO K=1,I
+    DO J=I+1,INB+1
+     AMP1=AMP1+MENT(K,J)
+    END DO
+    END DO
   ! save saturated upward mass flux
     FUP(I)=AMP1
     IF((2.*G*DPINV*AMP1).GE.DELTI)IFLAG=4
-    ! DO K=1,I-1
-    !   DO J=I,INB
-    !     AD=AD+MENT(J,K)
-    !   END DO
-    ! END DO
-    ! LB 04.05.2021, replace above with array operations
-    AD = sum(MENT(I:INB,1:I-1))
+    DO K=1,I-1
+    DO J=I,INB
+     AD=AD+MENT(J,K)
+    END DO
+    END DO
   ! save saturated downward mass flux
     FDOWN(I)=AD
     FT(I)=FT(I)+G*DPINV*(AMP1*(TCONV(I+1)-TCONV(I)+(GZ(I+1)-GZ(I))* &
@@ -1037,51 +920,43 @@
     FQ(I)=FQ(I)+G*DPINV*(AMP1*(QCONV(I+1)-QCONV(I))- &
          AD*(QCONV(I)-QCONV(I-1)))
     DO K=1,I-1
-      AWAT=ELIJ(K,I)-(1.-EP(I))*CLW(I)
-      AWAT=MAX(AWAT,0.0)
-      FQ(I)=FQ(I)+G*DPINV*MENT(K,I)*(QENT(K,I)-AWAT-QCONV(I))
+     AWAT=ELIJ(K,I)-(1.-EP(I))*CLW(I)
+     AWAT=MAX(AWAT,0.0)
+     FQ(I)=FQ(I)+G*DPINV*MENT(K,I)*(QENT(K,I)-AWAT-QCONV(I))
     END DO
-    ! DO K=I,INB
-    !   FQ(I)=FQ(I)+G*DPINV*MENT(K,I)*(QENT(K,I)-QCONV(I))
-    ! END DO
-    ! LB 04.05.2021, replace above with array operations
-    FQ(I)=FQ(I)+G*DPINV*sum(MENT(I:INB,I)*(QENT(I:INB,I)-QCONV(I)))
+    DO K=I,INB
+     FQ(I)=FQ(I)+G*DPINV*MENT(K,I)*(QENT(K,I)-QCONV(I))
+    END DO
     FQ(I)=FQ(I)+SIGD*EVAP(I)+G*(MP(I+1)* &
          (QP(I+1)-QCONV(I))-MP(I)*(QP(I)-QCONV(I-1)))*DPINV
-  END DO
+    END DO
   !
   !   *** Adjust tendencies at top of convection layer to reflect  ***
   !   ***       actual position of the level zero CAPE             ***
   !
-  FQOLD=FQ(INB)
-  FQ(INB)=FQ(INB)*(1.-FRAC)
-  FQ(INB-1)=FQ(INB-1)+FRAC*FQOLD*((PHCONV_HPA(INB)- &
-       PHCONV_HPA(INB+1))/ &
-       (PHCONV_HPA(INB-1)-PHCONV_HPA(INB)))*LV(INB)/LV(INB-1)
-  FTOLD=FT(INB)
-  FT(INB)=FT(INB)*(1.-FRAC)
-  FT(INB-1)=FT(INB-1)+FRAC*FTOLD*((PHCONV_HPA(INB)- &
-       PHCONV_HPA(INB+1))/ &
-       (PHCONV_HPA(INB-1)-PHCONV_HPA(INB)))*CPN(INB)/CPN(INB-1)
-!
-!   ***   Very slightly adjust tendencies to force exact   ***
-!   ***     enthalpy, momentum and tracer conservation     ***
-!
-  ENTS=0.0
-  ! DO I=1,INB
-  !   ENTS=ENTS+(CPN(I)*FT(I)+LV(I)*FQ(I))* &
-  !       (PHCONV_HPA(I)-PHCONV_HPA(I+1))
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations
-  ENTS = sum((CPN(1:INB)*FT(1:INB)+LV(1:INB)*FQ(1:INB))* &
-        (PHCONV_HPA(1:INB)-PHCONV_HPA(2:INB+1)))
-
-  ENTS=ENTS/(PHCONV_HPA(1)-PHCONV_HPA(INB+1))
-  ! DO I=1,INB
-  !   FT(I)=FT(I)-ENTS/CPN(I)
-  ! END DO
-  ! LB 04.05.2021, replace above with array operations
-  FT(1:INB)=FT(1:INB) - ENTS/CPN(1:INB)
+    FQOLD=FQ(INB)
+    FQ(INB)=FQ(INB)*(1.-FRAC)
+    FQ(INB-1)=FQ(INB-1)+FRAC*FQOLD*((PHCONV_HPA(INB)- &
+         PHCONV_HPA(INB+1))/ &
+         (PHCONV_HPA(INB-1)-PHCONV_HPA(INB)))*LV(INB)/LV(INB-1)
+    FTOLD=FT(INB)
+    FT(INB)=FT(INB)*(1.-FRAC)
+    FT(INB-1)=FT(INB-1)+FRAC*FTOLD*((PHCONV_HPA(INB)- &
+         PHCONV_HPA(INB+1))/ &
+         (PHCONV_HPA(INB-1)-PHCONV_HPA(INB)))*CPN(INB)/CPN(INB-1)
+  !
+  !   ***   Very slightly adjust tendencies to force exact   ***
+  !   ***     enthalpy, momentum and tracer conservation     ***
+  !
+    ENTS=0.0
+    DO I=1,INB
+     ENTS=ENTS+(CPN(I)*FT(I)+LV(I)*FQ(I))* &
+          (PHCONV_HPA(I)-PHCONV_HPA(I+1))
+    END DO
+    ENTS=ENTS/(PHCONV_HPA(1)-PHCONV_HPA(INB+1))
+    DO I=1,INB
+     FT(I)=FT(I)-ENTS/CPN(I)
+    END DO
 
   ! ************************************************
   ! **** DETERMINE MASS DISPLACEMENT MATRIX
@@ -1097,34 +972,23 @@
   ! NCONVTOP IS THE TOP LEVEL AT WHICH CONVECTIVE MASS FLUXES ARE DIAGNOSED
   ! EPSILON IS A SMALL NUMBER
 
-  ! SUB(1)=0.
-  ! NCONVTOP=1
-  ! do i=1,INB+1
-  !   do j=1,INB+1
-  !     if (j.eq.NK) then
-  !       FMASS(j,i)=FMASS(j,i)+M(i)
-  !     endif
-  !     FMASS(j,i)=FMASS(j,i)+MENT(j,i)
-  !     IF (FMASS(J,I).GT.EPSILON) NCONVTOP=MAX(NCONVTOP,I,J)
-  !   end do
-  !   if (i.gt.1) then
-  !     SUB(i)=FUP(i-1)-FDOWN(i)
-  !   endif
-  ! end do
-  ! NCONVTOP=NCONVTOP+1
-  ! LB 04.05.2021, replace above with array operations
-  FMASS(NK, :INB+1) = FMASS(NK,:INB+1)+M(:INB+1)
-  FMASS(:INB+1,:INB+1) = FMASS(:INB+1,:INB+1)+MENT(:INB+1,:INB+1)
-  SUB(1) = 0.
-  SUB(2:INB+1) = FUP(1:INB) - FDOWN(2:INB+1)
-  NCONVTOP=1
-  do i=1,INB+1
-    do j=1,INB+1
-      if (FMASS(j,i).gt.EPSILON) NCONVTOP=MAX(NCONVTOP,i,j)
-    end do
-  end do
-  NCONVTOP=NCONVTOP+1
-  RETURN
+   SUB(1)=0.
+   NCONVTOP=1
+   do i=1,INB+1
+   do j=1,INB+1
+    if (j.eq.NK) then
+     FMASS(j,i)=FMASS(j,i)+M(i)
+    endif
+     FMASS(j,i)=FMASS(j,i)+MENT(j,i)
+     IF (FMASS(J,I).GT.EPSILON) NCONVTOP=MAX(NCONVTOP,I,J)
+   end do
+   if (i.gt.1) then
+    SUB(i)=FUP(i-1)-FDOWN(i)
+   endif
+   end do
+   NCONVTOP=NCONVTOP+1
+
+    RETURN
   !
 END SUBROUTINE CONVECT
 !
@@ -1153,60 +1017,56 @@ SUBROUTINE TLIFT(GZ,ICB,NK,TVP,TPK,CLW,ND,NL,KK)
   !
   !====>End Module   TLIFT      File convect.f
 
-  REAL :: GZ(ND),TPK(ND),CLW(ND)
-  REAL :: TVP(ND)
+    REAL :: GZ(ND),TPK(ND),CLW(ND)
+    REAL :: TVP(ND)
   !
   !   ***   ASSIGN VALUES OF THERMODYNAMIC CONSTANTS     ***
   !
-  REAL,PARAMETER :: CPD=1005.7
-  REAL,PARAMETER :: CPV=1870.0
-  REAL,PARAMETER :: CL=2500.0
-  REAL,PARAMETER :: RV=461.5
-  REAL,PARAMETER :: RD=287.04
-  REAL,PARAMETER :: LV0=2.501E6
+    REAL,PARAMETER :: CPD=1005.7
+    REAL,PARAMETER :: CPV=1870.0
+    REAL,PARAMETER :: CL=2500.0
+    REAL,PARAMETER :: RV=461.5
+    REAL,PARAMETER :: RD=287.04
+    REAL,PARAMETER :: LV0=2.501E6
   !
-  REAL,PARAMETER :: CPVMCL=CL-CPV
-  REAL,PARAMETER :: EPS0=RD/RV
-  REAL,PARAMETER :: EPSI=1./EPS0
+    REAL,PARAMETER :: CPVMCL=CL-CPV
+    REAL,PARAMETER :: EPS0=RD/RV
+    REAL,PARAMETER :: EPSI=1./EPS0
   !
   !   ***  CALCULATE CERTAIN PARCEL QUANTITIES, INCLUDING STATIC ENERGY   ***
   !
-  AH0=(CPD*(1.-QCONV(NK))+CL*QCONV(NK))*TCONV(NK)+QCONV(NK)* &
-       (LV0-CPVMCL*( &
-       TCONV(NK)-273.15))+GZ(NK)
-  CPP=CPD*(1.-QCONV(NK))+QCONV(NK)*CPV
-  CPINV=1./CPP
+    AH0=(CPD*(1.-QCONV(NK))+CL*QCONV(NK))*TCONV(NK)+QCONV(NK)* &
+         (LV0-CPVMCL*( &
+         TCONV(NK)-273.15))+GZ(NK)
+    CPP=CPD*(1.-QCONV(NK))+QCONV(NK)*CPV
+    CPINV=1./CPP
   !
-  IF(KK.EQ.1)THEN
+    IF(KK.EQ.1)THEN
   !
   !   ***   CALCULATE LIFTED PARCEL QUANTITIES BELOW CLOUD BASE   ***
   !
-    ! DO I=1,ICB-1
-    !   CLW(I)=0.0
-    ! END DO
-    ! DO I=NK,ICB-1
-    !   TPK(I)=TCONV(NK)-(GZ(I)-GZ(NK))*CPINV
-    !   TVP(I)=TPK(I)*(1.+QCONV(NK)*EPSI)
-    ! END DO
-    ! LB 04.05.2021, replace above with array operations
-    CLW(1:ICB-1) = 0.0
-    TPK(NK:ICB-1)=TCONV(NK)-(GZ(NK:ICB-1)-GZ(NK))*CPINV
-    TVP(NK:ICB-1)=TPK(NK:ICB-1)*(1.+QCONV(NK)*EPSI)
-  END IF
+    DO I=1,ICB-1
+     CLW(I)=0.0
+    END DO
+    DO I=NK,ICB-1
+     TPK(I)=TCONV(NK)-(GZ(I)-GZ(NK))*CPINV
+     TVP(I)=TPK(I)*(1.+QCONV(NK)*EPSI)
+    END DO
+    END IF
   !
   !    ***  FIND LIFTED PARCEL QUANTITIES ABOVE CLOUD BASE    ***
   !
-  NST=ICB
-  NSB=ICB
-  IF(KK.EQ.2)THEN
-    NST=NL
-    NSB=ICB+1
-  END IF
-  DO I=NSB,NST
-    TG=TCONV(I)
-    QG=QSCONV(I)
-    ALV=LV0-CPVMCL*(TCONV(I)-273.15)
-    DO J=1,2
+    NST=ICB
+    NSB=ICB
+    IF(KK.EQ.2)THEN
+     NST=NL
+     NSB=ICB+1
+    END IF
+    DO I=NSB,NST
+     TG=TCONV(I)
+     QG=QSCONV(I)
+     ALV=LV0-CPVMCL*(TCONV(I)-273.15)
+     DO J=1,2
       S=CPD+ALV*ALV*QG/(RV*TCONV(I)*TCONV(I))
       S=1./S
       AHG=CPD*TG+(CL-CPD)*QCONV(NK)*TCONV(I)+ALV*QG+GZ(I)
@@ -1215,18 +1075,18 @@ SUBROUTINE TLIFT(GZ,ICB,NK,TVP,TPK,CLW,ND,NL,KK)
       TC=TG-273.15
       DENOM=243.5+TC
       IF(TC.GE.0.0)THEN
-        ES=6.112*EXP(17.67*TC/DENOM)
+       ES=6.112*EXP(17.67*TC/DENOM)
       ELSE
-        ES=EXP(23.33086-6111.72784/TG+0.15215*LOG(TG))
+       ES=EXP(23.33086-6111.72784/TG+0.15215*LOG(TG))
       END IF
       QG=EPS0*ES/(PCONV_HPA(I)-ES*(1.-EPS0))
+     END DO
+     ALV=LV0-CPVMCL*(TCONV(I)-273.15)
+     TPK(I)=(AH0-(CL-CPD)*QCONV(NK)*TCONV(I)-GZ(I)-ALV*QG)/CPD
+     CLW(I)=QCONV(NK)-QG
+     CLW(I)=MAX(0.0,CLW(I))
+     RG=QG/(1.-QCONV(NK))
+     TVP(I)=TPK(I)*(1.+RG*EPSI)
     END DO
-    ALV=LV0-CPVMCL*(TCONV(I)-273.15)
-    TPK(I)=(AH0-(CL-CPD)*QCONV(NK)*TCONV(I)-GZ(I)-ALV*QG)/CPD
-    CLW(I)=QCONV(NK)-QG
-    CLW(I)=MAX(0.0,CLW(I))
-    RG=QG/(1.-QCONV(NK))
-    TVP(I)=TPK(I)*(1.+RG*EPSI)
-  END DO
-  RETURN
+    RETURN
 END SUBROUTINE TLIFT

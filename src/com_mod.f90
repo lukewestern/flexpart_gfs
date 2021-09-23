@@ -28,7 +28,6 @@ module com_mod
   integer :: length(numpath+2*maxnests)
   character(len=256) :: pathfile, flexversion, flexversion_major, arg1, arg2
   character(len=256) :: ohfields_path
-  character(len=256) :: wind_coord_type
   
   ! path                    path names needed for trajectory model
   ! length                  length of path names needed for trajectory model
@@ -76,8 +75,6 @@ module com_mod
   integer :: ind_rel,ind_samp,ioutputforeachrelease,linit_cond,surf_only
   logical :: turbswitch
   integer :: cblflag !added by mc for cbl
-  !LB 14.05.2021, option for no grid output
-  integer :: grid_output
 
   ! ctl      factor, by which time step must be smaller than Lagrangian time scale
   ! ifine    reduction factor for time step used for vertical wind
@@ -299,7 +296,7 @@ module com_mod
   !****************************************************************************
 
   integer :: nx,ny,nxmin1,nymin1,nxfield,nuvz,nwz,nz,nmixz,nlev_ec
-  real :: dx,dy,xlon0,ylat0,dxconst,dyconst,height(nzmax),wheight(nzmax),uvheight(nzmax)
+  real :: dx,dy,xlon0,ylat0,dxconst,dyconst,height(nzmax)
 
   ! nx,ny,nz                actual dimensions of wind fields in x,y and z
   !                    direction, respectively
@@ -354,17 +351,6 @@ module com_mod
 
   ! 3d fields
   !**********
-  real :: uueta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: vveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: uupoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: vvpoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: wweta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: tteta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: qveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: pveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: rhoeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: drhodzeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: tvirtual(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
 
   real :: uu(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
   real :: vv(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
@@ -585,8 +571,6 @@ module com_mod
   integer(kind=1) :: landinvent(1200,600,6)
   real :: z0(numclass)
 
-!$OMP THREADPRIVATE (z0)
-
   ! landinvent         landuse inventory (numclass=11 classes)
   ! z0                  roughness length for the landuse classes
 
@@ -694,7 +678,7 @@ module com_mod
   integer, allocatable, dimension(:) :: itra1, npoint, nclass, idt, itramem, itrasplit
 
   real(kind=dp), allocatable, dimension(:) :: xtra1, ytra1
-  real, allocatable, dimension(:) :: ztra1, ztra1eta
+  real, allocatable, dimension(:) :: ztra1 
   real, allocatable, dimension(:,:) :: xmass1
   real, allocatable, dimension(:,:) :: xscav_frac1
 
@@ -791,11 +775,8 @@ module com_mod
   logical :: lroot=.true. ! true if serial version, or if MPI .and. root process
   
   logical, parameter :: interpolhmix=.false. ! true if the hmix shall be interpolated
-  logical, parameter :: turboff=.true.       ! true if the turbulence shall be switched off
-
-  integer :: numthreads  ! number of available threads in parallel sections
-  !integer :: nclassunc2, nrecclunc, ngriclunc
-
+  logical, parameter :: turboff=.false.       ! true if the turbulence shall be switched off
+  
   
 contains
   subroutine com_mod_allocate_part(nmpart)
@@ -815,8 +796,8 @@ contains
 ! Arrays, previously static of size maxpart
     allocate(itra1(nmpart),npoint(nmpart),nclass(nmpart),&
          & idt(nmpart),itramem(nmpart),itrasplit(nmpart),&
-         & xtra1(nmpart),ytra1(nmpart),ztra1(nmpart), &
-         & ztra1eta(nmpart), xmass1(nmpart, maxspec))  ! ,&
+         & xtra1(nmpart),ytra1(nmpart),ztra1(nmpart),&
+         & xmass1(nmpart, maxspec))  ! ,&
 !         & checklifetime(nmpart,maxspec), species_lifetime(maxspec,2))!CGZ-lifetime
 
     if (ipout.eq.3) then

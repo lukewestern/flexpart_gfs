@@ -23,7 +23,7 @@ subroutine convmix(itime,metdata_format)
   !     - Merged convmix and convmix_gfs into one routine using if-then           
   !       for meteo-type dependent code                                        
   !**************************************************************
-  use omp_lib
+
   use flux_mod
   use par_mod
   use com_mod
@@ -51,11 +51,6 @@ subroutine convmix(itime,metdata_format)
   integer :: itage,nage
   real,parameter :: eps=nxmax/3.e5
 
-  ! OMP changes
-  integer :: cnt,kk
-  integer,allocatable,dimension(:) :: frst
-  double precision :: tmarray(2)
-  integer :: conv_cnt, thread, part_cnt
 
   !monitoring variables
   !real sumconv,sumall
@@ -72,8 +67,6 @@ subroutine convmix(itime,metdata_format)
   delt=real(abs(lsynctime))
 
 
-
-
   lconv = .false.
 
   ! if no particles are present return after initialization
@@ -88,8 +81,7 @@ subroutine convmix(itime,metdata_format)
   ! igrid shall be -1
   ! Also, initialize index vector ipoint
   !************************************************************************
-!$OMP PARALLEL private(ipart, j, x, y, ngrid, xtn, ytn, ix, jy)
-!$OMP DO
+
   do ipart=1,numpart
     igrid(ipart)=-1
     do j=numbnests,1,-1
@@ -97,7 +89,7 @@ subroutine convmix(itime,metdata_format)
     end do
     ipoint(ipart)=ipart
   ! do not consider particles that are (yet) not part of simulation
-    if (itra1(ipart).ne.itime) cycle
+    if (itra1(ipart).ne.itime) goto 20
     x = xtra1(ipart)
     y = ytra1(ipart)
 
@@ -106,23 +98,23 @@ subroutine convmix(itime,metdata_format)
 
     ngrid=0
     if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-      do j=numbnests,1,-1
-        if ( x.gt.xln(j)+eps .and. x.lt.xrn(j)-eps .and. &
-             y.gt.yln(j)+eps .and. y.lt.yrn(j)-eps ) then
-          ngrid=j
-          exit
-        endif
-      end do
+    do j=numbnests,1,-1
+      if ( x.gt.xln(j)+eps .and. x.lt.xrn(j)-eps .and. &
+           y.gt.yln(j)+eps .and. y.lt.yrn(j)-eps ) then
+        ngrid=j
+        goto 23
+      endif
+    end do
     else
       do j=numbnests,1,-1
         if ( x.gt.xln(j) .and. x.lt.xrn(j) .and. &
              y.gt.yln(j) .and. y.lt.yrn(j) ) then
           ngrid=j
-          exit
+          goto 23
         endif
       end do
     endif
- ! 23   continue
+ 23   continue
 
   ! Determine nested grid coordinates
   !**********************************
@@ -133,18 +125,16 @@ subroutine convmix(itime,metdata_format)
       ytn=(y-yln(ngrid))*yresoln(ngrid)
       ix=nint(xtn)
       jy=nint(ytn)
-      ! igridn(ipart,ngrid) = 1 + jy*nxn(ngrid) + ix
-      igridn(ipart,ngrid) = 1 + ix*nyn(ngrid) + jy
+      igridn(ipart,ngrid) = 1 + jy*nxn(ngrid) + ix
     else if(ngrid.eq.0) then
   ! mother grid
       ix=nint(x)
       jy=nint(y)
-      !igrid(ipart) = 1 + jy*nx + ix
-      igrid(ipart) = 1 + ix*ny + jy
+      igrid(ipart) = 1 + jy*nx + ix
     endif
+
+ 20 continue
   end do
-!$OMP END DO
-!$OMP END PARALLEL
 
   ! sumall = 0.
   ! sumconv = 0.
@@ -164,96 +154,72 @@ subroutine convmix(itime,metdata_format)
   ! Now visit all grid columns where particles are present
   ! by going through the sorted particles
 
-  !LB changes following the CTM version
-  allocate(frst(nx*(ny+1)+1))
-  frst(1) = 1
-  cnt = 2
-  igrold = igrid(1)
+  igrold = -1
   do kpart=1,numpart
-    if (igrold.ne.igrid(kpart)) then
-      !print*, 'cgz igrid():', kpart, igrid(kpart)
-      !call flush()
-      frst(cnt) = kpart
-      igrold=igrid(kpart)
-      cnt=cnt+1
-    endif
-  end do 
-  frst(cnt) = numpart+1
-
-  conv_cnt = 0
-  part_cnt = 0
-
-
-!$OMP PARALLEL PRIVATE(kk,jy,ix,thread,tmarray,j,kz,ktop,lconv,kpart,ipart,ztold,nage,ipconv) REDUCTION(+:conv_cnt,part_cnt)
-!$    thread = OMP_GET_THREAD_NUM()
-
-!$OMP DO SCHEDULE(static)
-  do kk=1,cnt-1
-    if (igrid(frst(kk)).eq.-1) cycle
-
-    ix = (igrid(frst(kk))-1)/ny
-    jy = igrid(frst(kk)) - ix*ny - 1
-    ! jy = (igrid(frst(kk))-1)/nx
-    ! ix = igrid(frst(kk)) - jy*nx - 1
+    igr = igrid(kpart)
+    if (igr .eq. -1) goto 50
+    ipart = ipoint(kpart)
+  ! sumall = sumall + 1
+    if (igr .ne. igrold) then
+  ! we are in a new grid column
+      jy = (igr-1)/nx
+      ix = igr - jy*nx - 1
 
   ! Interpolate all meteorological data needed for the convection scheme
-    psconv=(ps(ix,jy,1,mind1)*dt2+ps(ix,jy,1,mind2)*dt1)*dtt
-    tt2conv=(tt2(ix,jy,1,mind1)*dt2+tt2(ix,jy,1,mind2)*dt1)*dtt
-    td2conv=(td2(ix,jy,1,mind1)*dt2+td2(ix,jy,1,mind2)*dt1)*dtt
-
-    if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-      do kz=1,nuvz-1           !bugfix
+      psconv=(ps(ix,jy,1,mind1)*dt2+ps(ix,jy,1,mind2)*dt1)*dtt
+      tt2conv=(tt2(ix,jy,1,mind1)*dt2+tt2(ix,jy,1,mind2)*dt1)*dtt
+      td2conv=(td2(ix,jy,1,mind1)*dt2+td2(ix,jy,1,mind2)*dt1)*dtt
+!!$      do kz=1,nconvlev+1      !old
+      if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
+        do kz=1,nuvz-1           !bugfix
         tconv(kz)=(tth(ix,jy,kz+1,mind1)*dt2+ &
              tth(ix,jy,kz+1,mind2)*dt1)*dtt
         qconv(kz)=(qvh(ix,jy,kz+1,mind1)*dt2+ &
              qvh(ix,jy,kz+1,mind2)*dt1)*dtt
       end do
-    else
-      do kz=1,nuvz-1           !bugfix
-        pconv(kz)=(pplev(ix,jy,kz,mind1)*dt2+ &
-            pplev(ix,jy,kz,mind2)*dt1)*dtt
-        tconv(kz)=(tt(ix,jy,kz,mind1)*dt2+ &
-            tt(ix,jy,kz,mind2)*dt1)*dtt
-        qconv(kz)=(qv(ix,jy,kz,mind1)*dt2+ &
-            qv(ix,jy,kz,mind2)*dt1)*dtt
-      end do
-    end if
+      else
+        do kz=1,nuvz-1           !bugfix
+          pconv(kz)=(pplev(ix,jy,kz,mind1)*dt2+ &
+              pplev(ix,jy,kz,mind2)*dt1)*dtt
+          tconv(kz)=(tt(ix,jy,kz,mind1)*dt2+ &
+              tt(ix,jy,kz,mind2)*dt1)*dtt
+          qconv(kz)=(qv(ix,jy,kz,mind1)*dt2+ &
+              qv(ix,jy,kz,mind2)*dt1)*dtt
+        end do
+      end if
 
   ! Calculate translocation matrix
-    call calcmatrix(lconv,delt,cbaseflux(ix,jy),metdata_format)
-    
+      call calcmatrix(lconv,delt,cbaseflux(ix,jy),metdata_format)
+      igrold = igr
+      ktop = 0
+    endif
+
   ! treat particle only if column has convection
     if (lconv .eqv. .true.) then
-      ktop = 0
   ! assign new vertical position to particle
-  !LB th ctm version has a do loop, let's see if that changes anything
-      do kpart=frst(kk), frst(kk+1)-1
-        ipart = ipoint(kpart)
-        ztold=ztra1(ipart)
-        call redist(itime,ipart,ktop,ipconv)
+
+      ztold=ztra1(ipart)
+      call redist(ipart,ktop,ipconv)
   !    if (ipconv.le.0) sumconv = sumconv+1
 
   ! Calculate the gross fluxes across layer interfaces
   !***************************************************
 
-        if (iflux.eq.1) then
-          itage=abs(itra1(ipart)-itramem(ipart))
-          do nage=1,nageclass
-            if (itage.lt.lage(nage)) exit
-          end do
+      if (iflux.eq.1) then
+        itage=abs(itra1(ipart)-itramem(ipart))
+        do nage=1,nageclass
+          if (itage.lt.lage(nage)) goto 37
+        end do
+ 37     continue
 
-          if (nage.le.nageclass) &
-            call calcfluxes(nage,ipart,real(xtra1(ipart)), &
-               real(ytra1(ipart)),ztold)
-        endif
-      enddo
+        if (nage.le.nageclass) &
+             call calcfluxes(nage,ipart,real(xtra1(ipart)), &
+             real(ytra1(ipart)),ztold)
+      endif
 
     endif   !(lconv .eqv. .true)
+ 50 continue
   end do
-!$OMP END DO
-!$OMP END PARALLEL
-
-  deallocate(frst)
 
 
   !*****************************************************************************
@@ -275,7 +241,7 @@ subroutine convmix(itime,metdata_format)
     igrold = -1
     do kpart=1,numpart
       igr = igrid(kpart)
-      if (igr .eq. -1) cycle
+      if (igr .eq. -1) goto 60
       ipart = ipoint(kpart)
       ! sumall = sumall + 1
       if (igr .ne. igrold) then
@@ -309,7 +275,7 @@ subroutine convmix(itime,metdata_format)
       if (lconv .eqv. .true.) then
   ! assign new vertical position to particle
         ztold=ztra1(ipart)
-        call redist(itime,ipart,ktop,ipconv)
+        call redist(ipart,ktop,ipconv)
   !      if (ipconv.le.0) sumconv = sumconv+1
 
   ! Calculate the gross fluxes across layer interfaces
@@ -318,8 +284,9 @@ subroutine convmix(itime,metdata_format)
         if (iflux.eq.1) then
           itage=abs(itra1(ipart)-itramem(ipart))
           do nage=1,nageclass
-            if (itage.lt.lage(nage)) exit
+            if (itage.lt.lage(nage)) goto 47
           end do
+ 47       continue
 
           if (nage.le.nageclass) &
                call calcfluxes(nage,ipart,real(xtra1(ipart)), &
@@ -328,6 +295,8 @@ subroutine convmix(itime,metdata_format)
 
       endif !(lconv .eqv. .true.)
 
+
+60    continue
     end do
   end do
   !--------------------------------------------------------------------------

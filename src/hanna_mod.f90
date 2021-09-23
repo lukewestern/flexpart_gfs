@@ -5,7 +5,4 @@ module hanna_mod
   real :: ust,wst,ol,h,zeta,sigu,sigv,tlu,tlv,tlw
   real :: sigw,dsigwdz,dsigw2dz
 
-!$OMP THREADPRIVATE(ust,wst,ol,h,zeta,sigu,sigv,tlu,tlv,tlw, &
-!$OMP sigw,dsigwdz,dsigw2dz)
-
 end module hanna_mod

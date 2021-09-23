@@ -20,6 +20,4 @@ module flux_mod
   !real,allocatable, dimension (:,:,:) :: areanorth
   !real,allocatable, dimension (:,:,:) :: areaeast
 
-!LB Check if this should be private or not !$OMP THREADPRIVATE (flux)
-
 end module flux_mod

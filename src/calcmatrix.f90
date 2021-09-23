@@ -67,35 +67,23 @@ subroutine calcmatrix(lconv,delt,cbmf,metdata_format)
 
   phconv(1) = psconv
   ! Emanuel subroutine needs pressure in hPa, therefore convert all pressures
-  ! do kuvz = 2,nuvz
-  !   k = kuvz-1
-  !   if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-  !     pconv(k) = (akz(kuvz) + bkz(kuvz)*psconv)
-  !     phconv(kuvz) = (akm(kuvz) + bkm(kuvz)*psconv)
-  !   else
-  !     phconv(kuvz) =  0.5*(pconv(kuvz)+pconv(k))
-  !   endif
-  !   dpr(k) = phconv(k) - phconv(kuvz)
-  !   qsconv(k) = f_qvsat( pconv(k), tconv(k) )
+  do kuvz = 2,nuvz
+    k = kuvz-1
+    if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
+    pconv(k) = (akz(kuvz) + bkz(kuvz)*psconv)
+    phconv(kuvz) = (akm(kuvz) + bkm(kuvz)*psconv)
+    else
+      phconv(kuvz) =  0.5*(pconv(kuvz)+pconv(k))
+    endif
+    dpr(k) = phconv(k) - phconv(kuvz)
+    qsconv(k) = f_qvsat( pconv(k), tconv(k) )
 
   ! initialize mass fractions
-    ! do kk=1,nconvlev
-    !   fmassfrac(k,kk)=0.
-    ! end do
-  ! end do
-  ! LB 04.05.2021, replace above with array operations
-  if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-    pconv(1:nuvz-1) = (akz(2:nuvz) + bkz(2:nuvz)*psconv)
-    phconv(2:nuvz) = (akm(2:nuvz) + bkm(2:nuvz)*psconv)
-  else
-    phconv(2:nuvz) =  0.5*(pconv(2:nuvz)+pconv(1:nuvz-1))
-  endif
-  dpr(1:nuvz-1) = phconv(1:nuvz-1) - phconv(2:nuvz)
-  do k = 1,nuvz-1
-    qsconv(k) = f_qvsat( pconv(k), tconv(k) )
+    do kk=1,nconvlev
+      fmassfrac(k,kk)=0.
+    end do
   end do
-  fmassfrac(1:nuvz-1,1:nconvlev)=0.
-  ! LB end
+
 
   !note that Emanuel says it is important
   !a. to set this =0. every grid point
@@ -104,58 +92,47 @@ subroutine calcmatrix(lconv,delt,cbmf,metdata_format)
   ! CALL CONVECTION
   !******************
 
-  cbmfold = cbmf
+    cbmfold = cbmf
   ! Convert pressures to hPa, as required by Emanuel scheme
   !********************************************************
 !!$    do k=1,nconvlev     !old
-  ! do k=1,nconvlev+1      !bugfix
-  !   pconv_hpa(k)=pconv(k)/100.
-  !   phconv_hpa(k)=phconv(k)/100.
-  ! end do
-  ! phconv_hpa(nconvlev+1)=phconv(nconvlev+1)/100.
-  ! LB 04.05.2021, replace above with array operations
-  pconv_hpa(1:nconvlev+1)=pconv(1:nconvlev+1)/100.
-  phconv_hpa(1:nconvlev+1)=phconv(1:nconvlev+1)/100.
-  ! LB end
-    
-  call convect(nconvlevmax, nconvlev, delt, iflag, &
-       precip, wd, tprime, qprime, cbmf)
+    do k=1,nconvlev+1      !bugfix
+      pconv_hpa(k)=pconv(k)/100.
+      phconv_hpa(k)=phconv(k)/100.
+    end do
+    phconv_hpa(nconvlev+1)=phconv(nconvlev+1)/100.
+    call convect(nconvlevmax, nconvlev, delt, iflag, &
+         precip, wd, tprime, qprime, cbmf)
 
   ! do not update fmassfrac and cloudbase massflux
   ! if no convection takes place or
   ! if a CFL criterion is violated in convect43c.f
-  if (iflag .ne. 1 .and. iflag .ne. 4) then
-   cbmf=cbmfold
-   goto 200
-  endif
+   if (iflag .ne. 1 .and. iflag .ne. 4) then
+     cbmf=cbmfold
+     goto 200
+   endif
 
   ! do not update fmassfrac and cloudbase massflux
   ! if the old and the new cloud base mass
   ! fluxes are zero
-  if (cbmf.le.0..and.cbmfold.le.0.) then
-   cbmf=cbmfold
-   goto 200
-  endif
+   if (cbmf.le.0..and.cbmfold.le.0.) then
+     cbmf=cbmfold
+     goto 200
+   endif
 
   ! Update fmassfrac
   ! account for mass displaced from level k to level k
 
-  lconv = .true.
-  do k=1,nconvtop
-    rlevmass = dpr(k)/ga
-    summe = 0.
-    do kk=1,nconvtop
-      fmassfrac(k,kk) = delt*fmass(k,kk)
-      summe = summe + fmassfrac(k,kk)
+   lconv = .true.
+    do k=1,nconvtop
+      rlevmass = dpr(k)/ga
+      summe = 0.
+      do kk=1,nconvtop
+        fmassfrac(k,kk) = delt*fmass(k,kk)
+        summe = summe + fmassfrac(k,kk)
+      end do
+      fmassfrac(k,k)=fmassfrac(k,k) + rlevmass - summe
     end do
-    fmassfrac(k,k)=fmassfrac(k,k) + rlevmass - summe
-  end do
-  ! LB 04.05.2021, replace above with array operations (not the problem)
-  ! fmassfrac(1:nconvtop,1:nconvtop) = delt*fmass(1:nconvtop,1:nconvtop)
-  ! do k=1, nconvtop
-  !     fmassfrac(k, k) = fmassfrac(k, k) + dpr(k)/ga - sum(fmassfrac(k, 1:nconvtop))
-  ! end do
-  ! LB end
 
 200   continue
 

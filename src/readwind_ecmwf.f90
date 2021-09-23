@@ -58,17 +58,15 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 !HSO  parameters for grib_api
   integer :: ifile
   integer :: iret
-  integer, dimension(:), allocatable   :: igrib
-  integer :: nfield, ii, arsize
+  integer :: igrib
   integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl,parId
   integer :: gotGrid
 !HSO  end
 
-  real(kind=4) :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real(kind=4) :: vvh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real(kind=4) :: wwh(0:nxmax-1,0:nymax-1,nwzmax)
-  integer :: indj,i,j,k,n,levdiff2,iumax,iwmax!,ifield
-  integer :: kz
+  real(sp) :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
+  real(sp) :: vvh(0:nxmax-1,0:nymax-1,nuvzmax)
+  real(sp) :: wwh(0:nxmax-1,0:nymax-1,nwzmax)
+  integer :: indj,i,j,k,n,levdiff2,ifield,iumax,iwmax
 
 ! VARIABLES AND ARRAYS NEEDED FOR GRIB DECODING
 
@@ -79,14 +77,12 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 ! coordinate parameters
 
   integer :: isec1(56),isec2(22+nxmax+nymax)
-  real(kind=4), allocatable, dimension(:) :: zsec4
-!  real(kind=4) :: zsec4(jpunp)
-  real(kind=4) :: xaux,yaux,xaux0,yaux0
-  real(kind=8) :: xauxin,yauxin
-  real,parameter :: eps=1.e-4
-  real(kind=4) :: nsss(0:nxmax-1,0:nymax-1),ewss(0:nxmax-1,0:nymax-1)
-  real :: plev1,pmean,tv,fu,hlev1,ff10m,fflev1,conversion_factor
-  integer :: stat
+  real(sp) :: zsec4(jpunp)
+  real(sp) :: xaux,yaux
+  real(dp) :: xauxin,yauxin
+  real(sp),parameter :: eps=1.e-4
+  real(sp) :: nsss(0:nxmax-1,0:nymax-1),ewss(0:nxmax-1,0:nymax-1)
+  real(sp) :: plev1,pmean,tv,fu,hlev1,ff10m,fflev1,conversion_factor
 
   logical :: hflswitch,strswitch!,readcloud
 
@@ -111,57 +107,33 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   if (iret.ne.GRIB_SUCCESS) then
     goto 888   ! ERROR DETECTED
   endif
-
-  call grib_count_in_file(ifile,nfield)
-
-  ! allocate memory for grib handles
-  allocate(igrib(nfield), stat=stat)
-  if (stat.ne.0) stop "Could not allocate igrib"
-  ! initialise
-  igrib(:) = -1
-
-  do ii = 1,nfield
-    call grib_new_from_file(ifile, igrib(ii), iret)
-  end do
-
-  call grib_close_file(ifile)
-
 !turn on support for multi fields messages */
 !call grib_multi_support_on
 
   gotGrid=0
-
-!$OMP PARALLEL DEFAULT(none) &
-!$OMP SHARED (nfield, igrib, gribFunction, nxfield, ny, nlev_ec, dx, xlon0, ylat0, &
-!$OMP   n, tth, uuh, vvh, iumax, qvh, ps, wwh, iwmax, sd, msl, tcc, u10, v10, tt2, &
-!$OMP   td2, lsprec, convprec, sshf, hflswitch, ssr, ewss, nsss, strswitch, oro,   &
-!$OMP   excessoro, lsm, nymin1,ciwch,clwch,readclouds,sumclouds) & 
-!$OMP PRIVATE(ii, gribVer, iret, isec1, discipl, parCat, parNum, parId,typSurf, valSurf, &
-!$OMP   zsec4, isec2, gribErrorMsg, xauxin, yauxin, xaux, yaux, xaux0,  &
-!$OMP   yaux0, k, arsize, stat, conversion_factor)  &
-!$OMP REDUCTION(+:gotGrid)
+  ifield=0
+10 ifield=ifield+1
 !
 ! GET NEXT FIELDS
 !
-  ! allocate memory for reading from grib
-  allocate(zsec4(nxfield*ny), stat=stat)
-  if (stat.ne.0) stop "Could not allocate zsec4"
-
-!$OMP DO SCHEDULE(static)
-
-  fieldloop : do ii=1,nfield
+  call grib_new_from_file(ifile,igrib,iret)
+  if (iret.eq.GRIB_END_OF_FILE)  then
+    goto 50    ! EOF DETECTED
+  elseif (iret.ne.GRIB_SUCCESS) then
+    goto 888   ! ERROR DETECTED
+  endif
 
 !first see if we read GRIB1 or GRIB2
-  call grib_get_int(igrib(ii),'editionNumber',gribVer,iret)
+  call grib_get_int(igrib,'editionNumber',gribVer,iret)
   call grib_check(iret,gribFunction,gribErrorMsg)
 
   if (gribVer.eq.1) then ! GRIB Edition 1
 
-    !print*,'GRiB Edition 1'
-    !read the grib2 identifiers
-    call grib_get_int(igrib(ii),'indicatorOfParameter',isec1(6),iret)
+!print*,'GRiB Edition 1'
+!read the grib2 identifiers
+    call grib_get_int(igrib,'indicatorOfParameter',isec1(6),iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'level',isec1(8),iret)
+    call grib_get_int(igrib,'level',isec1(8),iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
 
 !change code for etadot to code for omega
@@ -175,17 +147,17 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
 !print*,'GRiB Edition 2'
 !read the grib2 identifiers
-    call grib_get_int(igrib(ii),'discipline',discipl,iret)
+    call grib_get_int(igrib,'discipline',discipl,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'parameterCategory',parCat,iret)
+    call grib_get_int(igrib,'parameterCategory',parCat,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'parameterNumber',parNum,iret)
+    call grib_get_int(igrib,'parameterNumber',parNum,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'typeOfFirstFixedSurface',typSurf,iret)
+    call grib_get_int(igrib,'typeOfFirstFixedSurface',typSurf,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'level',valSurf,iret)
+    call grib_get_int(igrib,'level',valSurf,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'paramId',parId,iret)
+    call grib_get_int(igrib,'paramId',parId,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
 
 !print*,discipl,parCat,parNum,typSurf,valSurf
@@ -270,17 +242,17 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
 !HSO  get the size and data of the values array
   if (isec1(6).ne.-1) then
-    call grib_get_real4_array(igrib(ii),'values',zsec4,iret)
+    call grib_get_real4_array(igrib,'values',zsec4,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
   endif
 
 !HSO  get the required fields from section 2 in a gribex compatible manner
-  if (ii.eq.1) then
-    call grib_get_int(igrib(ii),'numberOfPointsAlongAParallel',isec2(2),iret)
+  if (ifield.eq.1) then
+    call grib_get_int(igrib,'numberOfPointsAlongAParallel',isec2(2),iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'numberOfPointsAlongAMeridian',isec2(3),iret)
+    call grib_get_int(igrib,'numberOfPointsAlongAMeridian',isec2(3),iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'numberOfVerticalCoordinateValues',isec2(12))
+    call grib_get_int(igrib,'numberOfVerticalCoordinateValues',isec2(12))
     call grib_check(iret,gribFunction,gribErrorMsg)
 ! CHECK GRID SPECIFICATIONS
     if(isec2(2).ne.nxfield) stop 'READWIND: NX NOT CONSISTENT'
@@ -289,13 +261,12 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
          stop 'READWIND: VERTICAL DISCRETIZATION NOT CONSISTENT'
   endif ! ifield
 
-!$OMP CRITICAL
 !HSO  get the second part of the grid dimensions only from GRiB1 messages
   if (isec1(6) .eq. 167 .and. (gotGrid.eq.0)) then
-    call grib_get_real8(igrib(ii),'longitudeOfFirstGridPointInDegrees', &
+    call grib_get_real8(igrib,'longitudeOfFirstGridPointInDegrees', &
          xauxin,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_real8(igrib(ii),'latitudeOfLastGridPointInDegrees', &
+    call grib_get_real8(igrib,'latitudeOfLastGridPointInDegrees', &
          yauxin,iret)
     call grib_check(iret,gribFunction,gribErrorMsg)
     if (xauxin.gt.180.) xauxin=xauxin-360.0
@@ -310,321 +281,102 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
          stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT'
     gotGrid=1
   endif ! gotGrid
-!$OMP END CRITICAL
 
-  k=isec1(8)
-  select case(isec1(6)) 
-!! TEMPERATURE
-    case(130) 
-      do j=0,nymin1
-        do i=0,nxfield-1
-          tth(i,j,nlev_ec-k+2,n) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do 
-!! U VELOCITY
-    case(131) 
-      do j=0,nymin1
-        do i=0,nxfield-1
-          uuh(i,j,nlev_ec-k+2) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do 
-!$OMP CRITICAL
-      iumax=max(iumax,nlev_ec-k+1)
-!$OMP END CRITICAL
-!! V VELOCITY
-    case(132)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          vvh(i,j,nlev_ec-k+2) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do
-!! SPEC. HUMIDITY
-    case(133)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          qvh(i,j,nlev_ec-k+2,n) = zsec4(nxfield*(ny-j-1)+i+1)
-          if (qvh(i,j,nlev_ec-k+2,n) .lt. 0.) &
-               qvh(i,j,nlev_ec-k+2,n) = 0.
-    !        this is necessary because the gridded data may contain
-    !        spurious negative values
-        end do 
-      end do
-!! SURF. PRESS.
-    case(134) 
-      do j=0,nymin1
-        do i=0,nxfield-1
-          ps(i,j,1,n) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do
-!! W VELOCITY
-    case(135)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          wwh(i,j,nlev_ec-k+1) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do 
-!$OMP CRITICAL
-      iwmax=max(iwmax,nlev_ec-k+1)
-!$OMP END CRITICAL
-!! SNOW DEPTH
-    case(141) 
-      do j=0,nymin1
-        do i=0,nxfield-1
-          sd(i,j,1,n)= zsec4(nxfield*(ny-j-1)+i+1)/conversion_factor
-        end do 
-      end do
-!! SEA LEVEL PRESS.
-    case(151)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          msl(i,j,1,n) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do
-!! CLOUD COVER
-    case(164)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          tcc(i,j,1,n) =  zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do 
-!! 10 M U VELOCITY
-    case(165) 
-      do j=0,nymin1
-        do i=0,nxfield-1
-          u10(i,j,1,n)= zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do 
-!! 10 M V VELOCITY
-    case(166) 
-      do j=0,nymin1
-        do i=0,nxfield-1
-          v10(i,j,1,n) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do 
-!! 2 M TEMPERATURE
-    case(167)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          tt2(i,j,1,n) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do 
-!! 2 M DEW POINT
-    case(168)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          td2(i,j,1,n) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do
-!! LARGE SCALE PREC.
-    case(142)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          lsprec(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)
-          if (lsprec(i,j,1,n).lt.0.) lsprec(i,j,1,n)=0.
-        end do 
-      end do
-!! CONVECTIVE PREC.
-    case(143)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          convprec(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)/conversion_factor
-          if (convprec(i,j,1,n).lt.0.) convprec(i,j,1,n)=0.
-        end do 
-      end do
-!! SENS. HEAT FLUX
-    case(146)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          sshf(i,j,1,n) = zsec4(nxfield*(ny-j-1)+i+1)
-!$OMP CRITICAL
-          if(zsec4(nxfield*(ny-j-1)+i+1).ne.0.) &  
-            hflswitch=.true.    ! Heat flux available
-!$OMP END CRITICAL
-        end do 
-      end do
-!! SOLAR RADIATION
-    case(176)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          ssr(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)
-          if (ssr(i,j,1,n).lt.0.) ssr(i,j,1,n)=0.
-        end do 
-      end do
-!! EW SURFACE STRESS
-    case(180)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          ewss(i,j) = zsec4(nxfield*(ny-j-1)+i+1)
-!$OMP CRITICAL
-          if (zsec4(nxfield*(ny-j-1)+i+1).ne.0.) strswitch=.true.    ! stress available
-!$OMP END CRITICAL
-        end do 
-      end do 
-!! NS SURFACE STRESS
-    case(181)
-     do j=0,nymin1
-       do i=0,nxfield-1
-         nsss(i,j) = zsec4(nxfield*(ny-j-1)+i+1)
-!$OMP CRITICAL
-         if (zsec4(nxfield*(ny-j-1)+i+1).ne.0.) strswitch=.true.    ! stress available
-!$OMP END CRITICAL
-       end do 
-     end do 
-!! ECMWF OROGRAPHY
-    case(129)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          oro(i,j) = zsec4(nxfield*(ny-j-1)+i+1)/ga
-        end do 
-      end do
-!! STANDARD DEVIATION OF OROGRAPHY
-    case(160)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          excessoro(i,j) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do 
-!! ECMWF LAND SEA MASK
-    case(172)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          lsm(i,j) = zsec4(nxfield*(ny-j-1)+i+1)
-        end do 
-      end do
-!! CLWC  Cloud liquid water content [kg/kg]
-    case(246)    
-      do j=0,nymin1
-        do i=0,nxfield-1
-          clwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
-        end do
-      end do
-!$OMP CRITICAL
-      readclouds=.true.
-      sumclouds=.false.
-!$OMP END CRITICAL
-!! CIWC  Cloud ice water content
-    case(247)
-      do j=0,nymin1
-        do i=0,nxfield-1
-          ciwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
-        end do
-      end do
-!ZHG end
-!ESO read qc (=clwc+ciwc)
-!! QC  Cloud liquid water content [kg/kg]
-    case(201031)
-      do j=0,nymin1
-        do i=0,nxfield-1      
-          clwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
-        end do
-      end do
-!$OMP CRITICAL
-      readclouds=.true.
-      sumclouds=.false.
-!$OMP END CRITICAL
+  do j=0,nymin1
+    do i=0,nxfield-1
+      k=isec1(8)
+      if(isec1(6).eq.130) tth(i,j,nlev_ec-k+2,n)= &!! TEMPERATURE
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.131) uuh(i,j,nlev_ec-k+2)= &!! U VELOCITY
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.132) vvh(i,j,nlev_ec-k+2)= &!! V VELOCITY
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.133) then                      !! SPEC. HUMIDITY
+        qvh(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
+        if (qvh(i,j,nlev_ec-k+2,n) .lt. 0.) &
+             qvh(i,j,nlev_ec-k+2,n) = 0.
+!        this is necessary because the gridded data may contain
+!        spurious negative values
+      endif
+      if(isec1(6).eq.134) ps(i,j,1,n)= &!! SURF. PRESS.
+           zsec4(nxfield*(ny-j-1)+i+1)
 
-  end select
-  ! do j=0,nymin1
-  !   do i=0,nxfield-1
-  !     k=isec1(8)
-      ! if(isec1(6).eq.130) tth(i,j,nlev_ec-k+2,n)= &!! TEMPERATURE
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.131) uuh(i,j,nlev_ec-k+2)= &!! U VELOCITY
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.132) vvh(i,j,nlev_ec-k+2)= &!! V VELOCITY
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-!       if(isec1(6).eq.133) then                      !! SPEC. HUMIDITY
-!         qvh(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
-!         if (qvh(i,j,nlev_ec-k+2,n) .lt. 0.) &
-!              qvh(i,j,nlev_ec-k+2,n) = 0.
-! !        this is necessary because the gridded data may contain
-! !        spurious negative values
-!       endif
-      ! if(isec1(6).eq.134) ps(i,j,1,n)= &!! SURF. PRESS.
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-
-      ! if(isec1(6).eq.135) wwh(i,j,nlev_ec-k+1)= &!! W VELOCITY
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.141) sd(i,j,1,n)= &!! SNOW DEPTH
-      !      zsec4(nxfield*(ny-j-1)+i+1)/conversion_factor
-      ! if(isec1(6).eq.151) msl(i,j,1,n)= &!! SEA LEVEL PRESS.
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.164) tcc(i,j,1,n)= &!! CLOUD COVER
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.165) u10(i,j,1,n)= &!! 10 M U VELOCITY
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.166) v10(i,j,1,n)= &!! 10 M V VELOCITY
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.167) tt2(i,j,1,n)= &!! 2 M TEMPERATURE
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.168) td2(i,j,1,n)= &!! 2 M DEW POINT
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.142) then                      !! LARGE SCALE PREC.
-      !   lsprec(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)
-      !   if (lsprec(i,j,1,n).lt.0.) lsprec(i,j,1,n)=0.
-      ! endif
-      ! if(isec1(6).eq.143) then                      !! CONVECTIVE PREC.
-      !   convprec(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)/conversion_factor
-      !   if (convprec(i,j,1,n).lt.0.) convprec(i,j,1,n)=0.
-      ! endif
-      ! if(isec1(6).eq.146) sshf(i,j,1,n)= &!! SENS. HEAT FLUX
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if((isec1(6).eq.146).and.(zsec4(nxfield*(ny-j-1)+i+1).ne.0.)) &
-      !      hflswitch=.true.    ! Heat flux available
-      ! if(isec1(6).eq.176) then                      !! SOLAR RADIATION
-      !   ssr(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)
-      !   if (ssr(i,j,1,n).lt.0.) ssr(i,j,1,n)=0.
-      ! endif
-!       if(isec1(6).eq.180) ewss(i,j)= &!! EW SURFACE STRESS
-!            zsec4(nxfield*(ny-j-1)+i+1)
-!       if(isec1(6).eq.181) nsss(i,j)= &!! NS SURFACE STRESS
-!            zsec4(nxfield*(ny-j-1)+i+1)
-!       if(((isec1(6).eq.180).or.(isec1(6).eq.181)).and. &
-!            (zsec4(nxfield*(ny-j-1)+i+1).ne.0.)) strswitch=.true.    ! stress available
-! !sec        strswitch=.true.
-      ! if(isec1(6).eq.129) oro(i,j)= &!! ECMWF OROGRAPHY
-      !      zsec4(nxfield*(ny-j-1)+i+1)/ga
-      ! if(isec1(6).eq.160) excessoro(i,j)= &!! STANDARD DEVIATION OF OROGRAPHY
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.172) lsm(i,j)= &!! ECMWF LAND SEA MASK
-      !      zsec4(nxfield*(ny-j-1)+i+1)
-      ! if(isec1(6).eq.131) iumax=max(iumax,nlev_ec-k+1)
-      ! if(isec1(6).eq.135) iwmax=max(iwmax,nlev_ec-k+1)
+      if(isec1(6).eq.135) wwh(i,j,nlev_ec-k+1)= &!! W VELOCITY
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.141) sd(i,j,1,n)= &!! SNOW DEPTH
+           zsec4(nxfield*(ny-j-1)+i+1)/conversion_factor
+      if(isec1(6).eq.151) msl(i,j,1,n)= &!! SEA LEVEL PRESS.
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.164) tcc(i,j,1,n)= &!! CLOUD COVER
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.165) u10(i,j,1,n)= &!! 10 M U VELOCITY
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.166) v10(i,j,1,n)= &!! 10 M V VELOCITY
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.167) tt2(i,j,1,n)= &!! 2 M TEMPERATURE
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.168) td2(i,j,1,n)= &!! 2 M DEW POINT
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.142) then                      !! LARGE SCALE PREC.
+        lsprec(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)
+        if (lsprec(i,j,1,n).lt.0.) lsprec(i,j,1,n)=0.
+      endif
+      if(isec1(6).eq.143) then                      !! CONVECTIVE PREC.
+        convprec(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)/conversion_factor
+        if (convprec(i,j,1,n).lt.0.) convprec(i,j,1,n)=0.
+      endif
+      if(isec1(6).eq.146) sshf(i,j,1,n)= &!! SENS. HEAT FLUX
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if((isec1(6).eq.146).and.(zsec4(nxfield*(ny-j-1)+i+1).ne.0.)) &
+           hflswitch=.true.    ! Heat flux available
+      if(isec1(6).eq.176) then                      !! SOLAR RADIATION
+        ssr(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)
+        if (ssr(i,j,1,n).lt.0.) ssr(i,j,1,n)=0.
+      endif
+      if(isec1(6).eq.180) ewss(i,j)= &!! EW SURFACE STRESS
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.181) nsss(i,j)= &!! NS SURFACE STRESS
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(((isec1(6).eq.180).or.(isec1(6).eq.181)).and. &
+           (zsec4(nxfield*(ny-j-1)+i+1).ne.0.)) strswitch=.true.    ! stress available
+!sec        strswitch=.true.
+      if(isec1(6).eq.129) oro(i,j)= &!! ECMWF OROGRAPHY
+           zsec4(nxfield*(ny-j-1)+i+1)/ga
+      if(isec1(6).eq.160) excessoro(i,j)= &!! STANDARD DEVIATION OF OROGRAPHY
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.172) lsm(i,j)= &!! ECMWF LAND SEA MASK
+           zsec4(nxfield*(ny-j-1)+i+1)
+      if(isec1(6).eq.131) iumax=max(iumax,nlev_ec-k+1)
+      if(isec1(6).eq.135) iwmax=max(iwmax,nlev_ec-k+1)
 !ZHG READING CLOUD FIELDS ASWELL
 ! ESO TODO: add check for if one of clwc/ciwc missing (error),
 ! also if all 3 cw fields present, use qc and disregard the others
-!       if(isec1(6).eq.246) then  !! CLWC  Cloud liquid water content [kg/kg]
-!         clwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
-!         readclouds=.true.
-!         sumclouds=.false.
-!       endif
-!       if(isec1(6).eq.247) then  !! CIWC  Cloud ice water content
-!         ciwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
-!       endif
-! !ZHG end
-! !ESO read qc (=clwc+ciwc)
-!       if(isec1(6).eq.201031) then  !! QC  Cloud liquid water content [kg/kg]
-!         clwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
-!         readclouds=.true.
-!         sumclouds=.true.
-!       endif
+      if(isec1(6).eq.246) then  !! CLWC  Cloud liquid water content [kg/kg]
+        clwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
+        readclouds=.true.
+        sumclouds=.false.
+      endif
+      if(isec1(6).eq.247) then  !! CIWC  Cloud ice water content
+        ciwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
+      endif
+!ZHG end
+!ESO read qc (=clwc+ciwc)
+      if(isec1(6).eq.201031) then  !! QC  Cloud liquid water content [kg/kg]
+        clwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
+        readclouds=.true.
+        sumclouds=.true.
+      endif
 
-!     end do
-!   end do
+    end do
+  end do
 
-  call grib_release(igrib(ii))
-
-  end do fieldloop
-!$OMP END DO
-  deallocate(zsec4)
-!$OMP END PARALLEL
-
-  deallocate(igrib)
+  call grib_release(igrib)
+  goto 10                      !! READ NEXT LEVEL OR PARAMETER
 !
 ! CLOSING OF INPUT DATA FILE
 !
 
-! 50 call grib_close_file(ifile)
+50 call grib_close_file(ifile)
 
 !error message if no fields found with correct first longitude in it
   if (gotGrid.eq.0) then

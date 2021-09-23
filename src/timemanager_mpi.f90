@@ -579,7 +579,7 @@ subroutine timemanager(metdata_format)
           irec=0
           do ip=0, mp_partgroup_np-1
             if (ip.eq.mp_partid) then
-              if (mod(itime,27000).eq.0) call partoutput(itime) ! dump particle positions
+              if (mod(itime,ipoutfac*loutstep).eq.0) call partoutput(itime) ! dump particle positions
               if (ipout.eq.3) call partoutput_average(itime,irec) ! dump particle positions
             endif
             if (ipout.eq.3) irec=irec+npart_per_process(ip)

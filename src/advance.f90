@@ -2,7 +2,7 @@
 ! SPDX-License-Identifier: GPL-3.0-or-later
 
 subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
-       usigold,vsigold,wsigold,nstop,xt,yt,zt,zteta,prob,icbt,pp)
+       usigold,vsigold,wsigold,nstop,xt,yt,zt,prob,icbt)
   !                     i    i  i/oi/oi/o
   !  i/o     i/o     i/o     o  i/oi/oi/o i/o  i/o
   !*****************************************************************************
@@ -85,90 +85,57 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   use hanna_mod
   use cmapf_mod
   use random_mod, only: ran3
-  use coordinates_ecmwf
-
-  ! openmp change
-  use omp_lib, only: OMP_GET_THREAD_NUM
-  ! openmp change end
 
   implicit none
-  real, parameter ::              &
-    eps=nxmax/3.e5,               &
-    eps2=1.e-9,                   &
-    eps3=tiny(1.0),               &
-    eps_eta=1.e-4
-  integer, intent(in) ::          &
-    itime,                        & ! time index
-    nrelpoint,                    & ! particle index
-    pp                              ! temporary, will be removed
-  integer, intent(inout) ::       &
-    nstop,                        & ! flag to stop particle if it leaves the domain
-    ldt                             ! next timestep
-  integer(kind=2), intent(inout) :: &
-    icbt                            ! flag for forbidden state particle
-  integer ::                      &
-    itimec,                       &
-    i,j,k,                        & ! loop variables
-    nrand,                        & ! random number used for turbulence
-    loop,                         & ! loop variable for time in the PBL
-    memindnext,                   & ! seems useless
-    mind,                         & ! windfield index
-    ngr,                          & ! temporary new grid index of moved particle
-    ! nix,njy,                      & ! nexted grid indices Moved to interpol_mod
-    ks,nsp,                       & ! loop variables for vertical levels
-    flagrein,                     & ! flag used in CBL scheme
-    thread,                       & ! number of openmp threads (probably can be removed)
-    idummy = -7                     ! used in random number routines
-  real, intent(inout) ::          &
-    zt,                           & ! z particle position in meters, want to keep this local to advance in future
-    zteta,                        & ! z particle position in eta coordinates
-    up,vp,wp,                     & ! random turbulence velocities
-    usigold,vsigold,wsigold         ! old mesoscale wind fluctuations
-  real(kind=dp), intent(inout) :: &
-    xt, yt                          ! particle positions on grid
-  real ::                         &
-    xts,yts,                      & ! local 'real' copy of the particle position
-    ! xtn,ytn,                      & ! nested particle position Moved to interpol_mod
-    weight,                       & ! transition above the tropopause
-    dz,dz1,dz2,                   & ! values used for interpolating between vertical levels
-    xlon,ylat,xpol,ypol,          & ! temporarily storing new particle positions
-    gridsize,cosfact,             & ! used to compute new positions of particles
-    ru,rv,rw,                     & ! used for computing turbulence
-    dt,                           & ! real(ldt)
-    ux,vy,                        & ! random turbulent velocities above PBL
-    tropop,                       & ! height of troposphere
-    prob(maxspec),                & ! dry deposition ground absorption probability
-    dxsave,dysave,                & ! accumulated displacement in long and lat
-    dawsave,dcwsave,              & ! accumulated displacement in wind directions
-    uold,vold,wold,woldeta,       & ! 
-    r,rs,                         & ! mesoscale related
-    vdepo(maxspec),               & ! deposition velocities for all species
-    h1(2),                        & ! mixing height
-    rhoa,                         & ! air density, used in CBL
-    rhograd,                      & ! vertical gradient of the air density, used in CBL
-    delz,                         & ! change in vertical position due to turbulence
-    dtf,rhoaux,dtftlw,ath,bth,    & ! CBL related
-    ptot_lhh,Q_lhh,phi_lhh,       & ! CBL related
-    old_wp_buf,dcas,dcas1,        & ! CBL related
-    del_test,                     & ! CBL related
-    uxscale,wpscale,              & ! factor used in calculating turbulent perturbations above PBL
-    ztemp,                        & ! temporarily storing z position
-    settling = 0.                   ! settling velo
 
-  ! openmp change
-  save idummy
-!$OMP THREADPRIVATE(idummy)  
-!$    if (idummy.eq.-7) then
-!$      thread = OMP_GET_THREAD_NUM()
-!$      idummy = idummy - thread
-!$    endif
-  ! openmp change end 
+  real(kind=dp) :: xt,yt
+  real :: zt,xts,yts,weight
+  integer :: itime,itimec,nstop,ldt,i,j,k,nrand,loop,memindnext,mind
+  integer :: ngr,nix,njy,ks,nsp,nrelpoint
+  real :: dz,dz1,dz2,xlon,ylat,xpol,ypol,gridsize
+  real :: ru,rv,rw,dt,ux,vy,cosfact,xtn,ytn,tropop
+  real :: prob(maxspec),up,vp,wp,dxsave,dysave,dawsave
+  real :: dcwsave
+  real :: usigold,vsigold,wsigold,r,rs
+  real :: uold,vold,wold,vdepo(maxspec)
+  real :: h1(2)
+  !real uprof(nzmax),vprof(nzmax),wprof(nzmax)
+  !real usigprof(nzmax),vsigprof(nzmax),wsigprof(nzmax)
+  !real rhoprof(nzmax),rhogradprof(nzmax)
+  real :: rhoa,rhograd,delz,dtf,rhoaux,dtftlw,uxscale,wpscale
+  integer(kind=2) :: icbt
+  real,parameter :: eps=nxmax/3.e5,eps2=1.e-9,eps3=tiny(1.0)
+  real :: ptot_lhh,Q_lhh,phi_lhh,ath,bth !modified by mc 
+  real :: old_wp_buf,dcas,dcas1,del_test !added by mc
+  integer :: i_well,jj,flagrein !test well mixed: modified by mc
+
+
+  !!! CHANGE: TEST OF THE WELL-MIXED CRITERION
+  !  integer,parameter :: iclass=10
+  !  real(kind=dp) :: zacc,tacc,t(iclass),th(0:iclass),hsave
+  !  logical dump
+  !  save zacc,tacc,t,th,hsave,dump
+  !!! CHANGE
+
+  integer :: idummy = -7
+  real    :: settling = 0.
+
+
+  !!! CHANGE: TEST OF THE WELL-MIXED CRITERION
+  !if (idummy.eq.-7) then
+  !open(550,file='WELLMIXEDTEST')
+  !do 17 i=0,iclass
+  !7      th(i)=real(i)/real(iclass)
+  !endif
+  !!! CHANGE
+
 
   nstop=0
   do i=1,nmixz
     indzindicator(i)=.true.
   end do
-  
+
+
   if (DRYDEP) then    ! reset probability for deposition
     do ks=1,nspec
       depoindicator(ks)=.true.
@@ -185,6 +152,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   nrand=int(ran3(idummy)*real(maxrand-1))+1
 
+
   ! Determine whether lat/long grid or polarstereographic projection
   ! is to be used
   ! Furthermore, determine which nesting level to be used
@@ -200,10 +168,12 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
       if ((xt.gt.xln(j)+eps).and.(xt.lt.xrn(j)-eps).and. &
            (yt.gt.yln(j)+eps).and.(yt.lt.yrn(j)-eps)) then
         ngrid=j
-        exit
+        goto 23
       endif
     end do
+23   continue
   endif
+
 
   !***************************
   ! Interpolate necessary data
@@ -216,34 +186,100 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   endif
 
   ! Determine nested grid coordinates
-  ! Determine the lower left corner and its distance to the current position
-  ! Calculate variables for time interpolation
+  !**********************************
+
+  if (ngrid.gt.0) then
+    xtn=(xt-xln(ngrid))*xresoln(ngrid)
+    ytn=(yt-yln(ngrid))*yresoln(ngrid)
+    ix=int(xtn)
+    jy=int(ytn)
+    nix=nint(xtn)
+    njy=nint(ytn)
+  else
+    ix=int(xt)
+    jy=int(yt)
+    nix=nint(xt)
+    njy=nint(yt)
+  endif
+  ixp=ix+1
+  jyp=jy+1
+
+
+ ! Determine the lower left corner and its distance to the current position
+  !*************************************************************************
+
+  ddx=xt-real(ix)
+  ddy=yt-real(jy)
+  rddx=1.-ddx
+  rddy=1.-ddy
+  p1=rddx*rddy
+  p2=ddx*rddy
+  p3=rddx*ddy
+  p4=ddx*ddy
+
+ ! Calculate variables for time interpolation
   !*******************************************
-  call initialise_interpol_mod(itime,real(xt),real(yt),zt,zteta)
+
+  dt1=real(itime-memtime(1))
+  dt2=real(memtime(2)-itime)
+  dtt=1./(dt1+dt2)
+
+! eso: Temporary fix for particle exactly at north pole
+  if (jyp >= nymax) then
+    ! write(*,*) 'WARNING: advance.f90 jyp >= nymax. xt,yt:',xt,yt
+    jyp=jyp-1
+  end if
 
   ! Compute maximum mixing height around particle position
   !*******************************************************
-  
-  ! Convert z(eta) to z(m) for the turbulence scheme, w(m/s) 
-  ! is computed in verttransform_ecmwf.f90
-  if (wind_coord_type.eq.'ETA') call zeta_to_z(itime,xt,yt,zteta,zt)
 
-  ! Compute the height of the troposphere and the PBL at the x-y location of the particle
-  call interpol_htropo_hmix(tropop,h)
+  h=0.
+  if (ngrid.le.0) then
+    do k=1,2
+       mind=memind(k) ! eso: compatibility with 3-field version
+       if (interpolhmix) then
+             h1(k)=p1*hmix(ix ,jy ,1,mind) &
+                 + p2*hmix(ixp,jy ,1,mind) &
+                 + p3*hmix(ix ,jyp,1,mind) &
+                 + p4*hmix(ixp,jyp,1,mind)
+        else
+          do j=jy,jyp
+            do i=ix,ixp
+               if (hmix(i,j,1,mind).gt.h) h=hmix(i,j,1,mind)
+            end do
+          end do
+        endif
+    end do
+    tropop=tropopause(nix,njy,1,1)
+  else
+    do k=1,2
+      mind=memind(k)
+      do j=jy,jyp
+        do i=ix,ixp
+          if (hmixn(i,j,1,mind,ngrid).gt.h) h=hmixn(i,j,1,mind,ngrid)
+        end do
+      end do
+    end do
+    tropop=tropopausen(nix,njy,1,1,ngrid)
+  endif
+
+  if (interpolhmix) h=(h1(1)*dt2+h1(2)*dt1)*dtt 
   zeta=zt/h
+
+
 
   !*************************************************************
   ! If particle is in the PBL, interpolate once and then make a
   ! time loop until end of interval is reached
   !*************************************************************
-  ! In the PBL we use meters instead of eta coordinates for the vertical transport
+
   if (zeta.le.1.) then
 
   ! BEGIN TIME LOOP
   !================
+
     loop=0
-    pbl_loop : do
-      loop=loop+1
+100   loop=loop+1
       if (method.eq.1) then
         ldt=min(ldt,abs(lsynctime-itimec+itime))
         itimec=itimec+ldt*ldirect
@@ -255,24 +291,44 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
       zeta=zt/h
 
+
       if (loop.eq.1) then
         if (ngrid.le.0) then
           xts=real(xt)
           yts=real(yt)
-          call interpol_all(itime,xts,yts,zt,zteta)
+          call interpol_all(itime,xts,yts,zt)
         else
           call interpol_all_nests(itime,xtn,ytn,zt)
         endif
 
       else
-        ! Determine the level below the current position for u,v,rho
-        !***********************************************************
-        call find_z_level(zt,zteta) ! Not sure if zteta levels are necessary here
 
-        ! If one of the levels necessary is not yet available,
-        ! calculate it
-        !*****************************************************
-        call interpol_misslev()
+
+  ! Determine the level below the current position for u,v,rho
+  !***********************************************************
+
+        do i=2,nz
+          if (height(i).gt.zt) then
+            indz=i-1
+            indzp=i
+            goto 6
+          endif
+        end do
+6       continue
+
+  ! If one of the levels necessary is not yet available,
+  ! calculate it
+  !*****************************************************
+
+        do i=indz,indzp
+          if (indzindicator(i)) then
+            if (ngrid.le.0) then
+              call interpol_misslev(i)
+            else
+              call interpol_misslev_nests(i)
+            endif
+          endif
+        end do
       endif
 
 
@@ -282,7 +338,17 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   ! Vertical distance to the level below and above current position
   ! both in terms of (u,v) and (w) fields
   !****************************************************************
-      call interpol_mixinglayer(zt,zteta,rhoa,rhograd)
+
+      dz=1./(height(indzp)-height(indz))
+      dz1=(zt-height(indz))*dz
+      dz2=(height(indzp)-zt)*dz
+
+      u=dz1*uprof(indzp)+dz2*uprof(indz)
+      v=dz1*vprof(indzp)+dz2*vprof(indz)
+      w=dz1*wprof(indzp)+dz2*wprof(indz)
+      rhoa=dz1*rhoprof(indzp)+dz2*rhoprof(indz)
+      rhograd=dz1*rhogradprof(indzp)+dz2*rhogradprof(indz)
+
 
   ! Compute the turbulent disturbances
   ! Determine the sigmas and the timescales
@@ -293,6 +359,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
       else
         call hanna1(zt)
       endif
+
 
   !*****************************************
   ! Determine the new diffusivity velocities
@@ -335,7 +402,6 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
           if (dtftlw.lt..5) then
   !*************************************************************
   !************** CBL options added by mc see routine cblf90 ***
-            ! LB needs to be checked if this works with openmp
             if (cblflag.eq.1) then  !modified by mc
               if (-h/ol.gt.5) then  !modified by mc
               !if (ol.lt.0.) then   !modified by mc  
@@ -474,7 +540,6 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
       dysave=dysave+v*dt
       dawsave=dawsave+up*dt
       dcwsave=dcwsave+vp*dt
-      ! How can I change the w to w(eta) efficiently?
       zt=zt+w*dt*real(ldirect)
 
       ! HSO/AL: Particle managed to go over highest level -> interpolation error in goto 700
@@ -482,10 +547,34 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
       if (zt.ge.height(nz)) zt=height(nz)-100.*eps
 
       if (zt.gt.h) then
-        if (wind_coord_type.eq.'ETA') call z_to_zeta(itime,xt,yt,zt,zteta)
         if (itimec.eq.itime+lsynctime) goto 99
         goto 700    ! complete the current interval above PBL
       endif
+
+
+  !!! CHANGE: TEST OF THE WELL-MIXED CRITERION
+  !!! These lines may be switched on to test the well-mixed criterion
+  !if (zt.le.h) then
+  !  zacc=zacc+zt/h*dt
+  !  hsave=hsave+h*dt
+  !  tacc=tacc+dt
+  !  do 67 i=1,iclass
+  !    if ((zt/h.gt.th(i-1)).and.(zt/h.le.th(i)))
+  !    +    t(i)=t(i)+dt
+  !7        continue
+  !endif
+  !if ((mod(itime,10800).eq.0).and.dump) then
+  ! dump=.false.
+  ! write(550,'(i6,12f10.3)') itime,hsave/tacc,zacc/tacc,
+  !    + (t(i)/tacc*real(iclass),i=1,iclass)
+  !  zacc=0.
+  !  tacc=0.
+  !  do 68 i=1,iclass
+  !8        t(i)=0.
+  !  hsave=0.
+  !endif
+  !if (mod(itime,10800).ne.0) dump=.true.
+  !!! CHANGE
       
   ! Determine probability of deposition
   !************************************
@@ -511,24 +600,28 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
       if (zt.lt.0.) zt=min(h-eps2,-1.*zt)    ! if particle below ground -> reflection
 
-
       if (itimec.eq.(itime+lsynctime)) then
-        call interpol_average()
-        ! Converting the z position that changed through turbulence motions to eta coords
-        if (wind_coord_type.eq.'ETA') call z_to_zeta(itime,xt,yt,zt,zteta)
+        usig=0.5*(usigprof(indzp)+usigprof(indz))
+        vsig=0.5*(vsigprof(indzp)+vsigprof(indz))
+        wsig=0.5*(wsigprof(indzp)+wsigprof(indz))
         goto 99  ! finished
       endif
-    end do pbl_loop
+      goto 100
 
   ! END TIME LOOP
   !==============
+
+
   endif
+
+
 
   !**********************************************************
   ! For all particles that are outside the PBL, make a single
   ! time step. Only horizontal turbulent disturbances are
   ! calculated. Vertical disturbances are reset.
   !**********************************************************
+
 
   ! Interpolate the wind
   !*********************
@@ -537,10 +630,11 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   if (ngrid.le.0) then
     xts=real(xt)
     yts=real(yt)
-    call interpol_wind(itime,xts,yts,zt,zteta,pp)
+    call interpol_wind(itime,xts,yts,zt)
   else
     call interpol_wind_nests(itime,xtn,ytn,zt)
   endif
+
 
   ! Compute everything for above the PBL
 
@@ -588,7 +682,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   ! If particle represents only a single species, add gravitational settling
   ! velocity. The settling velocity is zero for gases
   !*************************************************************************
-  ! Does not work in eta coordinates yet
+
   if (mdomainfill.eq.0) then
     if (lsettling) then
       do nsp=1,nspec
@@ -597,11 +691,9 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
       if (nsp.gt.nspec) then
         nsp=nspec
       end if
-      ! LB needs to be checked if this works with openmp and change to eta coords
       if (density(nsp).gt.0.) then
         call get_settling(itime,real(xt),real(yt),zt,nsp,settling)  !bugfix
         w=w+settling
-        zt=zt+settling*dt*real(ldirect)
       end if
     endif
   end if
@@ -609,28 +701,11 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   ! Calculate position at time step itime+lsynctime
   !************************************************
+
   dxsave=dxsave+(u+ux)*dt
   dysave=dysave+(v+vy)*dt
- 
-  select case (wind_coord_type)
-    case ('ETA')
-      zt=zt+(wp)*dt*real(ldirect)
-      if (zt.lt.0.) zt=min(h-eps2,-1.*zt)    ! if particle below ground -> reflection
-      call z_to_zeta(itime,xt,yt,zt,zteta)
-      zteta=zteta+(weta)*dt*real(ldirect)
-      if (zteta.ge.1.) zteta=1.-(zteta-1.)
-      if (zteta.eq.1.) zteta=zteta-eps_eta
-    case ('METER')
-      zt=zt+(w+wp)*dt*real(ldirect)
-      if (zt.lt.0.) zt=min(h-eps2,-1.*zt)
-    case default
-      zt=zt+(w+wp)*dt*real(ldirect)
-      if (zt.lt.0.) zt=min(h-eps2,-1.*zt)
-  end select
-
-
-  ! if (zteta.ge.uvheight(2)) zteta=uvheight(2) -(zteta - uvheight(2))
-
+  zt=zt+(w+wp)*dt*real(ldirect)
+  if (zt.lt.0.) zt=min(h-eps2,-1.*zt)    ! if particle below ground -> reflection
 
 99   continue
 
@@ -655,26 +730,14 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   if (nrand+2.gt.maxrand) nrand=1
   usigold=r*usigold+rs*rannumb(nrand)*usig*turbmesoscale
   vsigold=r*vsigold+rs*rannumb(nrand+1)*vsig*turbmesoscale
+  wsigold=r*wsigold+rs*rannumb(nrand+2)*wsig*turbmesoscale
+
   dxsave=dxsave+usigold*real(lsynctime)
   dysave=dysave+vsigold*real(lsynctime)
 
-  select case (wind_coord_type)
-    case ('ETA')
-      wsigold=r*wsigold+rs*rannumb(nrand+2)*wsigeta*turbmesoscale
-      zteta=zteta+wsigold*real(lsynctime)
-      if (zteta.ge.1.) zteta=1.-(zteta-1.)
-      if (zteta.eq.1.) zteta=zteta-eps_eta
+  zt=zt+wsigold*real(lsynctime)
+  if (zt.lt.0.) zt=-1.*zt    ! if particle below ground -> refletion
 
-    case ('METER')
-      wsigold=r*wsigold+rs*rannumb(nrand+2)*wsig*turbmesoscale
-      zt=zt+wsigold*real(lsynctime)
-      if (zt.lt.0.) zt=-1.*zt    ! if particle below ground -> refletion
-
-    case default
-      wsigold=r*wsigold+rs*rannumb(nrand+2)*wsig*turbmesoscale
-      zt=zt+wsigold*real(lsynctime)
-      if (zt.lt.0.) zt=-1.*zt    ! if particle below ground -> refletion
-  end select
   !*************************************************************
   ! Transform along and cross wind components to xy coordinates,
   ! add them to u and v, transform u,v to grid units/second
@@ -689,8 +752,8 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     xt=xt+real(dxsave*cosfact*real(ldirect),kind=dp)
     yt=yt+real(dysave*dyconst*real(ldirect),kind=dp)
   else if (ngrid.eq.-1) then      ! around north pole
-    xlon=xlon0+real(xt)*dx                                !comment by mc: compute old particle position
-    ylat=ylat0+real(yt)*dy
+    xlon=xlon0+xt*dx                                !comment by mc: compute old particle position
+    ylat=ylat0+yt*dy
     call cll2xy(northpolemap,ylat,xlon,xpol,ypol)   !convert old particle position in polar stereographic
     gridsize=1000.*cgszll(northpolemap,ylat,xlon)   !calculate size in m of grid element in polar stereographic coordinate
     dxsave=dxsave/gridsize                          !increment from meter to grdi unit
@@ -698,11 +761,11 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     xpol=xpol+dxsave*real(ldirect)                  !position in grid unit polar stereographic
     ypol=ypol+dysave*real(ldirect)
     call cxy2ll(northpolemap,xpol,ypol,ylat,xlon)  !convert to lat long coordinate
-    xt=real((xlon-xlon0)/dx,kind=dp)                             !convert to grid units in lat long coordinate, comment by mc
-    yt=real((ylat-ylat0)/dy,kind=dp)
+    xt=(xlon-xlon0)/dx                             !convert to grid units in lat long coordinate, comment by mc
+    yt=(ylat-ylat0)/dy
   else if (ngrid.eq.-2) then    ! around south pole
-    xlon=xlon0+real(xt)*dx
-    ylat=ylat0+real(yt)*dy
+    xlon=xlon0+xt*dx
+    ylat=ylat0+yt*dy
     call cll2xy(southpolemap,ylat,xlon,xpol,ypol)
     gridsize=1000.*cgszll(southpolemap,ylat,xlon)
     dxsave=dxsave/gridsize
@@ -710,17 +773,19 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     xpol=xpol+dxsave*real(ldirect)
     ypol=ypol+dysave*real(ldirect)
     call cxy2ll(southpolemap,xpol,ypol,ylat,xlon)
-    xt=real((xlon-xlon0)/dx,kind=dp)
-    yt=real((ylat-ylat0)/dy,kind=dp)
+    xt=(xlon-xlon0)/dx
+    yt=(ylat-ylat0)/dy
   endif
+
 
   ! If global data are available, use cyclic boundary condition
   !************************************************************
+
   if (xglobal) then
-    if (xt.ge.real(nxmin1,kind=dp)) xt=xt-real(nxmin1,kind=dp)
-    if (xt.lt.0.) xt=xt+real(nxmin1,kind=dp)
-    if (xt.le.real(eps,kind=dp)) xt=real(eps,kind=dp)
-    if (abs(xt-real(nxmin1)).le.eps) xt=real(nxmin1-eps,kind=dp)
+    if (xt.ge.real(nxmin1)) xt=xt-real(nxmin1)
+    if (xt.lt.0.) xt=xt+real(nxmin1)
+    if (xt.le.eps) xt=eps
+    if (abs(xt-real(nxmin1)).le.eps) xt=real(nxmin1)-eps
   endif
 
   ! HSO/AL: Prevent particles from disappearing at the pole
@@ -729,9 +794,9 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   if ( yt.lt.0. ) then
     xt=mod(xt+180.,360.)
     yt=-yt
-  else if ( yt.gt.real(nymin1,kind=dp) ) then
+  else if ( yt.gt.real(nymin1) ) then
     xt=mod(xt+180.,360.)
-    yt=2.*real(nymin1,kind=dp)-yt
+    yt=2*real(nymin1)-yt
   endif
 
   ! Check position: If trajectory outside model domain, terminate it
@@ -745,15 +810,10 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   ! If particle above highest model level, set it back into the domain
   !*******************************************************************
-  select case (wind_coord_type)
-    case ('ETA')
-      if (zteta.le.uvheight(nz)) zteta=uvheight(nz)+eps_eta
-    case ('METER')
-      if (zt.ge.height(nz)) zt=height(nz)-100.*eps
-    case default
-      if (zt.ge.height(nz)) zt=height(nz)-100.*eps
-  end select  
-  
+
+  if (zt.ge.height(nz)) zt=height(nz)-100.*eps
+
+
   !************************************************************************
   ! Now we could finish, as this was done in FLEXPART versions up to 4.0.
   ! However, truncation errors of the advection can be significantly
@@ -789,31 +849,36 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
       if ((xt.gt.xln(j)+eps).and.(xt.lt.xrn(j)-eps).and. &
            (yt.gt.yln(j)+eps).and.(yt.lt.yrn(j)-eps)) then
         ngr=j
-        exit
+        goto 43
       endif
     end do
+43   continue
   endif
 
   if (ngr.ne.ngrid) return
 
   ! Determine nested grid coordinates
   !**********************************
-  call determine_grid_coordinates(real(xt),real(yt))
+
+  if (ngrid.gt.0) then
+    xtn=(xt-xln(ngrid))*xresoln(ngrid)
+    ytn=(yt-yln(ngrid))*yresoln(ngrid)
+    ix=int(xtn)
+    jy=int(ytn)
+  else
+    ix=int(xt)
+    jy=int(yt)
+  endif
+  ixp=ix+1
+  jyp=jy+1
+
 
   ! Memorize the old wind
   !**********************
 
   uold=u
   vold=v
-
-  select case (wind_coord_type)
-    case ('ETA')
-      woldeta=weta
-    case ('METER')
-      wold=w
-    case default
-      wold=w
-  end select
+  wold=w
 
   ! Interpolate wind at new position and time
   !******************************************
@@ -821,7 +886,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   if (ngrid.le.0) then
     xts=real(xt)
     yts=real(yt)
-    call interpol_wind_short(itime+ldt*ldirect,xts,yts,zt,zteta)
+    call interpol_wind_short(itime+ldt*ldirect,xts,yts,zt)
   else
     call interpol_wind_short_nests(itime+ldt*ldirect,xtn,ytn,zt)
   endif
@@ -835,22 +900,8 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
         nsp=nspec
       end if
       if (density(nsp).gt.0.) then
-        select case (wind_coord_type)
-
-          case ('ETA')
-            call zeta_to_z(itime,xt,yt,zteta,zt)
-            call get_settling(itime+ldt,real(xt),real(yt),zt,nsp,settling) !bugfix
-            call z_to_zeta(itime,xt,yt,zt+settling*real(ldt*ldirect),ztemp)
-            weta=weta+(ztemp-zteta)/real(ldt*ldirect)
-
-          case ('METER')
-            call get_settling(itime+ldt,real(xt),real(yt),zt,nsp,settling) !bugfix
-            w=w+settling
-
-          case default 
-            call get_settling(itime+ldt,real(xt),real(yt),zt,nsp,settling) !bugfix
-            w=w+settling
-        end select            
+        call get_settling(itime+ldt,real(xt),real(yt),zt,nsp,settling) !bugfix
+        w=w+settling
       end if
     endif
   end if
@@ -862,34 +913,21 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   u=(u-uold)/2.
   v=(v-vold)/2.
+  w=(w-wold)/2.
 
-  select case (wind_coord_type)
-    case ('ETA')
-      weta=(weta-woldeta)/2.
-      zteta=zteta+weta*real(ldt*ldirect)
-      if (zteta.ge.1.) zteta=1.-(zteta-1.)
-      if (zteta.eq.1.) zteta=zteta-eps_eta
-
-    case ('METER')
-      w=(w-wold)/2.
-      zt=zt+w*real(ldt*ldirect)
-      if (zt.lt.0.) zt=min(h-eps2,-1.*zt)    ! if particle below ground -> reflection
-
-    case default 
-      w=(w-wold)/2.
-      zt=zt+w*real(ldt*ldirect)
-      if (zt.lt.0.) zt=min(h-eps2,-1.*zt) 
-  end select  
 
   ! Finally, correct the old position
   !**********************************
+
+  zt=zt+w*real(ldt*ldirect)
+  if (zt.lt.0.) zt=min(h-eps2,-1.*zt)    ! if particle below ground -> reflection
   if (ngrid.ge.0) then
-    cosfact=dxconst/cos((real(yt)*dy+ylat0)*pi180)
+    cosfact=dxconst/cos((yt*dy+ylat0)*pi180)
     xt=xt+real(u*cosfact*real(ldt*ldirect),kind=dp)
     yt=yt+real(v*dyconst*real(ldt*ldirect),kind=dp)
   else if (ngrid.eq.-1) then      ! around north pole
-    xlon=xlon0+real(xt)*dx
-    ylat=ylat0+real(yt)*dy
+    xlon=xlon0+xt*dx
+    ylat=ylat0+yt*dy
     call cll2xy(northpolemap,ylat,xlon,xpol,ypol)
     gridsize=1000.*cgszll(northpolemap,ylat,xlon)
     u=u/gridsize
@@ -897,11 +935,11 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     xpol=xpol+u*real(ldt*ldirect)
     ypol=ypol+v*real(ldt*ldirect)
     call cxy2ll(northpolemap,xpol,ypol,ylat,xlon)
-    xt=real((xlon-xlon0)/dx,kind=dp)
-    yt=real((ylat-ylat0)/dy,kind=dp)
+    xt=(xlon-xlon0)/dx
+    yt=(ylat-ylat0)/dy
   else if (ngrid.eq.-2) then    ! around south pole
-    xlon=xlon0+real(xt)*dx
-    ylat=ylat0+real(yt)*dy
+    xlon=xlon0+xt*dx
+    ylat=ylat0+yt*dy
     call cll2xy(southpolemap,ylat,xlon,xpol,ypol)
     gridsize=1000.*cgszll(southpolemap,ylat,xlon)
     u=u/gridsize
@@ -909,48 +947,45 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     xpol=xpol+u*real(ldt*ldirect)
     ypol=ypol+v*real(ldt*ldirect)
     call cxy2ll(southpolemap,xpol,ypol,ylat,xlon)
-    xt=real((xlon-xlon0)/dx,kind=dp)
-    yt=real((ylat-ylat0)/dy,kind=dp)
+    xt=(xlon-xlon0)/dx
+    yt=(ylat-ylat0)/dy
   endif
 
   ! If global data are available, use cyclic boundary condition
   !************************************************************
 
   if (xglobal) then
-    if (xt.ge.real(nxmin1,kind=dp)) xt=xt-real(nxmin1,kind=dp)
-    if (xt.lt.0.) xt=xt+real(nxmin1,kind=dp)
-    if (xt.le.eps) xt=real(eps,kind=dp)
-    if (abs(xt-real(nxmin1,kind=dp)).le.eps) xt=real(nxmin1-eps,kind=dp)
+    if (xt.ge.real(nxmin1)) xt=xt-real(nxmin1)
+    if (xt.lt.0.) xt=xt+real(nxmin1)
+    if (xt.le.eps) xt=eps
+    if (abs(xt-real(nxmin1)).le.eps) xt=real(nxmin1)-eps
   endif
 
   ! HSO/AL: Prevent particles from disappearing at the pole
   !******************************************************************
+
   if ( yt.lt.0. ) then
     xt=mod(xt+180.,360.)
     yt=-yt
-  else if ( yt.gt.real(nymin1,kind=dp) ) then
+  else if ( yt.gt.real(nymin1) ) then
     xt=mod(xt+180.,360.)
-    yt=2.*real(nymin1,kind=dp)-yt
+    yt=2*real(nymin1)-yt
   endif
 
   ! Check position: If trajectory outside model domain, terminate it
   !*****************************************************************
-  if ((xt.lt.0.).or.(xt.ge.real(nxmin1,kind=dp)).or.(yt.lt.0.).or. &
-       (yt.gt.real(nymin1,kind=dp))) then
+
+  if ((xt.lt.0.).or.(xt.ge.real(nxmin1)).or.(yt.lt.0.).or. &
+       (yt.gt.real(nymin1))) then
     nstop=3
     return
   endif
 
   ! If particle above highest model level, set it back into the domain
   !*******************************************************************
-  select case (wind_coord_type)
-    case ('ETA')
-      if (zteta.le.uvheight(nz)) zteta=uvheight(nz)+eps_eta
-    case ('METER')
-      if (zt.ge.height(nz)) zt=height(nz)-100.*eps
-    case default
-      if (zt.ge.height(nz)) zt=height(nz)-100.*eps
-  end select  
+
+  if (zt.ge.height(nz)) zt=height(nz)-100.*eps
+
 
 end subroutine advance
 

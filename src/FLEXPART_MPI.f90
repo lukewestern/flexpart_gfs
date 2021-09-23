@@ -51,13 +51,13 @@ program flexpart
   integer(selected_int_kind(16)), dimension(maxspec) :: tot_b=0, &
        & tot_i=0
 
-  write(*,*) 'Flexpart has started'
 
   ! Initialize mpi
   !*********************
   call mpif_init
 
   if (mp_measure_time) call mpif_mtime('flexpart',0)
+
   
   ! Generate a large number of random numbers
   !******************************************
@@ -101,7 +101,6 @@ program flexpart
   !*******************************************************
     print*,'Welcome to FLEXPART ', trim(flexversion)
     print*,'FLEXPART is free software released under the GNU General Public License.'
-    call system_clock(count_clock0, count_rate, count_max)
   endif
   
   if (inline_options(1:1).eq.'-') then
@@ -133,7 +132,7 @@ program flexpart
   if (verbosity.gt.1) then !show clock info 
      !print*,'length(4)',length(4)
      !count=0,count_rate=1000
-     call system_clock(count_clock0, count_rate, count_max)
+    call system_clock(count_clock0, count_rate, count_max)
      !WRITE(*,*) 'SYSTEM_CLOCK',count, count_rate, count_max
      !WRITE(*,*) 'SYSTEM_CLOCK, count_clock0', count_clock0
      !WRITE(*,*) 'SYSTEM_CLOCK, count_rate', count_rate
@@ -464,14 +463,6 @@ program flexpart
 
   call timemanager(metdata_format)
 
-  if (verbosity.gt.1) then
-    CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
-    if (lroot) then
-      WRITE(*,*) 'END ROOT CLOCK ',(count_clock - count_clock0)/real(count_rate)
-    else
-      WRITE(*,*) 'END CLOCK ',(count_clock - count_clock0)/real(count_rate)
-    end if
-  end if
 
 ! NIK 16.02.2005 
   if (mp_partgroup_pid.ge.0) then ! Skip for readwind process 
@@ -494,8 +485,7 @@ program flexpart
 !           & tot_inc_count(i)
       write(*,*) '**********************************************'
     end do
-    CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
-    WRITE(*,*) 'Time elapsed: ',(count_clock - count_clock0)/real(count_rate)
+
     write(*,*) 'CONGRATULATIONS: YOU HAVE SUCCESSFULLY COMPLETED A FLE&
          &XPART MODEL RUN!'
   end if

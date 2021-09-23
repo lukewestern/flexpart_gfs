@@ -46,7 +46,6 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   use point_mod
   use par_mod
   use com_mod
-  use interpol_mod, only: interpol_rain, interpol_rain_nests
 
   implicit none
 

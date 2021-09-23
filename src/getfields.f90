@@ -80,6 +80,7 @@ subroutine getfields(itime,nstop,metdata_format)
 !**************************************************************
 
   nstop=0
+
   if ((ldirect*wftime(1).gt.ldirect*itime).or. &
        (ldirect*wftime(numbwf).lt.ldirect*itime)) then
     write(*,*) 'FLEXPART WARNING: NO WIND FIELDS ARE AVAILABLE.'
@@ -117,11 +118,7 @@ subroutine getfields(itime,nstop,metdata_format)
     do indj=indmin,numbwf-1
       if (ldirect*wftime(indj+1).gt.ldirect*itime) then
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-          call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-          s_temp = (count_clock - count_clock0)/real(count_rate)
           call readwind_ecmwf(indj+1,memind(2),uuh,vvh,wwh)
-          call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-          s_readwind = s_readwind + ((count_clock - count_clock0)/real(count_rate)-s_temp)
         else
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if
@@ -156,11 +153,7 @@ subroutine getfields(itime,nstop,metdata_format)
            (ldirect*wftime(indj+1).gt.ldirect*itime)) then
         memind(1)=1
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-          call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-          s_temp = (count_clock - count_clock0)/real(count_rate)
           call readwind_ecmwf(indj,memind(1),uuh,vvh,wwh)
-          call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-          s_readwind = s_readwind + ((count_clock - count_clock0)/real(count_rate)-s_temp)
         else
           call readwind_gfs(indj,memind(1),uuh,vvh,wwh)
         end if
@@ -176,11 +169,7 @@ subroutine getfields(itime,nstop,metdata_format)
         memtime(1)=wftime(indj)
         memind(2)=2
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-          call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-          s_temp = (count_clock - count_clock0)/real(count_rate)
           call readwind_ecmwf(indj+1,memind(2),uuh,vvh,wwh)
-          call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-          s_readwind = s_readwind + ((count_clock - count_clock0)/real(count_rate)-s_temp)
         else
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if

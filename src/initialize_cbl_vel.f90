@@ -22,7 +22,7 @@ subroutine initialize_cbl_vel(idum,zp,ust,wst,h,sigmaw,wp, ol)
   real :: usurad2,usurad2p,C0,costluar4,eps 
   parameter  (usurad2=0.7071067812,usurad2p=0.3989422804,C0=2,costluar4=0.66667,eps=0.000001)
 
-  
+  integer idum
   real :: wp,zp,ust,wst,h,dens,ddens,sigmaw,dsigmawdz,tlw,dcas,dcas1!,ran3,gasdev
   real :: w3,w2
   real ::  z, &    
@@ -41,9 +41,7 @@ subroutine initialize_cbl_vel(idum,zp,ust,wst,h,sigmaw,wp, ol)
        wb,wa 
   real timedir
   real ol, transition
-  integer :: idum
-  integer :: thread
-  
+
 !---------------------------------------------------------------------------  
   timedir=ldirect !direction of time forward (1) or backward(-1)
   z=zp/h

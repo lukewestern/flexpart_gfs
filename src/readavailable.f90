@@ -18,7 +18,7 @@ subroutine readavailable
   ! Variables:                                                                 *
   ! bdate                beginning date as Julian date                         *
   ! beg                  beginning date for windfields                         *
-  ! endl                  ending date for windfields                            *
+  ! end                  ending date for windfields                            *
   ! fname                filename of wind field, help variable                 *
   ! ideltas [s]          duration of modelling period                          *
   ! idiff                time difference between 2 wind fields                 *
@@ -45,7 +45,7 @@ subroutine readavailable
   integer :: i,idiff,ldat,ltim,wftime1(maxwf),numbwfn(maxnests),k
   integer :: wftime1n(maxnests,maxwf),wftimen(maxnests,maxwf)
   logical :: lwarntd=.true.
-  real(kind=dp) :: juldate,jul,beg,endl
+  real(kind=dp) :: juldate,jul,beg,end
   character(len=255) :: fname,spec,wfname1(maxwf),wfspec1(maxwf)
   character(len=255) :: wfname1n(maxnests,maxwf)
   character(len=40) :: wfspec1n(maxnests,maxwf)
@@ -58,12 +58,12 @@ subroutine readavailable
 
   if (ideltas.gt.0) then         ! forward trajectories
     beg=bdate-1._dp
-    endl=bdate+real(ideltas,kind=dp)/86400._dp+real(idiffmax,kind=dp)/ &
+    end=bdate+real(ideltas,kind=dp)/86400._dp+real(idiffmax,kind=dp)/ &
          86400._dp
   else                           ! backward trajectories
     beg=bdate+real(ideltas,kind=dp)/86400._dp-real(idiffmax,kind=dp)/ &
          86400._dp
-    endl=bdate+1._dp
+    end=bdate+1._dp
   endif
 
   ! Open the wind field availability file and read available wind fields
@@ -81,7 +81,7 @@ subroutine readavailable
 100   read(unitavailab,'(i8,1x,i6,2(6x,a255))',end=99) &
            ldat,ltim,fname,spec
     jul=juldate(ldat,ltim)
-    if ((jul.ge.beg).and.(jul.le.endl)) then
+    if ((jul.ge.beg).and.(jul.le.end)) then
       numbwf=numbwf+1
       if (numbwf.gt.maxwf) then      ! check exceedance of dimension
        write(*,*) 'Number of wind fields needed is too great.'
@@ -118,7 +118,7 @@ subroutine readavailable
 700   read(unitavailab,'(i8,1x,i6,2(6x,a255))',end=699) ldat, &
            ltim,fname,spec
       jul=juldate(ldat,ltim)
-      if ((jul.ge.beg).and.(jul.le.endl)) then
+      if ((jul.ge.beg).and.(jul.le.end)) then
         numbwfn(k)=numbwfn(k)+1
         if (numbwfn(k).gt.maxwf) then      ! check exceedance of dimension
        write(*,*) 'Number of nested wind fields is too great.'

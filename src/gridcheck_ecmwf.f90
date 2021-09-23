@@ -243,7 +243,7 @@ subroutine gridcheck_ecmwf
     WRITE(*,*) 'FLEXPART error: Too many grid points in x direction.'
     WRITE(*,*) 'Reduce resolution of wind fields.'
     WRITE(*,*) 'Or change parameter settings in file ecmwf_mod.'
-    WRITE(*,*) isec2(2),nxmax
+    WRITE(*,*) nx,nxmax
 !    STOP
   ENDIF
 
@@ -481,7 +481,6 @@ subroutine gridcheck_ecmwf
     akm(nwz-i+1)=zsec2(j)
     !   write (*,*) 'ifield:',ifield,k,j,zsec2(10+j)
     bkm(nwz-i+1)=zsec2(k)
-    wheight(nwz-i+1)=akm(nwz-i+1)/101325.+bkm(nwz-i+1) ! From FLEXTRA
   end do
 
   !
@@ -495,13 +494,10 @@ subroutine gridcheck_ecmwf
 
   akz(1)=0.
   bkz(1)=1.0
-  uvheight(1)=1.
   do i=1,nuvz
-    uvheight(i+1)=0.5*(wheight(i+1)+wheight(i)) ! From FLEXTRA
     akz(i+1)=0.5*(akm(i+1)+akm(i))
     bkz(i+1)=0.5*(bkm(i+1)+bkm(i))
   end do
-  ! exuvheight=wheight
   nuvz=nuvz+1
 
   ! NOTE: In FLEXPART versions up to 4.0, the number of model levels was doubled
