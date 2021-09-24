@@ -617,7 +617,7 @@ endif
 
   ! De-allocate memory and end
   !***************************
-
+  call deallocate_all_particles()
   if (iflux.eq.1) then
       deallocate(flux)
   endif
