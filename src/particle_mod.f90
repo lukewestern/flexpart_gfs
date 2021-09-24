@@ -272,7 +272,7 @@ contains
     ! there is a reason for deallocating some of it
     !**********************************************
     allocate( tmpcount(count%allocated+nmpart) )
-    tmpcount(1:count%allocated) = count%inmem
+    if (count%allocated.gt.0) tmpcount(1:count%allocated) = count%inmem
     call move_alloc(tmpcount,count%inmem)
     count%inmem(count%allocated+1:count%allocated+nmpart) = .true.
 
@@ -280,7 +280,7 @@ contains
     !*******************************
 
     allocate( tmppart(count%allocated+nmpart) )
-    tmppart(1:count%allocated) = part
+    if (count%allocated.gt.0) tmppart(1:count%allocated) = part
     call move_alloc(tmppart,part)
 
     ! If wet or dry deposition backward mode is switched on, xscav_frac1
@@ -288,25 +288,25 @@ contains
     !*******************************************************************
     if (WETBKDEP.or.DRYBKDEP) then
       allocate( tmpxscav(count%allocated+nmpart,maxspec) )
-      tmpxscav(1:count%allocated,:) = tmpxscav
+      if (count%allocated.gt.0) tmpxscav(1:count%allocated,:) = tmpxscav
       call move_alloc(tmpxscav,xscav_frac1)
     endif
 
     if ((iout.eq.4).or.(iout.eq.5)) then
       allocate( tmpxl(count%allocated+nmpart) )
-      tmpxl(1:count%allocated) = xplum
+      if (count%allocated.gt.0) tmpxl(1:count%allocated) = xplum
       call move_alloc(tmpxl,xplum)
       
       allocate( tmpyl(count%allocated+nmpart) )
-      tmpyl(1:count%allocated) = yplum
+      if (count%allocated.gt.0) tmpyl(1:count%allocated) = yplum
       call move_alloc(tmpyl,yplum)
 
       allocate( tmpzl(count%allocated+nmpart) )
-      tmpzl(1:count%allocated) = zplum
+      if (count%allocated.gt.0) tmpzl(1:count%allocated) = zplum
       call move_alloc(tmpzl,zplum)
 
       allocate( tmpnclust(count%allocated+nmpart) )
-      tmpnclust(1:count%allocated) = nclust
+      if (count%allocated.gt.0) tmpnclust(1:count%allocated) = nclust
       call move_alloc(tmpnclust,nclust)
     endif
 
