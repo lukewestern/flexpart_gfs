@@ -86,6 +86,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   use cmapf_mod
   use random_mod, only: ran3
   use coordinates_ecmwf
+  use particle_mod
 
   ! openmp change
   use omp_lib, only: OMP_GET_THREAD_NUM
@@ -101,8 +102,9 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     itime,                        & ! time index
     nrelpoint,                    & ! particle index
     pp                              ! temporary, will be removed
+  logical, intent(inout) ::       &
+    nstop                           ! flag to stop particle if it leaves the domain
   integer, intent(inout) ::       &
-    nstop,                        & ! flag to stop particle if it leaves the domain
     ldt                             ! next timestep
   integer(kind=2), intent(inout) :: &
     icbt                            ! flag for forbidden state particle
@@ -155,6 +157,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     ztemp,                        & ! temporarily storing z position
     settling = 0.                   ! settling velo
 
+  !type(particle) :: part
   ! openmp change
   save idummy
 !$OMP THREADPRIVATE(idummy)  
@@ -164,7 +167,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 !$    endif
   ! openmp change end 
 
-  nstop=0
+  nstop=.false.
   do i=1,nmixz
     indzindicator(i)=.true.
   end do
@@ -226,7 +229,10 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   
   ! Convert z(eta) to z(m) for the turbulence scheme, w(m/s) 
   ! is computed in verttransform_ecmwf.f90
-  if (wind_coord_type.eq.'ETA') call zeta_to_z(itime,xt,yt,zteta,zt)
+
+  if (wind_coord_type.eq.'ETA') then
+    if (.not. part(pp)%etaupdate) call zeta_to_z(itime,xt,yt,zteta,zt)
+  endif
 
   ! Compute the height of the troposphere and the PBL at the x-y location of the particle
   call interpol_htropo_hmix(tropop,h)
@@ -503,8 +509,9 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   ! correction by Petra Seibert, 10 April 2001
   !   this formulation means that prob(n) = 1 - f(0)*...*f(n)
   !   where f(n) is the exponential term
-               prob(ks)=1.+(prob(ks)-1.)* &
-                    exp(-vdepo(ks)*abs(dt)/(2.*href))
+            prob(ks)=1.+(prob(ks)-1.)* &
+                  exp(-vdepo(ks)*abs(dt)/(2.*href))
+            !if (pp.eq.535) write(*,*) 'advance1', ks,dtt,p1,vdep(ix,jy,ks,1)
           endif
         end do
       endif
@@ -618,6 +625,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
       if (zt.lt.0.) zt=min(h-eps2,-1.*zt)    ! if particle below ground -> reflection
       call z_to_zeta(itime,xt,yt,zt,zteta)
       zteta=zteta+(weta)*dt*real(ldirect)
+      part(pp)%etaupdate=.false.
       if (zteta.ge.1.) zteta=1.-(zteta-1.)
       if (zteta.eq.1.) zteta=zteta-eps_eta
     case ('METER')
@@ -662,6 +670,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     case ('ETA')
       wsigold=r*wsigold+rs*rannumb(nrand+2)*wsigeta*turbmesoscale
       zteta=zteta+wsigold*real(lsynctime)
+      part(pp)%etaupdate=.false.
       if (zteta.ge.1.) zteta=1.-(zteta-1.)
       if (zteta.eq.1.) zteta=zteta-eps_eta
 
@@ -739,7 +748,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
 
   if ((xt.lt.0.).or.(xt.ge.real(nxmin1)).or.(yt.lt.0.).or. &
        (yt.gt.real(nymin1))) then
-    nstop=3
+    nstop=.true.
     return
   endif
 
@@ -747,7 +756,10 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   !*******************************************************************
   select case (wind_coord_type)
     case ('ETA')
-      if (zteta.le.uvheight(nz)) zteta=uvheight(nz)+eps_eta
+      if (zteta.le.uvheight(nz)) then 
+        zteta=uvheight(nz)+eps_eta
+        part(pp)%etaupdate=.false.
+      endif
     case ('METER')
       if (zt.ge.height(nz)) zt=height(nz)-100.*eps
     case default
@@ -867,6 +879,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
     case ('ETA')
       weta=(weta-woldeta)/2.
       zteta=zteta+weta*real(ldt*ldirect)
+      part(pp)%etaupdate=.false.
       if (zteta.ge.1.) zteta=1.-(zteta-1.)
       if (zteta.eq.1.) zteta=zteta-eps_eta
 
@@ -937,7 +950,7 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   !*****************************************************************
   if ((xt.lt.0.).or.(xt.ge.real(nxmin1,kind=dp)).or.(yt.lt.0.).or. &
        (yt.gt.real(nymin1,kind=dp))) then
-    nstop=3
+    nstop=.true.
     return
   endif
 
@@ -945,7 +958,10 @@ subroutine advance(itime,nrelpoint,ldt,up,vp,wp, &
   !*******************************************************************
   select case (wind_coord_type)
     case ('ETA')
-      if (zteta.le.uvheight(nz)) zteta=uvheight(nz)+eps_eta
+      if (zteta.le.uvheight(nz)) then 
+        zteta=uvheight(nz)+eps_eta
+        part(pp)%etaupdate=.false.
+      endif
     case ('METER')
       if (zt.ge.height(nz)) zt=height(nz)-100.*eps
     case default

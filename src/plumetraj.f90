@@ -37,6 +37,8 @@ subroutine plumetraj(itime)
   use par_mod
   use com_mod
   use mean_mod
+  use particle_mod
+  use coordinates_ecmwf
 
   implicit none
 
@@ -62,7 +64,7 @@ subroutine plumetraj(itime)
   !******************************
 
   do j=1,numpoint
-    if (abs(ireleasestart(j)-itime).gt.lage(nageclass)) goto 10
+    if (abs(ireleasestart(j)-itime).gt.lage(nageclass)) cycle
     topocenter=0.
     hmixcenter=0.
     hmixfract=0.
@@ -75,13 +77,13 @@ subroutine plumetraj(itime)
 
     n=0
     do i=1,numpart
-      if (itra1(i).ne.itime) goto 20
-      if (npoint(i).ne.j) goto 20
+      if (.not.part(i)%alive) cycle
+      if (part(i)%npoint.ne.j) cycle
       n=n+1
-      xl(n)=xlon0+xtra1(i)*dx
-      yl(n)=ylat0+ytra1(i)*dy
-      zl(n)=ztra1(i)
-
+      xl(n)=xlon0+part(i)%xlon*dx
+      yl(n)=ylat0+part(i)%ylat*dy
+      call update_zcoord(itime,i)
+      zl(n)=part(i)%z
 
   ! Interpolate PBL height, PV, and tropopause height to each
   ! particle position in order to determine fraction of particles
@@ -89,12 +91,12 @@ subroutine plumetraj(itime)
   ! Interpolate topography, too, and convert to altitude asl
   !**************************************************************
 
-      ix=int(xtra1(i))
-      jy=int(ytra1(i))
+      ix=int(part(i)%xlon)
+      jy=int(part(i)%ylat)
       ixp=ix+1
       jyp=jy+1
-      ddx=xtra1(i)-real(ix)
-      ddy=ytra1(i)-real(jy)
+      ddx=part(i)%xlon-real(ix)
+      ddy=part(i)%ylat-real(jy)
       rddx=1.-ddx
       rddy=1.-ddy
       p1=rddx*rddy
@@ -118,10 +120,9 @@ subroutine plumetraj(itime)
         if (height(il).gt.zl(n)) then
           indz=il-1
           indzp=il
-          goto 6
+          exit
         endif
       end do
-6     continue
 
       dz1=zl(n)-height(indz)
       dz2=height(indzp)-zl(n)
@@ -172,8 +173,6 @@ subroutine plumetraj(itime)
       zl(n)=zl(n)+topo        ! convert to height asl
       hmixcenter=hmixcenter+hmixi
 
-
-20    continue
     end do
 
 
@@ -225,8 +224,6 @@ subroutine plumetraj(itime)
            k=1,ncluster)
     endif
 
-
-10  continue
   end do
 
 

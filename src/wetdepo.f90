@@ -42,6 +42,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
   use par_mod
   use com_mod
   use unc_mod, only:wetgridunc
+  use particle_mod
 
   implicit none
 
@@ -69,19 +70,17 @@ subroutine wetdepo(itime,ltsample,loutnext)
   inc_count(:)=0
 
 ! OMP doesn't work yet, a reduction is necessary for the kernel function
-
   do jpart=1,numpart
 
-    if (itra1(jpart).eq.-999999999) cycle
-    if(ldirect.eq.1)then
-      if (itra1(jpart).gt.itime) cycle
-    else
-      if (itra1(jpart).lt.itime) cycle
-    endif
+    ! Check if memory has been deallocated
+    if (.not. is_particle_allocated(jpart)) cycle
+
+    ! Check if particle is still allive
+    if (.not. part(jpart)%alive) cycle
 
 ! Determine age class of the particle - nage is used for the kernel
 !******************************************************************
-     itage=abs(itra1(jpart)-itramem(jpart))
+     itage=abs(itime-part(jpart)%tstart)
      do nage=1,nageclass
        if (itage.lt.lage(nage)) exit
      end do
@@ -116,8 +115,8 @@ subroutine wetdepo(itime,ltsample,loutnext)
       if (WETBKDEP) then
         if ((xscav_frac1(jpart,ks).lt.-0.1)) then   ! particle marked as starting particle
           if (wetscav.gt.0.) then
-             xscav_frac1(jpart,ks)=wetscav*(zpoint2(npoint(jpart))-&
-             zpoint1(npoint(jpart)))*grfraction(1)
+             xscav_frac1(jpart,ks)=wetscav*(zpoint2(part(jpart)%npoint)-&
+             zpoint1(part(jpart)%npoint))*grfraction(1)
              ! apl3 => print out particle number, wetscav, xscav_frac1
 !              ! apl_8
 !              if (ks.eq.1) write(*,924) 'wetdepo:',itime,jpart,wetscav,&
@@ -125,32 +124,32 @@ subroutine wetdepo(itime,ltsample,loutnext)
 !                    grfraction(1),xscav_frac1(jpart,ks)
 ! 924 format(a,1x,2i9,5es13.5)
           else
-            xmass1(jpart,ks)=0.
+            part(jpart)%mass(ks)=0.
             xscav_frac1(jpart,ks)=0.
           endif
         endif
       endif
 
       if (wetscav.gt.0.) then
-        wetdeposit(ks)=xmass1(jpart,ks)* &
+        wetdeposit(ks)=part(jpart)%mass(ks)* &
              (1.-exp(-wetscav*abs(ltsample)))*grfraction(1)  ! wet deposition
       else ! if no scavenging
         wetdeposit(ks)=0.
       endif
  
-      restmass = xmass1(jpart,ks)-wetdeposit(ks)
+      restmass = part(jpart)%mass(ks)-wetdeposit(ks)
       if (ioutputforeachrelease.eq.1) then
-        kp=npoint(jpart)
+        kp=part(jpart)%npoint
       else
         kp=1
       endif
       if (restmass .gt. smallnum) then
-        xmass1(jpart,ks)=restmass
+        part(jpart)%mass(ks)=restmass
 !   depostatistic
 !   wetdepo_sum(ks,kp)=wetdepo_sum(ks,kp)+wetdeposit(ks)
 !   depostatistic
       else
-        xmass1(jpart,ks)=0.
+        part(jpart)%mass(ks)=0.
       endif
 !   Correct deposited mass to the last time step when radioactive decay of
 !   gridded deposited mass was calculated
@@ -166,10 +165,10 @@ subroutine wetdepo(itime,ltsample,loutnext)
 !*****************************************************************************
 
     if (ldirect.eq.1) then !OMP reduction necessary for wetgridunc
-      call wetdepokernel(nclass(jpart),wetdeposit,real(xtra1(jpart)), &
-           real(ytra1(jpart)),nage,kp)
-      if (nested_output.eq.1) call wetdepokernel_nest(nclass(jpart), &
-           wetdeposit,real(xtra1(jpart)),real(ytra1(jpart)),nage,kp)
+      call wetdepokernel(part(jpart)%nclass,wetdeposit,real(part(jpart)%xlon), &
+           real(part(jpart)%ylat),nage,kp)
+      if (nested_output.eq.1) call wetdepokernel_nest(part(jpart)%nclass, &
+           wetdeposit,real(part(jpart)%xlon),real(part(jpart)%ylat),nage,kp)
     endif
 
   end do ! all particles

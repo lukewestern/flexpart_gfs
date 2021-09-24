@@ -1,7 +1,7 @@
 ! SPDX-FileCopyrightText: FLEXPART 1998-2019, see flexpart_license.txt
 ! SPDX-License-Identifier: GPL-3.0-or-later
 
-subroutine calcfluxes(nage,jpart,xold,yold,zold)
+subroutine calcfluxes(itime,nage,jpart,xold,yold,zold)
   !                       i     i    i    i    i
   !*****************************************************************************
   !                                                                            *
@@ -29,10 +29,12 @@ subroutine calcfluxes(nage,jpart,xold,yold,zold)
   use outg_mod
   use par_mod
   use com_mod
+  use particle_mod
+  use coordinates_ecmwf
 
   implicit none
 
-  integer :: jpart,nage,ixave,jyave,kz,kzave,kp
+  integer :: itime,jpart,nage,ixave,jyave,kz,kzave,kp
   integer :: k,k1,k2,ix,ix1,ix2,ixs,jy,jy1,jy2
   real :: xold,yold,zold,xmean,ymean
 
@@ -41,18 +43,18 @@ subroutine calcfluxes(nage,jpart,xold,yold,zold)
   !****************************
 
   if ((ioutputforeachrelease.eq.1).and.(mdomainfill.eq.0)) then
-     kp=npoint(jpart)
+     kp=part(jpart)%npoint
   else
      kp=1
   endif
-
-  xmean=(xold+xtra1(jpart))/2.
-  ymean=(yold+ytra1(jpart))/2.
+  call update_zcoord(itime,jpart)
+  xmean=(xold+part(jpart)%xlon)/2.
+  ymean=(yold+part(jpart)%ylat)/2.
 
   ixave=int((xmean*dx+xoutshift)/dxout)
   jyave=int((ymean*dy+youtshift)/dyout)
   do kz=1,numzgrid                ! determine height of cell
-    if (outheight(kz).gt.ztra1(jpart)) exit
+    if (outheight(kz).gt.part(jpart)%z) exit
   end do
   kzave=kz
 
@@ -67,7 +69,7 @@ subroutine calcfluxes(nage,jpart,xold,yold,zold)
     end do
     k1=min(numzgrid,kz)
     do kz=1,numzgrid                ! determine height of cell
-      if (outheighthalf(kz).gt.ztra1(jpart)) exit
+      if (outheighthalf(kz).gt.part(jpart)%z) exit
     end do
     k2=min(numzgrid,kz)
 
@@ -75,12 +77,12 @@ subroutine calcfluxes(nage,jpart,xold,yold,zold)
       do kz=k1,k2-1
         flux(5,ixave,jyave,kz,k,kp,nage)= &
              flux(5,ixave,jyave,kz,k,kp,nage)+ &
-             xmass1(jpart,k)
+             part(jpart)%mass(k)
       end do
       do kz=k2,k1-1
         flux(6,ixave,jyave,kz,k,kp,nage)= &
              flux(6,ixave,jyave,kz,k,kp,nage)+ &
-             xmass1(jpart,k)
+             part(jpart)%mass(k)
       end do
     end do
   endif
@@ -94,22 +96,22 @@ subroutine calcfluxes(nage,jpart,xold,yold,zold)
 
   ! 1) Particle does not cross domain boundary
 
-    if (abs(xold-xtra1(jpart)).lt.real(nx)/2.) then
+    if (abs(xold-part(jpart)%xlon).lt.real(nx)/2.) then
       ix1=int((xold*dx+xoutshift)/dxout+0.5)
-      ix2=int((xtra1(jpart)*dx+xoutshift)/dxout+0.5)
+      ix2=int((part(jpart)%xlon*dx+xoutshift)/dxout+0.5)
       do k=1,nspec
         do ix=ix1,ix2-1
           if ((ix.ge.0).and.(ix.le.numxgrid-1)) then
             flux(1,ix,jyave,kzave,k,kp,nage)= &
                  flux(1,ix,jyave,kzave,k,kp,nage) &
-                 +xmass1(jpart,k)
+                 +part(jpart)%mass(k)
           endif
         end do
         do ix=ix2,ix1-1
           if ((ix.ge.0).and.(ix.le.numxgrid-1)) then
             flux(2,ix,jyave,kzave,k,kp,nage)= &
                  flux(2,ix,jyave,kzave,k,kp,nage) &
-                 +xmass1(jpart,k)
+                 +part(jpart)%mass(k)
           endif
         end do
       end do
@@ -121,17 +123,17 @@ subroutine calcfluxes(nage,jpart,xold,yold,zold)
     else
       ixs=int(((real(nxmin1)-1.e5)*dx+xoutshift)/dxout)
       if ((ixs.ge.0).and.(ixs.le.numxgrid-1)) then
-        if (xold.gt.xtra1(jpart)) then       ! west-east flux
+        if (xold.gt.part(jpart)%xlon) then       ! west-east flux
           do k=1,nspec
             flux(1,ixs,jyave,kzave,k,kp,nage)= &
                  flux(1,ixs,jyave,kzave,k,kp,nage) &
-                 +xmass1(jpart,k)
+                 +part(jpart)%mass(k)
           end do
         else                                 ! east-west flux
           do k=1,nspec
             flux(2,ixs,jyave,kzave,k,kp,nage)= &
                  flux(2,ixs,jyave,kzave,k,kp,nage) &
-                 +xmass1(jpart,k)
+                 +part(jpart)%mass(k)
           end do
         endif
       endif
@@ -145,21 +147,21 @@ subroutine calcfluxes(nage,jpart,xold,yold,zold)
   if ((kzave.le.numzgrid).and.(ixave.ge.0).and. &
        (ixave.le.numxgrid-1)) then
     jy1=int((yold*dy+youtshift)/dyout+0.5)
-    jy2=int((ytra1(jpart)*dy+youtshift)/dyout+0.5)
+    jy2=int((part(jpart)%ylat*dy+youtshift)/dyout+0.5)
 
     do k=1,nspec
       do jy=jy1,jy2-1
         if ((jy.ge.0).and.(jy.le.numygrid-1)) then
           flux(3,ixave,jy,kzave,k,kp,nage)= &
                flux(3,ixave,jy,kzave,k,kp,nage) &
-               +xmass1(jpart,k)
+               +part(jpart)%mass(k)
         endif
       end do
       do jy=jy2,jy1-1
         if ((jy.ge.0).and.(jy.le.numygrid-1)) then
           flux(4,ixave,jy,kzave,k,kp,nage)= &
                flux(4,ixave,jy,kzave,k,kp,nage) &
-               +xmass1(jpart,k)
+               +part(jpart)%mass(k)
         endif
       end do
     end do

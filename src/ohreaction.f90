@@ -27,6 +27,7 @@ subroutine ohreaction(itime,ltsample,loutnext)
   use oh_mod
   use par_mod
   use com_mod
+  use particle_mod
 
   implicit none
 
@@ -67,8 +68,8 @@ subroutine ohreaction(itime,ltsample,loutnext)
     ! Determine which nesting level to be used
     ngrid=0
     do j=numbnests,1,-1
-      if ((xtra1(jpart).gt.xln(j)).and.(xtra1(jpart).lt.xrn(j)).and. &
-           (ytra1(jpart).gt.yln(j)).and.(ytra1(jpart).lt.yrn(j))) then
+      if ((part(jpart)%xlon.gt.xln(j)).and.(part(jpart)%xlon.lt.xrn(j)).and. &
+           (part(jpart)%ylat.gt.yln(j)).and.(part(jpart)%ylat.lt.yrn(j))) then
         ngrid=j
         exit
       endif
@@ -76,13 +77,13 @@ subroutine ohreaction(itime,ltsample,loutnext)
 
     ! Determine nested grid coordinates
     if (ngrid.gt.0) then
-      xtn=(xtra1(jpart)-xln(ngrid))*xresoln(ngrid)
-      ytn=(ytra1(jpart)-yln(ngrid))*yresoln(ngrid)
+      xtn=(part(jpart)%xlon-xln(ngrid))*xresoln(ngrid)
+      ytn=(part(jpart)%ylat-yln(ngrid))*yresoln(ngrid)
       ix=int(xtn)
       jy=int(ytn)
     else
-      ix=int(xtra1(jpart))
-      jy=int(ytra1(jpart))
+      ix=int(part(jpart)%xlon)
+      jy=int(part(jpart)%ylat)
     endif
 
     interp_time=nint(itime-0.5*ltsample)
@@ -90,7 +91,7 @@ subroutine ohreaction(itime,ltsample,loutnext)
     if(abs(memtime(1)-interp_time).lt.abs(memtime(2)-interp_time)) n=1
 
     do i=2,nz
-      if (height(i).gt.ztra1(jpart)) then
+      if (height(i).gt.part(jpart)%z) then
         indz=i-1
         exit
       endif
@@ -100,25 +101,25 @@ subroutine ohreaction(itime,ltsample,loutnext)
     !*************************************************
 
     ! world coordinates
-    xlon=xtra1(jpart)*dx+xlon0
+    xlon=part(jpart)%xlon*dx+xlon0
     if (xlon.gt.180) then
        xlon=xlon-360
     endif
-    ylat=ytra1(jpart)*dy+ylat0
+    ylat=part(jpart)%ylat*dy+ylat0
 
     ! get position in the OH field
     OHx=minloc(abs(lonOH-xlon),dim=1,mask=abs(lonOH-xlon).eq.minval(abs(lonOH-xlon)))
     OHy=minloc(abs(latOH-ylat),dim=1,mask=abs(latOH-ylat).eq.minval(abs(latOH-ylat)))
 
     ! get the level of the OH field for the particle
-    ! ztra1 is the z-coord of the trajectory above model orography in metres
+    ! z is the z-coord of the trajectory above model orography in metres
     ! altOH is the height of the centre of the level in the OH field above orography
     do i=2,nzOH
       altOHtop(i-1)=altOH(i)+0.5*(altOH(i)-altOH(i-1))
     end do
     altOHtop(nzOH)=altOH(nzOH)+0.5*(altOH(nzOH)-altOH(nzOH-1))
-    OHz=minloc(abs(altOHtop-ztra1(jpart)),dim=1,mask=abs(altOHtop-ztra1(jpart))&
-            &.eq.minval(abs(altOHtop-ztra1(jpart))))
+    OHz=minloc(abs(altOHtop-part(jpart)%z),dim=1,mask=abs(altOHtop-part(jpart)%z)&
+            &.eq.minval(abs(altOHtop-part(jpart)%z)))
 
     ! Interpolate between hourly OH fields to current time
     !*****************************************************
@@ -138,18 +139,18 @@ subroutine ohreaction(itime,ltsample,loutnext)
         if (ohcconst(k).gt.0.) then
           ohrate=ohcconst(k)*temp**ohnconst(k)*exp(-ohdconst(k)/temp)*oh_average
           ! new particle mass
-          restmass = xmass1(jpart,k)*exp(-1*ohrate*abs(ltsample))
+          restmass = part(jpart)%mass(k)*exp(-1*ohrate*abs(ltsample))
           if (restmass .gt. smallnum) then
-            xmass1(jpart,k)=restmass
+            part(jpart)%mass(k)=restmass
           else
-            xmass1(jpart,k)=0.
+            part(jpart)%mass(k)=0.
           endif
-          ohreacted=xmass1(jpart,k)*(1-exp(-1*ohrate*abs(ltsample)))
+          ohreacted=part(jpart)%mass(k)*(1-exp(-1*ohrate*abs(ltsample)))
+          if (jpart.eq.535) write(*,*) 'ohreaction', part(jpart)%mass(k),k
         else
           ohreacted=0.
         endif
       end do
-
     endif  ! oh_average.gt.smallnum 
 
   end do  !continue loop over all particles

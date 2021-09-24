@@ -17,10 +17,13 @@ subroutine initial_cond_calc(itime,i)
   use outg_mod
   use par_mod
   use com_mod
+  use interpol_mod, only: interpol_density,ix,jy,ixp,jyp
+  use coordinates_ecmwf
+  use particle_mod
 
   implicit none
 
-  integer :: itime,i,ix,jy,ixp,jyp,kz,ks
+  integer :: itime,i,kz,ks
   integer :: il,ind,indz,indzp,nrelpointer
   real :: rddx,rddy,p1,p2,p3,p4,dz1,dz2,dz
   real :: ddx,ddy
@@ -34,7 +37,7 @@ subroutine initial_cond_calc(itime,i)
   !**************************************************************************
 
 
-  if (itra1(i).ne.itime) return
+  if (.not. part(i)%alive) return
 
   ! Depending on output option, calculate air density or set it to 1
   ! linit_cond: 1=mass unit, 2=mass mixing ratio unit
@@ -42,47 +45,11 @@ subroutine initial_cond_calc(itime,i)
 
 
   if (linit_cond.eq.1) then     ! mass unit
-
-    ix=int(xtra1(i))
-    jy=int(ytra1(i))
-    ixp=ix+1
-    jyp=jy+1
-    ddx=xtra1(i)-real(ix)
-    ddy=ytra1(i)-real(jy)
-    rddx=1.-ddx
-    rddy=1.-ddy
-    p1=rddx*rddy
-    p2=ddx*rddy
-    p3=rddx*ddy
-    p4=ddx*ddy
-
-    do il=2,nz
-      if (height(il).gt.ztra1(i)) then
-        indz=il-1
-        indzp=il
-        exit
-      endif
-    end do
-
-    dz1=ztra1(i)-height(indz)
-    dz2=height(indzp)-ztra1(i)
-    dz=1./(dz1+dz2)
-
-  ! Take density from 2nd wind field in memory (accurate enough, no time interpolation needed)
-  !*****************************************************************************
-    mind2=memind(2)
-
-    do ind=indz,indzp
-      rhoprof(ind-indz+1)=p1*rho(ix ,jy ,ind,mind2) &
-           +p2*rho(ixp,jy ,ind,mind2) &
-           +p3*rho(ix ,jyp,ind,mind2) &
-           +p4*rho(ixp,jyp,ind,mind2)
-    end do
-    rhoi=(dz1*rhoprof(2)+dz2*rhoprof(1))*dz
+    call update_zcoord(itime,i)
+    call interpol_density(i,rhoi)
   elseif (linit_cond.eq.2) then    ! mass mixing ratio unit
     rhoi=1.
   endif
-
 
   !****************************************************************************
   ! 1. Evaluate grid concentrations using a uniform kernel of bandwidths dx, dy
@@ -98,18 +65,18 @@ subroutine initial_cond_calc(itime,i)
   if ((ioutputforeachrelease.eq.0).or.(mdomainfill.eq.1)) then
     nrelpointer=1
   else
-    nrelpointer=npoint(i)
+    nrelpointer=part(i)%npoint
   endif
 
   do kz=1,numzgrid                ! determine height of cell
-    if (outheight(kz).gt.ztra1(i)) exit
+    if (outheight(kz).gt.part(i)%z) exit
   end do
 
   if (kz.le.numzgrid) then           ! inside output domain
 
 
-    xl=(xtra1(i)*dx+xoutshift)/dxout
-    yl=(ytra1(i)*dy+youtshift)/dyout
+    xl=(part(i)%xlon*dx+xoutshift)/dxout
+    yl=(part(i)%ylat*dy+youtshift)/dyout
     ix=int(xl)
     if (xl.lt.0.) ix=ix-1
     jy=int(yl)
@@ -127,7 +94,7 @@ subroutine initial_cond_calc(itime,i)
         do ks=1,nspec
           init_cond(ix,jy,kz,ks,nrelpointer)= &
                init_cond(ix,jy,kz,ks,nrelpointer)+ &
-               xmass1(i,ks)/rhoi
+               part(i)%mass(ks)/rhoi
         end do
       endif
 
@@ -160,7 +127,7 @@ subroutine initial_cond_calc(itime,i)
           w=wx*wy
           do ks=1,nspec
             init_cond(ix,jy,kz,ks,nrelpointer)= &
-                 init_cond(ix,jy,kz,ks,nrelpointer)+xmass1(i,ks)/rhoi*w
+                 init_cond(ix,jy,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
           end do
         endif
 
@@ -168,7 +135,7 @@ subroutine initial_cond_calc(itime,i)
           w=wx*(1.-wy)
           do ks=1,nspec
             init_cond(ix,jyp,kz,ks,nrelpointer)= &
-                 init_cond(ix,jyp,kz,ks,nrelpointer)+xmass1(i,ks)/rhoi*w
+                 init_cond(ix,jyp,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
           end do
         endif
       endif
@@ -179,7 +146,7 @@ subroutine initial_cond_calc(itime,i)
           w=(1.-wx)*(1.-wy)
           do ks=1,nspec
             init_cond(ixp,jyp,kz,ks,nrelpointer)= &
-                 init_cond(ixp,jyp,kz,ks,nrelpointer)+xmass1(i,ks)/rhoi*w
+                 init_cond(ixp,jyp,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
           end do
         endif
 
@@ -187,7 +154,7 @@ subroutine initial_cond_calc(itime,i)
           w=(1.-wx)*wy
           do ks=1,nspec
             init_cond(ixp,jy,kz,ks,nrelpointer)= &
-                 init_cond(ixp,jy,kz,ks,nrelpointer)+xmass1(i,ks)/rhoi*w
+                 init_cond(ixp,jy,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
           end do
         endif
       endif

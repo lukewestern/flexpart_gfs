@@ -29,6 +29,8 @@ subroutine boundcond_domainfill(itime,loutend)
   use par_mod
   use com_mod
   use random_mod, only: ran1
+  use particle_mod
+  use coordinates_ecmwf
 
   implicit none
 
@@ -61,15 +63,14 @@ subroutine boundcond_domainfill(itime,loutend)
   !********************************************************************
 
   do i=1,numpart
-    if (itra1(i).eq.itime) then
-      if ((ytra1(i).gt.real(ny_sn(2))).or. &
-           (ytra1(i).lt.real(ny_sn(1)))) itra1(i)=-999999999
-      if (((.not.xglobal).or.(nx_we(2).ne.(nx-2))).and. &
-           ((xtra1(i).lt.real(nx_we(1))).or. &
-           (xtra1(i).gt.real(nx_we(2))))) itra1(i)=-999999999
-    endif
-    if (itra1(i).ne.-999999999) numactiveparticles= &
-         numactiveparticles+1
+    if (.not. part(i)%alive) cycle
+
+    if ((part(i)%ylat.gt.real(ny_sn(2))).or. &
+         (part(i)%ylat.lt.real(ny_sn(1)))) call terminate_particle(i)
+    if (((.not.xglobal).or.(nx_we(2).ne.(nx-2))).and. &
+         ((part(i)%xlon.lt.real(nx_we(1))).or. &
+         (part(i)%xlon.gt.real(nx_we(2))))) call terminate_particle(i)
+    if (part(i)%alive) numactiveparticles = numactiveparticles+1
   end do
 
 
@@ -79,11 +80,6 @@ subroutine boundcond_domainfill(itime,loutend)
   dt1=real(itime-memtime(1))
   dt2=real(memtime(2)-itime)
   dtt=1./(dt1+dt2)
-
-  ! Initialize auxiliary variable used to search for vacant storage space
-  !**********************************************************************
-
-  minpart=1
 
   !***************************************
   ! Western and eastern boundary condition
@@ -110,8 +106,6 @@ subroutine boundcond_domainfill(itime,loutend)
         if (j.eq.1) then
           deltaz=(zcolumn_we(k,jy,2)+zcolumn_we(k,jy,1))/2.
         else if (j.eq.numcolumn_we(k,jy)) then
-  !        deltaz=height(nz)-(zcolumn_we(k,jy,j-1)+
-  !    +        zcolumn_we(k,jy,j))/2.
   ! In order to avoid taking a very high column for very many particles,
   ! use the deltaz from one particle below instead
           deltaz=(zcolumn_we(k,jy,j)-zcolumn_we(k,jy,j-2))/2.
@@ -135,10 +129,9 @@ subroutine boundcond_domainfill(itime,loutend)
           if (height(i).gt.zcolumn_we(k,jy,j)) then
             indz=i-1
             indzp=i
-            goto 6
+            exit
           endif
         end do
-6       continue
 
   ! Vertical distance to the level below and above current position
   !****************************************************************
@@ -205,115 +198,100 @@ subroutine boundcond_domainfill(itime,loutend)
         endif
 
         do m=1,mmass
-          do ipart=minpart,maxpart
-
-  ! If a vacant storage space is found, attribute everything to this array element
-  !*****************************************************************************
-
-            if (itra1(ipart).ne.itime) then
+          call get_new_part_index(ipart)
+          call spawn_particle(itime, ipart)
 
   ! Assign particle positions
   !**************************
 
-              xtra1(ipart)=real(nx_we(k))
-              if (jy.eq.ny_sn(1)) then
-                ytra1(ipart)=real(jy)+0.5*ran1(idummy)
-              else if (jy.eq.ny_sn(2)) then
-                ytra1(ipart)=real(jy)-0.5*ran1(idummy)
-              else
-                ytra1(ipart)=real(jy)+(ran1(idummy)-.5)
-              endif
-              if (j.eq.1) then
-                ztra1(ipart)=zcolumn_we(k,jy,1)+(zcolumn_we(k,jy,2)- &
-                     zcolumn_we(k,jy,1))/4.
-              else if (j.eq.numcolumn_we(k,jy)) then
-                ztra1(ipart)=(2.*zcolumn_we(k,jy,j)+ &
-                     zcolumn_we(k,jy,j-1)+height(nz))/4.
-              else
-                ztra1(ipart)=zcolumn_we(k,jy,j-1)+ran1(idummy)* &
-                     (zcolumn_we(k,jy,j+1)-zcolumn_we(k,jy,j-1))
-              endif
+          part(ipart)%xlon=real(nx_we(k))
+          if (jy.eq.ny_sn(1)) then
+            part(ipart)%ylat=real(jy)+0.5*ran1(idummy)
+          else if (jy.eq.ny_sn(2)) then
+            part(ipart)%ylat=real(jy)-0.5*ran1(idummy)
+          else
+            part(ipart)%ylat=real(jy)+(ran1(idummy)-.5)
+          endif
+          if (j.eq.1) then
+            part(ipart)%z=zcolumn_we(k,jy,1)+(zcolumn_we(k,jy,2)- &
+                 zcolumn_we(k,jy,1))/4.
+          else if (j.eq.numcolumn_we(k,jy)) then
+            part(ipart)%z=(2.*zcolumn_we(k,jy,j)+ &
+                 zcolumn_we(k,jy,j-1)+height(nz))/4.
+          else
+            part(ipart)%z=zcolumn_we(k,jy,j-1)+ran1(idummy)* &
+                 (zcolumn_we(k,jy,j+1)-zcolumn_we(k,jy,j-1))
+          endif
+
+
+          if (wind_coord_type.eq.'ETA') then
+            call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat, &
+              part(ipart)%z,part(ipart)%zeta)
+            part(ipart)%etaupdate = .true. ! The z(meter) coordinate is up to date
+          endif
 
   ! Interpolate PV to the particle position
   !****************************************
-              ixm=int(xtra1(ipart))
-              jym=int(ytra1(ipart))
-              ixp=ixm+1
-              jyp=jym+1
-              ddx=xtra1(ipart)-real(ixm)
-              ddy=ytra1(ipart)-real(jym)
-              rddx=1.-ddx
-              rddy=1.-ddy
-              p1=rddx*rddy
-              p2=ddx*rddy
-              p3=rddx*ddy
-              p4=ddx*ddy
-              do i=2,nz
-                if (height(i).gt.ztra1(ipart)) then
-                  indzm=i-1
-                  indzp=i
-                  goto 26
-                endif
-              end do
-26            continue
-              dz1=ztra1(ipart)-height(indzm)
-              dz2=height(indzp)-ztra1(ipart)
-              dz=1./(dz1+dz2)
-              do mm=1,2
-                indexh=memind(mm)
-                do in=1,2
-                  indzh=indzm+in-1
-                  y1(in)=p1*pv(ixm,jym,indzh,indexh) &
-                       +p2*pv(ixp,jym,indzh,indexh) &
-                       +p3*pv(ixm,jyp,indzh,indexh) &
-                       +p4*pv(ixp,jyp,indzh,indexh)
-                end do
-                yh1(mm)=(dz2*y1(1)+dz1*y1(2))*dz
-              end do
-              pvpart=(yh1(1)*dt2+yh1(2)*dt1)*dtt
-              ylat=ylat0+ytra1(ipart)*dy
-              if (ylat.lt.0.) pvpart=-1.*pvpart
+          ixm=int(part(ipart)%xlon)
+          jym=int(part(ipart)%ylat)
+          ixp=ixm+1
+          jyp=jym+1
+          ddx=part(ipart)%xlon-real(ixm)
+          ddy=part(ipart)%ylat-real(jym)
+          rddx=1.-ddx
+          rddy=1.-ddy
+          p1=rddx*rddy
+          p2=ddx*rddy
+          p3=rddx*ddy
+          p4=ddx*ddy
+          do i=2,nz
+            if (height(i).gt.part(ipart)%z) then
+              indzm=i-1
+              indzp=i
+              exit
+            endif
+          end do
+          dz1=part(ipart)%z-height(indzm)
+          dz2=height(indzp)-part(ipart)%z
+          dz=1./(dz1+dz2)
+          do mm=1,2
+            indexh=memind(mm)
+            do in=1,2
+              indzh=indzm+in-1
+              y1(in)=p1*pv(ixm,jym,indzh,indexh) &
+                   +p2*pv(ixp,jym,indzh,indexh) &
+                   +p3*pv(ixm,jyp,indzh,indexh) &
+                   +p4*pv(ixp,jyp,indzh,indexh)
+            end do
+            yh1(mm)=(dz2*y1(1)+dz1*y1(2))*dz
+          end do
+          pvpart=(yh1(1)*dt2+yh1(2)*dt1)*dtt
+          ylat=ylat0+part(ipart)%ylat*dy
+          if (ylat.lt.0.) pvpart=-1.*pvpart
 
 
   ! For domain-filling option 2 (stratospheric O3), do the rest only in the stratosphere
   !*****************************************************************************
 
-              if (((ztra1(ipart).gt.3000.).and. &
-                   (pvpart.gt.pvcrit)).or.(mdomainfill.eq.1)) then
-                nclass(ipart)=min(int(ran1(idummy)* &
-                     real(nclassunc))+1,nclassunc)
-                numactiveparticles=numactiveparticles+1
-                numparticlecount=numparticlecount+1
-                npoint(ipart)=numparticlecount
-                idt(ipart)=mintime
-                itra1(ipart)=itime
-                itramem(ipart)=itra1(ipart)
-                itrasplit(ipart)=itra1(ipart)+ldirect*itsplit
-                xmass1(ipart,1)=xmassperparticle
-                if (mdomainfill.eq.2) xmass1(ipart,1)= &
-                     xmass1(ipart,1)*pvpart*48./29.*ozonescale/10.**9
-              else
-                goto 71
-              endif
-
-
-  ! Increase numpart, if necessary
-  !*******************************
-
-              numpart=max(numpart,ipart)
-              goto 73      ! Storage space has been found, stop searching
-            endif
-          end do
-          if (ipart.gt.maxpart) &
-               stop 'boundcond_domainfill.f: too many particles required'
-73        minpart=ipart+1
-71        continue
-        end do
-
-
-      end do
-    end do
-  end do
+          if (((part(ipart)%z.gt.3000.).and. &
+               (pvpart.gt.pvcrit)).or.(mdomainfill.eq.1)) then
+            part(ipart)%nclass=min(int(ran1(idummy)* &
+                 real(nclassunc))+1,nclassunc)
+            numactiveparticles=numactiveparticles+1
+            numparticlecount=numparticlecount+1
+            part(ipart)%npoint=numparticlecount
+            part(ipart)%idt=mintime
+            part(ipart)%tstart=itime
+            part(ipart)%mass(1)=xmassperparticle
+            if (mdomainfill.eq.2) part(ipart)%mass(1)= &
+                 part(ipart)%mass(1)*pvpart*48./29.*ozonescale/10.**9
+          else
+            stop 'boundcond_domainfill error: look into original to understand what should happen here'
+          endif
+        end do ! particles
+      end do ! release locations in column
+    end do ! western and eastern boundary
+  end do ! south to north
 
 
   !*****************************************
@@ -368,10 +346,9 @@ subroutine boundcond_domainfill(itime,loutend)
           if (height(i).gt.zcolumn_sn(k,ix,j)) then
             indz=i-1
             indzp=i
-            goto 16
+            exit
           endif
         end do
-16      continue
 
   ! Vertical distance to the level below and above current position
   !****************************************************************
@@ -437,124 +414,96 @@ subroutine boundcond_domainfill(itime,loutend)
         endif
 
         do m=1,mmass
-          do ipart=minpart,maxpart
-
-  ! If a vacant storage space is found, attribute everything to this array element
-  !*****************************************************************************
-
-            if (itra1(ipart).ne.itime) then
-
+          call get_new_part_index(ipart)
+          call spawn_particle(itime, ipart)
+  
   ! Assign particle positions
   !**************************
+          part(ipart)%ylat=real(ny_sn(k))
+          if (ix.eq.nx_we(1)) then
+            part(ipart)%xlon=real(ix)+0.5*ran1(idummy)
+          else if (ix.eq.nx_we(2)) then
+            part(ipart)%xlon=real(ix)-0.5*ran1(idummy)
+          else
+            part(ipart)%xlon=real(ix)+(ran1(idummy)-.5)
+          endif
+          if (j.eq.1) then
+            part(ipart)%z=zcolumn_sn(k,ix,1)+(zcolumn_sn(k,ix,2)- &
+                 zcolumn_sn(k,ix,1))/4.
+          else if (j.eq.numcolumn_sn(k,ix)) then
+            part(ipart)%z=(2.*zcolumn_sn(k,ix,j)+ &
+                 zcolumn_sn(k,ix,j-1)+height(nz))/4.
+          else
+            part(ipart)%z=zcolumn_sn(k,ix,j-1)+ran1(idummy)* &
+                 (zcolumn_sn(k,ix,j+1)-zcolumn_sn(k,ix,j-1))
+          endif
 
-              ytra1(ipart)=real(ny_sn(k))
-              if (ix.eq.nx_we(1)) then
-                xtra1(ipart)=real(ix)+0.5*ran1(idummy)
-              else if (ix.eq.nx_we(2)) then
-                xtra1(ipart)=real(ix)-0.5*ran1(idummy)
-              else
-                xtra1(ipart)=real(ix)+(ran1(idummy)-.5)
-              endif
-              if (j.eq.1) then
-                ztra1(ipart)=zcolumn_sn(k,ix,1)+(zcolumn_sn(k,ix,2)- &
-                     zcolumn_sn(k,ix,1))/4.
-              else if (j.eq.numcolumn_sn(k,ix)) then
-                ztra1(ipart)=(2.*zcolumn_sn(k,ix,j)+ &
-                     zcolumn_sn(k,ix,j-1)+height(nz))/4.
-              else
-                ztra1(ipart)=zcolumn_sn(k,ix,j-1)+ran1(idummy)* &
-                     (zcolumn_sn(k,ix,j+1)-zcolumn_sn(k,ix,j-1))
-              endif
-
+          if (wind_coord_type.eq.'ETA') then
+            call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat, &
+              part(ipart)%z,part(ipart)%zeta)
+            part(ipart)%etaupdate = .true. ! The z(meter) coordinate is up to date
+          endif
 
   ! Interpolate PV to the particle position
   !****************************************
-              ixm=int(xtra1(ipart))
-              jym=int(ytra1(ipart))
-              ixp=ixm+1
-              jyp=jym+1
-              ddx=xtra1(ipart)-real(ixm)
-              ddy=ytra1(ipart)-real(jym)
-              rddx=1.-ddx
-              rddy=1.-ddy
-              p1=rddx*rddy
-              p2=ddx*rddy
-              p3=rddx*ddy
-              p4=ddx*ddy
-              do i=2,nz
-                if (height(i).gt.ztra1(ipart)) then
-                  indzm=i-1
-                  indzp=i
-                  goto 126
-                endif
-              end do
-126           continue
-              dz1=ztra1(ipart)-height(indzm)
-              dz2=height(indzp)-ztra1(ipart)
-              dz=1./(dz1+dz2)
-              do mm=1,2
-                indexh=memind(mm)
-                do in=1,2
-                  indzh=indzm+in-1
-                  y1(in)=p1*pv(ixm,jym,indzh,indexh) &
-                       +p2*pv(ixp,jym,indzh,indexh) &
-                       +p3*pv(ixm,jyp,indzh,indexh) &
-                       +p4*pv(ixp,jyp,indzh,indexh)
-                end do
-                yh1(mm)=(dz2*y1(1)+dz1*y1(2))*dz
-              end do
-              pvpart=(yh1(1)*dt2+yh1(2)*dt1)*dtt
-              if (ylat.lt.0.) pvpart=-1.*pvpart
+          ixm=int(part(ipart)%xlon)
+          jym=int(part(ipart)%ylat)
+          ixp=ixm+1
+          jyp=jym+1
+          ddx=part(ipart)%xlon-real(ixm)
+          ddy=part(ipart)%ylat-real(jym)
+          rddx=1.-ddx
+          rddy=1.-ddy
+          p1=rddx*rddy
+          p2=ddx*rddy
+          p3=rddx*ddy
+          p4=ddx*ddy
+          do i=2,nz
+            if (height(i).gt.part(ipart)%z) then
+              indzm=i-1
+              indzp=i
+              exit
+            endif
+          end do
+          dz1=part(ipart)%z-height(indzm)
+          dz2=height(indzp)-part(ipart)%z
+          dz=1./(dz1+dz2)
+          do mm=1,2
+            indexh=memind(mm)
+            do in=1,2
+              indzh=indzm+in-1
+              y1(in)=p1*pv(ixm,jym,indzh,indexh) &
+                   +p2*pv(ixp,jym,indzh,indexh) &
+                   +p3*pv(ixm,jyp,indzh,indexh) &
+                   +p4*pv(ixp,jyp,indzh,indexh)
+            end do
+            yh1(mm)=(dz2*y1(1)+dz1*y1(2))*dz
+          end do
+          pvpart=(yh1(1)*dt2+yh1(2)*dt1)*dtt
+          if (ylat.lt.0.) pvpart=-1.*pvpart
 
 
   ! For domain-filling option 2 (stratospheric O3), do the rest only in the stratosphere
   !*****************************************************************************
 
-              if (((ztra1(ipart).gt.3000.).and. &
-                   (pvpart.gt.pvcrit)).or.(mdomainfill.eq.1)) then
-                nclass(ipart)=min(int(ran1(idummy)* &
-                     real(nclassunc))+1,nclassunc)
-                numactiveparticles=numactiveparticles+1
-                numparticlecount=numparticlecount+1
-                npoint(ipart)=numparticlecount
-                idt(ipart)=mintime
-                itra1(ipart)=itime
-                itramem(ipart)=itra1(ipart)
-                itrasplit(ipart)=itra1(ipart)+ldirect*itsplit
-                xmass1(ipart,1)=xmassperparticle
-                if (mdomainfill.eq.2) xmass1(ipart,1)= &
-                     xmass1(ipart,1)*pvpart*48./29.*ozonescale/10.**9
-              else
-                goto 171
-              endif
-
-
-  ! Increase numpart, if necessary
-  !*******************************
-              numpart=max(numpart,ipart)
-              goto 173      ! Storage space has been found, stop searching
-            endif
-          end do
-          if (ipart.gt.maxpart) &
-               stop 'boundcond_domainfill.f: too many particles required'
-173       minpart=ipart+1
-171       continue
-        end do
-
-
-      end do
-    end do
-  end do
-
-
-  xm=0.
-  do i=1,numpart
-    if (itra1(i).eq.itime) xm=xm+xmass1(i,1)
-  end do
-
-  !write(*,*) itime,numactiveparticles,numparticlecount,numpart,
-  !    +xm,accmasst,xm+accmasst
-
+          if (((part(ipart)%z.gt.3000.).and. &
+               (pvpart.gt.pvcrit)).or.(mdomainfill.eq.1)) then
+            part(ipart)%nclass=min(int(ran1(idummy)* &
+                 real(nclassunc))+1,nclassunc)
+            numactiveparticles=numactiveparticles+1
+            numparticlecount=numparticlecount+1
+            part(ipart)%npoint=numparticlecount
+            part(ipart)%idt=mintime
+            part(ipart)%mass(1)=xmassperparticle
+            if (mdomainfill.eq.2) part(ipart)%mass(1)= &
+                 part(ipart)%mass(1)*pvpart*48./29.*ozonescale/10.**9
+          else
+            stop 'boundcond_domainfill error: look into original to understand what should happen here'
+          endif
+        end do ! particles
+      end do ! releases per column
+    end do ! east west
+  end do ! north south
 
   ! If particles shall be dumped, then accumulated masses at the domain boundaries
   ! must be dumped, too, to be used for later runs

@@ -67,6 +67,12 @@ subroutine releaseparticles(itime)
 
   ! For every release point, check whether we are in the release time interval
   !***************************************************************************
+  ! First allocate all particles that are going to be in the simulation (this could be done differently...)
+  if (itime.eq.0) then
+    do i=1,numpoint 
+      call allocate_particles(npart(i))
+    end do 
+  end if 
 
   minpart=1
   do i=1,numpoint
@@ -133,13 +139,10 @@ subroutine releaseparticles(itime)
       xaux=xpoint2(i)-xpoint1(i)
       yaux=ypoint2(i)-ypoint1(i)
       zaux=zpoint2(i)-zpoint1(i)
+
       do j=1,numrel                       ! loop over particles to be released this time
-        do ipart=numpart,maxpart!minpart,maxpart          ! search for free storage space
-
-  ! If a free storage space is found, attribute everything to this array element
-  !*****************************************************************************
-
-          if (itra1(ipart).ne.itime) then
+        call get_new_part_index(ipart)
+        call spawn_particle(itime, ipart)
 
   ! Particle coordinates are determined by using a random position within the release volume
   !*****************************************************************************
@@ -147,14 +150,14 @@ subroutine releaseparticles(itime)
   ! Determine horizontal particle position
   !***************************************
 
-            xtra1(ipart)=xpoint1(i)+ran1(idummy)*xaux
-            if (xglobal) then
-              if (xtra1(ipart).gt.real(nxmin1)) xtra1(ipart)= &
-                   xtra1(ipart)-real(nxmin1)
-              if (xtra1(ipart).lt.0.) xtra1(ipart)= &
-                   xtra1(ipart)+real(nxmin1)
-            endif
-            ytra1(ipart)=ypoint1(i)+ran1(idummy)*yaux
+        part(ipart)%xlon=xpoint1(i)+ran1(idummy)*xaux
+        if (xglobal) then
+          if (part(ipart)%xlon.gt.real(nxmin1)) part(ipart)%xlon= &
+               part(ipart)%xlon-real(nxmin1)
+          if (part(ipart)%xlon.lt.0.) part(ipart)%xlon= &
+               part(ipart)%xlon+real(nxmin1)
+        endif
+        part(ipart)%ylat=ypoint1(i)+ran1(idummy)*yaux
 
   ! Assign mass to particle: Total mass divided by total number of particles.
   ! Time variation has partly been taken into account already by a species-average
@@ -164,164 +167,143 @@ subroutine releaseparticles(itime)
   ! for the scavenging calculation the mass needs to be multiplied with rho of the particle layer and
   ! divided by the sum of rho of all particles.
   !*****************************************************************************
-            do k=1,nspec
-               xmass1(ipart,k)=xmass(i,k)/real(npart(i)) &
-                    *timecorrect(k)/average_timecorrect
-              if (DRYBKDEP.or.WETBKDEP) then ! if there is no scavenging in wetdepo it will be set to 0
+        do k=1,nspec
+          part(ipart)%mass(k)=xmass(i,k)/real(npart(i)) &
+                *timecorrect(k)/average_timecorrect
+          if (ipart.eq.535) write(*,*) 'releasparticles1', part(ipart)%mass(k),k
+          if (DRYBKDEP.or.WETBKDEP) then ! if there is no scavenging in wetdepo it will be set to 0
 !              if ( henry(k).gt.0 .or. &
 !                   crain_aero(k).gt.0. .or. csnow_aero(k).gt.0. .or. &
 !                   ccn_aero(k).gt.0. .or. in_aero(k).gt.0. )  then
-                xscav_frac1(ipart,k)=-1.
-               endif
+            xscav_frac1(ipart,k)=-1.
+          endif
   ! Assign certain properties to particle
   !**************************************
-            end do
-            nclass(ipart)=min(int(ran1(idummy)*real(nclassunc))+1, &
-                 nclassunc)
-            numparticlecount=numparticlecount+1
-            if (mquasilag.eq.0) then
-              npoint(ipart)=i
-            else
-              npoint(ipart)=numparticlecount
-            endif
-            idt(ipart)=mintime               ! first time step
-            itra1(ipart)=itime
-            itramem(ipart)=itra1(ipart)
-            itrasplit(ipart)=itra1(ipart)+ldirect*itsplit
-
+        end do
+        part(ipart)%nclass=min(int(ran1(idummy)*real(nclassunc))+1, &
+             nclassunc)
+        numparticlecount=numparticlecount+1
+        if (mquasilag.eq.0) then
+          part(ipart)%npoint=i
+        else
+          part(ipart)%npoint=numparticlecount
+        endif
+        part(ipart)%idt=mintime               ! first time step
 
   ! Determine vertical particle position
   !*************************************
 
-            ztra1(ipart)=zpoint1(i)+ran1(idummy)*zaux
+        part(ipart)%z=zpoint1(i)+ran1(idummy)*zaux
   ! Interpolation of topography and density
   !****************************************
 
   ! Determine the nest we are in
   !*****************************
 
-            ngrid=0
-            do k=numbnests,1,-1
-              if ((xtra1(ipart).gt.xln(k)+eps).and. &
-                   (xtra1(ipart).lt.xrn(k)-eps).and. &
-                   (ytra1(ipart).gt.yln(k)+eps).and. &
-                   (ytra1(ipart).lt.yrn(k)-eps)) then
-                ngrid=k
-                exit
-              endif
-            end do
+        ngrid=0
+        do k=numbnests,1,-1
+          if ((part(ipart)%xlon.gt.xln(k)+eps).and. &
+               (part(ipart)%xlon.lt.xrn(k)-eps).and. &
+               (part(ipart)%xlon.gt.yln(k)+eps).and. &
+               (part(ipart)%xlon.lt.yrn(k)-eps)) then
+            ngrid=k
+            exit
+          endif
+        end do
 
   ! Determine (nested) grid coordinates and auxiliary parameters used for interpolation
   !*****************************************************************************
 
-            if (ngrid.gt.0) then
-              xtn=(xtra1(ipart)-xln(ngrid))*xresoln(ngrid)
-              ytn=(ytra1(ipart)-yln(ngrid))*yresoln(ngrid)
-              ix=int(xtn)
-              jy=int(ytn)
-              ddy=ytn-real(jy)
-              ddx=xtn-real(ix)
-            else
-              ix=int(xtra1(ipart))
-              jy=int(ytra1(ipart))
-              ddy=ytra1(ipart)-real(jy)
-              ddx=xtra1(ipart)-real(ix)
-            endif
-            ixp=ix+1
-            jyp=jy+1
-            rddx=1.-ddx
-            rddy=1.-ddy
-            p1=rddx*rddy
-            p2=ddx*rddy
-            p3=rddx*ddy
-            p4=ddx*ddy
+        if (ngrid.gt.0) then
+          xtn=(part(ipart)%xlon-xln(ngrid))*xresoln(ngrid)
+          ytn=(part(ipart)%ylat-yln(ngrid))*yresoln(ngrid)
+          ix=int(xtn)
+          jy=int(ytn)
+          ddy=ytn-real(jy)
+          ddx=xtn-real(ix)
+        else
+          ix=int(part(ipart)%xlon)
+          jy=int(part(ipart)%ylat)
+          ddy=part(ipart)%ylat-real(jy)
+          ddx=part(ipart)%xlon-real(ix)
+        endif
+        ixp=ix+1
+        jyp=jy+1
+        rddx=1.-ddx
+        rddy=1.-ddy
+        p1=rddx*rddy
+        p2=ddx*rddy
+        p3=rddx*ddy
+        p4=ddx*ddy
 
-            if (ngrid.gt.0) then
-              topo=p1*oron(ix ,jy ,ngrid) &
-                   + p2*oron(ixp,jy ,ngrid) &
-                   + p3*oron(ix ,jyp,ngrid) &
-                   + p4*oron(ixp,jyp,ngrid)
-            else
-              topo=p1*oro(ix ,jy) &
-                   + p2*oro(ixp,jy) &
-                   + p3*oro(ix ,jyp) &
-                   + p4*oro(ixp,jyp)
-            endif
+        if (ngrid.gt.0) then
+          topo=p1*oron(ix ,jy ,ngrid) &
+               + p2*oron(ixp,jy ,ngrid) &
+               + p3*oron(ix ,jyp,ngrid) &
+               + p4*oron(ixp,jyp,ngrid)
+        else
+          topo=p1*oro(ix ,jy) &
+               + p2*oro(ixp,jy) &
+               + p3*oro(ix ,jyp) &
+               + p4*oro(ixp,jyp)
+        endif
 
   ! If starting height is in pressure coordinates, retrieve pressure profile and convert zpart1 to meters
   !*****************************************************************************
-            if (kindz(i).eq.3) then
-              presspart=ztra1(ipart)
-              do kz=1,nz
-                if (ngrid.gt.0) then
-                  r=p1*rhon(ix ,jy ,kz,2,ngrid) &
-                       +p2*rhon(ixp,jy ,kz,2,ngrid) &
-                       +p3*rhon(ix ,jyp,kz,2,ngrid) &
-                       +p4*rhon(ixp,jyp,kz,2,ngrid)
-                  t=p1*ttn(ix ,jy ,kz,2,ngrid) &
-                       +p2*ttn(ixp,jy ,kz,2,ngrid) &
-                       +p3*ttn(ix ,jyp,kz,2,ngrid) &
-                       +p4*ttn(ixp,jyp,kz,2,ngrid)
-                else
-                  r=p1*rho(ix ,jy ,kz,2) &
-                       +p2*rho(ixp,jy ,kz,2) &
-                       +p3*rho(ix ,jyp,kz,2) &
-                       +p4*rho(ixp,jyp,kz,2)
-                  t=p1*tt(ix ,jy ,kz,2) &
-                       +p2*tt(ixp,jy ,kz,2) &
-                       +p3*tt(ix ,jyp,kz,2) &
-                       +p4*tt(ixp,jyp,kz,2)
-                endif
-                press=r*r_air*t/100.
-                if (kz.eq.1) pressold=press
-
-                if (press.lt.presspart) then
-                  if (kz.eq.1) then
-                    ztra1(ipart)=height(1)/2.
-                  else
-                    dz1=pressold-presspart
-                    dz2=presspart-press
-                    ztra1(ipart)=(height(kz-1)*dz2+height(kz)*dz1) &
-                         /(dz1+dz2)
-                  endif
-                  goto 71
-                endif
-                pressold=press
-              end do
-71            continue
+        if (kindz(i).eq.3) then
+          presspart=part(ipart)%z
+          do kz=1,nz
+            if (ngrid.gt.0) then
+              r=p1*rhon(ix ,jy ,kz,2,ngrid) &
+                   +p2*rhon(ixp,jy ,kz,2,ngrid) &
+                   +p3*rhon(ix ,jyp,kz,2,ngrid) &
+                   +p4*rhon(ixp,jyp,kz,2,ngrid)
+              t=p1*ttn(ix ,jy ,kz,2,ngrid) &
+                   +p2*ttn(ixp,jy ,kz,2,ngrid) &
+                   +p3*ttn(ix ,jyp,kz,2,ngrid) &
+                   +p4*ttn(ixp,jyp,kz,2,ngrid)
+            else
+              r=p1*rho(ix ,jy ,kz,2) &
+                   +p2*rho(ixp,jy ,kz,2) &
+                   +p3*rho(ix ,jyp,kz,2) &
+                   +p4*rho(ixp,jyp,kz,2)
+              t=p1*tt(ix ,jy ,kz,2) &
+                   +p2*tt(ixp,jy ,kz,2) &
+                   +p3*tt(ix ,jyp,kz,2) &
+                   +p4*tt(ixp,jyp,kz,2)
             endif
+            press=r*r_air*t/100.
+            if (kz.eq.1) pressold=press
+
+            if (press.lt.presspart) then
+              if (kz.eq.1) then
+                part(ipart)%z=height(1)/2.
+              else
+                dz1=pressold-presspart
+                dz2=presspart-press
+                part(ipart)%z=(height(kz-1)*dz2+height(kz)*dz1) &
+                     /(dz1+dz2)
+              endif
+              exit
+            endif
+            pressold=press
+          end do
+        endif
 
 
   ! If release positions are given in meters above sea level, subtract the
   ! topography from the starting height
   !***********************************************************************
 
-            if (kindz(i).eq.2) ztra1(ipart)=ztra1(ipart)-topo
-            if (ztra1(ipart).lt.eps2) ztra1(ipart)=eps2   ! Minimum starting height is eps2
-            if (ztra1(ipart).gt.height(nz)-0.5) ztra1(ipart)= &
-                 height(nz)-0.5 ! Maximum starting height is uppermost level - 0.5 meters
+        if (kindz(i).eq.2) part(ipart)%z=part(ipart)%z-topo
+        if (part(ipart)%z.lt.eps2) part(ipart)%z=eps2   ! Minimum starting height is eps2
+        if (part(ipart)%z.gt.height(nz)-0.5) part(ipart)%z= &
+             height(nz)-0.5 ! Maximum starting height is uppermost level - 0.5 meters
 
-
-! Convert to eta coordinates
-!             psint=p1*ps(ix,jy,1,1) &
-!                    +p2*ps(ixp,jy,1,1) &
-!                    +p3*ps(ix,jyp,1,1) &
-!                    +p4*ps(ixp,jyp,1,1)
-
-!             zzlev=0.
-!             do ii=2,nz-1
-!               ttemp=p1*tteta(ix,jy,ii-1,1) &
-!                      +p2*tteta(ixp,jy,ii-1,1) &
-!                      +p3*tteta(ix,jyp,ii-1,1) &
-!                      +p4*tteta(ixp,jyp,ii-1,1)
-!               if (zzlev.gt.ztra1(ipart)) goto 66
-!               zzlev=zzlev+r_air/ga*log((akz(ii+1-1)+bkz(ii+1-1)*psint)/(akz(ii+1)+bkz(ii+1)*psint))*ttemp
-!             end do
-! 66            zzlev2=zzlev+r_air/ga*log((akz(ii+1-1)+bkz(ii+1-1)*psint)/(akz(ii+1)+bkz(ii+1)*psint))*ttemp
-
-!             frac = (ztra1(ipart)-zzlev)/(zzlev2-zzlev)
-!             ztra1eta(ipart)=uvheight(ii-1)*(1.-frac)+uvheight(ii)*frac
-            call z_to_zeta(itime,xtra1(ipart),ytra1(ipart),ztra1(ipart),ztra1eta(ipart))
+        if (wind_coord_type.eq.'ETA') then
+          call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)
+          part(ipart)%etaupdate = .true. ! The z(meter) coordinate is up to date
+        end if
 
   ! For special simulations, multiply particle concentration air density;
   ! Simply take the 2nd field in memory to do this (accurate enough)
@@ -341,60 +323,56 @@ subroutine releaseparticles(itime)
 
   !Af ind_rel is defined in readcommand.f
 
-            if ((ind_rel .eq. 1).or.(ind_rel .eq. 3).or.(ind_rel .eq. 4)) then
+        if ((ind_rel .eq. 1).or.(ind_rel .eq. 3).or.(ind_rel .eq. 4)) then
 
   ! Interpolate the air density
   !****************************
 
-              do ii=2,nz
-                if (height(ii).gt.ztra1(ipart)) then
-                  indz=ii-1
-                  indzp=ii
-                  exit
-                endif
-              end do
+          do ii=2,nz
+            if (height(ii).gt.part(ipart)%z) then
+              indz=ii-1
+              indzp=ii
+              exit
+            endif
+          end do
 
-              dz1=ztra1(ipart)-height(indz)
-              dz2=height(indzp)-ztra1(ipart)
-              dz=1./(dz1+dz2)
+          dz1=part(ipart)%z-height(indz)
+          dz2=height(indzp)-part(ipart)%z
+          dz=1./(dz1+dz2)
 
-              if (ngrid.gt.0) then
-                do n=1,2
-                  rhoaux(n)=p1*rhon(ix ,jy ,indz+n-1,2,ngrid) &
-                       +p2*rhon(ixp,jy ,indz+n-1,2,ngrid) &
-                       +p3*rhon(ix ,jyp,indz+n-1,2,ngrid) &
-                       +p4*rhon(ixp,jyp,indz+n-1,2,ngrid)
-                end do
-              else
-                do n=1,2
-                  rhoaux(n)=p1*rho(ix ,jy ,indz+n-1,2) &
-                       +p2*rho(ixp,jy ,indz+n-1,2) &
-                       +p3*rho(ix ,jyp,indz+n-1,2) &
-                       +p4*rho(ixp,jyp,indz+n-1,2)
-                end do
-              endif
-              rhoout=(dz2*rhoaux(1)+dz1*rhoaux(2))*dz
-              rho_rel(i)=rhoout
+          if (ngrid.gt.0) then
+            do n=1,2
+              rhoaux(n)=p1*rhon(ix ,jy ,indz+n-1,2,ngrid) &
+                   +p2*rhon(ixp,jy ,indz+n-1,2,ngrid) &
+                   +p3*rhon(ix ,jyp,indz+n-1,2,ngrid) &
+                   +p4*rhon(ixp,jyp,indz+n-1,2,ngrid)
+            end do
+          else
+            do n=1,2
+              rhoaux(n)=p1*rho(ix ,jy ,indz+n-1,2) &
+                   +p2*rho(ixp,jy ,indz+n-1,2) &
+                   +p3*rho(ix ,jyp,indz+n-1,2) &
+                   +p4*rho(ixp,jyp,indz+n-1,2)
+            end do
+          endif
+          rhoout=(dz2*rhoaux(1)+dz1*rhoaux(2))*dz
+          rho_rel(i)=rhoout
 
 
   ! Multiply "mass" (i.e., mass mixing ratio in forward runs) with density
   !********************************************************************
 
-              do k=1,nspec
-                xmass1(ipart,k)=xmass1(ipart,k)*rhoout
-              end do
-            endif
+          do k=1,nspec
+            part(ipart)%mass(k)=part(ipart)%mass(k)*rhoout
+            if (ipart.eq.535) write(*,*) 'releasparticles2', part(ipart)%mass(k),k
+          end do
+        endif
 
-            numpart=max(numpart,ipart)
-            goto 34      ! Storage space has been found, stop searching
-          endif
-        end do  ! i=1:numpoint
-        if (ipart.gt.maxpart) goto 996
+        call get_total_part_num(numpart)
 
-34      minpart=ipart+1
-      end do ! ipart=minpart,maxpart
-      endif ! j=1,numrel
-  end do
+      end do  ! numrel 
+    endif ! releasepoint
+  end do ! numpoint
 
 
   return

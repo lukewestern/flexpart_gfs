@@ -33,6 +33,7 @@ subroutine init_domainfill
   use random_mod
   use interpol_mod
   use coordinates_ecmwf
+  use particle_mod
 
   implicit none
 
@@ -48,6 +49,8 @@ subroutine init_domainfill
   integer :: idummy = -11
 
   real :: frac,psint,zzlev,zzlev2,ttemp
+
+  logical :: deall
 ! Determine the release region (only full grid cells), over which particles
 ! shall be initialized
 ! Use 2 fields for west/east and south/north boundary
@@ -73,6 +76,7 @@ subroutine init_domainfill
 ! Exit here if resuming a run from particle dump
 !***********************************************
   if (gdomainfill.and.ipin.ne.0) return
+
 
 ! Do not release particles twice (i.e., not at both in the leftmost and rightmost
 ! grid cell) for a global domain
@@ -146,6 +150,9 @@ subroutine init_domainfill
 
   write(*,*) 'Atm. mass: ',colmasstotal
 
+! Allocate memory for storing the particles
+!******************************************
+  call allocate_particles(npart(1))
 
   if (ipin.eq.0) numpart=0
 
@@ -159,7 +166,7 @@ subroutine init_domainfill
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
       ncolumn=nint(0.999*real(npart(1))*colmass(lix,ljy)/ &
            colmasstotal)
-      if (ncolumn.eq.0) goto 30
+      if (ncolumn.eq.0) cycle
       if (ncolumn.gt.numcolumn) numcolumn=ncolumn
 
 ! Calculate pressure at the altitudes of model surfaces, using the air density
@@ -201,24 +208,33 @@ subroutine init_domainfill
 ! Do the following steps only if particles are not read in from previous model run
 !*****************************************************************************
             if (ipin.eq.0) then
-              xtra1(numpart+jj)=real(real(lix)-0.5+ran1(idummy),kind=dp)
-              if (lix.eq.0) xtra1(numpart+jj)=real(ran1(idummy),kind=dp)
-              if (lix.eq.nxmin1) xtra1(numpart+jj)= &
+              ! First spawn the particle into existence
+              !****************************************
+              call spawn_particle(0,numpart+jj)
+              part(numpart+jj)%xlon=real(real(lix)-0.5+ran1(idummy),kind=dp)
+              if (lix.eq.0) part(numpart+jj)%xlon =real(ran1(idummy),kind=dp)
+              if (lix.eq.nxmin1) part(numpart+jj)%xlon = &
                    real(real(nxmin1)-ran1(idummy),kind=dp)
-              ytra1(numpart+jj)=real(real(ljy)-0.5+ran1(idummy),kind=dp)
-              ztra1(numpart+jj)=(height(kz)*dz2+height(kz+1)*dz1)*dz
-              if (ztra1(numpart+jj).gt.height(nz)-0.5) &
-                   ztra1(numpart+jj)=height(nz)-0.5
+              part(numpart+jj)%ylat=real(real(ljy)-0.5+ran1(idummy),kind=dp)
+              part(numpart+jj)%z=(height(kz)*dz2+height(kz+1)*dz1)*dz
+              if (part(numpart+jj)%z.gt.height(nz)-0.5) &
+                   part(numpart+jj)%z=height(nz)-0.5
 
 
+              if (wind_coord_type.eq.'ETA') then
+                call z_to_zeta(0,part(numpart+jj)%xlon,part(numpart+jj)%ylat, &
+                  part(numpart+jj)%z,part(numpart+jj)%zeta)
+                part(numpart+jj)%etaupdate = .true. ! The z(meter) coordinate is up to date
+              endif
+              
 ! Interpolate PV to the particle position
 !****************************************
-              ixm=int(xtra1(numpart+jj))
-              jym=int(ytra1(numpart+jj))
+              ixm=int(part(numpart+jj)%xlon)
+              jym=int(part(numpart+jj)%ylat)
               ixp=ixm+1
               jyp=jym+1
-              ddx=xtra1(numpart+jj)-real(ixm)
-              ddy=ytra1(numpart+jj)-real(jym)
+              ddx=part(numpart+jj)%xlon-real(ixm)
+              ddy=part(numpart+jj)%ylat-real(jym)
               rddx=1.-ddx
               rddy=1.-ddy
               p1=rddx*rddy
@@ -226,21 +242,17 @@ subroutine init_domainfill
               p3=rddx*ddy
               p4=ddx*ddy
 
-              if (wind_coord_type.eq.'ETA') then
-                call z_to_zeta(0,xtra1(numpart+jj),ytra1(numpart+jj),ztra1(numpart+jj),ztra1eta(numpart+jj))
-              endif
 !***************************************************************************
 
               do i=2,nz
-                if (height(i).gt.ztra1(numpart+jj)) then
+                if (height(i).gt.part(numpart+jj)%z) then
                   indzm=i-1
                   indzp=i
-                  goto 6
+                  exit
                 endif
               end do
-6             continue
-              dz1=ztra1(numpart+jj)-height(indzm)
-              dz2=height(indzp)-ztra1(numpart+jj)
+              dz1=part(numpart+jj)%z-height(indzm)
+              dz2=height(indzp)-part(numpart+jj)%z
               dz=1./(dz1+dz2)
               do in=1,2
                 indzh=indzm+in-1
@@ -256,23 +268,19 @@ subroutine init_domainfill
 ! For domain-filling option 2 (stratospheric O3), do the rest only in the stratosphere
 !*****************************************************************************
 
-              if (((ztra1(numpart+jj).gt.3000.).and. &
+              if (((part(numpart+jj)%z.gt.3000.).and. &
                    (pvpart.gt.pvcrit)).or.(mdomainfill.eq.1)) then
 
 ! Assign certain properties to the particle
 !******************************************
-                nclass(numpart+jj)=min(int(ran1(idummy)* &
+                part(numpart+jj)%nclass=min(int(ran1(idummy)* &
                      real(nclassunc))+1,nclassunc)
                 numparticlecount=numparticlecount+1
-                npoint(numpart+jj)=numparticlecount
-                idt(numpart+jj)=mintime
-                itra1(numpart+jj)=0
-                itramem(numpart+jj)=0
-                itrasplit(numpart+jj)=itra1(numpart+jj)+ldirect* &
-                     itsplit
-                xmass1(numpart+jj,1)=colmass(lix,ljy)/real(ncolumn)
-                if (mdomainfill.eq.2) xmass1(numpart+jj,1)= &
-                     xmass1(numpart+jj,1)*pvpart*48./29.*ozonescale/10.**9
+                part(numpart+jj)%npoint=numparticlecount
+                part(numpart+jj)%idt=mintime
+                part(numpart+jj)%mass(1)=colmass(lix,ljy)/real(ncolumn)
+                if (mdomainfill.eq.2) part(numpart+jj)%mass(1)= &
+                     part(numpart+jj)%mass(1)*pvpart*48./29.*ozonescale/10.**9
               else
                 jj=jj-1
               endif
@@ -282,7 +290,6 @@ subroutine init_domainfill
       end do
       numparttot=numparttot+ncolumn
       if (ipin.eq.0) numpart=numpart+jj
-30    continue
     end do
   end do
 
@@ -304,9 +311,9 @@ subroutine init_domainfill
 !***********************************************
 
   do j=1,numpart
-    if ((xtra1(j).lt.0.).or.(xtra1(j).ge.real(nxmin1,kind=dp)).or. &
-         (ytra1(j).lt.0.).or.(ytra1(j).ge.real(nymin1,kind=dp))) then
-      itra1(j)=-999999999
+    if ((part(j)%xlon.lt.0.).or.(part(j)%xlon.ge.real(nxmin1,kind=dp)).or. &
+         (part(j)%ylat.lt.0.).or.(part(j)%ylat.ge.real(nymin1,kind=dp))) then
+      call terminate_particle(j)
     endif
   end do
 
@@ -334,7 +341,7 @@ subroutine init_domainfill
       ncolumn=nint(0.999/fractus*real(npart(1))*colmass(lix,ljy) &
            /colmasstotal)
       if (ncolumn.gt.maxcolumn) stop 'maxcolumn too small'
-      if (ncolumn.eq.0) goto 80
+      if (ncolumn.eq.0) cycle
 
 
 ! Memorize how many particles per column shall be used for all boundaries
@@ -389,18 +396,24 @@ subroutine init_domainfill
           endif
         end do
       end do
-80    continue
     end do
   end do
 
-! Reduce numpart if invalid particles at end of arrays
+! If there were more particles allocated than used,
+! Deallocate unused memory and update numpart
+!**************************************************
+  deall=.false.
   do i=numpart, 1, -1
-      if (itra1(i).eq.-999999999) then
-        numpart=numpart-1
-      else
-        exit
-      end if
-    end do
+    if (.not. part(i)%alive) then
+      deall=.true.
+      numpart = numpart - 1
+    else
+      exit
+    endif
+  end do
+
+  if (deall) call deallocate_particle(numpart) !Deallocates everything above numpart (F2008)
+
 
 ! If particles shall be read in to continue an existing run,
 ! then the accumulated masses at the domain boundaries must be read in, too.

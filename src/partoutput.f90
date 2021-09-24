@@ -21,6 +21,7 @@ subroutine partoutput(itime)!,active_per_rel)
   use com_mod
   use interpol_mod
   use coordinates_ecmwf
+  use particle_mod
 #ifdef USE_NCF
   use netcdf
   use netcdf_output_mod, only: partoutput_netcdf,open_partoutput_file,close_partoutput_file
@@ -65,15 +66,15 @@ subroutine partoutput(itime)!,active_per_rel)
     topo(i)=-1.
     hmixi(i)=-1.
     tri(i)=-1.
-    if (itra1(i).eq.itime) then
-      xlon(i)=xlon0+xtra1(i)*dx
-      ylat(i)=ylat0+ytra1(i)*dy
+    if (part(i)%alive) then
+      xlon(i)=xlon0+part(i)%xlon*dx
+      ylat(i)=ylat0+part(i)%ylat*dy
 
   !*****************************************************************************
   ! Interpolate several variables (PV, specific humidity, etc.) to particle position
   !*****************************************************************************
-      call determine_grid_coordinates(real(xtra1(i)),real(ytra1(i)))
-      call find_grid_distances(real(xtra1(i)),real(ytra1(i)))
+      call determine_grid_coordinates(real(part(i)%xlon),real(part(i)%ylat))
+      call find_grid_distances(real(part(i)%xlon),real(part(i)%ylat))
   ! Topography
   !***********
       call bilinear_horizontal_interpolation_2dim(oro,topo(i))
@@ -105,17 +106,18 @@ subroutine partoutput(itime)!,active_per_rel)
 
   ! Convert eta z coordinate to meters if necessary
   !************************************************
-      if (wind_coord_type.eq.'ETA') call zeta_to_z(itime,xtra1(i),ytra1(i),ztra1eta(i),ztra1(i))
+      call update_zcoord(itime, i)
     endif 
   end do
 
 !$OMP END DO
 !$OMP END PARALLEL
 
-  write(*,*) 'topo: ', topo(1), 'z:', ztra1eta(1),ztra1(1)!'zm: ',  ztra1(j),'k,nz,indzp: ',  k, nz, indzp
-  write(*,*) 'xtra: ', xtra1(1)
-  write(*,*) 'ytra: ', ytra1(1)
-  write(*,*) pvi(1),qvi(1),tti(1),rhoi(1)
+  write(*,*) 'topo: ', topo(1), 'z:', part(1)%zeta,part(1)%z
+  write(*,*) 'xtra,xeta: ', part(1)%xlon
+  write(*,*) 'ytra,yeta: ', part(1)%ylat
+  write(*,*) pvi(1),qvi(1),tti(1),rhoi(1),part(1)%alive,&
+    count%alive,count%spawned,count%terminated
 
 
   ! Determine current calendar date, needed for the file name
@@ -153,7 +155,7 @@ subroutine partoutput(itime)!,active_per_rel)
     mythread = omp_get_thread_num()
     if (mythread.eq.thread_divide(1)) call partoutput_netcdf(itime,xlon,'LO',j,ncid)
     if (mythread.eq.thread_divide(2)) call partoutput_netcdf(itime,ylat,'LA',j,ncid)
-    if (mythread.eq.thread_divide(3)) call partoutput_netcdf(itime,ztra1,'ZZ',j,ncid)
+    if (mythread.eq.thread_divide(3)) call partoutput_netcdf(itime,part(1:numpart)%z,'ZZ',j,ncid)
     !if (mythread.eq.thread_divide(12)) call partoutput_netcdf_int(itime,itramem(1:numpart),'IT',j,ncid)
     if (mythread.eq.thread_divide(4)) call partoutput_netcdf(itime,topo,'TO',j,ncid)
     if (mythread.eq.thread_divide(5)) call partoutput_netcdf(itime,pvi,'PV',j,ncid)
@@ -163,7 +165,7 @@ subroutine partoutput(itime)!,active_per_rel)
     if (mythread.eq.thread_divide(9)) call partoutput_netcdf(itime,tri,'TR',j,ncid)
     if (mythread.eq.thread_divide(10)) call partoutput_netcdf(itime,tti,'TT',j,ncid)
     do j=1,nspec
-      if (mythread.eq.mass_divide(j)) call partoutput_netcdf(itime,xmass1(:,j),'MA',j,ncid)
+      if (mythread.eq.mass_divide(j)) call partoutput_netcdf(itime,part(1:numpart)%mass(j),'MA',j,ncid)
     end do
 #endif
 !$OMP END PARALLEL
@@ -188,12 +190,12 @@ subroutine partoutput(itime)!,active_per_rel)
     ! Take only valid particles
     !**************************
 
-      if (itra1(i).eq.itime) then
+      if (part(i)%alive) then
     ! Write the output
     !*****************      
-        write(unitpartout) npoint(i),xlon(i),ylat(i),ztra1(i), &
-             itramem(i),topo(i),pvi(i),qvi(i),rhoi(i),hmixi(i),tri(i),tti(i), &
-             (xmass1(i,j),j=1,nspec)
+        write(unitpartout) part(i)%npoint,xlon(i),ylat(i),part(i)%z, &
+             part(i)%tstart,topo(i),pvi(i),qvi(i),rhoi(i),hmixi(i),tri(i),tti(i), &
+             (part(i)%mass(j),j=1,nspec)
       endif
     end do
 

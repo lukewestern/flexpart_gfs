@@ -53,6 +53,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   use random_mod, only: ran3
   use interpol_mod
   use coordinates_ecmwf
+  use particle_mod
 
   use omp_lib
 
@@ -60,10 +61,9 @@ subroutine initialize(itime,ldt,up,vp,wp, &
 
   integer :: itime,i,j,k,m,indexh
   integer :: ldt,nrand
-  integer(kind=2) :: icbt
+  integer(kind=2), intent(inout) :: icbt
   real :: zt,dz,dz1,dz2,up,vp,wp,usigold,vsigold,wsigold
   real :: zteta,ttemp,dummy1,dummy2
-  real :: ztemp,ztemp1,ztemp2,frac,psint1(2),psint
   real(kind=dp) :: xt,yt
   integer :: thread
   save idummy
@@ -77,7 +77,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
 !$      idummy = idummy - thread
 !$    endif 
 
-  icbt=1           ! initialize particle to "no reflection"
+  icbt=1           ! initialize particle to no "reflection"
 
   nrand=int(ran3(idummy)*real(maxrand-1))+1
 
@@ -91,18 +91,6 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   !*******************************************************
   call determine_grid_coordinates(real(xt),real(yt))
   
-  ! Convert eta z coordinate to meters
-  !***********************************
-
-  select case (wind_coord_type) 
-    case ('ETA')
-      call zeta_to_z(itime,xt,yt,zteta,ztemp)
-    case ('METER')
-      ztemp = zt
-    case default 
-      ztemp = zt 
-  end select
-
   h=max(hmix(ix ,jy,1,memind(1)), &
        hmix(ixp,jy ,1,memind(1)), &
        hmix(ix ,jyp,1,memind(1)), &
@@ -112,7 +100,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
        hmix(ix ,jyp,1,memind(2)), &
        hmix(ixp,jyp,1,memind(2)))
 
-  zeta=ztemp/h
+  zeta=zt/h
 
 
   !*************************************************************
@@ -131,24 +119,6 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   ! both in terms of (u,v) and (w) fields
   !****************************************************************
     call interpol_mixinglayer(zt,zteta,dummy1,dummy2)
-    ! dz1=zt-height(indz)
-    ! dz2=height(indzp)-zt
-    ! dz=1./(dz1+dz2)
-
-    ! w=(dz1*wprof(indzp)+dz2*wprof(indz))*dz
-
-    ! dz1=zteta-uvheight(induv)
-    ! dz2=uvheight(indpuv)-zteta
-    ! dz=1./(dz1+dz2)
-    ! u=(dz1*uprof(indpuv)+dz2*uprof(induv))*dz
-    ! v=(dz1*vprof(indpuv)+dz2*vprof(induv))*dz
-
-    ! dz1=zteta-wheight(indzeta)
-    ! dz2=wheight(indzpeta)-zteta
-    ! dz=1./(dz1+dz2)
-    ! weta=(dz1*wprofeta(indzpeta)+dz2*wprofeta(indzeta))*dz/ &
-    !   ((dz1*detaprof(indzpeta)+dz2*detaprof(indzeta))*dz)
-
 
   ! Compute the turbulent disturbances
 
@@ -156,9 +126,9 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   !****************************************
 
     if (turbswitch) then
-      call hanna(ztemp)
+      call hanna(zt)
     else
-      call hanna1(ztemp)
+      call hanna1(zt)
     endif
 
 

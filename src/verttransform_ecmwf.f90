@@ -878,7 +878,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
      ! WRITE OUT SOME TEST VARIABLES
      !********* TEST ************'**
 virr=virr+1
-WRITE(aspec, '(i3.3)'), virr
+WRITE(aspec, '(i3.3)') virr
 
 if (1.eq.2) then
 fnameH=trim(zhgpath)//trim(aspec)//'tcwc.txt'

@@ -47,6 +47,8 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   use par_mod
   use com_mod
   use interpol_mod, only: interpol_rain, interpol_rain_nests
+  use particle_mod
+  use coordinates_ecmwf
 
   implicit none
 
@@ -82,28 +84,26 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
 !*****************************************
     ngrid=0
     do j=numbnests,1,-1
-      if ((xtra1(jpart).gt.xln(j)).and.(xtra1(jpart).lt.xrn(j)).and. &
-           (ytra1(jpart).gt.yln(j)).and.(ytra1(jpart).lt.yrn(j))) then
+      if ((part(jpart)%xlon.gt.xln(j)).and.(part(jpart)%xlon.lt.xrn(j)).and. &
+           (part(jpart)%ylat.gt.yln(j)).and.(part(jpart)%ylat.lt.yrn(j))) then
         ngrid=j
-        goto 23
+        exit
       endif
     end do
-23  continue
-
 
 ! Determine nested grid coordinates
 !**********************************
     readclouds_this_nest=.false.
 
     if (ngrid.gt.0) then
-      xtn=(xtra1(jpart)-xln(ngrid))*xresoln(ngrid)
-      ytn=(ytra1(jpart)-yln(ngrid))*yresoln(ngrid)
+      xtn=(part(jpart)%xlon-xln(ngrid))*xresoln(ngrid)
+      ytn=(part(jpart)%ylat-yln(ngrid))*yresoln(ngrid)
       ix=int(xtn)
       jy=int(ytn)
       if (readclouds_nest(ngrid)) readclouds_this_nest=.true.
     else
-      ix=int(xtra1(jpart))
-      jy=int(ytra1(jpart))
+      ix=int(part(jpart)%xlon)
+      jy=int(part(jpart)%ylat)
     endif
 
 ! Interpolate large scale precipitation, convective precipitation and
@@ -118,7 +118,7 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
 
     if (ngrid.eq.0) then
       call interpol_rain(lsprec,convprec,tcc,nxmax,nymax, &
-           1,nx,ny,n,real(xtra1(jpart)),real(ytra1(jpart)),1, &
+           1,nx,ny,n,real(part(jpart)%xlon),real(part(jpart)%ylat),1, &
            memtime(1),memtime(2),interp_time,lsp,convp,cc)
     else
       call interpol_rain_nests(lsprecn,convprecn,tccn, &
@@ -127,11 +127,12 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
     endif
 
 !  If total precipitation is less than 0.01 mm/h - no scavenging occurs
-    if ((lsp.lt.0.01).and.(convp.lt.0.01)) goto 20
+    if ((lsp.lt.0.01).and.(convp.lt.0.01)) return
 
 ! get the level were the actual particle is in
+    call update_zcoord(itime,jpart)
     do il=2,nz
-      if (height(il).gt.ztra1(jpart)) then
+      if (height(il).gt.part(jpart)%z) then
         hz=il-1
         exit
       endif
@@ -148,7 +149,7 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
 ! if there is no precipitation or the particle is above the clouds no
 ! scavenging is done
 
-    if (clouds_v.le.1) goto 20
+    if (clouds_v.le.1) return
 
 ! 1) Parameterization of the the area fraction of the grid cell where the
 !    precipitation occurs: the absolute limit is the total cloud cover, but
@@ -310,8 +311,5 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
             wetscav=incloud_ratio*S_i*(prec(1)/3.6E6)
         endif ! positive in-cloud scavenging parameters given in Species file
       endif !incloud
-
-
-20  continue
 
 end subroutine get_wetscav

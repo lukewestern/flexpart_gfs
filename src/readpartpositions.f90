@@ -23,6 +23,7 @@ subroutine readpartpositions
   use com_mod
   use random_mod
   use coordinates_ecmwf
+  use particle_mod
 
   implicit none
 
@@ -92,14 +93,14 @@ subroutine readpartpositions
 100 read(unitpartin,end=99) itimein
   i=0
 200 i=i+1
-  read(unitpartin) npoint(i),xlonin,ylatin,ztra1(i),itramem(i), &
-       topo,pvi,qvi,rhoi,hmixi,tri,tti,(xmass1(i,j),j=1,nspec)
+  read(unitpartin) part(i)%npoint,xlonin,ylatin,part(i)%z,part(i)%tstart, &
+       topo,pvi,qvi,rhoi,hmixi,tri,tti,(part(i)%mass(j),j=1,nspec)
   ! For switching coordinates: this happens in timemanager.f90 after the first fields are read
   if (xlonin.eq.-9999.9) goto 100
-  xtra1(i)=(xlonin-xlon0)/dx
-  ytra1(i)=(ylatin-ylat0)/dy
+  part(i)%xlon=(xlonin-xlon0)/dx
+  part(i)%ylat=(ylatin-ylat0)/dy
 
-  numparticlecount=max(numparticlecount,npoint(i))
+  numparticlecount=max(numparticlecount,part(i)%npoint)
   goto 200
 
 99 numpart=i-1
@@ -110,13 +111,11 @@ subroutine readpartpositions
   if (abs(julin-bdate).gt.1.e-5) goto 994
   do i=1,numpart
     julpartin=juldate(ibdatein,ibtimein)+ &
-         real(itramem(i),kind=dp)/86400._dp
-    nclass(i)=min(int(ran1(idummy)*real(nclassunc))+1, &
+         real(part(i)%tstart,kind=dp)/86400._dp
+    part(i)%nclass=min(int(ran1(idummy)*real(nclassunc))+1, &
          nclassunc)
-    idt(i)=mintime
-    itra1(i)=0
-    itramem(i)=nint((julpartin-bdate)*86400.)
-    itrasplit(i)=ldirect*itsplit
+    part(i)%idt=mintime
+    part(i)%tstart=nint((julpartin-bdate)*86400.)
   end do
 
   return

@@ -76,11 +76,11 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
   ! Loop over entire grid
   !**********************
 
-  ! openmp change
-!$OMP PARALLEL PRIVATE(jy,ix,ulev,vlev,ttlev,qvlev,llev,ylat,ol,i,hmixplus, &
-!$OMP subsceff,vd,kz,lz,zlev,rh,kzmin,pold,zold,tvold,pint,tv,loop_start)
+  ! openmp change. Issue with vdep (with O2+openmp), this needs to be fixed before this can be switched on.
+! !$OMP PARALLEL PRIVATE(jy,ix,ulev,vlev,ttlev,qvlev,llev,ylat,ol,i,hmixplus, &
+! !$OMP subsceff,vd,kz,lz,zlev,rh,kzmin,pold,zold,tvold,pint,tv,loop_start)
 
-!$OMP DO
+! !$OMP DO
   do jy=0,nymin1
 
   ! Set minimum height for tropopause
@@ -238,10 +238,9 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
       do kz=loop_start,nuvz
         if (zlev(kz).ge.altmin) then
           kzmin=kz
-          goto 45
+          exit
         endif
       end do
-45    continue
 
   ! 3) Search for first stable layer above minimum height that fulfills the
   !    thermal tropopause criterion
@@ -265,8 +264,8 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
 
     end do
   end do
-!$OMP END DO
-!$OMP END PARALLEL
+! !$OMP END DO
+! !$OMP END PARALLEL
 ! openmp change end
 
   ! Calculation of potential vorticity on 3-d grid

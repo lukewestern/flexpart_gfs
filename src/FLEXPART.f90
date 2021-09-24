@@ -33,7 +33,6 @@ program flexpart
   use par_mod
   use com_mod
   use conv_mod
-
   use random_mod, only: gasdev1
   use class_gribfile
 
@@ -135,7 +134,7 @@ program flexpart
  
   ! Initialize arrays in com_mod
   !*****************************
-  call com_mod_allocate_part(maxpart)
+  ! call com_mod_allocate_part(maxpart)
 
   ! Read the age classes to be used
   !********************************
@@ -209,16 +208,11 @@ program flexpart
   !***************************************************************************
   call coordtrafo ! CHECK ETA
 
-  ! Initialize all particles to non-existent
-  !*****************************************
-  do j=1,maxpart
-    itra1(j)=-999999999
-  end do
-
   ! For continuation of previous run, read in particle positions
   !*************************************************************
   if (ipin.eq.1) then
-    call readpartpositions
+    stop "Convert readpartpositions to netcdf and then use particle module"
+    !call readpartpositions
   else
     numpart=0
     numparticlecount=0

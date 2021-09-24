@@ -18,7 +18,7 @@ subroutine partpos_average(itime,j)
   implicit none
 
   integer :: itime,j
-  real :: xlon,ylat,x,y,z,ztemp1
+  real :: xlon,ylat,x,y,z
   real :: topo,hm(2),hmixi,pvi,qvi
   real :: tti,rhoi,ttemp
   real :: uui,vvi
@@ -30,15 +30,15 @@ subroutine partpos_average(itime,j)
   !*************************************************
   call find_time_variables(itime)
 
-  xlon=xlon0+xtra1(j)*dx
-  ylat=ylat0+ytra1(j)*dy
+  xlon=xlon0+part(j)%xlon*dx
+  ylat=ylat0+part(j)%ylat*dy
 
   !*****************************************************************************
   ! Interpolate several variables (PV, specific humidity, etc.) to particle position
   !*****************************************************************************
 
-  call determine_grid_coordinates(real(xtra1(j)),real(ytra1(j)))
-  call find_grid_distances(real(xtra1(j)),real(ytra1(j)))
+  call determine_grid_coordinates(real(part(j)%xlon),real(part(j)%ylat))
+  call find_grid_distances(real(part(j)%xlon),real(part(j)%ylat))
 
   ! Topography
   !***********
@@ -76,9 +76,7 @@ subroutine partpos_average(itime,j)
   ! Convert eta z coordinate to meters if necessary. Can be moved to output only
   !************************************************
   if (wind_coord_type.eq.'ETA') then
-    call zeta_to_z(itime,xtra1(j),ytra1(j),ztra1eta(j),ztemp1)
-  else 
-    ztemp1=ztra1(j)
+    call update_zcoord(itime,j)
   endif
 
   ! energy=tti*cpa+(ztemp1+topo)*9.81+qvi*2501000.+(uui**2+vvi**2)/2.
@@ -99,16 +97,16 @@ subroutine partpos_average(itime,j)
 
 
   if (j.eq.1) then
-    write(*,*) 'topo: ', topo, 'z:', ztemp1, ztra1eta(j),ztra1(j)!'zm: ',  ztra1(j),'k,nz,indzp: ',  k, nz, indzp
-    write(*,*) 'xtra,xeta: ', xtra1(j)
-    write(*,*) 'ytra,yeta: ', ytra1(j)
+    write(*,*) 'topo: ', topo, 'z:', part(j)%zeta,part(j)%z
+    write(*,*) 'xtra,xeta: ', part(j)%xlon
+    write(*,*) 'ytra,yeta: ', part(j)%ylat
     write(*,*) pvi,qvi,tti,uui,vvi,rhoi
   endif
 
   part_av_cartx(j)=part_av_cartx(j)+x
   part_av_carty(j)=part_av_carty(j)+y
   part_av_cartz(j)=part_av_cartz(j)+z
-  part_av_z(j)=ztemp1!part_av_z(j)+ztemp1
+  part_av_z(j)=part(j)%z!part_av_z(j)+ztemp1
   part_av_topo(j)=part_av_topo(j)+topo
   part_av_pv(j)=part_av_pv(j)+pvi
   part_av_qv(j)=part_av_qv(j)+qvi

@@ -691,11 +691,6 @@ module com_mod
   integer :: numpart=0
   integer :: numparticlecount
 
-  integer, allocatable, dimension(:) :: itra1, npoint, nclass, idt, itramem, itrasplit
-
-  real(kind=dp), allocatable, dimension(:) :: xtra1, ytra1
-  real, allocatable, dimension(:) :: ztra1, ztra1eta
-  real, allocatable, dimension(:,:) :: xmass1
   real, allocatable, dimension(:,:) :: xscav_frac1
 
 ! Variables used for writing out interval averages for partoutput
@@ -705,11 +700,6 @@ module com_mod
   real, allocatable, dimension(:) :: part_av_cartx,part_av_carty,part_av_cartz,part_av_z,part_av_topo
   real, allocatable, dimension(:) :: part_av_pv,part_av_qv,part_av_tt,part_av_rho,part_av_tro,part_av_hmix
   real, allocatable, dimension(:) :: part_av_uu,part_av_vv,part_av_energy
-
-  ! eso: Moved from timemanager
-  real, allocatable, dimension(:) :: uap,ucp,uzp,us,vs,ws
-  integer(kind=2), allocatable, dimension(:) :: cbt
-
 
   !CGZ-lifetime
   real, allocatable, dimension(:,:) ::checklifetime, species_lifetime
@@ -811,13 +801,6 @@ contains
     implicit none 
 
     integer, intent(in) :: nmpart ! maximum number of particles (per process)
-    
-! Arrays, previously static of size maxpart
-    allocate(itra1(nmpart),npoint(nmpart),nclass(nmpart),&
-         & idt(nmpart),itramem(nmpart),itrasplit(nmpart),&
-         & xtra1(nmpart),ytra1(nmpart),ztra1(nmpart), &
-         & ztra1eta(nmpart), xmass1(nmpart, maxspec))  ! ,&
-!         & checklifetime(nmpart,maxspec), species_lifetime(maxspec,2))!CGZ-lifetime
 
     if (ipout.eq.3) then
       allocate(npart_av(nmpart),part_av_cartx(nmpart),part_av_carty(nmpart),&
@@ -826,10 +809,6 @@ contains
            & part_av_rho(nmpart),part_av_tro(nmpart),part_av_hmix(nmpart))
       allocate(part_av_uu(nmpart),part_av_vv(nmpart),part_av_energy(nmpart))
     end if
-
-
-    allocate(uap(nmpart),ucp(nmpart),uzp(nmpart),us(nmpart),&
-         & vs(nmpart),ws(nmpart),cbt(nmpart))
 
   end subroutine com_mod_allocate_part
 

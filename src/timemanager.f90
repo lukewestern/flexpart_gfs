@@ -50,7 +50,7 @@ subroutine timemanager(metdata_format)
   ! loutstart [s]      start of averaging for concentration calculations       *
   ! loutstep [s]       time interval for which concentrations shall be         *
   !                    calculated                                              *
-  ! npoint(maxpart)    index, which starting point the trajectory has          *
+  ! npoint             index, which starting point the trajectory has          *
   !                    starting positions of trajectories                      *
   ! nstop              serves as indicator for fate of particles               *
   !                    in the particle loop                                    *
@@ -61,16 +61,7 @@ subroutine timemanager(metdata_format)
   !                    deposition                                              *
   ! WETDEP             .true. if wet deposition is switched on                 *
   ! weight             weight for each concentration sample (1/2 or 1)         *
-  ! uap(maxpart),ucp(maxpart),uzp(maxpart) = random velocities due to          *
-  !                    turbulence                                              *
-  ! us(maxpart),vs(maxpart),ws(maxpart) = random velocities due to inter-      *
-  !                    polation                                                *
-  ! xtra1(maxpart), ytra1(maxpart), ztra1(maxpart) =                           *
-  !                    spatial positions of trajectories                       *
   ! metdata_format     format of metdata (ecmwf/gfs)                           *
-  !                                                                            *
-  ! Constants:                                                                 *
-  ! maxpart            maximum number of trajectories                          *
   !                                                                            *
   !*****************************************************************************
   ! openmp change
@@ -88,7 +79,8 @@ subroutine timemanager(metdata_format)
   use netcdf_output_mod, only: concoutput_netcdf,concoutput_nest_netcdf,&
        &concoutput_surf_netcdf,concoutput_surf_nest_netcdf,writeheader_partoutput
 #endif
-  use coordinates_ecmwf, only: z_to_zeta
+  use coordinates_ecmwf
+  use particle_mod
 
   implicit none
   real, parameter ::        &
@@ -102,7 +94,6 @@ subroutine timemanager(metdata_format)
     l,                      & ! loop variable over nclassunc
     n,                      & ! loop variable over particles
     itime=0,                & ! time index
-    nstop(maxpart),                  & ! particle fate flag
     nstop1,                 & ! windfield existence flag
     loutnext,               & ! following timestep
     loutstart,loutend,      & ! concentration calculation starting and ending time
@@ -112,9 +103,11 @@ subroutine timemanager(metdata_format)
     idummy,                 & ! used for the random routines
     i_nan=0,ii_nan,total_nan_intl=0, &  !added by mc to check instability in CBL scheme 
     thread                    ! openmp change (not sure if necessary)
+  ! logical ::                &
+  !   active_per_rel(maxpoint)  ! are there particles active in each release
 #ifdef USE_NCF
   real ::                   &
-    filesize                  ! Keeping track of the size of the particledump output, so it can be splitted
+    filesize!(maxpoint)        ! Keeping track of the size of the particledump output, so it can be splitted
   real(kind=dp) ::          &
     jul
   integer ::                &
@@ -124,11 +117,8 @@ subroutine timemanager(metdata_format)
     outnum,                 & ! concentration calculation sample number
     weight,                 & ! concentration calculation sample weight
     prob_rec(maxspec),      & ! dry deposition related
-    prob(maxpart,maxspec),  & ! dry deposition ground absorption probability
-    prob_temp(maxspec),     & ! temporary for storing prob values
     decfact,                & ! radioactive decay factor
     wetscav,                & ! wet scavenging
-    xold(maxpart),yold(maxpart),zold(maxpart),         & ! storing old positions
     xmassfract,             & ! dry deposition related
     grfraction(3)             ! wet deposition related
   real(sp) ::               &
@@ -138,6 +128,7 @@ subroutine timemanager(metdata_format)
     wetgridtotalunc,        & ! concentration calculation related
     drygridtotalunc           ! concentration calculation related
 
+  integer :: npart_alive=0
 
   ! First output for time 0
   !************************
@@ -155,6 +146,7 @@ subroutine timemanager(metdata_format)
 
 #ifdef USE_NCF
   filesize=0.
+  ! active_per_rel=.false.
 #endif
 
   do itime=0,ideltas,lsynctime
@@ -195,7 +187,7 @@ subroutine timemanager(metdata_format)
 !$OMP PARALLEL PRIVATE(i)
 !$OMP DO
       do i=1,numpart
-        call z_to_zeta(itime,xtra1(i),ytra1(i),ztra1(i),ztra1eta(i))
+        call z_to_zeta(itime,part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta)
       end do
 !$OMP END DO
 !$OMP END PARALLEL
@@ -230,7 +222,9 @@ subroutine timemanager(metdata_format)
           call writeheader_partoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
           filesize = 0.
         endif
-        filesize = filesize + numpart*13.*4./1000000.
+        do i=1,numpoint
+          filesize = filesize + npart(i)*13.*4./1000000.
+        end do
       endif
     endif
 #endif
@@ -382,16 +376,9 @@ endif
           if (mod(itime,ipoutfac*loutstep).eq.0) then
             call SYSTEM_CLOCK(count_clock, count_rate, count_max)
             s_temp = (count_clock - count_clock0)/real(count_rate)
-            call partoutput(itime) ! dump particle positions
+            call partoutput(itime)!,active_per_rel) ! dump particle positions
             call SYSTEM_CLOCK(count_clock, count_rate, count_max)
             s_writepart = s_writepart + ((count_clock - count_clock0)/real(count_rate)-s_temp)
-          endif
-          if (ipout.eq.3) then
-            call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-            s_temp = (count_clock - count_clock0)/real(count_rate)
-            call partoutput_average(itime) ! dump particle positions
-            call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-            s_writepartav = s_writepartav + ((count_clock - count_clock0)/real(count_rate)-s_temp)
           endif
         endif
         loutnext=loutnext+loutstep
@@ -403,46 +390,6 @@ endif
           call conccalc(itime,weight)
         endif
 
-
-  ! Check, whether particles are to be split:
-  ! If so, create new particles and attribute all information from the old
-  ! particles also to the new ones; old and new particles both get half the
-  ! mass of the old ones
-  !************************************************************************
-    ! This can go in a subroutine
-        if (ldirect*itime.ge.ldirect*itsplit) then
-          n=numpart
-          do j=1,numpart
-            if (ldirect*itime.ge.ldirect*itrasplit(j)) then
-              if (n.lt.maxpart) then
-                n=n+1
-                itrasplit(j)=2*(itrasplit(j)-itramem(j))+itramem(j)
-                itrasplit(n)=itrasplit(j)
-                itramem(n)=itramem(j)
-                itra1(n)=itra1(j)
-                idt(n)=idt(j)
-                npoint(n)=npoint(j)
-                nclass(n)=nclass(j)
-                xtra1(n)=xtra1(j)
-                ytra1(n)=ytra1(j)
-                ztra1(n)=ztra1(j)
-                ztra1eta(n)=ztra1eta(j)
-                uap(n)=uap(j)
-                ucp(n)=ucp(j)
-                uzp(n)=uzp(j)
-                us(n)=us(j)
-                vs(n)=vs(j)
-                ws(n)=ws(j)
-                cbt(n)=cbt(j)
-                do ks=1,nspec
-                  xmass1(j,ks)=xmass1(j,ks)/2.
-                  xmass1(n,ks)=xmass1(j,ks)
-                end do
-              endif
-            endif
-          end do
-          numpart=n
-        endif
       endif
     endif
 
@@ -473,7 +420,7 @@ endif
   ! openmp change
   ! LB, openmp following CTM version, need to be very careful due to big differences
   ! between the openmp loop in this and the CTM version
-!$OMP PARALLEL PRIVATE(prob_rec,prob_temp,ks,thread,j)
+!$OMP PARALLEL PRIVATE(prob_rec,ks,thread,j)
 
 #if (defined _OPENMP)
         thread = OMP_GET_THREAD_NUM()
@@ -482,24 +429,26 @@ endif
 !$OMP DO
     do j=1,numpart
 
-
   ! If integration step is due, do it
   !**********************************
-      if (itra1(j).ne.itime) cycle
+      if (.not. part(j)%alive) cycle
 
   ! Initialize newly released particle
   !***********************************
-      if ((itramem(j).eq.itime).or.(itime.eq.0)) then
-        call initialize(itime,idt(j),uap(j),ucp(j),uzp(j), &
-            us(j),vs(j),ws(j),xtra1(j),ytra1(j),ztra1(j), &
-            ztra1eta(j),cbt(j))
+      if ((part(j)%tstart.eq.itime).or.(itime.eq.0)) then
+        call update_zcoord(itime, j)
+        call initialize(itime,part(j)%idt, &
+            part(j)%turbvel%u,part(j)%turbvel%v,part(j)%turbvel%w, &
+            part(j)%mesovel%u,part(j)%mesovel%v,part(j)%mesovel%w, &
+            part(j)%xlon,part(j)%ylat,part(j)%z, &
+            part(j)%zeta,part(j)%icbt)
       endif
 
   ! Memorize particle positions
   !****************************
-      xold(j)=xtra1(j)
-      yold(j)=ytra1(j)
-      zold(j)=ztra1(j)
+      part(j)%xlon_prev=part(j)%xlon
+      part(j)%ylat_prev=part(j)%ylat
+      part(j)%z_prev=part(j)%z
 
   ! RECEPTOR: dry/wet depovel
   !****************************
@@ -510,11 +459,12 @@ endif
       if  (DRYBKDEP) then
         do ks=1,nspec
           if  ((xscav_frac1(j,ks).lt.0)) then
-            call get_vdep_prob(itime,xtra1(j),ytra1(j),ztra1(j),prob_rec)
+            call update_zcoord(itime,j)
+            call get_vdep_prob(itime,part(j)%xlon,part(j)%ylat,part(j)%z,prob_rec)
             if (DRYDEPSPEC(ks)) then        ! dry deposition
               xscav_frac1(j,ks)=prob_rec(ks)
             else
-              xmass1(j,ks)=0.
+              part(j)%mass(ks)=0.
               xscav_frac1(j,ks)=0.
             endif
           endif
@@ -524,13 +474,11 @@ endif
   ! Integrate Lagevin equation for lsynctime seconds
   !*************************************************
 
-      call advance(itime,npoint(j),idt(j),uap(j),ucp(j),uzp(j), &
-           us(j),vs(j),ws(j),nstop(j),xtra1(j),ytra1(j),ztra1(j),ztra1eta(j),prob_temp, &
-           cbt(j),j)
-      prob(j,:) = prob_temp
-  ! Calculate average position for particle dump output
-  !****************************************************
-      if (ipout.eq.3) call partpos_average(itime,j)
+      call advance(itime,part(j)%npoint,part(j)%idt, &
+            part(j)%turbvel%u,part(j)%turbvel%v,part(j)%turbvel%w, &
+            part(j)%mesovel%u,part(j)%mesovel%v,part(j)%mesovel%w, &
+            part(j)%nstop,part(j)%xlon,part(j)%ylat,part(j)%z,part(j)%zeta,  &
+            part(j)%prob,part(j)%icbt,j)
 
     end do 
 
@@ -540,28 +488,27 @@ endif
     do j=1,numpart
   ! If integration step is due, do it
   !**********************************
-      if (itra1(j).ne.itime) cycle
+      if (.not. part(j)%alive) cycle
 
   ! Determine age class of the particle
-      itage=abs(itra1(j)-itramem(j))
+      itage=abs(itime-part(j)%tstart)
       do nage=1,nageclass
         if (itage.lt.lage(nage)) exit
       end do
   ! Calculate the gross fluxes across layer interfaces
   !***************************************************
 
-      if (iflux.eq.1) call calcfluxes(nage,j,xold(j),yold(j),zold(j)) !OMP reduction necessary for flux array
+      if (iflux.eq.1) call calcfluxes(itime,nage,j,part(j)%xlon_prev, &
+        part(j)%ylat_prev,part(j)%z_prev) !OMP reduction necessary for flux array
 
 
   ! Determine, when next time step is due
   ! If trajectory is terminated, mark it
   !**************************************
-      if (nstop(j).gt.1) then
+      if (part(j)%nstop) then
         if (linit_cond.ge.1) call initial_cond_calc(itime,j) !OMP reduction necessary for init_cond
-        itra1(j)=-999999999
+        call terminate_particle(j)
       else
-        itra1(j)=itime+lsynctime
-
 
   ! Dry deposition and radioactive decay for each species
   ! Also check maximum (of all species) of initial mass remaining on the particle;
@@ -577,21 +524,22 @@ endif
           endif
 
           if (DRYDEPSPEC(ks)) then        ! dry deposition
-            drydeposit(ks)=xmass1(j,ks)*prob(j,ks)*decfact
-            xmass1(j,ks)=xmass1(j,ks)*(1.-prob(j,ks))*decfact
+            drydeposit(ks)=part(j)%mass(ks)*part(j)%prob(ks)*decfact
+            part(j)%mass(ks)=part(j)%mass(ks)*(1.-part(j)%prob(ks))*decfact
             if (decay(ks).gt.0.) then   ! correct for decay (see wetdepo)
               drydeposit(ks)=drydeposit(ks)* &
                    exp(real(abs(ldeltat))*decay(ks))
             endif
           else                           ! no dry deposition
-            xmass1(j,ks)=xmass1(j,ks)*decfact
+            part(j)%mass(ks)=part(j)%mass(ks)*decfact
           endif
 
   ! Skip check on mass fraction when npoint represents particle number
           if (mdomainfill.eq.0.and.mquasilag.eq.0) then
-            if (xmass(npoint(j),ks).gt.0.) &
-                 xmassfract=max(xmassfract,real(npart(npoint(j)))* &
-                 xmass1(j,ks)/xmass(npoint(j),ks))
+            if (xmass(part(j)%npoint,ks).gt.0.) then
+                 xmassfract=max(xmassfract,real(npart(part(j)%npoint))* &
+                 part(j)%mass(ks)/xmass(part(j)%npoint,ks))
+            endif
 
           else
             xmassfract=1.0
@@ -599,10 +547,7 @@ endif
         end do
 
         if (xmassfract.lt.minmass) then   ! terminate all particles carrying less mass
-          itra1(j)=-999999999
-          if (verbosity.gt.0) then
-            print*,'terminated particle ',j,' for small mass'
-          endif
+          call terminate_particle(j)
         endif
 
 !        Sabine Eckhardt, June 2008
@@ -610,27 +555,24 @@ endif
         if (DRYDEP.AND.(ldirect.eq.1)) then !OMP reduction necessary for drygridunc
 
           if (ioutputforeachrelease.eq.1) then
-              kp=npoint(j)
+              kp=part(j)%npoint
           else
               kp=1
           endif
 
-          call drydepokernel(nclass(j),drydeposit,real(xtra1(j)), &
-               real(ytra1(j)),nage,kp)
+          call drydepokernel(part(j)%nclass,drydeposit,real(part(j)%xlon), &
+               real(part(j)%ylat),nage,kp)
           if (nested_output.eq.1) call drydepokernel_nest( &
-               nclass(j),drydeposit,real(xtra1(j)),real(ytra1(j)), &
+               part(j)%nclass,drydeposit,real(part(j)%xlon),real(part(j)%ylat), &
                nage,kp)
         endif
 
   ! Terminate trajectories that are older than maximum allowed age
   !***************************************************************
 
-        if (abs(itra1(j)-itramem(j)).ge.lage(nageclass)) then
+        if ((part(j)%alive).and.(abs(itime-part(j)%tstart).ge.lage(nageclass))) then
           if (linit_cond.ge.1) call initial_cond_calc(itime+lsynctime,j)
-          itra1(j)=-999999999
-          if (verbosity.gt.0) then
-            print*,'terminated particle ',j,' for age'
-          endif
+          call terminate_particle(j)
         endif
       endif
 
@@ -663,7 +605,7 @@ endif
     if (linit_cond.ge.1) call initial_cond_calc(itime,j)
   end do
 
-  if (ipout.eq.2) call partoutput(itime)     ! dump particle positions
+  if (ipout.eq.2) call partoutput(itime)!,active_per_rel)     ! dump particle positions
 
   if (linit_cond.ge.1) then
     if(linversionout.eq.1) then

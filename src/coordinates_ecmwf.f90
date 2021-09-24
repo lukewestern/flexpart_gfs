@@ -4,171 +4,189 @@ module coordinates_ecmwf
 
   use par_mod
   use com_mod
-  use interpol_mod
 
 contains
 
-subroutine z_to_zeta(itime,xt,yt,zold,zteta)
-  !                        i    i   o  o  o
-  !        o       o       o    i  i  i   o
-  !*****************************************************************************
-  ! Converting z from eta coordinates to meters                                *
-  !                                                                            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  ! itime [s]          current temporal position                               *
-  ! xteta,yteta,zteta                   spatial position of trajectory         *
-  !                                                                            *
-  !                                                                            *
-  ! Constants:                                                                 *
-  !                                                                            *
-  !*****************************************************************************
+  subroutine z_to_zeta(itime,xt,yt,zold,zteta)
+    !                        i    i   o  o  o
+    !        o       o       o    i  i  i   o
+    !*****************************************************************************
+    ! Converting z from eta coordinates to meters                                *
+    !                                                                            *
+    !*****************************************************************************
+    !                                                                            *
+    ! Variables:                                                                 *
+    ! itime [s]          current temporal position                               *
+    ! xteta,yteta,zteta                   spatial position of trajectory         *
+    !                                                                            *
+    !                                                                            *
+    ! Constants:                                                                 *
+    !                                                                            *
+    !*****************************************************************************
+    use interpol_mod
 
-  implicit none
-  integer, intent(in) ::          &
-    itime                           ! time index
-  integer ::                      &
-    i,m,indexh                  ! loop indices
-  real(kind=dp), intent(in) ::    &
-    xt,yt                           ! particle position
-  real, intent(in) ::             &
-    zold                            ! particle verticle position in eta coordinates
-  real, intent(inout) ::          &
-    zteta                           ! converted output z in meters
-  real ::                         &
-    ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
-    ew,                           & ! why does this function need to be declared here?
-    ztemp1,ztemp2,                & ! z positions of the two encompassing levels
-    frac,                         & ! fraction between z levels
-    psint1(2),psint                 ! pressure of encompassing levels
+    implicit none
+    integer, intent(in) ::          &
+      itime                           ! time index
+    integer ::                      &
+      i,m,indexh                  ! loop indices
+    real(kind=dp), intent(in) ::    &
+      xt,yt                           ! particle position
+    real, intent(in) ::             &
+      zold                            ! particle verticle position in eta coordinates
+    real, intent(inout) ::          &
+      zteta                           ! converted output z in meters
+    real ::                         &
+      ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
+      ew,                           & ! why does this function need to be declared here?
+      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
+      frac,                         & ! fraction between z levels
+      psint1(2),psint                 ! pressure of encompassing levels
 
-  call determine_grid_coordinates(real(xt),real(yt))
-  call find_grid_distances(real(xt),real(yt))
-  call find_time_variables(itime)
+    call determine_grid_coordinates(real(xt),real(yt))
+    call find_grid_distances(real(xt),real(yt))
+    call find_time_variables(itime)
 
-  call bilinear_horizontal_interpolation(ps,psint1,1,1)
-  call temporal_interpolation(psint1(1),psint1(2),psint)
+    call bilinear_horizontal_interpolation(ps,psint1,1,1)
+    call temporal_interpolation(psint1(1),psint1(2),psint)
 
-  call bilinear_horizontal_interpolation(tvirtual,ttemp1,1,nzmax)
-  call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_old)
+    call bilinear_horizontal_interpolation(tvirtual,ttemp1,1,nzmax)
+    call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_old)
 
-  ! Integration method as used in the original verttransform_ecmwf.f90
-  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    ! Integration method as used in the original verttransform_ecmwf.f90
+    !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  ztemp1 = 0.
-  do i=2,nz-1
+    ztemp1 = 0.
+    do i=2,nz-1
 
-    call bilinear_horizontal_interpolation(tvirtual,ttemp1,i,nzmax)
-    call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
+      call bilinear_horizontal_interpolation(tvirtual,ttemp1,i,nzmax)
+      call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
+
+      if (abs(ttemp_new-ttemp_old).gt.0.2) then
+        ztemp2=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
+          (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old)
+      else
+        ztemp2=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new
+      endif
+
+      if (ztemp2.gt.zold) then
+        frac = (zold-ztemp1)/(ztemp2-ztemp1)
+        exit
+      else if (i.eq.nz-1) then
+        frac = 1.
+        exit
+      endif
+      ttemp_old=ttemp_new
+      ztemp1=ztemp2
+    end do
+
+    zteta=uvheight(i-1)*(1.-frac)+uvheight(i)*frac
+
+  end subroutine z_to_zeta
+
+  subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
+    !                        i    i   o  o  o
+    !        o       o       o    i  i  i   o
+    !*****************************************************************************
+    ! Converting z from eta coordinates to meters                                *
+    !                                                                            *
+    !*****************************************************************************
+    !                                                                            *
+    ! Variables:                                                                 *
+    ! itime [s]          current temporal position                               *
+    ! xt,yt,zteta                   spatial position of trajectory               *
+    !                                                                            *
+    !                                                                            *
+    !                                                                            *
+    !*****************************************************************************
+    use interpol_mod
+
+    implicit none
+    integer, intent(in) ::          &
+      itime                           ! time index
+    integer ::                      &
+      i,j,k,m,indexh                  ! loop indices
+    real(kind=dp), intent(in) ::    &
+      xt,yt                           ! particle position
+    real, intent(in) ::             &
+      zteta                           ! particle verticle position in eta coordinates
+    real, intent(inout) ::          &
+      ztout                           ! converted output z in meters
+    real ::                         &
+      ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
+      ew,                           & ! why does this function need to be declared here?
+      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
+      frac,                         & ! fraction between z levels
+      psint1(2),psint                 ! pressure of encompassing levels
+   
+
+    ! Convert eta z coordinate to meters
+    !***********************************
+    call determine_grid_coordinates(real(xt),real(yt))
+    call find_grid_distances(real(xt),real(yt))
+    call find_time_variables(itime)
+
+    k=nz-1
+    frac=1.
+    do k=2,nz-1
+      if (zteta.ge.uvheight(k)) then
+        frac=(zteta-uvheight(k-1))/(uvheight(k)-uvheight(k-1))
+        exit
+      endif
+    end do
+
+    call bilinear_horizontal_interpolation(ps,psint1,1,1)
+    call temporal_interpolation(psint1(1),psint1(2),psint)
+
+    call bilinear_horizontal_interpolation(tvirtual,ttemp1,1,nzmax)
+    call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_old)
+
+    ! ! ! Integration method as used in the original verttransform_ecmwf.f90
+    ! ! !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    ztemp1 = 0.
+    do i=2,k-1
+
+      call bilinear_horizontal_interpolation(tvirtual,ttemp1,i,nzmax)
+      call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
+
+      if (abs(ttemp_new-ttemp_old).gt.0.2) then
+        ztemp1=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
+          (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old)
+      else
+        ztemp1=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new
+      endif
+      ttemp_old=ttemp_new
+    end do
+
+    call bilinear_horizontal_interpolation(tvirtual,ttemp1,k,nzmax)
+    call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)  
 
     if (abs(ttemp_new-ttemp_old).gt.0.2) then
-      ztemp2=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
+      ztemp2=ztemp1+r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))* &
         (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old)
     else
-      ztemp2=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new
+      ztemp2=ztemp1+r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))*ttemp_new
     endif
+    ztout = ztemp1*(1.-frac)+ztemp2*frac
 
-    if (ztemp2.gt.zold) then
-      frac = (zold-ztemp1)/(ztemp2-ztemp1)
-      exit
-    else if (i.eq.nz-1) then
-      frac = 1.
-      exit
-    endif
-    ttemp_old=ttemp_new
-    ztemp1=ztemp2
-  end do
+  end subroutine zeta_to_z
 
-  zteta=uvheight(i-1)*(1.-frac)+uvheight(i)*frac
+  subroutine update_zcoord(itime, ipart)
+    use particle_mod
+    implicit none 
 
-end subroutine z_to_zeta
+    integer, intent(in) ::          &
+      itime,                        & ! time index
+      ipart                           ! particle index
 
-subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
-  !                        i    i   o  o  o
-  !        o       o       o    i  i  i   o
-  !*****************************************************************************
-  ! Converting z from eta coordinates to meters                                *
-  !                                                                            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  ! itime [s]          current temporal position                               *
-  ! xt,yt,zteta                   spatial position of trajectory               *
-  !                                                                            *
-  !                                                                            *
-  !                                                                            *
-  !*****************************************************************************
+    if (.not. wind_coord_type.eq.'ETA') return
 
-  implicit none
-  integer, intent(in) ::          &
-    itime                           ! time index
-  integer ::                      &
-    i,j,k,m,indexh                  ! loop indices
-  real(kind=dp), intent(in) ::    &
-    xt,yt                           ! particle position
-  real, intent(in) ::             &
-    zteta                           ! particle verticle position in eta coordinates
-  real, intent(inout) ::          &
-    ztout                           ! converted output z in meters
-  real ::                         &
-    ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
-    ew,                           & ! why does this function need to be declared here?
-    ztemp1,ztemp2,                & ! z positions of the two encompassing levels
-    frac,                         & ! fraction between z levels
-    psint1(2),psint                 ! pressure of encompassing levels
- 
+    if (part(ipart)%etaupdate) return
 
-  ! Convert eta z coordinate to meters
-  !***********************************
-  call determine_grid_coordinates(real(xt),real(yt))
-  call find_grid_distances(real(xt),real(yt))
-  call find_time_variables(itime)
+    call zeta_to_z(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%zeta,part(ipart)%z)
+    part(ipart)%etaupdate = .true.
 
-  k=nz-1
-  frac=1.
-  do k=2,nz-1
-    if (zteta.ge.uvheight(k)) then
-      frac=(zteta-uvheight(k-1))/(uvheight(k)-uvheight(k-1))
-      exit
-    endif
-  end do
-
-  call bilinear_horizontal_interpolation(ps,psint1,1,1)
-  call temporal_interpolation(psint1(1),psint1(2),psint)
-
-  call bilinear_horizontal_interpolation(tvirtual,ttemp1,1,nzmax)
-  call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_old)
-
-  ! ! ! Integration method as used in the original verttransform_ecmwf.f90
-  ! ! !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-  ztemp1 = 0.
-  do i=2,k-1
-
-    call bilinear_horizontal_interpolation(tvirtual,ttemp1,i,nzmax)
-    call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
-
-    if (abs(ttemp_new-ttemp_old).gt.0.2) then
-      ztemp1=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
-        (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old)
-    else
-      ztemp1=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new
-    endif
-    ttemp_old=ttemp_new
-  end do
-
-  call bilinear_horizontal_interpolation(tvirtual,ttemp1,k,nzmax)
-  call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)  
-
-  if (abs(ttemp_new-ttemp_old).gt.0.2) then
-    ztemp2=ztemp1+r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))* &
-      (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old)
-  else
-    ztemp2=ztemp1+r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))*ttemp_new
-  endif
-  ztout = ztemp1*(1.-frac)+ztemp2*frac
-
-end subroutine zeta_to_z
+  end subroutine update_zcoord
 
 end module coordinates_ecmwf

@@ -29,6 +29,7 @@ subroutine convmix(itime,metdata_format)
   use com_mod
   use conv_mod
   use class_gribfile
+  use particle_mod
 
   implicit none
 
@@ -72,8 +73,6 @@ subroutine convmix(itime,metdata_format)
   delt=real(abs(lsynctime))
 
 
-
-
   lconv = .false.
 
   ! if no particles are present return after initialization
@@ -96,10 +95,10 @@ subroutine convmix(itime,metdata_format)
       igridn(ipart,j)=-1
     end do
     ipoint(ipart)=ipart
-  ! do not consider particles that are (yet) not part of simulation
-    if (itra1(ipart).ne.itime) cycle
-    x = xtra1(ipart)
-    y = ytra1(ipart)
+  ! do not consider particles that are not (yet) part of simulation
+    if (.not. part(ipart)%alive) cycle
+    x = part(ipart)%xlon
+    y = part(ipart)%ylat
 
   ! Determine which nesting level to be used
   !**********************************************************
@@ -171,8 +170,6 @@ subroutine convmix(itime,metdata_format)
   igrold = igrid(1)
   do kpart=1,numpart
     if (igrold.ne.igrid(kpart)) then
-      !print*, 'cgz igrid():', kpart, igrid(kpart)
-      !call flush()
       frst(cnt) = kpart
       igrold=igrid(kpart)
       cnt=cnt+1
@@ -229,7 +226,7 @@ subroutine convmix(itime,metdata_format)
   !LB th ctm version has a do loop, let's see if that changes anything
       do kpart=frst(kk), frst(kk+1)-1
         ipart = ipoint(kpart)
-        ztold=ztra1(ipart)
+        ztold=part(ipart)%z
         call redist(itime,ipart,ktop,ipconv)
   !    if (ipconv.le.0) sumconv = sumconv+1
 
@@ -237,14 +234,14 @@ subroutine convmix(itime,metdata_format)
   !***************************************************
 
         if (iflux.eq.1) then
-          itage=abs(itra1(ipart)-itramem(ipart))
+          itage=abs(itime-part(ipart)%tstart)
           do nage=1,nageclass
-            if (itage.lt.lage(nage)) exit
+            if ((itage.lt.lage(nage)).or.(.not.part(ipart)%alive)) exit
           end do
 
           if (nage.le.nageclass) &
-            call calcfluxes(nage,ipart,real(xtra1(ipart)), &
-               real(ytra1(ipart)),ztold)
+            call calcfluxes(itime,nage,ipart,real(part(ipart)%xlon), &
+               real(part(ipart)%ylat),ztold)
         endif
       enddo
 
@@ -308,7 +305,7 @@ subroutine convmix(itime,metdata_format)
   ! treat particle only if column has convection
       if (lconv .eqv. .true.) then
   ! assign new vertical position to particle
-        ztold=ztra1(ipart)
+        ztold=part(ipart)%z
         call redist(itime,ipart,ktop,ipconv)
   !      if (ipconv.le.0) sumconv = sumconv+1
 
@@ -316,14 +313,14 @@ subroutine convmix(itime,metdata_format)
   !***************************************************
 
         if (iflux.eq.1) then
-          itage=abs(itra1(ipart)-itramem(ipart))
+          itage=abs(itime-part(ipart)%tstart)
           do nage=1,nageclass
-            if (itage.lt.lage(nage)) exit
+            if ((itage.lt.lage(nage)).or.(.not.part(ipart)%alive)) exit
           end do
 
           if (nage.le.nageclass) &
-               call calcfluxes(nage,ipart,real(xtra1(ipart)), &
-               real(ytra1(ipart)),ztold)
+               call calcfluxes(itime,nage,ipart,real(part(ipart)%xlon), &
+               real(part(ipart)%ylat),ztold)
         endif
 
       endif !(lconv .eqv. .true.)

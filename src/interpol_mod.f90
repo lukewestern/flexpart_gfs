@@ -4,6 +4,7 @@ module interpol_mod
 
   use par_mod
   use com_mod
+  use particle_mod
 
   implicit none
 
@@ -80,12 +81,13 @@ subroutine determine_grid_coordinates(xt,yt)
 
   ! eso: Temporary fix for particle exactly at north pole
   if (jyp >= nymax) then
-    ! write(*,*) 'WARNING: advance.f90 jyp >= nymax. xt,yt:',xt,yt
+    write(*,*) 'WARNING: interpol_mod.f90 jyp >= nymax. xt,yt:',xt,yt
     jyp=jyp-1
   end if
 
-  if (jyp >= nymax) then
-    jyp=jyp-1
+  if (ixp >= nxmax) then
+    write(*,*) 'WARNING: interpol_mod.f90 ixp >= nxmax. xt,yt:',xt,yt
+    ixp=ixp-1
   end if
 end subroutine determine_grid_coordinates
 
@@ -219,7 +221,8 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds)
   integer, intent(in) :: zlevel            ! vertical level of interest
   logical, intent(in) :: bounds(2)         ! flag marking if particles are outside bounds  
   real, intent(inout) :: dz1,dz2
-  real                :: dz
+  real                :: dz, dh1,dh,pfact
+  real                :: psint1(2),psint,p1,p2,temp       ! pressure of encompassing levels
 
   ! If the particle is below bounds (bounds(1)==.true.):
   if (bounds(1)) then
@@ -233,7 +236,8 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds)
     dz=1./(vertlevels(zlevel+1)-vertlevels(zlevel))
     dz1=(zpos-vertlevels(zlevel))*dz
     dz2=(vertlevels(zlevel+1)-zpos)*dz
-  endif
+  endif 
+
 end subroutine find_vertical_variables
 
 subroutine temporal_interpolation(time1,time2,output)
@@ -245,6 +249,32 @@ subroutine temporal_interpolation(time1,time2,output)
 
   output=(time1*dt2+time2*dt1)*dtt
 end subroutine temporal_interpolation
+
+subroutine vertical_interpolation(input1,input2,dz1,dz2,output)
+
+  implicit none
+
+  real, intent(in)    :: input1,input2     ! input data at two vertical levels
+  real, intent(in)    :: dz1,dz2         ! logarithmic interpolation values
+  real, intent(inout) :: output          ! interpolated data
+
+  output = input1*dz2 + input2*dz1!input1**dz2 * input2**dz1
+end subroutine vertical_interpolation
+
+subroutine linear_horizontal_interpolation(field,output,zlevel,ztot,m)
+  implicit none 
+  integer, intent(in) :: zlevel,ztot,m                              ! interpolation z level, z
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem)   ! input field to interpolate over
+  real, intent(inout) :: output                                     ! interpolated values
+  integer             :: indexh
+
+  indexh=memind(m)
+
+  output=p1*field(ix ,jy ,zlevel,indexh) &
+       + p2*field(ixp,jy ,zlevel,indexh) &
+       + p3*field(ix ,jyp,zlevel,indexh) &
+       + p4*field(ixp,jyp,zlevel,indexh)
+end subroutine linear_horizontal_interpolation
 
 subroutine bilinear_horizontal_interpolation_2dim(field,output)
   implicit none 
@@ -260,8 +290,9 @@ end subroutine bilinear_horizontal_interpolation_2dim
 subroutine bilinear_horizontal_interpolation(field,output,zlevel,ztot)
 
   implicit none
+
   integer, intent(in) :: zlevel,ztot                              ! interpolation z level, z
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem)    ! input field to interpolate over
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem) ! input field to interpolate over
   real, intent(inout) :: output(2)                                ! interpolated values
   integer             :: m, indexh
 
@@ -294,9 +325,9 @@ subroutine bilinear_spatial_interpolation(field,output,zlevel,dz1,dz2,ztot)
            + p4*field(ixp,jyp,indzh,indexh)
     end do
   !**********************************
-  ! 2.) Linear vertical interpolation
+  ! 2.) Linear vertical interpolation on logarithmic scale
   !**********************************
-    output(m)=dz2*output1(1)+dz1*output1(2)    
+    output(m)=(output1(1)*dz2 + output1(2)*dz1)!(output1(1)**dz2) * (output1(2)**dz1)
   end do
 end subroutine bilinear_spatial_interpolation
   
@@ -893,6 +924,40 @@ subroutine interpol_vdep(level,vdepo)
 
   depoindicator(level)=.false.
 end subroutine interpol_vdep
+
+subroutine interpol_density(ipart,output)
+
+  implicit none
+
+  integer, intent(in) :: ipart  ! particle index
+  real, intent(inout) :: output ! output density (rhoi)
+  integer :: ind
+  real :: dz1,dz2
+  real :: rhoprof(2)
+
+  call determine_grid_coordinates(real(part(ipart)%xlon),real(part(ipart)%ylat))
+  call find_grid_distances(real(part(ipart)%xlon),real(part(ipart)%ylat))
+
+  ! Take density from 2nd wind field in memory (accurate enough, no time interpolation needed)
+  !*****************************************************************************
+  select case (wind_coord_type)
+    case ('ETA')
+      call find_z_level_eta(part(ipart)%zeta)
+      call find_vertical_variables(uvheight,part(ipart)%zeta,induv,dz1,dz2,lbounds_uv)
+      do ind=induv,indpuv
+        call linear_horizontal_interpolation(rhoeta,rhoprof(ind-induv+1),ind,nzmax,2)
+      end do
+    case ('METER')
+      call find_z_level_meters(part(ipart)%z)
+      call find_vertical_variables(height,part(ipart)%z,indz,dz1,dz2,lbounds)
+      do ind=indz,indzp
+        call linear_horizontal_interpolation(rho,rhoprof(ind-indz+1),ind,nzmax,2)
+      end do
+    case default
+      stop 'wind_coord_type not defined in conccalc.f90'
+  end select
+  call vertical_interpolation(rhoprof(1),rhoprof(2),dz1,dz2,output)
+end subroutine interpol_density
 
 ! Nested interpolation functions
 !*******************************
@@ -2112,8 +2177,8 @@ subroutine interpol_partoutput_value_eta(fieldname,output,j)
   real                        :: field1(2)
 
   if (dz1out.eq.-1) then
-    call find_z_level_eta(ztra1eta(j))
-    call find_vertical_variables(uvheight,ztra1eta(j),induv,dz1out,dz2out,lbounds_uv)
+    call find_z_level_eta(part(j)%zeta)
+    call find_vertical_variables(uvheight,part(j)%zeta,induv,dz1out,dz2out,lbounds_uv)
   endif
 
   select case(fieldname)
@@ -2146,8 +2211,8 @@ subroutine interpol_partoutput_value_meter(fieldname,output,j)
   real                        :: field1(2)
 
   if (dz1out.eq.-1) then
-    call find_z_level_meters(ztra1(j))
-    call find_vertical_variables(height,ztra1(j),indz,dz1out,dz2out,lbounds)
+    call find_z_level_meters(part(j)%z)
+    call find_vertical_variables(height,part(j)%z,indz,dz1out,dz2out,lbounds)
   endif
 
   select case(fieldname)
@@ -2179,16 +2244,16 @@ subroutine interpol_mixinglayer_eta(zt,zteta,rhoa,rhograd)
   real                :: dz1,dz2  
 
   call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds)
-  w=dz1*wprof(indzp)+dz2*wprof(indz)
+  call vertical_interpolation(wprof(indz),wprof(indzp),dz1,dz2,w)
 
   call find_vertical_variables(uvheight,zteta,induv,dz1,dz2,lbounds_uv)
-  u=dz1*uprof(indpuv)+dz2*uprof(induv)
-  v=dz1*vprof(indpuv)+dz2*vprof(induv)
-  rhoa=dz1*rhoprof(indpuv)+dz2*rhoprof(induv)
-  rhograd=dz1*rhogradprof(indpuv)+dz2*rhogradprof(induv)
+  call vertical_interpolation(uprof(induv),uprof(indpuv),dz1,dz2,u)
+  call vertical_interpolation(vprof(induv),vprof(indpuv),dz1,dz2,v)
+  call vertical_interpolation(rhoprof(induv),rhoprof(indpuv),dz1,dz2,rhoa)
+  call vertical_interpolation(rhogradprof(induv),rhogradprof(indpuv),dz1,dz2,rhograd)
 
   call find_vertical_variables(wheight,zteta,indzeta,dz1,dz2,lbounds_w)
-  weta=dz1*wprofeta(indzpeta)+ dz2*wprofeta(indzeta)
+  call vertical_interpolation(wprofeta(indzeta),wprofeta(indzpeta),dz1,dz2,weta)
 end subroutine interpol_mixinglayer_eta
 
 subroutine interpol_mixinglayer_meter(zt,rhoa,rhograd)
@@ -2198,11 +2263,11 @@ subroutine interpol_mixinglayer_meter(zt,rhoa,rhograd)
   real                :: dz1,dz2  
 
   call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds)
-  w=dz1*wprof(indzp)+dz2*wprof(indz)
-  u=dz1*uprof(indzp)+dz2*uprof(indz)
-  v=dz1*vprof(indzp)+dz2*vprof(indz)
-  rhoa=dz1*rhoprof(indzp)+dz2*rhoprof(indz)
-  rhograd=dz1*rhogradprof(indzp)+dz2*rhogradprof(indz)
+  call vertical_interpolation(wprof(indz),wprof(indzp),dz1,dz2,w)
+  call vertical_interpolation(uprof(indz),uprof(indzp),dz1,dz2,u)
+  call vertical_interpolation(vprof(indz),vprof(indzp),dz1,dz2,v)
+  call vertical_interpolation(rhoprof(indz),rhoprof(indzp),dz1,dz2,rhoa)
+  call vertical_interpolation(rhogradprof(indz),rhogradprof(indzp),dz1,dz2,rhograd)
 end subroutine interpol_mixinglayer_meter
 
 end module interpol_mod
