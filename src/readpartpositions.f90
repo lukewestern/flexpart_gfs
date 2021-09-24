@@ -27,7 +27,7 @@ subroutine readpartpositions
 
   implicit none
 
-  integer :: ibdatein,ibtimein,nspecin,itimein,numpointin,i,j,lix
+  integer :: ibdatein,ibtimein,nspecin,itimein,numpointin,i,j,lix,ios
   integer :: id1,id2,it1,it2
   real :: xlonin,ylatin,topo,hmixi,pvi,qvi,rhoi,tri,tti
   character :: specin*7
@@ -51,18 +51,31 @@ subroutine readpartpositions
   read(unitpartin)
   read(unitpartin) nspecin
   nspecin=nspecin/3
-  if ((ldirect.eq.1).and.(nspec.ne.nspecin)) goto 997
+  if ((ldirect.eq.1).and.(nspec.ne.nspecin)) then
+    write(*,*) ' #### FLEXPART MODEL ERROR IN READPARTPOSITIONS#### '
+    write(*,*) ' #### THE NUMBER OF SPECIES TO BE READ IN DOES #### '
+    write(*,*) ' #### NOT AGREE WITH CURRENT SETTINGS!         #### '
+    stop
+  end if
 
   do i=1,nspecin
     read(unitpartin)
     read(unitpartin)
     read(unitpartin) j,specin
-    if ((ldirect.eq.1).and.(species(i)(1:7).ne.specin)) goto 996
+    if ((ldirect.eq.1).and.(species(i)(1:7).ne.specin)) then
+      write(*,*) ' #### FLEXPART MODEL ERROR IN READPARTPOSITIONS#### '
+      write(*,*) ' #### SPECIES NAMES TO BE READ IN DO NOT       #### '
+      write(*,*) ' #### AGREE WITH CURRENT SETTINGS!             #### '
+      stop
+    end if
   end do
 
   read(unitpartin) numpointin
-  if (numpointin.ne.numpoint) goto 995
-999 continue 
+  if (numpointin.ne.numpoint) then
+    write(*,*) ' #### FLEXPART MODEL WARNING IN READPARTPOSITIONS#### '
+    write(*,*) ' #### NUMBER OF RELEASE LOCATIONS DOES NOT     #### '
+    write(*,*) ' #### AGREE WITH CURRENT SETTINGS!             #### '
+  end if 
   do i=1,numpointin
     read(unitpartin)
     read(unitpartin)
@@ -90,25 +103,37 @@ subroutine readpartpositions
        form='unformatted',err=998)
   
 
-100 read(unitpartin,end=99) itimein
-  i=0
-200 i=i+1
-  read(unitpartin) part(i)%npoint,xlonin,ylatin,part(i)%z,part(i)%tstart, &
-       topo,pvi,qvi,rhoi,hmixi,tri,tti,(part(i)%mass(j),j=1,nspec)
-  ! For switching coordinates: this happens in timemanager.f90 after the first fields are read
-  if (xlonin.eq.-9999.9) goto 100
-  part(i)%xlon=(xlonin-xlon0)/dx
-  part(i)%ylat=(ylatin-ylat0)/dy
+  do 
+    read(unitpartin,iostat=ios) itimein
+    if (ios.lt.0) exit
+    i=0
+    do
+      i=i+1
+      read(unitpartin) part(i)%npoint,xlonin,ylatin,part(i)%z,part(i)%tstart, &
+           topo,pvi,qvi,rhoi,hmixi,tri,tti,(part(i)%mass(j),j=1,nspec)
+      ! For switching coordinates: this happens in timemanager.f90 after the first fields are read
+      if (xlonin.eq.-9999.9) exit
+      part(i)%xlon=(xlonin-xlon0)/dx
+      part(i)%ylat=(ylatin-ylat0)/dy
+      numparticlecount=max(numparticlecount,part(i)%npoint)
+    end do
+  end do
 
-  numparticlecount=max(numparticlecount,part(i)%npoint)
-  goto 200
-
-99 numpart=i-1
+  numpart=i-1
 
   close(unitpartin)
 
   julin=juldate(ibdatein,ibtimein)+real(itimein,kind=dp)/86400._dp
-  if (abs(julin-bdate).gt.1.e-5) goto 994
+  if (abs(julin-bdate).gt.1.e-5) then
+    write(*,*) ' #### FLEXPART MODEL ERROR IN READPARTPOSITIONS#### '
+    write(*,*) ' #### ENDING TIME OF PREVIOUS MODEL RUN DOES   #### '
+    write(*,*) ' #### NOT AGREE WITH STARTING TIME OF THIS RUN.#### '
+    call caldate(julin,id1,it1)
+    call caldate(bdate,id2,it2)
+    write(*,*) 'julin: ',julin,id1,it1
+    write(*,*) 'bdate: ',bdate,id2,it2
+    stop
+  end if
   do i=1,numpart
     julpartin=juldate(ibdatein,ibtimein)+ &
          real(part(i)%tstart,kind=dp)/86400._dp
@@ -119,33 +144,6 @@ subroutine readpartpositions
   end do
 
   return
-
-
-994   write(*,*) ' #### FLEXPART MODEL ERROR IN READPARTPOSITIONS#### '
-  write(*,*) ' #### ENDING TIME OF PREVIOUS MODEL RUN DOES   #### '
-  write(*,*) ' #### NOT AGREE WITH STARTING TIME OF THIS RUN.#### '
-  call caldate(julin,id1,it1)
-  call caldate(bdate,id2,it2)
-  write(*,*) 'julin: ',julin,id1,it1
-  write(*,*) 'bdate: ',bdate,id2,it2
-  stop
-
-!995   write(*,*) ' #### FLEXPART MODEL ERROR IN READPARTPOSITIONS#### '
-995   write(*,*) ' #### FLEXPART MODEL WARNING IN READPARTPOSITIONS#### '
-  write(*,*) ' #### NUMBER OF RELEASE LOCATIONS DOES NOT     #### '
-  write(*,*) ' #### AGREE WITH CURRENT SETTINGS!             #### '
-!  stop
-  goto 999 
-
-996   write(*,*) ' #### FLEXPART MODEL ERROR IN READPARTPOSITIONS#### '
-  write(*,*) ' #### SPECIES NAMES TO BE READ IN DO NOT       #### '
-  write(*,*) ' #### AGREE WITH CURRENT SETTINGS!             #### '
-  stop
-
-997   write(*,*) ' #### FLEXPART MODEL ERROR IN READPARTPOSITIONS#### '
-  write(*,*) ' #### THE NUMBER OF SPECIES TO BE READ IN DOES #### '
-  write(*,*) ' #### NOT AGREE WITH CURRENT SETTINGS!         #### '
-  stop
 
 998   write(*,*) ' #### FLEXPART MODEL ERROR!   THE FILE         #### '
   write(*,*) ' #### '//path(2)(1:length(2))//'grid'//' #### '
