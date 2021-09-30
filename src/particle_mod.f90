@@ -288,7 +288,7 @@ contains
     !*******************************************************************
     if (WETBKDEP.or.DRYBKDEP) then
       allocate( tmpxscav(count%allocated+nmpart,maxspec) )
-      if (count%allocated.gt.0) tmpxscav(1:count%allocated,:) = tmpxscav !Marina :D
+      if (count%allocated.gt.0) tmpxscav(1:count%allocated,:) = xscav_frac1
       call move_alloc(tmpxscav,xscav_frac1)
     endif
 
