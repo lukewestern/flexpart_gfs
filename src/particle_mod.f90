@@ -179,8 +179,8 @@ contains
 
     ! Check if new memory needs to be allocated 
     !*******************************************
-    if (nmpart+count%spawned.gt.count%allocated) then 
-      call allocate_particles( count%allocated-(nmpart+count%spawned) )
+    if (nmpart+count%spawned.gt.count%allocated) then
+      call allocate_particles( (nmpart+count%spawned) - count%allocated )
     endif
     ! Update the number of particles that are currently alive
     !********************************************************
@@ -188,8 +188,8 @@ contains
 
     ! Set the spawning time for each new particle and mark it as alive
     !*****************************************************************
-    part(count%spawned:count%spawned+nmpart)%tstart = itime
-    part(count%spawned:count%spawned+nmpart)%alive = .true.
+    part(count%spawned+1:count%spawned+nmpart)%tstart = itime
+    part(count%spawned+1:count%spawned+nmpart)%alive = .true.
 
     ! Update the total number of spawned particles
     !*********************************************
@@ -231,7 +231,6 @@ contains
     count%spawned = count%spawned + 1
   end subroutine spawn_particle
 
-  
   subroutine terminate_particle(ipart)
     !*****************************************************
     ! Terminating specified particle
