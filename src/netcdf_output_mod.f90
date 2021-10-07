@@ -46,7 +46,7 @@ module netcdf_output_mod
                        dx,xlon0,dy,ylat0,compoint,method,lsubgrid,lconvection,&
                        ind_source,ind_receptor,nageclass,lage,&
                        drydep,wetdep,decay,weta_gas,wetb_gas, numbnests, &
-                       ccn_aero,in_aero, & ! wetc_in,wetd_in, &
+                       ccn_aero,in_aero, mintime, & ! wetc_in,wetd_in, &
                        reldiff,henry,f0,density,dquer,dsigma,dryvel,&
                        weightmolar,ohcconst,ohdconst,vsetaver,&
                        ! for concoutput_netcdf and concoutput_nest_netcdf
@@ -66,7 +66,7 @@ module netcdf_output_mod
 
   public :: writeheader_netcdf,concoutput_surf_nest_netcdf,concoutput_netcdf,&
        &concoutput_nest_netcdf,concoutput_surf_netcdf,writeheader_partoutput,partoutput_netcdf,&
-       open_partoutput_file,close_partoutput_file
+       open_partoutput_file,close_partoutput_file,readpartpositions_netcdf
 
   !  include 'netcdf.inc'
 
@@ -1435,9 +1435,7 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
 
   integer, intent(in) :: itime,idate,itime_start,idate_start
   ! integer, intent(in) :: irelease
-  integer,allocatable :: partindices(:)
   integer             :: cache_size,ncid,j,totpart
-  !integer, dimension(:), allocatable :: partindices
   integer             :: timeDimID,partDimID,tID,memDimID
   character(len=11)   :: fprefix
   character(len=3)    :: anspec,arelease
@@ -1722,5 +1720,94 @@ subroutine partoutput_netcdf(itime,field,fieldname,imass,ncid)
 
   ! call nf90_err(nf90_close(ncid))
 end subroutine partoutput_netcdf
+
+subroutine readpartpositions_netcdf(ibtime,ibdate)
+  use random_mod
+  use particle_mod
+
+  implicit none 
+
+  integer, intent(in) :: ibtime,ibdate
+  integer             :: ncidend,tIDend,pIDend,tempIDend
+  integer             :: tlen,plen,tend,i
+  integer             :: idate_start,itime_start
+  character           :: adate*8,atime*6,timeunit*32,adate_start*8,atime_start*6
+  real(kind=dp)       :: julin,julcommand,julpartin,juldate
+
+  integer :: idummy = -8
+
+  write(adate,'(i8.8)') ibdate
+  write(atime,'(i6.6)') ibtime
+  
+  if (mquasilag.ne.0) then 
+    write(*,*) 'Combination of ipin, netcdf partoutput, and mquasilag!=0 does not work yet'
+    stop 
+  endif
+
+  ! Open partoutput_end.nc file
+  call nf90_err(nf90_open(trim('partoutput_end.nc'), mode=NF90_NOWRITE,ncid=ncidend))
+
+  ! Take the positions of the particles at the last timestep in the file
+  ! It needs to be the same as given in the COMMAND file, this is arbitrary
+  ! and should be removed in the future for easier use
+
+  ! First get the time dimension
+  call nf90_err(nf90_inq_dimid(ncid=ncidend,name='time',dimid=tIDend))
+  call nf90_err(nf90_inquire_dimension(ncid=ncidend,dimid=tIDend,len=tlen))
+
+  ! Check if the time corresponds to the one given in the COMMAND file
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='time',varid=tIDend))
+  call nf90_err(nf90_get_att(ncid=ncidend,varid=tIDend,name='units',values=timeunit))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tIDend,values=tend,start=(/ tlen /)))!,count=(/ 1 /)))
+  adate_start(1:4) = timeunit(15:18)
+  adate_start(5:6) = timeunit(20:21)
+  adate_start(7:8) = timeunit(23:24)
+  atime_start = '000000'
+  atime_start(1:2) = timeunit(26:27)
+  atime_start(3:4) = timeunit(29:30)
+  read(adate_start,*) idate_start
+  read(atime_start,*) itime_start
+  julin = juldate(idate_start,itime_start)+real(tend,kind=dp)/86400._dp
+  julcommand = juldate(ibdate,ibtime)
+  if (abs(julin-julcommand).gt.1.e-5) then 
+    write(*,*) 'ERROR: The given starting time and date do not correspond to'
+    write(*,*) 'the last timestep of partoutput_end.nc:'
+    write(*,*) julin,julcommand,tend
+    stop 
+  endif
+
+  ! Then the particle dimension
+  call nf90_err(nf90_inq_dimid(ncid=ncidend,name='particle',dimid=pIDend))
+  call nf90_err(nf90_inquire_dimension(ncid=ncidend,dimid=pIDend,len=plen))
+
+  ! Now spawn the correct number of particles
+  write(*,*) 'Npart:',plen
+  call spawn_particles(0,plen)
+
+  ! And give them the correct positions
+  ! Longitude
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='longitude',varid=tempIDend))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%xlon, & 
+    start=(/ tlen, 1 /),count=(/ 1, plen /)))
+  part(:)%xlon=(part(:)%xlon-xlon0)/dx
+  ! Latitude
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='latitude',varid=tempIDend))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%ylat, & 
+    start=(/ tlen, 1 /),count=(/ 1, plen /)))
+  part(:)%ylat=(part(:)%ylat-ylat0)/dx
+  ! Height
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='height',varid=tempIDend))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%z, & 
+    start=(/ tlen, 1 /),count=(/ 1, plen /)))
+
+  do i=1,plen
+    part(i)%nclass=min(int(ran1(idummy)*real(nclassunc))+1, &
+         nclassunc)    
+    part(i)%idt=mintime
+    part(i)%npoint=i
+  end do
+
+  call nf90_err(nf90_close(ncidend))
+end subroutine readpartpositions_netcdf
 
 end module netcdf_output_mod

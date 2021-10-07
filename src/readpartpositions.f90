@@ -24,6 +24,7 @@ subroutine readpartpositions
   use random_mod
   use coordinates_ecmwf
   use particle_mod
+  use netcdf_output_mod
 
   implicit none
 
@@ -39,6 +40,14 @@ subroutine readpartpositions
 
   ! Open header file of dumped particle data
   !*****************************************
+  if (lnetcdfout.eq.1) then
+#ifdef USE_NCF
+    call readpartpositions_netcdf(ibtime,ibdate)
+    call get_total_part_num(numpart)
+    numparticlecount=numpart
+    return
+#endif
+  endif
 
   open(unitpartin,file=path(2)(1:length(2))//'header', &
        form='unformatted',err=998)

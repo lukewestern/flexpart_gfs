@@ -362,7 +362,8 @@ readlanduse.o: com_mod.o par_mod.o
 readOHfield.o: com_mod.o oh_mod.o par_mod.o
 readoutgrid.o: com_mod.o outg_mod.o par_mod.o
 readoutgrid_nest.o: com_mod.o outg_mod.o par_mod.o
-readpartpositions.o: com_mod.o par_mod.o random_mod.o
+readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o coordinates_ecmwf.o \
+	netcdf_output_mod.o
 readpartpositions_mpi.o: com_mod.o mpi_mod.o par_mod.o random_mod.o
 readpaths.o: com_mod.o par_mod.o
 readreceptors.o: com_mod.o par_mod.o
