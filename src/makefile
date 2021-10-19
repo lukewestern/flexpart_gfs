@@ -24,14 +24,8 @@ SHELL = /bin/bash
 #    Compile serial FLEXPART 
 #      make [-j] serial
 #
-#    Compile parallel FLEXPART 
-#      make [-j] mpi
-#     
-#    Compile for debugging parallel FLEXPART
-#      make [-j] mpi-dbg
-#
 #  NETCDF OUTPUT
-#    To add support for output in netCDF format, append `ncf=yes` to the
+#    To remove support for output in netCDF format, append `ncf=no` to the
 #    `make` command
 # 
 ################################################################################
@@ -39,12 +33,6 @@ SHELL = /bin/bash
 ## PROGRAMS
 # Unified executable names
 # The same executable is used for both ECMWF and GFS metdata
-
-# Parallel processing executable
-FLEXPART-MPI = FLEXPART_MPI
-
-# Parallel processing executable with debugging info
-FLEXPART-MPI-DBG = DBG_FLEXPART_MPI
 
 # Serial processing executable
 FLEXPART-SERIAL = FLEXPART
@@ -55,23 +43,21 @@ export OMP_NESTED=TRUE
 #export TAU_OPTIONS='-optCompInst -optRevert'
 #export PROFILEDIR=/jetfs/home/lbakels/Profile2/
 ifeq ($(shell hostname), jet01.img.univie.ac.at)
-	export INTEL_LICENSE_FILE = /opt/intel/serverlicenses/l_5WHWBJ6D.lic
+        export INTEL_LICENSE_FILE = /opt/intel/serverlicenses/l_5WHWBJ6D.lic
 endif
 
-	#ROOT_DIR = /homevip/flexpart/
-	ROOT_DIR = . #MD
+        #ROOT_DIR = /homevip/flexpart/
+        ROOT_DIR = . #MD
 
-	F90 = /opt/intel/compilers_and_libraries_2020/linux/bin/intel64/ifort#/jetfs/home/lbakels/Codes/tau/x86_64/bin/tau_f90.sh#/opt/intel/compilers_and_libraries_2020/linux/bin/intel64/ifort
+        F90 = /opt/intel/compilers_and_libraries_2020/linux/bin/intel64/ifort#/jetfs/home/lbakels/Codes/tau/x86_64/bin/tau_f90.sh#/opt/intel/compilers_and_libraries_2020/linux/bin/intel64/ifort
 
-  	MPIF90    = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/openmpi-4.0.5-4wfaaz4grfqvlblibkdrpjlwd4xnq3ud/bin/mpifort
+        #MD for jet
 
-	#MD for jet
- 
-  	INCPATH1 = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/eccodes-2.18.0-6tadpgreot7jf4yoaiqmqueiihhdcsxk/include
-  	LIBPATH1 = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/eccodes-2.18.0-6tadpgreot7jf4yoaiqmqueiihhdcsxk/lib
-  	INCPATH2 = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/netcdf-fortran-4.5.3-irdm5gqccsig2om7jqu376h6tlebh4bc/include
-  	LIBPATH2 = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/netcdf-fortran-4.5.3-irdm5gqccsig2om7jqu376h6tlebh4bc/lib
-	LIBPATH3  = #/jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/intel-parallel-studio-composer.2020.2-zuot22yfoe7jl67ttimvkzghwluvyaas/compilers_and_libraries_2020.2.254/linux/compiler/lib/intel64_lin #MD for libimf.so (intel math library)
+        INCPATH1 = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/eccodes-2.18.0-6tadpgreot7jf4yoaiqmqueiihhdcsxk/include
+        LIBPATH1 = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/eccodes-2.18.0-6tadpgreot7jf4yoaiqmqueiihhdcsxk/lib
+        INCPATH2 = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/netcdf-fortran-4.5.3-irdm5gqccsig2om7jqu376h6tlebh4bc/include
+        LIBPATH2 = /jetfs/spack/opt/spack/linux-rhel8-skylake_avx512/intel-20.0.2/netcdf-fortran-4.5.3-irdm5gqccsig2om7jqu376h6tlebh4bc/lib
+        LIBPATH3  = 
 
 ### Enable netCDF output?
 ifeq ($(ncf), no)
@@ -83,11 +69,10 @@ endif
 # path to gributils used to detect meteodata format
 VPATH = gributils/
 
-
 ## OPTIMIZATION LEVEL
 O_LEV = 2 # [0,1,2,3,g,s,fast]
 O_LEV_DBG = g # [0,g]
-FUSER = -xSKYLAKE-AVX512 -qopenmp# -traceback -check
+FUSER = -qopenmp -xSKYLAKE-AVX512#-traceback -check bounds #-xSKYLAKE-AVX512
 ## LIBRARIES
 LIBS = -leccodes -leccodes_f90 -lm -ljasper $(NCOPT) #MD
 
@@ -106,20 +91,16 @@ unc_mod.o               oh_mod.o \
 xmass_mod.o             flux_mod.o \
 point_mod.o             outg_mod.o \
 mean_mod.o	 	random_mod.o \
-class_gribfile_mod.o	coordinates_ecmwf.o
-
-MPI_MODOBJS = \
-mpi_mod.o
+class_gribfile_mod.o	coordinates_ecmwf.o \
+particle_mod.o
 
 ## Serial versions (MPI version with same functionality and name '_mpi.f90' exists)
 OBJECTS_SERIAL = \
 	releaseparticles.o 	partoutput.o \
-	partoutput_average.o \
 	conccalc.o \
 	init_domainfill.o 	concoutput.o  \
 	timemanager.o FLEXPART.o	\
 	readpartpositions.o \
-	partoutput_short.o		\
 	concoutput_nest.o 	\
 	boundcond_domainfill.o	\
 	redist.o		\
@@ -127,28 +108,14 @@ OBJECTS_SERIAL = \
 	concoutput_inversion_nest.o 	\
 	concoutput_inversion.o \
 	getfields.o \
-        readwind_ecmwf.o
-
-## For MPI version 
-OBJECTS_MPI = releaseparticles_mpi.o partoutput_mpi.o \
-	partoutput_average_mpi.o conccalc_mpi.o \
-	init_domainfill_mpi.o concoutput_mpi.o 	\
-	timemanager_mpi.o FLEXPART_MPI.o	\
-	readpartpositions_mpi.o		\
-	partoutput_short_mpi.o	 	\
-	concoutput_nest_mpi.o 		\
-	boundcond_domainfill_mpi.o	\
-	redist_mpi.o		\
-	concoutput_surf_mpi.o	concoutput_surf_nest_mpi.o	\
-	getfields_mpi.o \
-        readwind_ecmwf_mpi.o 
+       readwind_ecmwf.o
 
 OBJECTS_NCF = netcdf_output_mod.o
 
 OBJECTS = \
 advance.o		initialize.o		\
 writeheader.o		writeheader_txt.o  	\
-partpos_average.o	writeprecip.o \
+writeprecip.o \
 writeheader_surf.o     	assignland.o\
 part0.o 		gethourlyOH.o\
 caldate.o               partdep.o \
@@ -211,26 +178,8 @@ endif
 serial: $(FLEXPART-SERIAL)
 serial: FC := $(F90)
 
-# parallel processing executable
-mpi: $(FLEXPART-MPI)
-mpi: FC := $(MPIF90)
-
-# parallel processing with debugging info
-mpi-dbg: $(FLEXPART-MPI-DBG)
-mpi-dbg: FFLAGS := $(DBGFLAGS)
-mpi-dbg: LDFLAGS:= $(LDDEBUG)
-mpi-dbg: FC := $(MPIF90)
-
 $(FLEXPART-SERIAL): $(MODOBJS) $(OBJECTS) $(OBJECTS_SERIAL)
 	+$(FC) -o $@ $(MODOBJS) $(OBJECTS) $(OBJECTS_SERIAL) $(LDFLAGS)
-
-$(FLEXPART-MPI): $(MODOBJS) $(MPI_MODOBJS) $(OBJECTS) $(OBJECTS_MPI)
-	+$(FC) -o $@ $(MODOBJS) $(MPI_MODOBJS) $(OBJECTS) $(OBJECTS_MPI) \
-	$(LDFLAGS)
-
-$(FLEXPART-MPI-DBG): $(MODOBJS) $(MPI_MODOBJS) $(OBJECTS) $(OBJECTS_MPI)
-	+$(FC) -o $@ $(MODOBJS) $(MPI_MODOBJS) $(OBJECTS) $(OBJECTS_MPI) \
-	$(LDFLAGS)
 
 %.o: %.f90
 	+$(FC) -c $(FFLAGS) $<
@@ -239,19 +188,18 @@ clean:
 	\rm -f *.o *.mod
 
 cleanall:
-	\rm -f *.o *.mod $(FLEXPART-MPI) $(FLEXPART-MPI-DBG) $(FLEXPART-SERIAL)
+	\rm -f *.o *.mod $(FLEXPART-SERIAL)
 
 
 .SUFFIXES = $(SUFFIXES) .f90
 
 ## DEPENDENCIES
 advance.o: cmapf_mod.o com_mod.o hanna_mod.o interpol_mod.o par_mod.o \
-	point_mod.o random_mod.o coordinates_ecmwf.o
+	point_mod.o random_mod.o coordinates_ecmwf.o particle_mod.o
 assignland.o: com_mod.o par_mod.o
-boundcond_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o
-boundcond_domainfill_mpi.o: com_mod.o mpi_mod.o par_mod.o point_mod.o \
-	random_mod.o
-calcfluxes.o: com_mod.o flux_mod.o outg_mod.o par_mod.o
+boundcond_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
+	coordinates_ecmwf.o interpol_mod.o particle_mod.o
+calcfluxes.o: com_mod.o flux_mod.o outg_mod.o par_mod.o coordinates_ecmwf.o particle_mod.o
 calcmatrix.o: com_mod.o conv_mod.o par_mod.o
 calcpar.o: com_mod.o par_mod.o
 calcpar_nests.o: com_mod.o par_mod.o
@@ -263,30 +211,22 @@ centerofmass.o: par_mod.o
 clustering.o: par_mod.o
 cmapf_mod.o: par_mod.o
 com_mod.o: par_mod.o
-conccalc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o
-conccalc_mpi.o: com_mod.o mpi_mod.o outg_mod.o par_mod.o unc_mod.o
+conccalc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o coordinates_ecmwf.o particle_mod.o
 concoutput.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o
 concoutput_inversion.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
 concoutput_inversion_nest.o: com_mod.o mean_mod.o outg_mod.o par_mod.o \
 	point_mod.o unc_mod.o
-concoutput_mpi.o: com_mod.o mean_mod.o mpi_mod.o outg_mod.o par_mod.o \
-	point_mod.o unc_mod.o
 concoutput_nest.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
-concoutput_nest_mpi.o: com_mod.o mean_mod.o mpi_mod.o outg_mod.o par_mod.o \
-	point_mod.o unc_mod.o
 concoutput_surf.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
-concoutput_surf_mpi.o: com_mod.o mean_mod.o mpi_mod.o outg_mod.o par_mod.o \
-	point_mod.o unc_mod.o
 concoutput_surf_nest.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
-concoutput_surf_nest_mpi.o: com_mod.o mean_mod.o mpi_mod.o outg_mod.o \
-	par_mod.o point_mod.o unc_mod.o
 conv_mod.o: par_mod.o
 convect43c.o: conv_mod.o par_mod.o
-convmix.o: com_mod.o conv_mod.o flux_mod.o par_mod.o
+convmix.o: com_mod.o conv_mod.o flux_mod.o par_mod.o particle_mod.o
+coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o particle_mod.o
 coordtrafo.o: com_mod.o par_mod.o point_mod.o
 detectformat.o: com_mod.o par_mod.o
 distance.o: par_mod.o
@@ -296,14 +236,12 @@ drydepokernel_nest.o: com_mod.o par_mod.o unc_mod.o
 erf.o: par_mod.o
 FLEXPART.o: com_mod.o conv_mod.o netcdf_output_mod.o par_mod.o point_mod.o \
 	random_mod.o
-FLEXPART_MPI.o: com_mod.o conv_mod.o mpi_mod.o netcdf_output_mod.o par_mod.o \
-	point_mod.o random_mod.o
 fluxoutput.o: com_mod.o flux_mod.o outg_mod.o par_mod.o
 get_settling.o: com_mod.o par_mod.o
 get_vdep_prob.o: com_mod.o interpol_mod.o par_mod.o point_mod.o
-get_wetscav.o: com_mod.o par_mod.o point_mod.o
+get_wetscav.o: com_mod.o par_mod.o point_mod.o interpol_mod.o particle_mod.o \
+	coordinates_ecmwf.o
 getfields.o: com_mod.o par_mod.o
-getfields_mpi.o: com_mod.o mpi_mod.o par_mod.o
 gethourlyOH.o: com_mod.o oh_mod.o par_mod.o
 getrb.o: par_mod.o
 getrc.o: com_mod.o par_mod.o
@@ -317,23 +255,22 @@ hanna.o: com_mod.o hanna_mod.o par_mod.o
 hanna1.o: com_mod.o hanna_mod.o par_mod.o
 hanna_short.o: com_mod.o hanna_mod.o par_mod.o
 init_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
-       interpol_mod.o coordinates_ecmwf.o
-init_domainfill_mpi.o: com_mod.o mpi_mod.o par_mod.o point_mod.o random_mod.o
-initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o
+       interpol_mod.o coordinates_ecmwf.o particle_mod.o
+initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
+	coordinates_ecmwf.o
 initial_cond_output.o: com_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o
 initial_cond_output_inversion.o: com_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
 initialize.o: com_mod.o hanna_mod.o interpol_mod.o par_mod.o random_mod.o \
-	interpol_mod.o coordinates_ecmwf.o
+	interpol_mod.o coordinates_ecmwf.o particle_mod.o
 initialize_cbl_vel.o: com_mod.o par_mod.o random_mod.o
-interpol_mod.o: par_mod.o com_mod.o hanna_mod.o
+interpol_mod.o: par_mod.o com_mod.o hanna_mod.o particle_mod.o
 juldate.o: par_mod.o
 mean_mod.o: par_mod.o
-mpi_mod.o: com_mod.o par_mod.o unc_mod.o
 netcdf_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
 obukhov.o: par_mod.o
-ohreaction.o: com_mod.o oh_mod.o par_mod.o
+ohreaction.o: com_mod.o oh_mod.o par_mod.o particle_mod.o 
 openouttraj.o: com_mod.o par_mod.o point_mod.o
 openreceptors.o: com_mod.o par_mod.o
 outg_mod.o: par_mod.o
@@ -341,15 +278,11 @@ outgrid_init.o: com_mod.o flux_mod.o oh_mod.o outg_mod.o par_mod.o unc_mod.o
 outgrid_init_nest.o: com_mod.o outg_mod.o par_mod.o unc_mod.o
 part0.o: par_mod.o
 partdep.o: com_mod.o par_mod.o
-partoutput.o: com_mod.o par_mod.o interpol_mod.o coordinates_ecmwf.o netcdf_output_mod.o
-partoutput_average.o: com_mod.o par_mod.o
-partoutput_average_mpi.o: com_mod.o mpi_mod.o par_mod.o
-partoutput_mpi.o: com_mod.o mpi_mod.o par_mod.o
-partoutput_short.o: com_mod.o par_mod.o
-partoutput_short_mpi.o: com_mod.o mpi_mod.o par_mod.o
-partpos_average.o: com_mod.o par_mod.o interpol_mod.o coordinates_ecmwf.o
+particle_mod.o: com_mod.o par_mod.o
+partoutput.o: com_mod.o par_mod.o interpol_mod.o coordinates_ecmwf.o netcdf_output_mod.o \
+	particle_mod.o
 pbl_profile.o: par_mod.o
-plumetraj.o: com_mod.o mean_mod.o par_mod.o point_mod.o
+plumetraj.o: com_mod.o mean_mod.o par_mod.o point_mod.o particle_mod.o coordinates_ecmwf.o
 psih.o: par_mod.o
 psim.o: par_mod.o
 raerod.o: par_mod.o
@@ -362,37 +295,31 @@ readlanduse.o: com_mod.o par_mod.o
 readOHfield.o: com_mod.o oh_mod.o par_mod.o
 readoutgrid.o: com_mod.o outg_mod.o par_mod.o
 readoutgrid_nest.o: com_mod.o outg_mod.o par_mod.o
-readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o coordinates_ecmwf.o \
+readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o coordinates_ecmwf.o particle_mod.o \
 	netcdf_output_mod.o
-readpartpositions_mpi.o: com_mod.o mpi_mod.o par_mod.o random_mod.o
 readpaths.o: com_mod.o par_mod.o
 readreceptors.o: com_mod.o par_mod.o
 readreleases.o: com_mod.o par_mod.o point_mod.o xmass_mod.o
 readspecies.o: com_mod.o par_mod.o
 readwind_ecmwf.o: com_mod.o par_mod.o
-readwind_ecmwf_mpi.o: com_mod.o mpi_mod.o par_mod.o
 readwind_emos.o: com_mod.o par_mod.o
 readwind_gfs.o: com_mod.o par_mod.o
 readwind_nests.o: com_mod.o par_mod.o
-redist.o: com_mod.o conv_mod.o par_mod.o random_mod.o interpol_mod.o coordinates_ecmwf.o
-redist_mpi.o: com_mod.o conv_mod.o mpi_mod.o par_mod.o random_mod.o
+redist.o: com_mod.o conv_mod.o par_mod.o random_mod.o interpol_mod.o coordinates_ecmwf.o \
+	particle_mod.o
 releaseparticles.o: com_mod.o par_mod.o point_mod.o random_mod.o xmass_mod.o \
 	interpol_mod.o coordinates_ecmwf.o
-releaseparticles_mpi.o: com_mod.o mpi_mod.o par_mod.o point_mod.o \
-	random_mod.o xmass_mod.o
 richardson.o: par_mod.o
 scalev.o: par_mod.o
 shift_field.o: par_mod.o
 shift_field_0.o: par_mod.o
 timemanager.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o \
-	par_mod.o point_mod.o unc_mod.o xmass_mod.o
-timemanager_mpi.o: com_mod.o flux_mod.o mpi_mod.o netcdf_output_mod.o \
-	oh_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o xmass_mod.o
+	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf.o
 unc_mod.o: par_mod.o
 verttransform_ecmwf.o: cmapf_mod.o com_mod.o par_mod.o
 verttransform_gfs.o: cmapf_mod.o com_mod.o par_mod.o
 verttransform_nests.o: com_mod.o par_mod.o
-wetdepo.o: com_mod.o par_mod.o point_mod.o
+wetdepo.o: com_mod.o par_mod.o point_mod.o particle_mod.o
 wetdepokernel.o: com_mod.o par_mod.o unc_mod.o
 wetdepokernel_nest.o: com_mod.o par_mod.o unc_mod.o
 writeheader.o: com_mod.o outg_mod.o par_mod.o point_mod.o
@@ -402,4 +329,4 @@ writeheader_surf.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeheader_txt.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeprecip.o: com_mod.o par_mod.o point_mod.o
 zenithangle.o: par_mod.o
-coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o
+
