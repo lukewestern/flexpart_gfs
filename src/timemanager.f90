@@ -213,13 +213,21 @@ subroutine timemanager(metdata_format)
 
 #ifdef USE_NCF
     if (ipout.ge.1) then
-      if (itime.eq.0) then 
-        call writeheader_partoutput(ibtime,ibdate,ibtime,ibdate)
+      if (itime.eq.0) then
+        if (ldirect.eq.1) then
+          call writeheader_partoutput(ibtime,ibdate,ibtime,ibdate)
+        else
+          call writeheader_partoutput(ibtime,ibdate,ietime,iedate)
+        endif
       else if (mod(itime,ipoutfac*loutstep).eq.0) then
         if (filesize.ge.max_partoutput_filesize) then 
           jul=bdate+real(itime,kind=dp)/86400._dp
           call caldate(jul,jjjjmmdd,ihmmss)
-          call writeheader_partoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
+          if (ldirect.eq.1) then 
+            call writeheader_partoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
+          else
+            call writeheader_partoutput(ihmmss,jjjjmmdd,ietime,iedate)
+          endif
           filesize = 0.
         endif
         do i=1,numpoint
