@@ -85,14 +85,14 @@ LDDEBUG  = $(DBGFLAGS) -L$(LIBPATH1) -Wl,-rpath,$(LIBPATH1) $(LIBS) -L$(LIBPATH2
 
 MODOBJS = \
 par_mod.o    		com_mod.o \
-conv_mod.o              hanna_mod.o \
-interpol_mod.o          cmapf_mod.o \
-unc_mod.o               oh_mod.o \
-xmass_mod.o             flux_mod.o \
-point_mod.o             outg_mod.o \
+particle_mod.o       interpol_mod.o \
+coordinates_ecmwf.o  conv_mod.o \
+hanna_mod.o          cmapf_mod.o \
+unc_mod.o            oh_mod.o \
+xmass_mod.o          flux_mod.o \
+point_mod.o          outg_mod.o \
 mean_mod.o	 	random_mod.o \
-class_gribfile_mod.o	coordinates_ecmwf.o \
-particle_mod.o
+class_gribfile_mod.o	advance_mod.o
 
 ## Serial versions (MPI version with same functionality and name '_mpi.f90' exists)
 OBJECTS_SERIAL = \
@@ -113,7 +113,7 @@ OBJECTS_SERIAL = \
 OBJECTS_NCF = netcdf_output_mod.o
 
 OBJECTS = \
-advance.o		initialize.o		\
+initialize.o		\
 writeheader.o		writeheader_txt.o  	\
 writeprecip.o \
 writeheader_surf.o     	assignland.o\
@@ -194,7 +194,7 @@ cleanall:
 .SUFFIXES = $(SUFFIXES) .f90
 
 ## DEPENDENCIES
-advance.o: cmapf_mod.o com_mod.o hanna_mod.o interpol_mod.o par_mod.o \
+advance_mod.o: cmapf_mod.o com_mod.o hanna_mod.o interpol_mod.o par_mod.o \
 	point_mod.o random_mod.o coordinates_ecmwf.o particle_mod.o
 assignland.o: com_mod.o par_mod.o
 boundcond_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
@@ -208,7 +208,7 @@ calcpv_nests.o: com_mod.o par_mod.o
 caldate.o: par_mod.o
 cbl.o: com_mod.o par_mod.o
 centerofmass.o: par_mod.o
-clustering.o: par_mod.o
+clustering.o: par_mod.o particle_mod.o
 cmapf_mod.o: par_mod.o
 com_mod.o: par_mod.o
 conccalc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o coordinates_ecmwf.o particle_mod.o
@@ -268,7 +268,7 @@ interpol_mod.o: par_mod.o com_mod.o hanna_mod.o particle_mod.o
 juldate.o: par_mod.o
 mean_mod.o: par_mod.o
 netcdf_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
-	unc_mod.o
+	unc_mod.o particle_mod.o
 obukhov.o: par_mod.o
 ohreaction.o: com_mod.o oh_mod.o par_mod.o particle_mod.o 
 openouttraj.o: com_mod.o par_mod.o point_mod.o
@@ -295,8 +295,8 @@ readlanduse.o: com_mod.o par_mod.o
 readOHfield.o: com_mod.o oh_mod.o par_mod.o
 readoutgrid.o: com_mod.o outg_mod.o par_mod.o
 readoutgrid_nest.o: com_mod.o outg_mod.o par_mod.o
-readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o coordinates_ecmwf.o particle_mod.o \
-	netcdf_output_mod.o
+readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o \
+	particle_mod.o coordinates_ecmwf.o
 readpaths.o: com_mod.o par_mod.o
 readreceptors.o: com_mod.o par_mod.o
 readreleases.o: com_mod.o par_mod.o point_mod.o xmass_mod.o
@@ -313,7 +313,7 @@ richardson.o: par_mod.o
 scalev.o: par_mod.o
 shift_field.o: par_mod.o
 shift_field_0.o: par_mod.o
-timemanager.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o \
+timemanager.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o advance_mod.o\
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf.o
 unc_mod.o: par_mod.o
 verttransform_ecmwf.o: cmapf_mod.o com_mod.o par_mod.o
