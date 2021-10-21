@@ -149,15 +149,14 @@ subroutine releaseparticles(itime)
 
   ! Determine horizontal particle position
   !***************************************
-
-        part(ipart)%xlon=xpoint1(i)+ran1(idummy)*xaux
+        call set_xlon(ipart,xpoint1(i)+ran1(idummy)*xaux)
         if (xglobal) then
-          if (part(ipart)%xlon.gt.real(nxmin1)) part(ipart)%xlon= &
-               part(ipart)%xlon-real(nxmin1)
-          if (part(ipart)%xlon.lt.0.) part(ipart)%xlon= &
-               part(ipart)%xlon+real(nxmin1)
+          if (part(ipart)%xlon.gt.real(nxmin1,kind=dp)) &
+            call set_xlon(ipart,-real(nxmin1,kind=dp))
+          if (part(ipart)%xlon.lt.0.) &
+            call set_xlon(ipart,real(nxmin1,kind=dp))
         endif
-        part(ipart)%ylat=ypoint1(i)+ran1(idummy)*yaux
+        call set_ylat(ipart,ypoint1(i)+ran1(idummy)*yaux)
 
   ! Assign mass to particle: Total mass divided by total number of particles.
   ! Time variation has partly been taken into account already by a species-average
@@ -191,8 +190,7 @@ subroutine releaseparticles(itime)
 
   ! Determine vertical particle position
   !*************************************
-
-        part(ipart)%z=zpoint1(i)+ran1(idummy)*zaux
+        call set_z(ipart,zpoint1(i)+ran1(idummy)*zaux)
   ! Interpolation of topography and density
   !****************************************
 
@@ -276,12 +274,12 @@ subroutine releaseparticles(itime)
 
             if (press.lt.presspart) then
               if (kz.eq.1) then
-                part(ipart)%z=height(1)/2.
+                call set_z(ipart,height(1)/2.)
               else
                 dz1=pressold-presspart
                 dz2=presspart-press
-                part(ipart)%z=(height(kz-1)*dz2+height(kz)*dz1) &
-                     /(dz1+dz2)
+                call set_z(ipart,(height(kz-1)*dz2+height(kz)*dz1) &
+                     /(dz1+dz2))
               endif
               exit
             endif
@@ -294,10 +292,10 @@ subroutine releaseparticles(itime)
   ! topography from the starting height
   !***********************************************************************
 
-        if (kindz(i).eq.2) part(ipart)%z=part(ipart)%z-topo
-        if (part(ipart)%z.lt.eps2) part(ipart)%z=eps2   ! Minimum starting height is eps2
-        if (part(ipart)%z.gt.height(nz)-0.5) part(ipart)%z= &
-             height(nz)-0.5 ! Maximum starting height is uppermost level - 0.5 meters
+        if (kindz(i).eq.2) call update_z(ipart,-topo)
+        if (part(ipart)%z.lt.eps2) call set_z(ipart,eps2)   ! Minimum starting height is eps2
+        if (part(ipart)%z.gt.height(nz)-0.5) &
+          call set_z(ipart,height(nz)-0.5) ! Maximum starting height is uppermost level - 0.5 meters
 
         if (wind_coord_type.eq.'ETA') then
           call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)

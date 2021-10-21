@@ -204,13 +204,13 @@ subroutine boundcond_domainfill(itime,loutend)
   ! Assign particle positions
   !**************************
 
-          part(ipart)%xlon=real(nx_we(k))
+          call set_xlon(ipart,real(nx_we(k)))
           if (jy.eq.ny_sn(1)) then
-            part(ipart)%ylat=real(jy)+0.5*ran1(idummy)
+            call set_ylat(ipart,real(jy)+0.5*ran1(idummy))
           else if (jy.eq.ny_sn(2)) then
-            part(ipart)%ylat=real(jy)-0.5*ran1(idummy)
+            call set_ylat(ipart,real(jy)-0.5*ran1(idummy))
           else
-            part(ipart)%ylat=real(jy)+(ran1(idummy)-.5)
+            call set_ylat(ipart,real(jy)+(ran1(idummy)-.5))
           endif
           if (j.eq.1) then
             part(ipart)%z=zcolumn_we(k,jy,1)+(zcolumn_we(k,jy,2)- &
@@ -419,13 +419,13 @@ subroutine boundcond_domainfill(itime,loutend)
   
   ! Assign particle positions
   !**************************
-          part(ipart)%ylat=real(ny_sn(k))
+          call set_ylat(ipart,real(ny_sn(k)))
           if (ix.eq.nx_we(1)) then
-            part(ipart)%xlon=real(ix)+0.5*ran1(idummy)
+            call set_xlon(ipart,real(ix)+0.5*ran1(idummy))
           else if (ix.eq.nx_we(2)) then
-            part(ipart)%xlon=real(ix)-0.5*ran1(idummy)
+            call set_xlon(ipart,real(ix)-0.5*ran1(idummy))
           else
-            part(ipart)%xlon=real(ix)+(ran1(idummy)-.5)
+            call set_xlon(ipart,real(ix)+(ran1(idummy)-.5))
           endif
           if (j.eq.1) then
             part(ipart)%z=zcolumn_sn(k,ix,1)+(zcolumn_sn(k,ix,2)- &

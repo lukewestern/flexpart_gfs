@@ -144,7 +144,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
 3   continue
 
 
-    tvold(ixm,jym)=tt2(ixm,jym,1,n)*(1.+0.378*ew(td2(ixm,jym,1,n))/ &
+    tvold(ixm,jym)=tt2(ixm,jym,1,n)*(1.+0.378*ew(td2(ixm,jym,1,n),ps(ixm,jym,1,n))/ &
          ps(ixm,jym,1,n))
     pold(ixm,jym)=ps(ixm,jym,1,n)
     height(1)=0.
@@ -202,7 +202,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
 
   do jy=0,nymin1
     do ix=0,nxmin1
-      tvold(ix,jy)=tt2(ix,jy,1,n)*(1.+0.378*ew(td2(ix,jy,1,n))/ &
+      tvold(ix,jy)=tt2(ix,jy,1,n)*(1.+0.378*ew(td2(ix,jy,1,n),ps(ix,jy,1,n))/ &
            ps(ix,jy,1,n))
     enddo
   enddo
@@ -463,10 +463,12 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
            (wheight(kz+1)-wheight(kz-1))
     end do
     drhodzeta(:,:,nz,n)=drhodzeta(:,:,nz-1,n)
-    tvirtual(:,:,:,n)=tteta(:,:,:,n)*(1.+0.608*qveta(:,:,:,n))
+    tvirtual(:,:,:,n)=tteta(:,:,:,n)* &
+      ((qveta(:,:,:,n)+0.622)/(0.622*qveta(:,:,:,n)+0.622)) ! eq A11 from Mid-latitude atmospheric dynamics by Jonathan E. Martin
+    !tvirtual(:,:,:,n)=tteta(:,:,:,n)*(1.+0.608*qveta(:,:,:,n))
     do jy=0,ny-1
       do ix=0,nx-1
-        tvirtual(ix,jy,1,n)=tt2(ix,jy,1,n)*(1.+0.378*ew(td2(ix,jy,1,n))/ps(ix,jy,1,n))
+        tvirtual(ix,jy,1,n)=tt2(ix,jy,1,n)*(1.+0.378*ew(td2(ix,jy,1,n),ps(ix,jy,1,n))/ps(ix,jy,1,n))
       end do 
     end do
 

@@ -90,8 +90,27 @@ module particle_mod
     get_total_part_num,           &
     get_alive_part_num,           &
     get_new_part_index,           &
-    is_particle_allocated
-    
+    is_particle_allocated,        &
+    update_xlon,                  &
+    update_ylat,                  &
+    update_z
+
+  interface update_xlon
+    procedure update_xlon_dp, update_xlon_float, update_xlon_int
+  end interface update_xlon
+
+  interface set_xlon
+    procedure set_xlon_dp, set_xlon_float, set_xlon_int
+  end interface set_xlon
+
+  interface update_ylat
+    procedure update_ylat_dp, update_ylat_float, update_ylat_int
+  end interface update_ylat
+
+  interface set_ylat
+    procedure set_ylat_dp, set_ylat_float, set_ylat_int
+  end interface set_ylat
+   
 contains
 
   logical function is_particle_allocated(ipart)
@@ -113,21 +132,6 @@ contains
     endif
   end function is_particle_allocated
 
-  ! function is_particle_allocated(ipart) result(answer)
-  !   !******************************************
-  !   ! Checks if the memory of the particle is *
-  !   ! still allocated                         *
-  !   !******************************************
-
-  !   implicit none 
-
-  !   integer, intent(in)    :: &
-  !     ipart                     ! Particle index
-  !   logical                :: &
-  !     answer 
-
-  !   answer(ipart) = count%inmem(ipart)
-  ! end function is_particle_allocated
   subroutine get_new_part_index(ipart)
     !**************************************************
     ! Returns the first free spot to put a new particle
@@ -369,5 +373,244 @@ contains
       deallocate( nclust )
     endif
   end subroutine deallocate_all_particles
+
+
+! Update_xlon
+  subroutine update_xlon_dp(ipart,xchange)
+    !**************************************
+    ! Updates the longitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real(kind=dp), intent(in) :: &
+      xchange
+
+    part(ipart)%xlon = part(ipart)%xlon + xchange
+  end subroutine update_xlon_dp
+
+  subroutine update_xlon_float(ipart,xchange)
+    !**************************************
+    ! Updates the longitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in) :: &
+      xchange
+
+    part(ipart)%xlon = part(ipart)%xlon + real(xchange,kind=dp)
+  end subroutine update_xlon_float
+
+  subroutine update_xlon_int(ipart,xchange)
+    !**************************************
+    ! Updates the longitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    integer, intent(in) :: &
+      xchange
+
+    part(ipart)%xlon = part(ipart)%xlon + real(xchange,kind=dp)
+  end subroutine update_xlon_int
+! End Update_xlon
+
+! Set_xlon
+  subroutine set_xlon_dp(ipart,xvalue)
+    !**************************************
+    ! Sets the longitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real(kind=dp), intent(in) :: &
+      xvalue
+
+    part(ipart)%xlon = xvalue
+  end subroutine set_xlon_dp
+
+  subroutine set_xlon_float(ipart,xvalue)
+    !**************************************
+    ! Sets the longitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      xvalue
+
+    part(ipart)%xlon = real(xvalue,kind=dp)
+  end subroutine set_xlon_float
+
+  subroutine set_xlon_int(ipart,xvalue)
+    !**************************************
+    ! Sets the longitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    integer, intent(in)    :: &
+      xvalue
+
+    part(ipart)%xlon = real(xvalue,kind=dp)
+  end subroutine set_xlon_int
+! End Set_xlon 
+
+! Update_ylat
+  subroutine update_ylat_dp(ipart,ychange)
+    !**************************************
+    ! Updates the latitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)       :: &
+      ipart                        ! particle index
+    real(kind=dp), intent(in) :: &
+      ychange
+
+    part(ipart)%ylat = part(ipart)%ylat + ychange
+  end subroutine update_ylat_dp
+
+  subroutine update_ylat_float(ipart,ychange)
+    !**************************************
+    ! Updates the latitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in) :: &
+      ychange
+
+    part(ipart)%ylat = part(ipart)%ylat + real(ychange,kind=dp)
+  end subroutine update_ylat_float
+
+  subroutine update_ylat_int(ipart,ychange)
+    !**************************************
+    ! Updates the latitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    integer, intent(in)    :: &
+      ychange
+
+    part(ipart)%ylat = part(ipart)%ylat + real(ychange,kind=dp)
+  end subroutine update_ylat_int
+! End Update_ylat
+
+! Set_ylat
+  subroutine set_ylat_dp(ipart,yvalue)
+    !**************************************
+    ! Sets the latitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)       :: &
+      ipart                        ! particle index
+    real(kind=dp), intent(in) :: &
+      yvalue
+
+    part(ipart)%ylat = yvalue
+  end subroutine set_ylat_dp
+
+  subroutine set_ylat_float(ipart,yvalue)
+    !**************************************
+    ! Sets the latitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      yvalue
+
+    part(ipart)%ylat = real(yvalue,kind=dp)
+  end subroutine set_ylat_float
+
+  subroutine set_ylat_int(ipart,yvalue)
+    !**************************************
+    ! Sets the latitude of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    integer, intent(in) :: &
+      yvalue
+
+    part(ipart)%ylat = real(yvalue,kind=dp)
+  end subroutine set_ylat_int
+! End Set_ylat
+
+! Update z positions
+  subroutine update_z(ipart,zchange)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      zchange
+
+    part(ipart)%z = part(ipart)%z + zchange
+  end subroutine update_z  
+
+  subroutine update_zeta(ipart,zchange)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      zchange
+
+    part(ipart)%zeta = part(ipart)%zeta + zchange
+    part(ipart)%etaupdate=.false.
+  end subroutine update_zeta
+! End update z positions
+
+! Update z positions
+  subroutine set_z(ipart,zvalue)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      zvalue
+
+    part(ipart)%z = zvalue
+  end subroutine set_z  
+
+  subroutine set_zeta(ipart,zvalue)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      zvalue
+
+    part(ipart)%zeta = zvalue
+    part(ipart)%etaupdate=.false.
+  end subroutine set_zeta
+! End update z positions
 
 end module particle_mod

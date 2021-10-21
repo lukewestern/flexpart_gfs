@@ -211,14 +211,14 @@ subroutine init_domainfill
               ! First spawn the particle into existence
               !****************************************
               call spawn_particle(0,numpart+jj)
-              part(numpart+jj)%xlon=real(real(lix)-0.5+ran1(idummy),kind=dp)
-              if (lix.eq.0) part(numpart+jj)%xlon =real(ran1(idummy),kind=dp)
-              if (lix.eq.nxmin1) part(numpart+jj)%xlon = &
-                   real(real(nxmin1)-ran1(idummy),kind=dp)
-              part(numpart+jj)%ylat=real(real(ljy)-0.5+ran1(idummy),kind=dp)
-              part(numpart+jj)%z=(height(kz)*dz2+height(kz+1)*dz1)*dz
+              call set_xlon(numpart+jj,real(real(lix)-0.5+ran1(idummy),kind=dp))
+              if (lix.eq.0) call set_xlon(numpart+jj,real(ran1(idummy),kind=dp))
+              if (lix.eq.nxmin1) &
+                call set_xlon(numpart+jj,real(real(nxmin1)-ran1(idummy),kind=dp))
+              call set_ylat(numpart+jj,real(real(ljy)-0.5+ran1(idummy),kind=dp))
+              call set_z(numpart+jj,(height(kz)*dz2+height(kz+1)*dz1)*dz)
               if (part(numpart+jj)%z.gt.height(nz)-0.5) &
-                   part(numpart+jj)%z=height(nz)-0.5
+                  call set_z(numpart+jj,height(nz)-0.5)
 
 
               if (wind_coord_type.eq.'ETA') then
