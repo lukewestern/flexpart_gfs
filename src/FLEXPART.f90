@@ -211,8 +211,8 @@ program flexpart
   ! For continuation of previous run, read in particle positions
   !*************************************************************
   if (ipin.eq.1) then
-    stop "Convert readpartpositions to netcdf and then use particle module"
-    !call readpartpositions
+    !stop "Convert readpartpositions to netcdf and then use particle module"
+    call readpartpositions
   else
     numpart=0
     numparticlecount=0

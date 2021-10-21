@@ -122,8 +122,8 @@ subroutine readpartpositions
            topo,pvi,qvi,rhoi,hmixi,tri,tti,(part(i)%mass(j),j=1,nspec)
       ! For switching coordinates: this happens in timemanager.f90 after the first fields are read
       if (xlonin.eq.-9999.9) exit
-      part(i)%xlon=(xlonin-xlon0)/dx
-      part(i)%ylat=(ylatin-ylat0)/dy
+      call set_xlon(i,(xlonin-xlon0)/dx)
+      call set_ylat(i,(ylatin-ylat0)/dy)
       numparticlecount=max(numparticlecount,part(i)%npoint)
     end do
   end do
