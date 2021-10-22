@@ -1447,14 +1447,8 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
        &err=110)
   close (unittmp, status='delete')
 
-
-  if (ldirect.eq.1) then
-     write(adate,'(i8.8)') ibdate
-     write(atime,'(i6.6)') ibtime
-  else
-     write(adate,'(i8.8)') iedate
-     write(atime,'(i6.6)') ietime
-  endif
+  write(adate,'(i8.8)') idate
+  write(atime,'(i6.6)') itime
   write(adate_start,'(i8.8)') idate_start
   write(atime_start,'(i6.6)') itime_start
   ! write(arelease, '(i3.3)') irelease
