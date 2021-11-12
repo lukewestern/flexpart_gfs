@@ -187,7 +187,7 @@ subroutine advance(itime,ipart)
   ! Calculate variables for time interpolation
   !*******************************************
   call initialise_interpol_mod(itime,real(part(ipart)%xlon),real(part(ipart)%ylat),&
-    part(ipart)%z,part(ipart)%zeta)
+    real(part(ipart)%z),real(part(ipart)%zeta))
 
   ! Compute maximum mixing height around particle position
   !*******************************************************
@@ -195,14 +195,11 @@ subroutine advance(itime,ipart)
   ! Convert z(eta) to z(m) for the turbulence scheme, w(m/s) 
   ! is computed in verttransform_ecmwf.f90
 
-  if (wind_coord_type.eq.'ETA') then
-    if (.not. part(ipart)%etaupdate) &
-      call zeta_to_z(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%zeta,part(ipart)%z)
-  endif
+  call update_zcoord(itime,ipart)
 
   ! Compute the height of the troposphere and the PBL at the x-y location of the particle
   call interpol_htropo_hmix(tropop,h)
-  zeta=part(ipart)%z/h
+  zeta=real(part(ipart)%z)/h
 
   !*************************************************************
   ! If particle is in the PBL, interpolate once and then make a
@@ -335,7 +332,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
     dxsave,dysave                   ! accumulated displacement in long and lat
   real ::                         &
     dt,                           & ! real(ldt)
-    xts,yts,                      & ! local 'real' copy of the particle position
+    xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     wp,                           & ! random turbulence velocities
     uxscale,wpscale,              & ! factor used in calculating turbulent perturbations above PBL
     weight,                       & ! transition above the tropopause
@@ -343,12 +340,14 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
   integer ::                      &
     nsp                             ! loop variables for number of species
 
+  zts=real(part(ipart)%z)
+  ztseta=real(part(ipart)%zeta)
+  xts=real(part(ipart)%xlon)
+  yts=real(part(ipart)%ylat)
   if (ngrid.le.0) then
-    xts=real(part(ipart)%xlon)
-    yts=real(part(ipart)%ylat)
-    call interpol_wind(itime,xts,yts,part(ipart)%z,part(ipart)%zeta,ipart)
+    call interpol_wind(itime,xts,yts,zts,ztseta,ipart)
   else
-    call interpol_wind_nests(itime,xtn,ytn,part(ipart)%z)
+    call interpol_wind_nests(itime,xtn,ytn,zts)
   endif
 
   ! Compute everything for above the PBL
@@ -362,15 +361,15 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
   part(ipart)%idt=abs(lsynctime-itimec+itime)
   dt=real(part(ipart)%idt)
 
-  if (part(ipart)%z.lt.tropop) then  ! in the troposphere
+  if (zts.lt.tropop) then  ! in the troposphere
     uxscale=sqrt(2.*d_trop/dt)
     if (nrand+1.gt.maxrand) nrand=1
     ux=rannumb(nrand)*uxscale
     vy=rannumb(nrand+1)*uxscale
     nrand=nrand+2
     wp=0.
-  else if (part(ipart)%z.lt.tropop+1000.) then     ! just above the tropopause: make transition
-    weight=(part(ipart)%z-tropop)/1000.
+  else if (zts.lt.tropop+1000.) then     ! just above the tropopause: make transition
+    weight=(zts-tropop)/1000.
     uxscale=sqrt(2.*d_trop/dt*(1.-weight))
     if (nrand+2.gt.maxrand) nrand=1
     ux=rannumb(nrand)*uxscale
@@ -408,8 +407,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
       end if
       ! LB needs to be checked if this works with openmp and change to eta coords
       if (density(nsp).gt.0.) then
-        call get_settling(itime,real(part(ipart)%xlon),real(part(ipart)%ylat),&
-          part(ipart)%z,nsp,settling)  !bugfix
+        call get_settling(itime,xts,yts,zts,nsp,settling)  !bugfix
         w=w+settling
         call update_z(ipart,settling*dt*real(ldirect))
       end if
@@ -465,7 +463,7 @@ subroutine advance_PBL(itime,itimec,&
     nrand                           ! random number used for turbulence
   real ::                         &
     dt,                           & ! real(ldt)
-    xts,yts,                      & ! local 'real' copy of the particle position
+    xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     rhoa,                         & ! air density, used in CBL
     rhograd,                      & ! vertical gradient of the air density, used in CBL
     delz,                         & ! change in vertical position due to turbulence
@@ -495,22 +493,26 @@ subroutine advance_PBL(itime,itimec,&
       itimec=itime+lsynctime
     endif
     dt=real(part(ipart)%idt)
+    call update_zcoord(itime,ipart)
+    xts=real(part(ipart)%xlon)
+    yts=real(part(ipart)%ylat)
+    zts=real(part(ipart)%z)
+    ztseta=real(part(ipart)%zeta)
 
-    zeta=part(ipart)%z/h
-
+    zeta=real(part(ipart)%z)/h
     if (loop.eq.1) then
       if (ngrid.le.0) then
         xts=real(part(ipart)%xlon)
         yts=real(part(ipart)%ylat)
-        call interpol_all(itime,xts,yts,part(ipart)%z,part(ipart)%zeta)
+        call interpol_all(itime,xts,yts,zts,ztseta)
       else
-        call interpol_all_nests(itime,xtn,ytn,part(ipart)%z)
+        call interpol_all_nests(itime,xtn,ytn,zts)
       endif
 
     else
       ! Determine the level below the current position for u,v,rho
       !***********************************************************
-      call find_z_level(part(ipart)%z,part(ipart)%zeta) ! Not sure if zteta levels are necessary here
+      call find_z_level(zts,ztseta) ! Not sure if zteta levels are necessary here
 
       ! If one of the levels necessary is not yet available,
       ! calculate it
@@ -525,16 +527,16 @@ subroutine advance_PBL(itime,itimec,&
   ! Vertical distance to the level below and above current position
   ! both in terms of (u,v) and (w) fields
   !****************************************************************
-    call interpol_mixinglayer(part(ipart)%z,part(ipart)%zeta,rhoa,rhograd)
+    call interpol_mixinglayer(zts,ztseta,rhoa,rhograd)
 
   ! Compute the turbulent disturbances
   ! Determine the sigmas and the timescales
   !****************************************
 
     if (turbswitch) then
-      call hanna(part(ipart)%z)
+      call hanna(zts)
     else
-      call hanna1(part(ipart)%z)
+      call hanna1(zts)
     endif
 
   !*****************************************
@@ -573,7 +575,7 @@ subroutine advance_PBL(itime,itimec,&
 
   ! Determine the drift velocity and density correction velocity
   !*************************************************************
-
+      
       if (turbswitch) then
         if (dtftlw.lt..5) then
   !*************************************************************
@@ -584,13 +586,13 @@ subroutine advance_PBL(itime,itimec,&
                 flagrein=0
                 nrand=nrand+1
                 old_wp_buf=part(ipart)%turbvel%w
-                call cbl(part(ipart)%turbvel%w,part(ipart)%z,ust,wst,h,rhoa,rhograd,&
+                call cbl(part(ipart)%turbvel%w,zts,ust,wst,h,rhoa,rhograd,&
                   sigw,dsigwdz,tlw,ptot_lhh,Q_lhh,phi_lhh,ath,bth,ol,flagrein) !inside the routine for inverse time
                 part(ipart)%turbvel%w=(part(ipart)%turbvel%w+ath*dtf+&
                   bth*rannumb(nrand)*sqrt(dtf))*real(part(ipart)%icbt) 
                 delz=part(ipart)%turbvel%w*dtf
                 if (flagrein.eq.1) then
-                    call re_initialize_particle(part(ipart)%z,ust,wst,h,sigw,old_wp_buf,nrand,ol)
+                    call re_initialize_particle(zts,ust,wst,h,sigw,old_wp_buf,nrand,ol)
                     part(ipart)%turbvel%w=old_wp_buf
                     delz=part(ipart)%turbvel%w*dtf
                     nan_count=nan_count+1
@@ -652,22 +654,22 @@ subroutine advance_PBL(itime,itimec,&
   ! or above the mixing height
   !************************************************************************
 
-      if (delz.lt.-part(ipart)%z) then         ! reflection at ground
+      if (delz.lt.-zts) then         ! reflection at ground
         part(ipart)%icbt=-1
-        call set_z(ipart,-part(ipart)%z-delz)
-      else if (delz.gt.(h-part(ipart)%z)) then ! reflection at h
+        call set_z(ipart,-zts-delz)
+      else if (delz.gt.(h-zts)) then ! reflection at h
         part(ipart)%icbt=-1
-        call set_z(ipart,-part(ipart)%z-delz+2.*h)
+        call set_z(ipart,-zts-delz+2.*h)
       else                         ! no reflection
         part(ipart)%icbt=1
-        call set_z(ipart,part(ipart)%z+delz)
+        call set_z(ipart,zts+delz)
       endif
 
       if (i.ne.ifine) then
-        zeta=part(ipart)%z/h
-        call hanna_short(part(ipart)%z)
+        zeta=zts/h
+        call hanna_short(zts)
       endif
-
+      zts=real(part(ipart)%z)
     end do
     if (cblflag.ne.1) nrand=nrand+i
 
@@ -697,7 +699,7 @@ subroutine advance_PBL(itime,itimec,&
           nsp=nspec
         end if
         if (density(nsp).gt.0.) then
-          call get_settling(itime,real(part(ipart)%xlon),real(part(ipart)%ylat),part(ipart)%z,nsp,settling)  !bugfix
+          call get_settling(itime,xts,yts,zts,nsp,settling)  !bugfix
           w=w+settling
         end if
       end if
@@ -718,9 +720,9 @@ subroutine advance_PBL(itime,itimec,&
 
     ! HSO/AL: Particle managed to go over highest level -> interpolation error in goto 700
     !          alias interpol_wind (division by zero)
-    if (part(ipart)%z.ge.height(nz)) call set_z(ipart,height(nz)-100.*eps)
+    if (zts.ge.height(nz)) call set_z(ipart,height(nz)-100.*eps)
 
-    if (part(ipart)%z.gt.h) then
+    if (zts.gt.h) then
       if (wind_coord_type.eq.'ETA') &
         call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)
       if (itimec.ne.itime+lsynctime) abovePBL=.true. ! complete the current interval above PBL
@@ -730,7 +732,7 @@ subroutine advance_PBL(itime,itimec,&
   ! Determine probability of deposition
   !************************************
 
-    if ((DRYDEP).and.(part(ipart)%z.lt.2.*href)) then
+    if ((DRYDEP).and.(zts.lt.2.*href)) then
       do nsp=1,nspec
         if (DRYDEPSPEC(nsp)) then
           if (depoindicator(nsp)) then
@@ -750,7 +752,7 @@ subroutine advance_PBL(itime,itimec,&
       end do
     endif
 
-    if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))    ! if particle below ground -> reflection
+    if (zts.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))    ! if particle below ground -> reflection
 
 
     if (itimec.eq.(itime+lsynctime)) then
@@ -828,13 +830,22 @@ subroutine advance_PettersonCorrection(itime,ipart)
   integer ::                      &
     nsp                             ! loop variables for number of species
   real ::                         &
-    xts,yts,                      & ! local 'real' copy of the particle position
-    ztemp,                        & ! temporarily storing z position
+    xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     uold,vold,wold,woldeta,       & !
     settling = 0.                   ! settling velocity
+  real(kind=dp) ::                &
+    ztemp                           ! temporarily storing z position
+
+
+  xts=real(part(ipart)%xlon)
+  yts=real(part(ipart)%ylat)
+  zts=real(part(ipart)%z)
+  ztseta=real(part(ipart)%zeta)
+
+
   ! Determine nested grid coordinates
   !**********************************
-  call determine_grid_coordinates(real(part(ipart)%xlon),real(part(ipart)%ylat))
+  call determine_grid_coordinates(xts,yts)
 
   ! Memorize the old wind
   !**********************
@@ -855,11 +866,9 @@ subroutine advance_PettersonCorrection(itime,ipart)
   !******************************************
 
   if (ngrid.le.0) then
-    xts=real(part(ipart)%xlon)
-    yts=real(part(ipart)%ylat)
-    call interpol_wind_short(itime+part(ipart)%idt*ldirect,xts,yts,part(ipart)%z,part(ipart)%zeta)
+    call interpol_wind_short(itime+part(ipart)%idt*ldirect,xts,yts,zts,ztseta)
   else
-    call interpol_wind_short_nests(itime+part(ipart)%idt*ldirect,xtn,ytn,part(ipart)%z)
+    call interpol_wind_short_nests(itime+part(ipart)%idt*ldirect,xtn,ytn,zts)
   endif
 
   if (mdomainfill.eq.0) then
@@ -874,21 +883,19 @@ subroutine advance_PettersonCorrection(itime,ipart)
         select case (wind_coord_type)
 
           case ('ETA')
-            call zeta_to_z(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%zeta,part(ipart)%z)
+            call update_zcoord(itime+part(ipart)%idt, ipart)
             call get_settling(itime+part(ipart)%idt,real(part(ipart)%xlon),&
               real(part(ipart)%ylat),part(ipart)%z,nsp,settling) !bugfix
-            call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,&
-              part(ipart)%z+settling*real(part(ipart)%idt*ldirect),ztemp)
-            weta=weta+(ztemp-part(ipart)%zeta)/real(part(ipart)%idt*ldirect)
+            call z_to_zeta(itime+part(ipart)%idt,part(ipart)%xlon,part(ipart)%ylat,&
+              part(ipart)%z+real(settling*real(part(ipart)%idt*ldirect),kind=dp),ztemp)
+            weta=weta+(real(ztemp)-ztseta)/real(part(ipart)%idt*ldirect)
 
           case ('METER')
-            call get_settling(itime+part(ipart)%idt,real(part(ipart)%xlon),&
-              real(part(ipart)%ylat),part(ipart)%z,nsp,settling) !bugfix
+            call get_settling(itime+part(ipart)%idt,xts,yts,zts,nsp,settling)
             w=w+settling
 
           case default 
-            call get_settling(itime+part(ipart)%idt,real(part(ipart)%xlon),&
-              real(part(ipart)%ylat),part(ipart)%z,nsp,settling) !bugfix
+            call get_settling(itime+part(ipart)%idt,xts,yts,zts,nsp,settling)
             w=w+settling
         end select            
       end if
@@ -1013,13 +1020,13 @@ subroutine advance_adjusttopheight(ipart)
 
   select case (wind_coord_type)
     case ('ETA')
-      if (part(ipart)%zeta.le.uvheight(nz)) then
+      if (part(ipart)%zeta.le.real(uvheight(nz),kind=dp)) then
         call set_zeta(ipart,uvheight(nz)+eps_eta)
       endif
     case ('METER')
-      if (part(ipart)%z.ge.height(nz)) call set_z(ipart,height(nz)-100.*eps)
+      if (part(ipart)%z.ge.real(height(nz),kind=dp)) call set_z(ipart,height(nz)-100.*eps)
     case default
-      if (part(ipart)%z.ge.height(nz)) call set_z(ipart,height(nz)-100.*eps)
+      if (part(ipart)%z.ge.real(height(nz),kind=dp)) call set_z(ipart,height(nz)-100.*eps)
   end select
 end subroutine advance_adjusttopheight
 

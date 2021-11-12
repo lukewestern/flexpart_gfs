@@ -1005,14 +1005,14 @@ subroutine interpol_density(ipart,output)
   !*****************************************************************************
   select case (wind_coord_type)
     case ('ETA')
-      call find_z_level_eta(part(ipart)%zeta)
-      call find_vertical_variables(uvheight,part(ipart)%zeta,induv,dz1,dz2,lbounds_uv,.false.)
+      call find_z_level_eta(real(part(ipart)%zeta))
+      call find_vertical_variables(uvheight,real(part(ipart)%zeta),induv,dz1,dz2,lbounds_uv,.false.)
       do ind=induv,indpuv
         call linear_horizontal_interpolation(rhoeta,rhoprof(ind-induv+1),ind,nzmax,2)
       end do
     case ('METER')
-      call find_z_level_meters(part(ipart)%z)
-      call find_vertical_variables(height,part(ipart)%z,indz,dz1,dz2,lbounds,.false.)
+      call find_z_level_meters(real(part(ipart)%z))
+      call find_vertical_variables(height,real(part(ipart)%z),indz,dz1,dz2,lbounds,.false.)
       do ind=indz,indzp
         call linear_horizontal_interpolation(rho,rhoprof(ind-indz+1),ind,nzmax,2)
       end do
@@ -2240,8 +2240,8 @@ subroutine interpol_partoutput_value_eta(fieldname,output,j)
   real                        :: field1(2)
 
   if (dz1out.eq.-1) then
-    call find_z_level_eta(part(j)%zeta)
-    call find_vertical_variables(uvheight,part(j)%zeta,induv,dz1out,dz2out,lbounds_uv,.false.)
+    call find_z_level_eta(real(part(j)%zeta))
+    call find_vertical_variables(uvheight,real(part(j)%zeta),induv,dz1out,dz2out,lbounds_uv,.false.)
   endif
 
   select case(fieldname)
@@ -2274,8 +2274,8 @@ subroutine interpol_partoutput_value_meter(fieldname,output,j)
   real                        :: field1(2)
 
   if (dz1out.eq.-1) then
-    call find_z_level_meters(part(j)%z)
-    call find_vertical_variables(height,part(j)%z,indz,dz1out,dz2out,lbounds,.false.)
+    call find_z_level_meters(real(part(j)%z))
+    call find_vertical_variables(height,real(part(j)%z),indz,dz1out,dz2out,lbounds,.false.)
   endif
 
   select case(fieldname)

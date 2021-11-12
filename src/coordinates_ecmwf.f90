@@ -32,15 +32,16 @@ contains
       i,m,indexh                  ! loop indices
     real(kind=dp), intent(in) ::    &
       xt,yt                           ! particle position
-    real, intent(in) ::             &
+    real(kind=dp), intent(in) ::    &
       zold                            ! particle verticle position in eta coordinates
-    real, intent(inout) ::          &
+    real(kind=dp), intent(inout) :: &
       zteta                           ! converted output z in meters
+    real(kind=dp) ::                &
+      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
+      frac                            ! fraction between z levels
     real ::                         &
       ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
       ew,                           & ! why does this function need to be declared here?
-      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
-      frac,                         & ! fraction between z levels
       psint1(2),psint                 ! pressure of encompassing levels
 
     call determine_grid_coordinates(real(xt),real(yt))
@@ -63,10 +64,10 @@ contains
       call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
 
       if (abs(ttemp_new-ttemp_old).gt.0.2) then
-        ztemp2=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
-          (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old)
+        ztemp2=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
+          (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old),kind=dp)
       else
-        ztemp2=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new
+        ztemp2=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new,kind=dp)
       endif
 
       if (ztemp2.gt.zold) then
@@ -80,8 +81,7 @@ contains
       ztemp1=ztemp2
     end do
 
-    zteta=uvheight(i-1)*(1.-frac)+uvheight(i)*frac
-
+    zteta=real(uvheight(i-1),kind=dp)*(1.-frac)+real(uvheight(i),kind=dp)*frac
   end subroutine z_to_zeta
 
   subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
@@ -108,15 +108,16 @@ contains
       i,j,k,m,indexh                  ! loop indices
     real(kind=dp), intent(in) ::    &
       xt,yt                           ! particle position
-    real, intent(in) ::             &
+    real(kind=dp), intent(in) ::    &
       zteta                           ! particle verticle position in eta coordinates
-    real, intent(inout) ::          &
+    real(kind=dp), intent(inout) :: &
       ztout                           ! converted output z in meters
+    real(kind=dp) ::                &
+      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
+      frac                            ! fraction between z levels
     real ::                         &
       ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
       ew,                           & ! why does this function need to be declared here?
-      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
-      frac,                         & ! fraction between z levels
       psint1(2),psint                 ! pressure of encompassing levels
    
 
@@ -129,8 +130,8 @@ contains
     k=nz-1
     frac=1.
     do k=2,nz-1
-      if (zteta.ge.uvheight(k)) then
-        frac=(zteta-uvheight(k-1))/(uvheight(k)-uvheight(k-1))
+      if (zteta.ge.real(uvheight(k),kind=dp)) then
+        frac=(zteta-real(uvheight(k-1),kind=dp))/(real(uvheight(k)-uvheight(k-1),kind=dp))
         exit
       endif
     end do
@@ -151,10 +152,10 @@ contains
       call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
 
       if (abs(ttemp_new-ttemp_old).gt.0.2) then
-        ztemp1=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
-          (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old)
+        ztemp1=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
+          (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old),kind=dp)
       else
-        ztemp1=ztemp1+r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new
+        ztemp1=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new,kind=dp)
       endif
       ttemp_old=ttemp_new
     end do
@@ -163,13 +164,12 @@ contains
     call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)  
 
     if (abs(ttemp_new-ttemp_old).gt.0.2) then
-      ztemp2=ztemp1+r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))* &
-        (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old)
+      ztemp2=ztemp1+real(r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))* &
+        (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old),kind=dp)
     else
-      ztemp2=ztemp1+r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))*ttemp_new
+      ztemp2=ztemp1+real(r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))*ttemp_new,kind=dp)
     endif
     ztout = ztemp1*(1.-frac)+ztemp2*frac
-
   end subroutine zeta_to_z
 
   subroutine update_zcoord(itime, ipart)
@@ -186,7 +186,6 @@ contains
 
     call zeta_to_z(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%zeta,part(ipart)%z)
     part(ipart)%etaupdate = .true.
-
   end subroutine update_zcoord
 
 end module coordinates_ecmwf

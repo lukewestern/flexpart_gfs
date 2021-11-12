@@ -28,10 +28,10 @@ module particle_mod
       xlon,                       & ! Longitude in grid coordinates
       ylat,                       & ! Latitude in grid coordinates
       xlon_prev, ylat_prev          ! Keeping the previous positions in memory
-    real               ::         &
+    real(kind=dp)      ::         &
       z,                          & ! height in meters
       z_prev                        ! Previous position
-    real               ::         &
+    real(kind=dp)      ::         &
       zeta                          ! Height in eta (ECMWF) coordinates
     type(velocities)   ::         &
       vel,                        & ! Velocities from interpolated windfields
@@ -110,6 +110,22 @@ module particle_mod
   interface set_ylat
     procedure set_ylat_dp, set_ylat_float, set_ylat_int
   end interface set_ylat
+
+  interface update_z
+    procedure update_z_dp,update_z_float
+  end interface update_z
+
+  interface set_z
+    procedure set_z_dp,set_z_float
+  end interface set_z
+
+  interface update_zeta
+    procedure update_zeta_dp,update_zeta_float
+  end interface update_zeta
+
+  interface set_zeta
+    procedure set_zeta_dp,set_zeta_float
+  end interface set_zeta
    
 contains
 
@@ -583,7 +599,82 @@ contains
 ! End update z positions
 
 ! Update z positions
-  subroutine set_z(ipart,zvalue)
+  subroutine update_z_dp(ipart,zchange)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)        :: &
+      ipart                        ! particle index
+    real(kind=dp), intent(in)  :: &
+      zchange
+
+    part(ipart)%z = part(ipart)%z + zchange
+  end subroutine update_z_dp
+
+  subroutine update_z_float(ipart,zchange)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      zchange
+
+    part(ipart)%z = part(ipart)%z + real(zchange,kind=dp)
+  end subroutine update_z_float  
+
+
+  subroutine update_zeta_dp(ipart,zchange)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)        :: &
+      ipart                        ! particle index
+    real(kind=dp), intent(in)  :: &
+      zchange
+
+    part(ipart)%zeta = part(ipart)%zeta + zchange
+    part(ipart)%etaupdate=.false.
+  end subroutine update_zeta_dp
+
+  subroutine update_zeta_float(ipart,zchange)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      zchange
+
+    part(ipart)%zeta = part(ipart)%zeta + real(zchange,kind=dp)
+    part(ipart)%etaupdate=.false.
+  end subroutine update_zeta_float
+! End update z positions
+
+! Update z positions
+  subroutine set_z_dp(ipart,zvalue)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)        :: &
+      ipart                        ! particle index
+    real(kind=dp), intent(in)  :: &
+      zvalue
+
+    part(ipart)%z = zvalue
+  end subroutine set_z_dp  
+
+  subroutine set_z_float(ipart,zvalue)
     !**************************************
     ! Updates the height of the particle
     !**************************************
@@ -594,23 +685,38 @@ contains
     real, intent(in)       :: &
       zvalue
 
-    part(ipart)%z = zvalue
-  end subroutine set_z  
+    part(ipart)%z = real(zvalue,kind=dp)
+  end subroutine set_z_float
 
-  subroutine set_zeta(ipart,zvalue)
+  subroutine set_zeta_dp(ipart,zvalue)
     !**************************************
     ! Updates the height of the particle
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
+    integer, intent(in)        :: &
       ipart                        ! particle index
-    real, intent(in)       :: &
+    real(kind=dp), intent(in)  :: &
       zvalue
 
     part(ipart)%zeta = zvalue
     part(ipart)%etaupdate=.false.
-  end subroutine set_zeta
+  end subroutine set_zeta_dp
+
+  subroutine set_zeta_float(ipart,zvalue)
+    !**************************************
+    ! Updates the height of the particle
+    !**************************************
+    implicit none
+
+    integer, intent(in)    :: &
+      ipart                        ! particle index
+    real, intent(in)       :: &
+      zvalue
+
+    part(ipart)%zeta = real(zvalue,kind=dp)
+    part(ipart)%etaupdate=.false.
+  end subroutine set_zeta_float
 ! End update z positions
 
 end module particle_mod

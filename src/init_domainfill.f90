@@ -217,7 +217,7 @@ subroutine init_domainfill
                 call set_xlon(numpart+jj,real(real(nxmin1)-ran1(idummy),kind=dp))
               call set_ylat(numpart+jj,real(real(ljy)-0.5+ran1(idummy),kind=dp))
               call set_z(numpart+jj,(height(kz)*dz2+height(kz+1)*dz1)*dz)
-              if (part(numpart+jj)%z.gt.height(nz)-0.5) &
+              if (real(part(numpart+jj)%z).gt.height(nz)-0.5) &
                   call set_z(numpart+jj,height(nz)-0.5)
 
 
@@ -245,14 +245,14 @@ subroutine init_domainfill
 !***************************************************************************
 
               do i=2,nz
-                if (height(i).gt.part(numpart+jj)%z) then
+                if (height(i).gt.real(part(numpart+jj)%z)) then
                   indzm=i-1
                   indzp=i
                   exit
                 endif
               end do
-              dz1=part(numpart+jj)%z-height(indzm)
-              dz2=height(indzp)-part(numpart+jj)%z
+              dz1=real(part(numpart+jj)%z)-height(indzm)
+              dz2=height(indzp)-real(part(numpart+jj)%z)
               dz=1./(dz1+dz2)
               do in=1,2
                 indzh=indzm+in-1
