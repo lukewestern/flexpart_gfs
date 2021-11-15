@@ -240,7 +240,7 @@ subroutine advance(itime,ipart)
   ! time interval between wind fields
   !****************************************************************
   if (.not. turboff) then
-    call turbulence_mesoscale(nrand,dxsave,dysave,ipart,eps_eta)
+    call turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta,eps_eta)
 
     !*************************************************************
     ! Transform along and cross wind components to xy coordinates,

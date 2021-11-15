@@ -87,12 +87,12 @@ MODOBJS = \
 par_mod.o    		com_mod.o \
 particle_mod.o       interpol_mod.o \
 coordinates_ecmwf.o  conv_mod.o \
-hanna_mod.o          cmapf_mod.o \
+turbulence_mod.o     cmapf_mod.o \
 unc_mod.o            oh_mod.o \
 xmass_mod.o          flux_mod.o \
 point_mod.o          outg_mod.o \
 mean_mod.o	 	random_mod.o \
-class_gribfile_mod.o	advance_mod.o
+class_gribfile_mod.o	advance_mod.o 
 
 ## Serial versions (MPI version with same functionality and name '_mpi.f90' exists)
 OBJECTS_SERIAL = \
@@ -129,8 +129,7 @@ get_wetscav.o		readwind_gfs.o \
 psim.o			outgrid_init.o 	\
 outgrid_init_nest.o   	calcmatrix.o \
 photo_O1D.o 		readlanduse.o \
-readoutgrid.o \
-readpaths.o \
+readoutgrid.o 		readpaths.o \
 getrb.o                 obukhov.o \
 getrc.o                 convmix.o \
 getvdep.o               readspecies.o \
@@ -138,10 +137,9 @@ richardson.o \
 scalev.o                verttransform_ecmwf.o \
 pbl_profile.o           readOHfield.o \
 juldate.o               verttransform_gfs.o \
-hanna.o                 wetdepokernel.o \
+wetdepokernel.o \
 calcpar.o               wetdepo.o \
-hanna_short.o           windalign.o \
-hanna1.o                gridcheck_ecmwf.o \
+windalign.o		gridcheck_ecmwf.o \
 gridcheck_gfs.o         gridcheck_nests.o \
 readwind_nests.o        calcpar_nests.o \
 verttransform_nests.o \
@@ -154,8 +152,7 @@ centerofmass.o          plumetraj.o \
 openouttraj.o           calcpv.o \
 calcpv_nests.o          distance2.o \
 clustering.o 		shift_field_0.o \
-shift_field.o             \
-openreceptors.o         \
+shift_field.o           openreceptors.o \
 readoutgrid_nest.o \
 writeheader_nest.o writeheader_nest_surf.o \
 wetdepokernel_nest.o \
@@ -194,7 +191,7 @@ cleanall:
 .SUFFIXES = $(SUFFIXES) .f90
 
 ## DEPENDENCIES
-advance_mod.o: cmapf_mod.o com_mod.o hanna_mod.o interpol_mod.o par_mod.o \
+advance_mod.o: cmapf_mod.o com_mod.o turbulence_mod.o interpol_mod.o par_mod.o \
 	point_mod.o random_mod.o coordinates_ecmwf.o particle_mod.o
 assignland.o: com_mod.o par_mod.o
 boundcond_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
@@ -251,9 +248,6 @@ grib2check.o: com_mod.o par_mod.o
 gridcheck_ecmwf.o: cmapf_mod.o com_mod.o conv_mod.o par_mod.o
 gridcheck_gfs.o: cmapf_mod.o com_mod.o conv_mod.o par_mod.o
 gridcheck_nests.o: com_mod.o par_mod.o
-hanna.o: com_mod.o hanna_mod.o par_mod.o
-hanna1.o: com_mod.o hanna_mod.o par_mod.o
-hanna_short.o: com_mod.o hanna_mod.o par_mod.o
 init_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
        interpol_mod.o coordinates_ecmwf.o particle_mod.o
 initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
@@ -261,10 +255,10 @@ initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
 initial_cond_output.o: com_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o
 initial_cond_output_inversion.o: com_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
-initialize.o: com_mod.o hanna_mod.o interpol_mod.o par_mod.o random_mod.o \
+initialize.o: com_mod.o turbulence_mod.o interpol_mod.o par_mod.o random_mod.o \
 	interpol_mod.o coordinates_ecmwf.o particle_mod.o
 initialize_cbl_vel.o: com_mod.o par_mod.o random_mod.o
-interpol_mod.o: par_mod.o com_mod.o hanna_mod.o particle_mod.o
+interpol_mod.o: par_mod.o com_mod.o turbulence_mod.o particle_mod.o
 juldate.o: par_mod.o
 mean_mod.o: par_mod.o
 netcdf_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
@@ -315,6 +309,7 @@ shift_field.o: par_mod.o
 shift_field_0.o: par_mod.o
 timemanager.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o advance_mod.o\
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf.o
+turbulence_mod.o: par_mod.o com_mod.o random_mod.o particle_mod.o
 unc_mod.o: par_mod.o
 verttransform_ecmwf.o: cmapf_mod.o com_mod.o par_mod.o
 verttransform_gfs.o: cmapf_mod.o com_mod.o par_mod.o

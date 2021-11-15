@@ -462,7 +462,7 @@ subroutine interpol_all(itime,xt,yt,zt,zteta)
   !                                                                            *
   !*****************************************************************************
 
-  use hanna_mod
+  use turbulence_mod
 
   implicit none
 
@@ -1054,7 +1054,7 @@ subroutine interpol_all_nests(itime,xt,yt,zt)
   !                                                                            *
   !*****************************************************************************
 
-  use hanna_mod
+  use turbulence_mod
 
   implicit none
 
@@ -1257,7 +1257,7 @@ subroutine interpol_misslev_nests(n)
   !                                                                            *
   !*****************************************************************************
 
-  use hanna_mod
+  use turbulence_mod
 
   implicit none
 

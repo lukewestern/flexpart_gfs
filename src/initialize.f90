@@ -49,7 +49,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   use par_mod
   use com_mod
   use interpol_mod
-  use hanna_mod
+  use turbulence_mod
   use random_mod, only: ran3
   use interpol_mod
   use coordinates_ecmwf
