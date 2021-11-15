@@ -62,9 +62,9 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   integer :: itime,i,j,k,m,indexh
   integer :: ldt,nrand
   integer(kind=2), intent(inout) :: icbt
-  real :: zt,dz,dz1,dz2,up,vp,wp,usigold,vsigold,wsigold
-  real :: zteta,ttemp,dummy1,dummy2
-  real(kind=dp) :: xt,yt
+  real :: dz,dz1,dz2,up,vp,wp,usigold,vsigold,wsigold
+  real :: ttemp,dummy1,dummy2
+  real(kind=dp) :: xt,yt,zt,zteta
   integer :: thread
   save idummy
 
@@ -100,7 +100,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
        hmix(ix ,jyp,1,memind(2)), &
        hmix(ixp,jyp,1,memind(2)))
 
-  zeta=zt/h
+  zeta=real(zt)/h
 
 
   !*************************************************************
@@ -110,7 +110,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
 
   if (zeta.le.1.) then
 
-    call interpol_all(itime,real(xt),real(yt),zt,zteta)
+    call interpol_all(itime,real(xt),real(yt),real(zt),real(zteta))
 
   ! Vertical interpolation of u,v,w,rho and drhodz
   !***********************************************
@@ -118,7 +118,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   ! Vertical distance to the level below and above current position
   ! both in terms of (u,v) and (w) fields
   !****************************************************************
-    call interpol_mixinglayer(zt,zteta,dummy1,dummy2)
+    call interpol_mixinglayer(real(zt),real(zteta),dummy1,dummy2)
 
   ! Compute the turbulent disturbances
 
@@ -126,9 +126,9 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   !****************************************
 
     if (turbswitch) then
-      call hanna(zt)
+      call hanna(real(zt))
     else
-      call hanna1(zt)
+      call hanna1(real(zt))
     endif
 
 
@@ -145,7 +145,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
       if(-h/ol.gt.5) then
 !if (ol.lt.0.) then
 !if (ol.gt.0.) then !by mc : only for test correct is lt.0
-        call initialize_cbl_vel(idummy,zt,ust,wst,h,sigw,wp,ol)
+        call initialize_cbl_vel(idummy,real(zt),ust,wst,h,sigw,wp,ol)
       else
         wp=wp*sigw
       end if
@@ -184,7 +184,7 @@ subroutine initialize(itime,ldt,up,vp,wp, &
   ! Interpolate the wind
   !*********************
 
-    call interpol_wind(itime,real(xt),real(yt),zt,zteta,10)
+    call interpol_wind(itime,real(xt),real(yt),real(zt),real(zteta),10)
 
 
   ! Compute everything for above the PBL

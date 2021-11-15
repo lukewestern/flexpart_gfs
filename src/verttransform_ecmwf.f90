@@ -460,7 +460,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
          (height(2)-height(1))
     do kz=2,nz-1
       drhodzeta(:,:,kz,n)=(rhoeta(:,:,kz+1,n)-rhoeta(:,:,kz-1,n))/ &
-           (wheight(kz+1)-wheight(kz-1))
+           (height(kz+1)-height(kz-1)) ! Note that this is still in SI units and not in eta
     end do
     drhodzeta(:,:,nz,n)=drhodzeta(:,:,nz-1,n)
     tvirtual(:,:,:,n)=tteta(:,:,:,n)* &
