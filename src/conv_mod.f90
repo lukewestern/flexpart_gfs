@@ -64,7 +64,6 @@ subroutine convmix(itime,metdata_format)
   use flux_mod
   use par_mod
   use com_mod
-  use conv_mod
   use class_gribfile
   use particle_mod
 
@@ -537,7 +536,6 @@ end subroutine convmix
   !
   !
   use par_mod
-  use conv_mod
 
   implicit none
   !
@@ -1420,7 +1418,6 @@ SUBROUTINE TLIFT(GZ,ICB,NK,TVP,TPK,CLW,ND,NL,KK)
   !
   !-cv
   use par_mod
-  use conv_mod
 
   implicit none
   !-cv

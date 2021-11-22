@@ -36,6 +36,7 @@ program flexpart
   use random_mod, only: gasdev1
   use class_gribfile
   use readoptions
+  use windfields_mod
 
 #ifdef USE_NCF
   use netcdf_output_mod, only: writeheader_netcdf

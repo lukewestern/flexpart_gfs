@@ -87,13 +87,15 @@ MODOBJS = \
 par_mod.o    		com_mod.o \
 particle_mod.o       interpol_mod.o \
 coordinates_ecmwf.o  conv_mod.o \
+windfields_mod.o \
 turbulence_mod.o     cmapf_mod.o \
 unc_mod.o            oh_mod.o \
 xmass_mod.o          flux_mod.o \
 point_mod.o          outg_mod.o \
 mean_mod.o	 	random_mod.o \
 class_gribfile_mod.o	advance_mod.o \
-readoptions.o
+readoptions.o  		
+
 
 ## Serial versions (MPI version with same functionality and name '_mpi.f90' exists)
 OBJECTS_SERIAL = \
@@ -107,9 +109,7 @@ OBJECTS_SERIAL = \
 	redist.o		\
 	concoutput_surf.o	concoutput_surf_nest.o	\
 	concoutput_inversion_nest.o 	\
-	concoutput_inversion.o \
-	getfields.o \
-       readwind_ecmwf.o
+	concoutput_inversion.o
 
 OBJECTS_NCF = netcdf_output_mod.o
 
@@ -125,33 +125,29 @@ raerod.o 		drydepokernel.o \
 erf.o                    \
 ew.o			 \
 get_vdep_prob.o   \
-get_wetscav.o		readwind_gfs.o \
+get_wetscav.o \
 psim.o			outgrid_init.o 	\
 outgrid_init_nest.o   	calcmatrix.o \
 photo_O1D.o 		  \
 getrb.o                 obukhov.o \
-getrc.o                 convmix.o \
+getrc.o                 \
 getvdep.o \
 richardson.o \
-scalev.o                verttransform_ecmwf.o \
+scalev.o                \
 pbl_profile.o \
-juldate.o               verttransform_gfs.o \
+juldate.o               \
 wetdepokernel.o \
 calcpar.o               wetdepo.o \
-windalign.o		gridcheck_ecmwf.o \
-gridcheck_gfs.o         gridcheck_nests.o \
-readwind_nests.o        calcpar_nests.o \
-verttransform_nests.o \
+windalign.o		\
+calcpar_nests.o \
 detectformat.o  \
 calcfluxes.o            fluxoutput.o \
 qvsat.o                 skplin.o \
-convect43c.o            \
 sort2.o                 distance.o \
 centerofmass.o          plumetraj.o \
 openouttraj.o           calcpv.o \
 calcpv_nests.o          distance2.o \
-clustering.o 		shift_field_0.o \
-shift_field.o           openreceptors.o \
+clustering.o 		openreceptors.o \
 writeheader_nest.o writeheader_nest_surf.o \
 wetdepokernel_nest.o \
 drydepokernel_nest.o    zenithangle.o \
@@ -218,9 +214,7 @@ concoutput_surf.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
 concoutput_surf_nest.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o
-conv_mod.o: par_mod.o
-convect43c.o: conv_mod.o par_mod.o
-convmix.o: com_mod.o conv_mod.o flux_mod.o par_mod.o particle_mod.o
+conv_mod.o: par_mod.o com_mod.o flux_mod.o par_mod.o particle_mod.o class_gribfile_mod.o
 coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o particle_mod.o
 coordtrafo.o: com_mod.o par_mod.o point_mod.o
 detectformat.o: com_mod.o par_mod.o
@@ -236,16 +230,12 @@ get_settling.o: com_mod.o par_mod.o
 get_vdep_prob.o: com_mod.o interpol_mod.o par_mod.o point_mod.o
 get_wetscav.o: com_mod.o par_mod.o point_mod.o interpol_mod.o particle_mod.o \
 	coordinates_ecmwf.o
-getfields.o: com_mod.o par_mod.o
 gethourlyOH.o: com_mod.o oh_mod.o par_mod.o
 getrb.o: par_mod.o
 getrc.o: com_mod.o par_mod.o
 getvdep.o: com_mod.o par_mod.o
 getvdep_nests.o: com_mod.o par_mod.o
 grib2check.o: com_mod.o par_mod.o
-gridcheck_ecmwf.o: cmapf_mod.o com_mod.o conv_mod.o par_mod.o
-gridcheck_gfs.o: cmapf_mod.o com_mod.o conv_mod.o par_mod.o
-gridcheck_nests.o: com_mod.o par_mod.o
 init_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
        interpol_mod.o coordinates_ecmwf.o particle_mod.o
 initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
@@ -282,10 +272,6 @@ re_initialize_particle.o: com_mod.o par_mod.o
 readoptions.o: com_mod.o par_mod.o
 readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o \
 	particle_mod.o coordinates_ecmwf.o
-readwind_ecmwf.o: com_mod.o par_mod.o
-readwind_emos.o: com_mod.o par_mod.o
-readwind_gfs.o: com_mod.o par_mod.o
-readwind_nests.o: com_mod.o par_mod.o
 redist.o: com_mod.o conv_mod.o par_mod.o random_mod.o interpol_mod.o coordinates_ecmwf.o \
 	particle_mod.o
 releaseparticles.o: com_mod.o par_mod.o point_mod.o random_mod.o xmass_mod.o \
@@ -298,12 +284,10 @@ timemanager.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o adva
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf.o
 turbulence_mod.o: par_mod.o com_mod.o random_mod.o particle_mod.o
 unc_mod.o: par_mod.o
-verttransform_ecmwf.o: cmapf_mod.o com_mod.o par_mod.o
-verttransform_gfs.o: cmapf_mod.o com_mod.o par_mod.o
-verttransform_nests.o: com_mod.o par_mod.o
 wetdepo.o: com_mod.o par_mod.o point_mod.o particle_mod.o
 wetdepokernel.o: com_mod.o par_mod.o unc_mod.o
 wetdepokernel_nest.o: com_mod.o par_mod.o unc_mod.o
+windfields_mod.o: par_mod.o com_mod.o conv_mod.o cmapf_mod.o
 writeheader.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeheader_nest.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeheader_nest_surf.o: com_mod.o outg_mod.o par_mod.o point_mod.o
@@ -311,4 +295,3 @@ writeheader_surf.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeheader_txt.o: com_mod.o outg_mod.o par_mod.o point_mod.o
 writeprecip.o: com_mod.o par_mod.o point_mod.o
 zenithangle.o: par_mod.o
-

@@ -81,6 +81,8 @@ subroutine timemanager(metdata_format)
 #endif
   use coordinates_ecmwf
   use particle_mod
+  use conv_mod
+  use windfields_mod
   use advance_mod, only: advance
 
   implicit none
