@@ -104,8 +104,7 @@ OBJECTS_SERIAL = \
 	init_domainfill.o \
 	timemanager.o FLEXPART.o	\
 	readpartpositions.o \
-	boundcond_domainfill.o	\
-	redist.o		
+	boundcond_domainfill.o		
 
 OBJECTS_NCF = netcdf_output_mod.o
 
@@ -119,7 +118,6 @@ coordtrafo.o            psih.o \
 raerod.o 		\
 erf.o                    \
 ew.o			 \
-get_wetscav.o \
 psim.o			outgrid_init.o 	\
 outgrid_init_nest.o   	\
 photo_O1D.o 		  \
@@ -191,7 +189,8 @@ clustering.o: par_mod.o particle_mod.o
 cmapf_mod.o: par_mod.o
 com_mod.o: par_mod.o
 conccalc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o coordinates_ecmwf.o particle_mod.o
-conv_mod.o: par_mod.o com_mod.o flux_mod.o par_mod.o particle_mod.o class_gribfile_mod.o
+conv_mod.o: par_mod.o com_mod.o flux_mod.o par_mod.o particle_mod.o class_gribfile_mod.o \
+	random_mod.o interpol_mod.o coordinates_ecmwf.o
 coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o particle_mod.o
 coordtrafo.o: com_mod.o par_mod.o point_mod.o
 detectformat.o: com_mod.o par_mod.o
@@ -203,8 +202,6 @@ FLEXPART.o: com_mod.o conv_mod.o netcdf_output_mod.o par_mod.o point_mod.o \
 	random_mod.o readoptions.o binary_output_mod.o
 fluxoutput.o: com_mod.o flux_mod.o outg_mod.o par_mod.o
 get_settling.o: com_mod.o par_mod.o
-get_wetscav.o: com_mod.o par_mod.o point_mod.o interpol_mod.o particle_mod.o \
-	coordinates_ecmwf.o
 gethourlyOH.o: com_mod.o oh_mod.o par_mod.o
 grib2check.o: com_mod.o par_mod.o
 init_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
@@ -238,8 +235,6 @@ re_initialize_particle.o: com_mod.o par_mod.o
 readoptions.o: com_mod.o par_mod.o drydepo_mod.o
 readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o \
 	particle_mod.o coordinates_ecmwf.o
-redist.o: com_mod.o conv_mod.o par_mod.o random_mod.o interpol_mod.o coordinates_ecmwf.o \
-	particle_mod.o
 releaseparticles.o: com_mod.o par_mod.o point_mod.o random_mod.o xmass_mod.o \
 	interpol_mod.o coordinates_ecmwf.o
 richardson.o: par_mod.o
@@ -249,7 +244,8 @@ timemanager.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o adva
 	binary_output_mod.o drydepo_mod.o
 turbulence_mod.o: par_mod.o com_mod.o random_mod.o particle_mod.o
 unc_mod.o: par_mod.o
-wetdepo.o: com_mod.o par_mod.o point_mod.o particle_mod.o
+wetdepo.o: com_mod.o par_mod.o point_mod.o particle_mod.o interpol_mod.o \
+	coordinates_ecmwf.o
 wetdepokernel.o: com_mod.o par_mod.o unc_mod.o
 wetdepokernel_nest.o: com_mod.o par_mod.o unc_mod.o
 windfields_mod.o: par_mod.o com_mod.o conv_mod.o cmapf_mod.o
