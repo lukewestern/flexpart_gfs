@@ -41,6 +41,7 @@ program flexpart
 #ifdef USE_NCF
   use netcdf_output_mod, only: writeheader_netcdf
 #endif
+  use binary_output_mod
 
   implicit none
 

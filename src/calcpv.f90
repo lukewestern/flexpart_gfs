@@ -320,7 +320,6 @@ subroutine calcpv(n,uuh,vvh,pvh)
 
 end subroutine calcpv
 
-
 subroutine calcpv_nests(l,n,uuhn,vvhn,pvhn)
   !                     i i  i    i    o
   !*****************************************************************************

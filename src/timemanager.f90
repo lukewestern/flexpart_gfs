@@ -79,6 +79,7 @@ subroutine timemanager(metdata_format)
   use netcdf_output_mod, only: concoutput_netcdf,concoutput_nest_netcdf,&
        &concoutput_surf_netcdf,concoutput_surf_nest_netcdf,writeheader_partoutput
 #endif
+  use binary_output_mod
   use coordinates_ecmwf
   use particle_mod
   use conv_mod
