@@ -122,7 +122,6 @@ qvsat.o                 \
 sort2.o                 \
 plumetraj.o \
 calcpv.o \
-zenithangle.o \
 initial_cond_calc.o     \
 get_settling.o	\
 initialize_cbl_vel.o	re_initialize_particle.o \
@@ -214,4 +213,3 @@ unc_mod.o: par_mod.o
 wetdepo_mod.o: com_mod.o par_mod.o point_mod.o particle_mod.o interpol_mod.o \
 	coordinates_ecmwf.o unc_mod.o
 windfields_mod.o: par_mod.o com_mod.o conv_mod.o cmapf_mod.o txt_output_mod.o
-zenithangle.o: par_mod.o
