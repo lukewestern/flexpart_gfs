@@ -113,7 +113,6 @@ writeprecip.o \
 assignland.o \
 caldate.o               \
 coordtrafo.o            psih.o \
-raerod.o 		\
 psim.o			\
 photo_O1D.o 		  \
 richardson.o \
@@ -204,7 +203,6 @@ pbl_profile.o: par_mod.o
 plumetraj.o: com_mod.o mean_mod.o par_mod.o point_mod.o particle_mod.o coordinates_ecmwf.o
 psih.o: par_mod.o
 psim.o: par_mod.o
-raerod.o: par_mod.o
 re_initialize_particle.o: com_mod.o par_mod.o
 readoptions.o: com_mod.o par_mod.o drydepo_mod.o
 readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o \
