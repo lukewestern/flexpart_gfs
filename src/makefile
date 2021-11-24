@@ -114,7 +114,6 @@ assignland.o \
 caldate.o               \
 coordtrafo.o            psih.o \
 psim.o			\
-photo_O1D.o 		  \
 scalev.o                \
 pbl_profile.o \
 juldate.o               \
