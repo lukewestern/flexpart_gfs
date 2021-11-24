@@ -101,21 +101,19 @@ drydepo_mod.o 		wetdepo_mod.o
 OBJECTS_SERIAL = \
 	releaseparticles.o 	partoutput.o \
 	conccalc.o \
-	init_domainfill.o \
 	timemanager.o FLEXPART.o	\
-	readpartpositions.o \
-	boundcond_domainfill.o		
+	readpartpositions.o	
 
 OBJECTS_NCF = netcdf_output_mod.o
 
 OBJECTS = \
+domainfill.o \
 initialize.o		\
 writeprecip.o \
 assignland.o \
 caldate.o               \
 coordtrafo.o            psih.o \
 raerod.o 		\
-ew.o			 \
 psim.o			\
 photo_O1D.o 		  \
 obukhov.o \
@@ -169,8 +167,6 @@ advance_mod.o: cmapf_mod.o com_mod.o turbulence_mod.o interpol_mod.o par_mod.o \
 	point_mod.o random_mod.o coordinates_ecmwf.o particle_mod.o
 assignland.o: com_mod.o par_mod.o
 binary_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o
-boundcond_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
-	coordinates_ecmwf.o interpol_mod.o particle_mod.o
 calcpar.o: com_mod.o par_mod.o drydepo_mod.o
 calcpv.o: com_mod.o par_mod.o
 caldate.o: par_mod.o
@@ -183,14 +179,14 @@ conv_mod.o: par_mod.o com_mod.o flux_mod.o par_mod.o particle_mod.o class_gribfi
 coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o particle_mod.o
 coordtrafo.o: com_mod.o par_mod.o point_mod.o
 detectformat.o: com_mod.o par_mod.o
+domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
+       interpol_mod.o coordinates_ecmwf.o particle_mod.o
 drydepo_mod.o: com_mod.o par_mod.o unc_mod.o interpol_mod.o point_mod.o
 FLEXPART.o: com_mod.o conv_mod.o netcdf_output_mod.o par_mod.o point_mod.o \
 	random_mod.o readoptions.o binary_output_mod.o
 flux_mod.o: com_mod.o outg_mod.o par_mod.o coordinates_ecmwf.o particle_mod.o
 get_settling.o: com_mod.o par_mod.o
 grib2check.o: com_mod.o par_mod.o
-init_domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
-       interpol_mod.o coordinates_ecmwf.o particle_mod.o
 initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
 	coordinates_ecmwf.o
 initialize.o: com_mod.o turbulence_mod.o interpol_mod.o par_mod.o random_mod.o \
