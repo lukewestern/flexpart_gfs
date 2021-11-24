@@ -134,7 +134,7 @@ openouttraj.o           calcpv.o \
 openreceptors.o \
 zenithangle.o \
 initial_cond_calc.o     \
-dynamic_viscosity.o     get_settling.o	\
+get_settling.o	\
 initialize_cbl_vel.o	re_initialize_particle.o \
 cbl.o 
 
