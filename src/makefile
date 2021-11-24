@@ -115,7 +115,6 @@ assignland.o \
 caldate.o               \
 coordtrafo.o            psih.o \
 raerod.o 		\
-erf.o                    \
 ew.o			 \
 psim.o			\
 photo_O1D.o 		  \
@@ -185,7 +184,6 @@ coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o particle_mod.o
 coordtrafo.o: com_mod.o par_mod.o point_mod.o
 detectformat.o: com_mod.o par_mod.o
 drydepo_mod.o: com_mod.o par_mod.o unc_mod.o interpol_mod.o point_mod.o
-erf.o: par_mod.o
 FLEXPART.o: com_mod.o conv_mod.o netcdf_output_mod.o par_mod.o point_mod.o \
 	random_mod.o readoptions.o binary_output_mod.o
 flux_mod.o: com_mod.o outg_mod.o par_mod.o coordinates_ecmwf.o particle_mod.o
