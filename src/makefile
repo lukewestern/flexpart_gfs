@@ -119,7 +119,7 @@ juldate.o               \
 calcpar.o               \
 windalign.o		\
 detectformat.o  \
-qvsat.o                 skplin.o \
+qvsat.o                 \
 sort2.o                 \
 plumetraj.o \
 calcpv.o \
@@ -203,7 +203,7 @@ psim.o: par_mod.o
 re_initialize_particle.o: com_mod.o par_mod.o
 readoptions.o: com_mod.o par_mod.o drydepo_mod.o
 readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o \
-	particle_mod.o coordinates_ecmwf.o
+	particle_mod.o coordinates_ecmwf.o netcdf_output_mod.o
 releaseparticles.o: com_mod.o par_mod.o point_mod.o random_mod.o xmass_mod.o \
 	interpol_mod.o coordinates_ecmwf.o
 timemanager.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o advance_mod.o\
