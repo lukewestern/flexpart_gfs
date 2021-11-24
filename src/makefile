@@ -116,7 +116,6 @@ coordtrafo.o            psih.o \
 raerod.o 		\
 psim.o			\
 photo_O1D.o 		  \
-obukhov.o \
 richardson.o \
 scalev.o                \
 pbl_profile.o \
@@ -197,7 +196,6 @@ juldate.o: par_mod.o
 mean_mod.o: par_mod.o
 netcdf_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
 	unc_mod.o particle_mod.o
-obukhov.o: par_mod.o
 oh_mod.o: com_mod.o par_mod.o particle_mod.o 
 openouttraj.o: com_mod.o par_mod.o point_mod.o
 openreceptors.o: com_mod.o par_mod.o
