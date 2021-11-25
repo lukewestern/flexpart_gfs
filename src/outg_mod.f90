@@ -68,6 +68,7 @@ subroutine outgrid_init
   use unc_mod
   use par_mod
   use com_mod
+  use windfields_mod
 
   implicit none
 
@@ -393,6 +394,7 @@ subroutine outgrid_init_nest
   use unc_mod
   use par_mod
   use com_mod
+  use windfields_mod
 
   implicit none
 

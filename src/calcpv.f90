@@ -23,6 +23,7 @@ subroutine calcpv(n,uuh,vvh,pvh)
 
   use par_mod
   use com_mod
+  use windfields_mod
 
   implicit none
 
@@ -341,7 +342,8 @@ subroutine calcpv_nests(l,n,uuhn,vvhn,pvhn)
 
   use par_mod
   use com_mod
-
+  use windfields_mod
+  
   implicit none
 
   integer :: n,ix,jy,i,j,k,kl,ii,jj,klvrp,klvrm,klpt,kup,kdn,kch

@@ -171,6 +171,7 @@ program flexpart
   ! both for the mother domain and eventual nests
   !**********************************************
   call gridcheck_ecmwf
+  call set_upperlevel_convect
   call gridcheck_nests
 
   ! Read the output grid specifications if requested by user

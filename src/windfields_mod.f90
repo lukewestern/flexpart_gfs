@@ -7,6 +7,90 @@ module windfields_mod
 
 	implicit none
 
+  ! Fixed fields, unchangeable with time
+  !*************************************
+
+  real :: oro(0:nxmax-1,0:nymax-1)   ! orography of the ECMWF model
+  real :: excessoro(0:nxmax-1,0:nymax-1)   ! excess orography mother domain
+  real :: lsm(0:nxmax-1,0:nymax-1)   ! land sea mask of the ECMWF model
+  real :: xlanduse(0:nxmax-1,0:nymax-1,numclass)   ! area fractions in percent [0-1]
+
+  ! 3d fields
+  !**********
+  real :: uueta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: vveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: uupoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: vvpoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: wweta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: tteta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: qveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: pveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: rhoeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: drhodzeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: tvirtual(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+
+  ! uu,vv,ww [m/2]       wind components in x,y and z direction
+  real :: uu(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: vv(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  ! uupol,vvpol [m/s]    wind components in polar stereographic projection
+  real :: uupol(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: vvpol(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: ww(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: tt(0:nxmax-1,0:nymax-1,nzmax,numwfmem) ! temperature data [K]
+  real :: qv(0:nxmax-1,0:nymax-1,nzmax,numwfmem) ! specific humidity data
+
+  ! ZHG adding cloud water 
+  real :: clwc(0:nxmax-1,0:nymax-1,nzmax,numwfmem)=0.0 !liquid   [kg/kg]
+  real :: ciwc(0:nxmax-1,0:nymax-1,nzmax,numwfmem)=0.0 !ice      [kg/kg]
+  real :: clw(0:nxmax-1,0:nymax-1,nzmax,numwfmem)=0.0  !combined [m3/m3]
+  ! RLT add pressure and dry air density
+  real :: prs(0:nxmax-1,0:nymax-1,nzmax,numwfmem) ! air pressure
+  real :: rho_dry(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  real :: pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem) ! potential vorticity
+  real :: rho(0:nxmax-1,0:nymax-1,nzmax,numwfmem) ! air density [kg/m3]
+  real :: drhodz(0:nxmax-1,0:nymax-1,nzmax,numwfmem) ! vertical air density gradient [kg/m2]
+  ! tth,qvh              tth,qvh on original eta levels
+  real :: tth(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem)
+  real :: qvh(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem)
+  real :: clwch(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem)=0.0
+  real :: ciwch(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem)=0.0
+
+  real :: pplev(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem)
+  real :: ctwc(0:nxmax-1,0:nymax-1,numwfmem) ! ESO: =icloud_stats(:,:,4,:) total cloud water content
+  
+  ! clouds:   no cloud, no precipitation   0
+  !      cloud, no precipitation      1
+  !      rainout  conv/lsp dominated  2/3
+  !      washout  conv/lsp dominated  4/5
+  ! PS 2013
+  !c icloudbot (m)        cloud bottom height
+  !c icloudthck (m)       cloud thickness     
+
+  !scavenging NIK, PS
+  integer(kind=1) :: clouds(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
+  integer :: cloudsh(0:nxmax-1,0:nymax-1,numwfmem)
+
+  ! 2d fields
+  !**********
+  real :: ps(0:nxmax-1,0:nymax-1,1,numwfmem)   ! surface pressure
+  real :: sd(0:nxmax-1,0:nymax-1,1,numwfmem)   ! snow depth
+  real :: msl(0:nxmax-1,0:nymax-1,1,numwfmem)   ! mean sea level pressure
+  real :: tcc(0:nxmax-1,0:nymax-1,1,numwfmem)   ! total cloud cover
+  real :: u10(0:nxmax-1,0:nymax-1,1,numwfmem)   ! 10 meter u
+  real :: v10(0:nxmax-1,0:nymax-1,1,numwfmem)   ! 10 meter v
+  real :: tt2(0:nxmax-1,0:nymax-1,1,numwfmem)   ! 2 meter temperature
+  real :: td2(0:nxmax-1,0:nymax-1,1,numwfmem)   ! 2 meter dew point
+  real :: lsprec(0:nxmax-1,0:nymax-1,1,numwfmem)   ! large scale total precipitation [mm/h]
+  real :: convprec(0:nxmax-1,0:nymax-1,1,numwfmem)   ! convective precipitation [mm/h]
+  real :: sshf(0:nxmax-1,0:nymax-1,1,numwfmem)   ! surface sensible heat flux
+  real :: ssr(0:nxmax-1,0:nymax-1,1,numwfmem)   ! surface solar radiation
+  real :: surfstr(0:nxmax-1,0:nymax-1,1,numwfmem)   ! surface stress
+  real :: ustar(0:nxmax-1,0:nymax-1,1,numwfmem)   ! friction velocity [m/s]
+  real :: wstar(0:nxmax-1,0:nymax-1,1,numwfmem)   ! convective velocity scale [m/s]
+  real :: hmix(0:nxmax-1,0:nymax-1,1,numwfmem)   ! mixing height [m]
+  real :: tropopause(0:nxmax-1,0:nymax-1,1,numwfmem)   ! altitude of thermal tropopause [m]
+  real :: oli(0:nxmax-1,0:nymax-1,1,numwfmem)   ! inverse Obukhov length (1/L) [m]
+
 contains
 
 subroutine gridcheck_ecmwf
@@ -63,7 +147,6 @@ subroutine gridcheck_ecmwf
   !**********************************************************************
 
   use grib_api
-  use conv_mod
   use cmapf_mod, only: stlmbr,stcm2p
 
   implicit none
@@ -78,7 +161,7 @@ subroutine gridcheck_ecmwf
   integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl,parId
   !HSO  end
   integer :: ix,jy,i,ifn,ifield,j,k,iumax,iwmax,numskip
-  real :: sizesouth,sizenorth,xauxa,pint,conversion_factor
+  real :: sizesouth,sizenorth,xauxa,conversion_factor
 
   ! VARIABLES AND ARRAYS NEEDED FOR GRIB DECODING
 
@@ -536,23 +619,6 @@ subroutine gridcheck_ecmwf
   !  aknew(2*(i-1))=akz(i)
   !10     bknew(2*(i-1))=bkz(i)
   ! End doubled vertical resolution
-
-
-  ! Determine the uppermost level for which the convection scheme shall be applied
-  ! by assuming that there is no convection above 50 hPa (for standard SLP)
-  !*****************************************************************************
-
-  do i=1,nuvz-2
-    pint=akz(i)+bkz(i)*101325.
-    if (pint.lt.5000.) goto 96
-  end do
-96 nconvlev=i
-  if (nconvlev.gt.nconvlevmax-1) then
-    nconvlev=nconvlevmax-1
-    write(*,*) 'Attention, convection only calculated up to ', &
-         akz(nconvlev)+bkz(nconvlev)*1013.25,' hPa'
-  endif
-
   return
 
 999 write(*,*)
@@ -631,7 +697,6 @@ subroutine gridcheck_gfs
   !**********************************************************************
 
   use grib_api
-  use conv_mod
   use cmapf_mod, only: stlmbr,stcm2p
 
   implicit none
@@ -1059,23 +1124,6 @@ subroutine gridcheck_gfs
   !  aknew(2*(i-1))=akz(i)
   !10     bknew(2*(i-1))=bkz(i)
   ! End doubled vertical resolution
-
-
-  ! Determine the uppermost level for which the convection scheme shall be applied
-  ! by assuming that there is no convection above 50 hPa (for standard SLP)
-  !*****************************************************************************
-
-  do i=1,nuvz-2
-    pint=akz(i)+bkz(i)*101325.
-    if (pint.lt.5000.) goto 96
-  end do
-96   nconvlev=i
-  if (nconvlev.gt.nconvlevmax-1) then
-    nconvlev=nconvlevmax-1
-    write(*,*) 'Attention, convection only calculated up to ', &
-         akz(nconvlev)+bkz(nconvlev)*1013.25,' hPa'
-  endif
-
   return
 
 999   write(*,*)
@@ -1597,7 +1645,6 @@ subroutine getfields(itime,nstop,metdata_format)
   !*****************************************************************************
 
   use class_gribfile
-  use txt_output_mod
 
   implicit none
 
@@ -5609,5 +5656,66 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
 
   end do ! end loop over nests
 end subroutine verttransform_nests
+
+subroutine writeprecip(itime,imem)
+
+  !*****************************************************************************
+  !                                                                            *
+  !  This routine produces a file containing total precipitation for each      *
+  !  releases point.                                                           *
+  !                                                                            *
+  !     Author: S. Eckhardt                                                    * 
+  !     7 Mai 2017                                                             *
+  !*****************************************************************************
+
+  use point_mod
+  use par_mod
+  use com_mod
+
+  implicit none
+
+  integer :: jjjjmmdd,ihmmss,itime,i
+  real(kind=dp) :: jul
+  character :: adate*8,atime*6
+
+  integer :: ix,jy,imem
+  real :: xp1,yp1
+
+  
+  if (itime.eq.0) then
+      open(unitprecip,file=path(2)(1:length(2))//'wetscav_precip.txt', &
+       form='formatted',err=998)
+  else
+      open(unitprecip,file=path(2)(1:length(2))//'wetscav_precip.txt', &
+       ACCESS='APPEND',form='formatted',err=998)
+  endif
+
+  jul=bdate+real(itime,kind=dp)/86400._dp
+  call caldate(jul,jjjjmmdd,ihmmss)
+  write(adate,'(i8.8)') jjjjmmdd
+  write(atime,'(i6.6)') ihmmss
+
+  do i=1,numpoint
+    xp1=xpoint1(i)*dx+xlon0 !lat, long (real) coord
+    yp1=ypoint1(i)*dy+ylat0 !lat, long (real) coord
+    ix=int((xpoint1(i)+xpoint2(i))/2.)
+    jy=int((ypoint1(i)+ypoint2(i))/2.)
+    write(unitprecip,*)  jjjjmmdd, ihmmss, & 
+           xp1,yp1,lsprec(ix,jy,1,imem),convprec(ix,jy,1,imem) !time is the same as in the ECMWF windfield
+! units mm/h, valid for the time given in the windfield
+  end do
+
+  close(unitprecip)
+
+  return
+
+
+998   write(*,*) ' #### FLEXPART MODEL ERROR!   THE FILE         #### '
+  write(*,*) ' #### '//path(2)(1:length(2))//'header_txt'//' #### '
+  write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS    #### '
+  write(*,*) ' #### NAME ALREADY EXISTS, DELETE IT AND START #### '
+  write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
+  stop
+end subroutine writeprecip
 
 end module windfields_mod

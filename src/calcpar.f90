@@ -51,6 +51,7 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
   use com_mod
   use class_gribfile
   use drydepo_mod
+  use windfields_mod
 
   implicit none
 

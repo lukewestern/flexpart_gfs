@@ -30,6 +30,7 @@ subroutine init_domainfill
   use point_mod
   use par_mod
   use com_mod
+  use windfields_mod
   use random_mod
   use interpol_mod
   use coordinates_ecmwf

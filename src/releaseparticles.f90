@@ -31,6 +31,7 @@ subroutine releaseparticles(itime)
   use xmass_mod
   use par_mod
   use com_mod
+  use windfields_mod
   use random_mod, only: ran1
   use interpol_mod
   use coordinates_ecmwf

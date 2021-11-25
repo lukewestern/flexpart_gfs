@@ -48,6 +48,7 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
 
   use par_mod
   use com_mod
+  use windfields_mod
   use interpol_mod
   use turbulence_mod
   use random_mod, only: ran3

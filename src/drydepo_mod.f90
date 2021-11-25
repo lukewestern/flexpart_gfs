@@ -2,7 +2,8 @@ module drydepo_mod
   use unc_mod
   use par_mod
   use com_mod
-
+  use windfields_mod
+  
   implicit none
 
 contains

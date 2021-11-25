@@ -176,6 +176,7 @@ subroutine ohreaction(itime,ltsample,loutnext)
   !*****************************************************************************
   use par_mod
   use com_mod
+  use windfields_mod
   use particle_mod
 
   implicit none

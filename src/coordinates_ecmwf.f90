@@ -4,6 +4,7 @@ module coordinates_ecmwf
 
   use par_mod
   use com_mod
+  use windfields_mod
 
 contains
 

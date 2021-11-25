@@ -50,13 +50,14 @@ module netcdf_output_mod
                        reldiff,henry,f0,density,dquer,dsigma,dryvel,&
                        weightmolar,ohcconst,ohdconst,vsetaver,&
                        ! for concoutput_netcdf and concoutput_nest_netcdf
-                       nxmin1,nymin1,nz,oro,oron,rho,rhon,&
+                       nxmin1,nymin1,nz,oron,rhon,&
                        memind,xresoln,yresoln,xrn, xln, yrn,yln,nxn,nyn,&
                        xreceptor,yreceptor,numreceptor,creceptor,iout, &
                        itsplit, lsynctime, ctl, ifine, lagespectra, ipin, &
                        ioutputforeachrelease, iflux, mdomainfill, mquasilag, & 
                        nested_output, ipout, surf_only, linit_cond, &
                        flexversion,mpi_mode,DRYBKDEP,WETBKDEP,numpart,numpoint
+  use windfields_mod, only: oro,rho
 
   use mean_mod
 

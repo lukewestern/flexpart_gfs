@@ -38,6 +38,29 @@ module conv_mod
 
 contains
 
+subroutine set_upperlevel_convect()
+  ! Determine the uppermost level for which the convection scheme shall be applied
+  ! by assuming that there is no convection above 50 hPa (for standard SLP)
+  !*****************************************************************************  
+  use com_mod
+
+  implicit none
+
+  integer :: i
+  real :: pint
+
+  do i=1,nuvz-2
+    pint=akz(i)+bkz(i)*101325.
+    if (pint.lt.5000.) exit
+  end do
+  nconvlev=i
+  if (nconvlev.gt.nconvlevmax-1) then
+    nconvlev=nconvlevmax-1
+    write(*,*) 'Attention, convection only calculated up to ', &
+         akz(nconvlev)+bkz(nconvlev)*1013.25,' hPa'
+  endif  
+end subroutine set_upperlevel_convect
+
 subroutine convmix(itime,metdata_format)
   !                     i
   !**************************************************************
@@ -64,6 +87,7 @@ subroutine convmix(itime,metdata_format)
   use flux_mod
   use par_mod
   use com_mod
+  use windfields_mod
   use class_gribfile
   use particle_mod
 

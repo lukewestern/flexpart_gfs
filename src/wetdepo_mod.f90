@@ -201,6 +201,7 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   !*****************************************************************************
 
   use interpol_mod, only: interpol_rain, interpol_rain_nests
+  use windfields_mod
   use coordinates_ecmwf
 
   implicit none

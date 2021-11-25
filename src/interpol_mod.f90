@@ -4,6 +4,7 @@ module interpol_mod
 
   use par_mod
   use com_mod
+  use windfields_mod
   use particle_mod
 
   implicit none
