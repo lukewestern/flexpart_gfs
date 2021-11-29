@@ -35,4 +35,56 @@ module unc_mod
 
   real,allocatable, dimension (:,:,:,:,:) :: init_cond
 
+contains
+
+subroutine radioactive_decay()
+  ! Accumulated deposited mass radioactively decays
+  use com_mod
+
+  implicit none
+
+  integer ::                &
+    j,i,                    & ! loop variable over grid
+    ks,                     & ! loop variable species
+    kp,                     & ! loop variable for maxpointspec_act
+    l,                      & ! loop variable over nclassunc
+    nage,                   & ! loop variable over age classes
+    n                         ! loop variable over particles
+
+  do ks=1,nspec
+  do kp=1,maxpointspec_act
+    if (decay(ks).gt.0.) then
+      do nage=1,nageclass
+        do l=1,nclassunc
+  ! Mother output grid
+          do j=0,numygrid-1
+            do i=0,numxgrid-1
+              wetgridunc(i,j,ks,kp,l,nage)= &
+                   wetgridunc(i,j,ks,kp,l,nage)* &
+                   exp(-1.*outstep*decay(ks))
+              drygridunc(i,j,ks,kp,l,nage)= &
+                   drygridunc(i,j,ks,kp,l,nage)* &
+                   exp(-1.*outstep*decay(ks))
+            end do
+          end do
+  ! Nested output grid
+          if (nested_output.eq.1) then
+            do j=0,numygridn-1
+              do i=0,numxgridn-1
+                wetgriduncn(i,j,ks,kp,l,nage)= &
+                     wetgriduncn(i,j,ks,kp,l,nage)* &
+                     exp(-1.*outstep*decay(ks))
+                drygriduncn(i,j,ks,kp,l,nage)= &
+                     drygriduncn(i,j,ks,kp,l,nage)* &
+                     exp(-1.*outstep*decay(ks))
+              end do
+            end do
+          endif
+        end do
+      end do
+    endif
+  end do
+  end do
+end subroutine radioactive_decay
+
 end module unc_mod

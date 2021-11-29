@@ -50,6 +50,33 @@ real function raerod (l,ust,z0)
 
 end function raerod
 
+subroutine drydepo_massloss(ipart,ks,ldeltat,drydepopart)
+  use particle_mod
+  use com_mod
+
+  implicit none
+
+  integer,intent(in) ::  &
+    ipart,               & ! particle index
+    ks,                  & ! species index
+    ldeltat                ! radioactive decay time
+  real,intent(inout) ::  &
+    drydepopart            ! drydeposit for particle ipart
+  real               ::  &
+    decfact                ! radioactive decay factor
+
+  if (decay(ks).gt.0.) then             ! radioactive decay
+    decfact=exp(-real(abs(lsynctime))*decay(ks))
+  else
+    decfact=1.
+  endif
+  drydepopart=part(ipart)%mass(ks)*part(ipart)%prob(ks)*decfact
+  part(ipart)%mass(ks)=part(ipart)%mass(ks)*(1.-part(ipart)%prob(ks))*decfact
+  if (decay(ks).gt.0.) then   ! correct for decay (see wetdepo)
+    drydepopart=drydepopart*exp(real(abs(ldeltat))*decay(ks))
+  endif  
+end subroutine drydepo_massloss
+
 subroutine drydepokernel(nunc,deposit,x,y,nage,kp)
   !                          i      i    i i  i
   !*****************************************************************************

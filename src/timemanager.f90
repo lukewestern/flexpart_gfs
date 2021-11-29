@@ -261,43 +261,7 @@ subroutine timemanager(metdata_format)
   ! If middle of averaging period of output fields is reached, accumulated
   ! deposited mass radioactively decays
   !***********************************************************************
-  ! This should go in a subroutine
-    if (DEP.and.(itime.eq.loutnext).and.(ldirect.gt.0)) then
-      do ks=1,nspec
-      do kp=1,maxpointspec_act
-        if (decay(ks).gt.0.) then
-          do nage=1,nageclass
-            do l=1,nclassunc
-  ! Mother output grid
-              do jy=0,numygrid-1
-                do ix=0,numxgrid-1
-                  wetgridunc(ix,jy,ks,kp,l,nage)= &
-                       wetgridunc(ix,jy,ks,kp,l,nage)* &
-                       exp(-1.*outstep*decay(ks))
-                  drygridunc(ix,jy,ks,kp,l,nage)= &
-                       drygridunc(ix,jy,ks,kp,l,nage)* &
-                       exp(-1.*outstep*decay(ks))
-                end do
-              end do
-  ! Nested output grid
-              if (nested_output.eq.1) then
-                do jy=0,numygridn-1
-                  do ix=0,numxgridn-1
-                    wetgriduncn(ix,jy,ks,kp,l,nage)= &
-                         wetgriduncn(ix,jy,ks,kp,l,nage)* &
-                         exp(-1.*outstep*decay(ks))
-                    drygriduncn(ix,jy,ks,kp,l,nage)= &
-                         drygriduncn(ix,jy,ks,kp,l,nage)* &
-                         exp(-1.*outstep*decay(ks))
-                  end do
-                end do
-              endif
-            end do
-          end do
-        endif
-      end do
-      end do
-    endif
+    if (DEP.and.(itime.eq.loutnext).and.(ldirect.gt.0)) call radioactive_decay()
 
   ! Check whether concentrations are to be calculated
   !**************************************************
@@ -535,28 +499,17 @@ endif
 
         xmassfract=0.
         do ks=1,nspec
-          if (decay(ks).gt.0.) then             ! radioactive decay
-            decfact=exp(-real(abs(lsynctime))*decay(ks))
-          else
-            decfact=1.
-          endif
-
           if (DRYDEPSPEC(ks)) then        ! dry deposition
-            drydeposit(ks)=part(j)%mass(ks)*part(j)%prob(ks)*decfact
-            part(j)%mass(ks)=part(j)%mass(ks)*(1.-part(j)%prob(ks))*decfact
-            if (decay(ks).gt.0.) then   ! correct for decay (see wetdepo)
-              drydeposit(ks)=drydeposit(ks)* &
-                   exp(real(abs(ldeltat))*decay(ks))
-            endif
-          else                           ! no dry deposition
-            part(j)%mass(ks)=part(j)%mass(ks)*decfact
+            call drydepo_massloss(j,ks,ldeltat,drydeposit(ks))
+          else if (decay(ks).gt.0.) then  ! no dry deposition, but radioactive decay
+            part(j)%mass(ks)=part(j)%mass(ks)*exp(-real(abs(lsynctime))*decay(ks))
           endif
 
   ! Skip check on mass fraction when npoint represents particle number
           if (mdomainfill.eq.0.and.mquasilag.eq.0) then
             if (xmass(part(j)%npoint,ks).gt.0.) then
-                 xmassfract=max(xmassfract,real(npart(part(j)%npoint))* &
-                 part(j)%mass(ks)/xmass(part(j)%npoint,ks))
+              xmassfract=max(xmassfract,real(npart(part(j)%npoint))* &
+                part(j)%mass(ks)/xmass(part(j)%npoint,ks))
             endif
 
           else
