@@ -9,7 +9,7 @@
 
 module unc_mod
 
-  use par_mod, only:dep_prec
+  use par_mod, only:dep_prec,nclassunc
 
   implicit none
 
