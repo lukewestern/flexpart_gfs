@@ -76,8 +76,7 @@ subroutine timemanager(metdata_format)
   use par_mod
   use com_mod
 #ifdef USE_NCF
-  use netcdf_output_mod, only: concoutput_netcdf,concoutput_nest_netcdf,&
-       &concoutput_surf_netcdf,concoutput_surf_nest_netcdf,writeheader_partoutput,&
+  use netcdf_output_mod, only: writeheader_partoutput,&
        create_particles_initialoutput
 #endif
   use binary_output_mod
@@ -263,101 +262,17 @@ subroutine timemanager(metdata_format)
   !***********************************************************************
     if (DEP.and.(itime.eq.loutnext).and.(ldirect.gt.0)) call radioactive_decay()
 
-  ! Check whether concentrations are to be calculated
-  !**************************************************
-  ! Put all of the concentration stuff in a subroutine
-    if ((ldirect*itime.ge.ldirect*loutstart).and. &
-         (ldirect*itime.le.ldirect*loutend)) then ! add to grid
-      if (mod(itime-loutstart,loutsample).eq.0) then
 
-  ! If we are exactly at the start or end of the concentration averaging interval,
-  ! give only half the weight to this sample
-  !*****************************************************************************
+  ! Is the time within the computation interval, if not, skip
+  !************************************************************
+    if ((ldirect*itime.ge.ldirect*loutstart).and.(ldirect*itime.le.ldirect*loutend)) then
+      ! If it is not time yet to write outputs, skip
+      !***********************************************
+      if ((itime.eq.loutend).and.(outnum.le.0)) then
 
-        if ((itime.eq.loutstart).or.(itime.eq.loutend)) then
-          weight=0.5
-        else
-          weight=1.0
-        endif
-        outnum=outnum+weight
-        call conccalc(itime,weight)
-      endif
-
-  ! Output and reinitialization of grid
-  ! If necessary, first sample of new grid is also taken
-  !*****************************************************
-
-      if ((itime.eq.loutend).and.(outnum.gt.0.)) then
-if (grid_output.eq.1) then
-        if ((iout.le.3.).or.(iout.eq.5)) then
-          if (surf_only.ne.1) then 
-            if (lnetcdfout.eq.1) then 
-#ifdef USE_NCF
-              call concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-#endif
-            else 
-              call concoutput(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-            endif
-          else  
-            if (verbosity.eq.1) then
-              print*,'call concoutput_surf '
-              call system_clock(count_clock)
-              write(*,*) 'system clock',count_clock - count_clock0   
-            endif
-            if (lnetcdfout.eq.1) then
-#ifdef USE_NCF
-              call concoutput_surf_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-#endif
-            else
-              if (linversionout.eq.1) then
-                call concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-                if (verbosity.eq.1) then
-                  print*,'called concoutput_inversion'
-                  call system_clock(count_clock)
-                  write(*,*) 'system clock',count_clock - count_clock0 
-                endif
-              else
-                call concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-              endif
-              if (verbosity.eq.1) then
-                print*,'called concoutput_surf '
-                call system_clock(count_clock)
-                write(*,*) 'system clock',count_clock - count_clock0   
-              endif
-            endif
-          endif
-
-          if (nested_output .eq. 1) then
-            if (lnetcdfout.eq.0) then
-              if (surf_only.ne.1) then
-                call concoutput_nest(itime,outnum)
-              else 
-                if(linversionout.eq.1) then
-                  call concoutput_inversion_nest(itime,outnum)
-                else 
-                call concoutput_surf_nest(itime,outnum)
-              endif
-              endif
-            else
-#ifdef USE_NCF
-              if (surf_only.ne.1) then
-                call concoutput_nest_netcdf(itime,outnum)
-              else 
-                call concoutput_surf_nest_netcdf(itime,outnum)
-              endif
-#endif
-            endif
-          endif
-          outnum=0.
-        endif
-endif
         if ((iout.eq.4).or.(iout.eq.5)) call plumetraj(itime)
         if (iflux.eq.1) call fluxoutput(itime)
-        write(*,45) itime,numpart,gridtotalunc,wetgridtotalunc,drygridtotalunc
- 
 
-45      format(i13,' Seconds simulated: ',i13, ' Particles:    Uncertainty: ',3f7.3)
-46      format(' Simulated ',f7.1,' hours (',i13,' s), ',i13, ' particles')
         if (ipout.ge.1) then
           if (mod(itime,ipoutfac*loutstep).eq.0) then
             call SYSTEM_CLOCK(count_clock, count_rate, count_max)
@@ -367,18 +282,11 @@ endif
             s_writepart = s_writepart + ((count_clock - count_clock0)/real(count_rate)-s_temp)
           endif
         endif
-        loutnext=loutnext+loutstep
-        loutstart=loutnext-loutaver/2
-        loutend=loutnext+loutaver/2
-        if (itime.eq.loutstart) then
-          weight=0.5
-          outnum=outnum+weight
-          call conccalc(itime,weight)
-        endif
-
       endif
+      ! Check whether concentrations are to be calculated and outputted
+      !****************************************************************
+      call timemanager_concentration_output(itime,loutstart,loutend,loutsample)
     endif
-
 
     if (itime.eq.ideltas) exit         ! almost finished
 
@@ -617,3 +525,106 @@ endif
 
 end subroutine timemanager
 
+subroutine timemanager_concentrations(itime,loutstart,loutend,outnum)
+  use unc_mod
+  use par_mod
+  use com_mod
+#ifdef USE_NCF
+  use netcdf_output_mod, only: concoutput_netcdf,concoutput_nest_netcdf,&
+       &concoutput_surf_netcdf,concoutput_surf_nest_netcdf
+#endif
+  use binary_output_mod 
+
+  implicit none
+
+  integer,intent(in) ::     &
+    itime,                  & ! time index
+    loutstart,loutend         ! concentration calculation starting and ending time
+  real,intent(inout) ::     &
+    outnum,                 & ! concentration calculation sample number
+    weight                    ! concentration calculation sample weight
+
+
+  ! Is the time within the computation interval, if not, return
+  !************************************************************
+  if ((ldirect*itime.lt.ldirect*loutstart).or.(ldirect*itime.gt.ldirect*loutend)) then
+    return
+  endif
+
+  ! If we are exactly at the start or end of the concentration averaging interval,
+  ! give only half the weight to this sample
+  !*****************************************************************************
+  if (mod(itime-loutstart,loutsample).eq.0) then
+    if ((itime.eq.loutstart).or.(itime.eq.loutend)) then
+      weight=0.5
+    else
+      weight=1.0
+    endif
+    outnum=outnum+weight
+    call conccalc(itime,weight)
+  endif
+
+  ! If it is not time yet to write outputs, return
+  !***********************************************
+  if ((itime.ne.loutend).or.(outnum.le.0)) then
+    return
+  endif
+
+  ! Output and reinitialization of grid
+  ! If necessary, first sample of new grid is also taken
+  !*****************************************************
+  if ((iout.le.3.).or.(iout.eq.5)) then
+    if (surf_only.ne.1) then 
+#ifdef USE_NCF
+      call concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+#else
+      call concoutput(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+#endif
+    else
+#ifdef USE_NCF
+      call concoutput_surf_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+#else
+      if (linversionout.eq.1) then
+        call concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+      else
+        call concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+      endif
+#endif
+    endif
+
+    if (nested_output .eq. 1) then
+#ifdef USE_NCF
+      if (surf_only.ne.1) then
+        call concoutput_nest_netcdf(itime,outnum)
+      else 
+        call concoutput_surf_nest_netcdf(itime,outnum)
+      endif
+#else
+      if (surf_only.ne.1) then
+        call concoutput_nest(itime,outnum)
+      else 
+        if(linversionout.eq.1) then
+          call concoutput_inversion_nest(itime,outnum)
+        else 
+          call concoutput_surf_nest(itime,outnum)
+        endif
+      endif
+#endif
+    endif
+    outnum=0.
+  endif
+
+  write(*,45) itime,numpart,gridtotalunc,wetgridtotalunc,drygridtotalunc
+
+45      format(i13,' Seconds simulated: ',i13, ' Particles:    Uncertainty: ',3f7.3)
+46      format(' Simulated ',f7.1,' hours (',i13,' s), ',i13, ' particles')
+
+  loutnext=loutnext+loutstep
+  loutstart=loutnext-loutaver/2
+  loutend=loutnext+loutaver/2
+  if (itime.eq.loutstart) then
+    weight=0.5
+    outnum=outnum+weight
+    call conccalc(itime,weight)
+  endif
+end subroutine timemanager_concentrations

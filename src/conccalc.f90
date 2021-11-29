@@ -37,9 +37,11 @@ subroutine conccalc(itime,weight)
 
   implicit none
 
-  integer :: itime,itage,i,kz,ks,n,nage
+  integer,intent(in) :: itime
+  real,intent(in) :: weight
+  integer :: itage,i,kz,ks,n,nage
   integer :: il,ind,indz,indzp,nrelpointer
-  real :: weight,hx,hy,hz,h,xd,yd,zd,xkern,r2,c(maxspec)
+  real :: hx,hy,hz,h,xd,yd,zd,xkern,r2,c(maxspec)
   real :: rhoi
   real :: xl,yl,wx,wy,w
   real,parameter :: factor=.596831, hxmax=6.0, hymax=4.0, hzmax=150.
