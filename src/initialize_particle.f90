@@ -1,8 +1,7 @@
 ! SPDX-FileCopyrightText: FLEXPART 1998-2019, see flexpart_license.txt
 ! SPDX-License-Identifier: GPL-3.0-or-later
 
-subroutine initialize_particle(itime,ldt,up,vp,wp, &
-       usigold,vsigold,wsigold,xt,yt,zt,zteta,icbt)
+subroutine initialize_particle(itime,ipart)
   !                        i    i   o  o  o
   !        o       o       o    i  i  i   o
   !*****************************************************************************
@@ -32,9 +31,7 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
   ! ldt [s]            Suggested time step for next integration                *
   ! ladvance [s]       Total integration time period                           *
   ! rannumb(maxrand)   normally distributed random variables                   *
-  ! up,vp,wp           random velocities due to turbulence                     *
   ! usig,vsig,wsig     uncertainties of wind velocities due to interpolation   *
-  ! usigold,vsigold,wsigold  like usig, etc., but for the last time step       *
   ! xt,yt,zt           Next time step's spatial position of trajectory         *
   !                                                                            *
   !                                                                            *
@@ -60,17 +57,18 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
 
   implicit none
 
-  integer :: itime,i,j,k,m,indexh
-  integer :: ldt,nrand
-  integer(kind=2), intent(inout) :: icbt
-  real :: dz,dz1,dz2,up,vp,wp,usigold,vsigold,wsigold
+  integer,intent(in) ::  &
+    itime,               &
+    ipart
+  integer :: i,j,k,m,indexh
+  integer :: nrand
+  real :: dz,dz1,dz2,wp
   real :: ttemp,dummy1,dummy2
-  real(kind=dp) :: xt,yt,zt,zteta
+  real :: xt,yt,zt,zteta
   integer :: thread
   save idummy
 
   integer :: idummy = -7
-
 
 !$OMP THREADPRIVATE(idummy)
 !$    if (idummy.eq.-7) then
@@ -78,11 +76,14 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
 !$      idummy = idummy - thread
 !$    endif 
 
-  icbt=1           ! initialize particle to no "reflection"
+  part(ipart)%icbt=1           ! initialize particle to no "reflection"
 
   nrand=int(ran3(idummy)*real(maxrand-1))+1
 
-
+  xt = real(part(ipart)%xlon)
+  yt = real(part(ipart)%ylat)
+  zt = real(part(ipart)%z)
+  zteta = real(part(ipart)%zeta)
 
   !******************************
   ! 2. Interpolate necessary data
@@ -90,7 +91,7 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
 
   ! Compute maximum mixing height around particle position
   !*******************************************************
-  call determine_grid_coordinates(real(xt),real(yt))
+  call determine_grid_coordinates(xt,yt)
   
   h=max(hmix(ix ,jy,1,memind(1)), &
        hmix(ixp,jy ,1,memind(1)), &
@@ -101,7 +102,7 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
        hmix(ix ,jyp,1,memind(2)), &
        hmix(ixp,jyp,1,memind(2)))
 
-  zeta=real(zt)/h
+  zeta=zt/h
 
 
   !*************************************************************
@@ -111,7 +112,7 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
 
   if (zeta.le.1.) then
 
-    call interpol_all(itime,real(xt),real(yt),real(zt),real(zteta))
+    call interpol_all(itime,xt,yt,zt,zteta)
 
   ! Vertical interpolation of u,v,w,rho and drhodz
   !***********************************************
@@ -119,7 +120,7 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
   ! Vertical distance to the level below and above current position
   ! both in terms of (u,v) and (w) fields
   !****************************************************************
-    call interpol_mixinglayer(real(zt),real(zteta),dummy1,dummy2)
+    call interpol_mixinglayer(zt,zteta,dummy1,dummy2)
 
   ! Compute the turbulent disturbances
 
@@ -127,9 +128,9 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
   !****************************************
 
     if (turbswitch) then
-      call hanna(real(zt))
+      call hanna(zt)
     else
-      call hanna1(real(zt))
+      call hanna1(zt)
     endif
 
 
@@ -137,18 +138,18 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
   !*****************************************
 
     if (nrand+2.gt.maxrand) nrand=1
-    up=rannumb(nrand)*sigu
-    vp=rannumb(nrand+1)*sigv
-    wp=rannumb(nrand+2)
+    part(ipart)%turbvel%u=rannumb(nrand)*sigu
+    part(ipart)%turbvel%v=rannumb(nrand+1)*sigv
+    part(ipart)%turbvel%w=rannumb(nrand+2)
     if (.not.turbswitch) then     ! modified by mc
-      wp=wp*sigw
+      part(ipart)%turbvel%w=part(ipart)%turbvel%w*sigw
     else if (cblflag.eq.1) then   ! modified by mc
       if(-h/ol.gt.5) then
 !if (ol.lt.0.) then
 !if (ol.gt.0.) then !by mc : only for test correct is lt.0
-        call initialize_cbl_vel(idummy,real(zt),ust,wst,h,sigw,wp,ol)
+        call initialize_cbl_vel(idummy,zt,ust,wst,h,sigw,part(ipart)%turbvel%w,ol)
       else
-        wp=wp*sigw
+        part(ipart)%turbvel%w=part(ipart)%turbvel%w*sigw
       end if
     end if
 
@@ -157,12 +158,12 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
   !*****************************************
 
     if (turbswitch) then
-      ldt=int(min(tlw,h/max(2.*abs(wp*sigw),1.e-5), &
+      part(ipart)%idt=int(min(tlw,h/max(2.*abs(part(ipart)%turbvel%w*sigw),1.e-5), &
            0.5/abs(dsigwdz),600.)*ctl)
     else
-      ldt=int(min(tlw,h/max(2.*abs(wp),1.e-5),600.)*ctl)
+      part(ipart)%idt=int(min(tlw,h/max(2.*abs(part(ipart)%turbvel%w),1.e-5),600.)*ctl)
     endif
-    ldt=max(ldt,mintime)
+    part(ipart)%idt=max(part(ipart)%idt,mintime)
 
     call interpol_average()
     ! usig=(usigprof(indzp)+usigprof(indz))/2.
@@ -185,7 +186,7 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
   ! Interpolate the wind
   !*********************
 
-    call interpol_wind(itime,real(xt),real(yt),real(zt),real(zteta),10)
+    call interpol_wind(itime,xt,yt,zt,zteta,10)
 
 
   ! Compute everything for above the PBL
@@ -193,13 +194,13 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
   ! Assume constant turbulent perturbations
   !****************************************
 
-    ldt=abs(lsynctime)
+    part(ipart)%idt=abs(lsynctime)
 
     if (nrand+1.gt.maxrand) nrand=1
-    up=rannumb(nrand)*0.3
-    vp=rannumb(nrand+1)*0.3
+    part(ipart)%turbvel%u=rannumb(nrand)*0.3
+    part(ipart)%turbvel%v=rannumb(nrand+1)*0.3
     nrand=nrand+2
-    wp=0.
+    part(ipart)%turbvel%w=0.
     sigw=0.
 
   endif
@@ -217,15 +218,15 @@ subroutine initialize_particle(itime,ldt,up,vp,wp, &
   !****************************************************************
 
   if (nrand+2.gt.maxrand) nrand=1
-  usigold=rannumb(nrand)*usig
-  vsigold=rannumb(nrand+1)*vsig
+  part(ipart)%mesovel%u=rannumb(nrand)*usig
+  part(ipart)%mesovel%v=rannumb(nrand+1)*vsig
   select case (wind_coord_type)
     case ('ETA')
-      wsigold=rannumb(nrand+2)*wsigeta
+      part(ipart)%mesovel%w=rannumb(nrand+2)*wsigeta
     case ('METER')
-      wsigold=rannumb(nrand+2)*wsig
+      part(ipart)%mesovel%w=rannumb(nrand+2)*wsig
     case default
-      wsigold=rannumb(nrand+2)*wsig
+      part(ipart)%mesovel%w=rannumb(nrand+2)*wsig
   end select  
 
 end subroutine initialize_particle

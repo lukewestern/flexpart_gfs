@@ -56,7 +56,6 @@ subroutine timemanager(metdata_format)
   !                    in the particle loop                                    *
   ! nstop1             serves as indicator for wind fields (see getfields)     *
   ! outnum             number of samples for each concentration calculation    *
-  ! outnum             number of samples for each concentration calculation    *
   ! prob               probability of absorption at ground due to dry          *
   !                    deposition                                              *
   ! WETDEP             .true. if wet deposition is switched on                 *
@@ -121,18 +120,13 @@ subroutine timemanager(metdata_format)
 #endif
   real ::                   &
     outnum,                 & ! concentration calculation sample number
-    weight,                 & ! concentration calculation sample weight
     prob_rec(maxspec),      & ! dry deposition related
     decfact,                & ! radioactive decay factor
     wetscav,                & ! wet scavenging
     xmassfract,             & ! dry deposition related
     grfraction(3)             ! wet deposition related
-  real(sp) ::               &
-    gridtotalunc              ! concentration calculation related
   real(dep_prec) ::         &
-    drydeposit(maxspec),    & ! dry deposition related
-    wetgridtotalunc,        & ! concentration calculation related
-    drygridtotalunc           ! concentration calculation related
+    drydeposit(maxspec)       ! dry deposition related
 
   integer :: npart_alive=0
 
@@ -149,6 +143,7 @@ subroutine timemanager(metdata_format)
   !**********************************************************************
 
   write(*,46) float(itime)/3600,itime,numpart
+46      format(' Simulated ',f7.1,' hours (',i13,' s), ',i13, ' particles')
 
 #ifdef USE_NCF
   filesize=0.
@@ -285,7 +280,7 @@ subroutine timemanager(metdata_format)
       endif
       ! Check whether concentrations are to be calculated and outputted
       !****************************************************************
-      call timemanager_concentration_output(itime,loutstart,loutend,loutsample)
+      call timemanager_concentrations(itime,loutstart,loutend,loutnext,outnum)
     endif
 
     if (itime.eq.ideltas) exit         ! almost finished
@@ -331,11 +326,7 @@ subroutine timemanager(metdata_format)
   !***********************************
       if ((part(j)%tstart.eq.itime).or.(itime.eq.0)) then
         call update_zeta_to_z(itime, j)
-        call initialize_particle(itime,part(j)%idt, &
-            part(j)%turbvel%u,part(j)%turbvel%v,part(j)%turbvel%w, &
-            part(j)%mesovel%u,part(j)%mesovel%v,part(j)%mesovel%w, &
-            part(j)%xlon,part(j)%ylat,part(j)%z, &
-            part(j)%zeta,part(j)%icbt)
+        call initialize_particle(itime,j)
       endif
 
   ! Memorize particle positions
@@ -407,7 +398,7 @@ subroutine timemanager(metdata_format)
 
         xmassfract=0.
         do ks=1,nspec
-          if (DRYDEPSPEC(ks)) then        ! dry deposition
+          if (DRYDEPSPEC(ks)) then        ! dry deposition (and radioactive decay)
             call drydepo_massloss(j,ks,ldeltat,drydeposit(ks))
           else if (decay(ks).gt.0.) then  ! no dry deposition, but radioactive decay
             part(j)%mass(ks)=part(j)%mass(ks)*exp(-real(abs(lsynctime))*decay(ks))
@@ -522,11 +513,11 @@ subroutine timemanager(metdata_format)
   deallocate(outheight,outheighthalf)
   deallocate(oroout, area, volume)
   endif
-
 end subroutine timemanager
 
-subroutine timemanager_concentrations(itime,loutstart,loutend,outnum)
+subroutine timemanager_concentrations(itime,loutstart,loutend,loutnext,outnum)
   use unc_mod
+  use outg_mod
   use par_mod
   use com_mod
 #ifdef USE_NCF
@@ -538,12 +529,19 @@ subroutine timemanager_concentrations(itime,loutstart,loutend,outnum)
   implicit none
 
   integer,intent(in) ::     &
-    itime,                  & ! time index
-    loutstart,loutend         ! concentration calculation starting and ending time
+    itime                     ! time index
+  integer,intent(inout) ::  &
+    loutstart,loutend,      & ! concentration calculation starting and ending time
+    loutnext
   real,intent(inout) ::     &
-    outnum,                 & ! concentration calculation sample number
+    outnum                    ! concentration calculation sample number
+  real(sp) ::               &
+    gridtotalunc              ! concentration calculation related
+  real(dep_prec) ::         &
+    wetgridtotalunc,        & ! concentration calculation related
+    drygridtotalunc           ! concentration calculation related
+  real ::                   &
     weight                    ! concentration calculation sample weight
-
 
   ! Is the time within the computation interval, if not, return
   !************************************************************
@@ -617,7 +615,6 @@ subroutine timemanager_concentrations(itime,loutstart,loutend,outnum)
   write(*,45) itime,numpart,gridtotalunc,wetgridtotalunc,drygridtotalunc
 
 45      format(i13,' Seconds simulated: ',i13, ' Particles:    Uncertainty: ',3f7.3)
-46      format(' Simulated ',f7.1,' hours (',i13,' s), ',i13, ' particles')
 
   loutnext=loutnext+loutstep
   loutstart=loutnext-loutaver/2
