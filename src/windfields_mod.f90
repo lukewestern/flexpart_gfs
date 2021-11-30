@@ -3814,25 +3814,6 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
   real,parameter :: precmin = 0.002 ! minimum prec in mm/h for cloud diagnostics
 
   logical :: init = .true.
-  logical :: init_w = .false.
-  logical :: init_r = .false.
-
-
-  !ZHG SEP 2014 tests  
-  ! integer :: cloud_ver,cloud_min, cloud_max 
-  ! integer ::teller(5), convpteller=0, lspteller=0
-  ! real :: cloud_col_wat, cloud_water
-  !ZHG 2015 temporary variables for testing
-  ! real :: rcw(0:nxmax-1,0:nymax-1)
-  ! real :: rpc(0:nxmax-1,0:nymax-1)
-  character(len=60) :: zhgpath='/xnilu_wrk/users/sec/kleinprojekte/hertlfit/'
-  character(len=60) :: fnameH,fnameI,fnameJ
-  ! character(len=60) :: fnameA,fnameB,fnameC,fnameD,fnameE,fnameF,fnameG,fnameH
-  CHARACTER(LEN=3)  :: aspec
-  integer :: virr=0
-  !real :: tot_cloud_h
-  !real :: dbg_height(nzmax) 
-  !ZHG
 
   !*************************************************************************
   ! If verttransform is called the first time, initialize heights of the   *
@@ -3850,34 +3831,19 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
 
   if (init) then
 
-
-    if (init_r) then
-
-        open(333,file='heights.txt', &
-          form='formatted')
-        do kz=1,nuvz
-            read(333,*) height(kz)
-        end do
-        close(333)
-        write(*,*) 'height read'
-    else
-
-
   ! Search for a point with high surface pressure (i.e. not above significant topography)
   ! Then, use this point to construct a reference z profile, to be used at all times
   !*****************************************************************************
 
-    do jy=0,nymin1
+    loop1: do jy=0,nymin1
       do ix=0,nxmin1
         if (ps(ix,jy,1,n).gt.100000.) then
           ixm=ix
           jym=jy
-          goto 3
+          exit loop1
         endif
       end do
     end do
-3   continue
-
 
     tvold(ixm,jym)=tt2(ixm,jym,1,n)*(1.+0.378*ew(td2(ixm,jym,1,n),ps(ixm,jym,1,n))/ &
          ps(ixm,jym,1,n))
@@ -3901,17 +3867,6 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
       pold(ixm,jym)=pint(ixm,jym)
     end do
 
-    if (init_w) then
-        open(333,file='heights.txt', &
-          form='formatted')
-        do kz=1,nuvz
-              write(333,*) height(kz)
-        end do
-        close(333)
-    endif
-
-    endif ! init
-
   ! Determine highest levels that can be within PBL
   !************************************************
 
@@ -3926,9 +3881,6 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
   !*****************************************************
 
     init=.false.
-
-  !    dbg_height = height
-
   endif
 
 
@@ -4604,33 +4556,6 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
       end do
     end do
   endif !readclouds
-
-
-     !********* TEST ***************
-     ! WRITE OUT SOME TEST VARIABLES
-     !********* TEST ************'**
-	virr=virr+1
-	WRITE(aspec, '(i3.3)') virr
-
-	if (1.eq.2) then
-	fnameH=trim(zhgpath)//trim(aspec)//'tcwc.txt'
-	fnameI=trim(zhgpath)//trim(aspec)//'prec.txt'
-	fnameJ=trim(zhgpath)//trim(aspec)//'cloudsh.txt'
-	write(*,*) 'Writing data to file: ',fnameH
-
-	OPEN(UNIT=115, FILE=fnameH,FORM='FORMATTED',STATUS = 'UNKNOWN')
-	OPEN(UNIT=116, FILE=fnameI,FORM='FORMATTED',STATUS = 'UNKNOWN')
-	OPEN(UNIT=117, FILE=fnameJ,FORM='FORMATTED',STATUS = 'UNKNOWN')
-
-	do ix=0,nxmin1
-	write(115,*) (ctwc(ix,jy,n),jy=0,nymin1)  
-	write(116,*) (lsprec(ix,jy,1,n)+convprec(ix,jy,1,n),jy=0,nymin1)  
-	write(117,*) (cloudsh(ix,jy,n),jy=0,nymin1) 
-	end do
-	CLOSE(115)
-	CLOSE(116)
-	CLOSE(117)
-	endif
 end subroutine verttransform_ecmwf
 
 subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)

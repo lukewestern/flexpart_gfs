@@ -65,10 +65,12 @@ contains
       call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
 
       if (abs(ttemp_new-ttemp_old).gt.0.2) then
-        ztemp2=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
+        ztemp2=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/ &
+          (akz(i)+bkz(i)*psint))* &
           (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old),kind=dp)
       else
-        ztemp2=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new,kind=dp)
+        ztemp2=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/ &
+          (akz(i)+bkz(i)*psint))*ttemp_new,kind=dp)
       endif
 
       if (ztemp2.gt.zold) then
