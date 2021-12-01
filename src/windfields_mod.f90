@@ -91,6 +91,8 @@ module windfields_mod
   real :: tropopause(0:nxmax-1,0:nymax-1,1,numwfmem)   ! altitude of thermal tropopause [m]
   real :: oli(0:nxmax-1,0:nymax-1,1,numwfmem)   ! inverse Obukhov length (1/L) [m]
 
+  ! Save uv and w field heights for ETA coordinate system
+  real,dimension(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem) :: etauvheight,etawheight
 contains
 
 subroutine gridcheck_ecmwf
@@ -3795,7 +3797,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
   real,intent(in),dimension(0:nxmax-1,0:nymax-1,nuvzmax) :: uuh,vvh,pvh
   real,intent(in),dimension(0:nxmax-1,0:nymax-1,nwzmax) :: wwh
 
-  real,dimension(0:nxmax-1,0:nymax-1,nuvzmax) :: rhoh,uvzlev,wzlev
+  real,dimension(0:nxmax-1,0:nymax-1,nuvzmax) :: rhoh
   real,dimension(0:nxmax-1,0:nymax-1,nzmax) :: pinmconv
   ! RLT added pressure
   real,dimension(0:nxmax-1,0:nymax-1,nuvzmax) :: prsh
@@ -3843,7 +3845,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
           exit loop1
         endif
       end do
-    end do
+    end do loop1
 
     tvold(ixm,jym)=tt2(ixm,jym,1,n)*(1.+0.378*ew(td2(ixm,jym,1,n),ps(ixm,jym,1,n))/ &
          ps(ixm,jym,1,n))
@@ -3894,8 +3896,8 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     enddo
   enddo
   pold=ps(:,:,1,n)
-  uvzlev(:,:,1)=0.
-  wzlev(:,:,1)=0.
+  etauvheight(:,:,1,n)=0.
+  etawheight(:,:,1,n)=0.
   rhoh(:,:,1)=pold/(r_air*tvold)
   ! RLT add pressure
   prsh(:,:,1)=ps(:,:,1,n)
@@ -3912,10 +3914,10 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     rhoh(:,:,kz)=pint(:,:)/(r_air*tv)
 
     where (abs(tv-tvold).gt.0.2) 
-      uvzlev(:,:,kz)=uvzlev(:,:,kz-1)+const*log(pold/pint)* &
+      etauvheight(:,:,kz,n)=etauvheight(:,:,kz-1,n)+const*log(pold/pint)* &
            (tv-tvold)/log(tv/tvold)
     elsewhere
-      uvzlev(:,:,kz)=uvzlev(:,:,kz-1)+const*log(pold/pint)*tv
+      etauvheight(:,:,kz,n)=etauvheight(:,:,kz-1,n)+const*log(pold/pint)*tv
     endwhere
 
     tvold=tv
@@ -3924,22 +3926,22 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
 
 
   do kz=2,nwz-1
-    wzlev(:,:,kz)=(uvzlev(:,:,kz+1)+uvzlev(:,:,kz))/2.
+    etawheight(:,:,kz,n)=(etauvheight(:,:,kz+1,n)+etauvheight(:,:,kz,n))/2.
   end do
-  wzlev(:,:,nwz)=wzlev(:,:,nwz-1)+ &
-       uvzlev(:,:,nuvz)-uvzlev(:,:,nuvz-1)
+  etawheight(:,:,nwz,n)=etawheight(:,:,nwz-1,n)+ &
+       etauvheight(:,:,nuvz,n)-etauvheight(:,:,nuvz-1,n)
 
   ! pinmconv=(h2-h1)/(p2-p1)
 
-  pinmconv(:,:,1)=(uvzlev(:,:,2))/ &
+  pinmconv(:,:,1)=(etauvheight(:,:,2,n))/ &
        ((aknew(2)+bknew(2)*ps(:,:,1,n))- &
        (aknew(1)+bknew(1)*ps(:,:,1,n)))
   do kz=2,nz-1
-    pinmconv(:,:,kz)=(uvzlev(:,:,kz+1)-uvzlev(:,:,kz-1))/ &
+    pinmconv(:,:,kz)=(etauvheight(:,:,kz+1,n)-etauvheight(:,:,kz-1,n))/ &
          ((aknew(kz+1)+bknew(kz+1)*ps(:,:,1,n))- &
          (aknew(kz-1)+bknew(kz-1)*ps(:,:,1,n)))
   end do
-  pinmconv(:,:,nz)=(uvzlev(:,:,nz)-uvzlev(:,:,nz-1))/ &
+  pinmconv(:,:,nz)=(etauvheight(:,:,nz,n)-etauvheight(:,:,nz-1,n))/ &
        ((aknew(nz)+bknew(nz)*ps(:,:,1,n))- &
        (aknew(nz-1)+bknew(nz-1)*ps(:,:,1,n)))
 
@@ -3982,7 +3984,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
   do iz=2,nz-1
     do jy=0,nymin1
       do ix=0,nxmin1
-        if(height(iz).gt.uvzlev(ix,jy,nuvz)) then
+        if(height(iz).gt.etauvheight(ix,jy,nuvz,n)) then
           uu(ix,jy,iz,n)=uu(ix,jy,nz,n)
           vv(ix,jy,iz,n)=vv(ix,jy,nz,n)
           tt(ix,jy,iz,n)=tt(ix,jy,nz,n)
@@ -3999,8 +4001,8 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
           prs(ix,jy,iz,n)=prs(ix,jy,nz,n)
         else
           innuvz: do kz=idx(ix,jy),nuvz
-            if (idx(ix,jy) .le. kz .and. (height(iz).gt.uvzlev(ix,jy,kz-1)).and. &
-                 (height(iz).le.uvzlev(ix,jy,kz))) then
+            if (idx(ix,jy) .le. kz .and. (height(iz).gt.etauvheight(ix,jy,kz-1,n)).and. &
+                 (height(iz).le.etauvheight(ix,jy,kz,n))) then
               idx(ix,jy)=kz
               exit innuvz
             endif
@@ -4010,10 +4012,10 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     enddo
     do jy=0,nymin1
       do ix=0,nxmin1
-        if(height(iz).le.uvzlev(ix,jy,nuvz)) then
+        if(height(iz).le.etauvheight(ix,jy,nuvz,n)) then
           kz=idx(ix,jy)
-          dz1=height(iz)-uvzlev(ix,jy,kz-1)
-          dz2=uvzlev(ix,jy,kz)-height(iz)
+          dz1=height(iz)-etauvheight(ix,jy,kz-1,n)
+          dz2=etauvheight(ix,jy,kz,n)-height(iz)
           dz=dz1+dz2
           uu(ix,jy,iz,n)=(uuh(ix,jy,kz-1)*dz2+uuh(ix,jy,kz)*dz1)/dz
           vv(ix,jy,iz,n)=(vvh(ix,jy,kz-1)*dz2+vvh(ix,jy,kz)*dz1)/dz
@@ -4049,8 +4051,8 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     do jy=0,nymin1
       do ix=0,nxmin1
         inn:         do kz=idx(ix,jy),nwz
-          if(idx(ix,jy) .le. kz .and. height(iz).gt.wzlev(ix,jy,kz-1).and. &
-               height(iz).le.wzlev(ix,jy,kz)) then
+          if(idx(ix,jy) .le. kz .and. height(iz).gt.etawheight(ix,jy,kz-1,n).and. &
+               height(iz).le.etawheight(ix,jy,kz,n)) then
             idx(ix,jy)=kz
             exit inn
           endif
@@ -4060,8 +4062,8 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     do jy=0,nymin1
       do ix=0,nxmin1
         kz=idx(ix,jy)
-        dz1=height(iz)-wzlev(ix,jy,kz-1)
-        dz2=wzlev(ix,jy,kz)-height(iz)
+        dz1=height(iz)-etawheight(ix,jy,kz-1,n)
+        dz2=etawheight(ix,jy,kz,n)-height(iz)
         dz=dz1+dz2
         ww(ix,jy,iz,n)=(wwh(ix,jy,kz-1)*pinmconv(ix,jy,kz-1)*dz2 &
              +wwh(ix,jy,kz)*pinmconv(ix,jy,kz)*dz1)/dz
@@ -4100,8 +4102,8 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
       do ix=1,nx-2
 
         inneta: do kz=idx(ix,jy),nz
-          if (idx(ix,jy) .le. kz .and. (height(iz).gt.uvzlev(ix,jy,kz-1)).and. &
-               (height(iz).le.uvzlev(ix,jy,kz))) then
+          if (idx(ix,jy) .le. kz .and. (height(iz).gt.etauvheight(ix,jy,kz-1,n)).and. &
+               (height(iz).le.etauvheight(ix,jy,kz,n))) then
             idx(ix,jy)=kz
             exit inneta
           endif
@@ -4112,20 +4114,20 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     do jy=1,ny-2
       do ix=1,nx-2
         kz=idx(ix,jy)
-        dz1=height(iz)-uvzlev(ix,jy,kz-1)
-        dz2=uvzlev(ix,jy,kz)-height(iz)
+        dz1=height(iz)-etauvheight(ix,jy,kz-1,n)
+        dz2=etauvheight(ix,jy,kz,n)-height(iz)
         dz=dz1+dz2
         ix1=ix-1
         jy1=jy-1
         ixp=ix+1
         jyp=jy+1
 
-        dzdx1=(uvzlev(ixp,jy,kz-1)-uvzlev(ix1,jy,kz-1))/2.
-        dzdx2=(uvzlev(ixp,jy,kz)-uvzlev(ix1,jy,kz))/2.
+        dzdx1=(etauvheight(ixp,jy,kz-1,n)-etauvheight(ix1,jy,kz-1,n))/2.
+        dzdx2=(etauvheight(ixp,jy,kz,n)-etauvheight(ix1,jy,kz,n))/2.
         dzdx=(dzdx1*dz2+dzdx2*dz1)/dz
 
-        dzdy1=(uvzlev(ix,jyp,kz-1)-uvzlev(ix,jy1,kz-1))/2.
-        dzdy2=(uvzlev(ix,jyp,kz)-uvzlev(ix,jy1,kz))/2.
+        dzdy1=(etauvheight(ix,jyp,kz-1,n)-etauvheight(ix,jy1,kz-1,n))/2.
+        dzdy2=(etauvheight(ix,jyp,kz,n)-etauvheight(ix,jy1,kz,n))/2.
         dzdy=(dzdy1*dz2+dzdy2*dz1)/dz
 
         ww(ix,jy,iz,n)=ww(ix,jy,iz,n)+(dzdx*uu(ix,jy,iz,n)*dxconst*cosf(jy)+dzdy*vv(ix,jy,iz,n)*dyconst)

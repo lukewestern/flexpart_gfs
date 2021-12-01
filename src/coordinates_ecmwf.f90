@@ -37,10 +37,9 @@ contains
       zold                            ! particle verticle position in eta coordinates
     real(kind=dp), intent(inout) :: &
       zteta                           ! converted output z in meters
-    real(kind=dp) ::                &
-      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
-      frac                            ! fraction between z levels
     real ::                         &
+      frac,                         & ! fraction between z levels
+      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
       ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
       ew,                           & ! why does this function need to be declared here?
       psint1(2),psint                 ! pressure of encompassing levels
@@ -49,32 +48,17 @@ contains
     call find_grid_distances(real(xt),real(yt))
     call find_time_variables(itime)
 
-    call bilinear_horizontal_interpolation(ps,psint1,1,1)
-    call temporal_interpolation(psint1(1),psint1(2),psint)
-
-    call bilinear_horizontal_interpolation(tvirtual,ttemp1,1,nzmax)
-    call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_old)
-
     ! Integration method as used in the original verttransform_ecmwf.f90
     !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     ztemp1 = 0.
     do i=2,nz-1
 
-      call bilinear_horizontal_interpolation(tvirtual,ttemp1,i,nzmax)
-      call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
+      call bilinear_horizontal_interpolation(etauvheight,ttemp1,i,nzmax)
+      call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
 
-      if (abs(ttemp_new-ttemp_old).gt.0.2) then
-        ztemp2=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/ &
-          (akz(i)+bkz(i)*psint))* &
-          (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old),kind=dp)
-      else
-        ztemp2=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/ &
-          (akz(i)+bkz(i)*psint))*ttemp_new,kind=dp)
-      endif
-
-      if (ztemp2.gt.zold) then
-        frac = (zold-ztemp1)/(ztemp2-ztemp1)
+      if (ztemp2.gt.real(zold)) then
+        frac = (real(zold)-ztemp1)/(ztemp2-ztemp1)
         exit
       else if (i.eq.nz-1) then
         frac = 1.
@@ -84,7 +68,7 @@ contains
       ztemp1=ztemp2
     end do
 
-    zteta=real(uvheight(i-1),kind=dp)*(1.-frac)+real(uvheight(i),kind=dp)*frac
+    zteta=real(uvheight(i-1)*(1.-frac)+uvheight(i)*frac,kind=dp)
   end subroutine z_to_zeta
 
   subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
@@ -116,9 +100,9 @@ contains
     real(kind=dp), intent(inout) :: &
       ztout                           ! converted output z in meters
     real(kind=dp) ::                &
-      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
       frac                            ! fraction between z levels
     real ::                         &
+      ztemp1,ztemp2,                & ! z positions of the two encompassing levels
       ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
       ew,                           & ! why does this function need to be declared here?
       psint1(2),psint                 ! pressure of encompassing levels
@@ -139,40 +123,13 @@ contains
       endif
     end do
 
-    call bilinear_horizontal_interpolation(ps,psint1,1,1)
-    call temporal_interpolation(psint1(1),psint1(2),psint)
+    call bilinear_horizontal_interpolation(etauvheight,ttemp1,k-1,nzmax)
+    call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1)
 
-    call bilinear_horizontal_interpolation(tvirtual,ttemp1,1,nzmax)
-    call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_old)
+    call bilinear_horizontal_interpolation(etauvheight,ttemp1,k,nzmax)
+    call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
 
-    ! ! ! Integration method as used in the original verttransform_ecmwf.f90
-    ! ! !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-    ztemp1 = 0.
-    do i=2,k-1
-
-      call bilinear_horizontal_interpolation(tvirtual,ttemp1,i,nzmax)
-      call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)
-
-      if (abs(ttemp_new-ttemp_old).gt.0.2) then
-        ztemp1=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))* &
-          (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old),kind=dp)
-      else
-        ztemp1=ztemp1+real(r_air/ga*log((akz(i-1)+bkz(i-1)*psint)/(akz(i)+bkz(i)*psint))*ttemp_new,kind=dp)
-      endif
-      ttemp_old=ttemp_new
-    end do
-
-    call bilinear_horizontal_interpolation(tvirtual,ttemp1,k,nzmax)
-    call temporal_interpolation(ttemp1(1),ttemp1(2),ttemp_new)  
-
-    if (abs(ttemp_new-ttemp_old).gt.0.2) then
-      ztemp2=ztemp1+real(r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))* &
-        (ttemp_new-ttemp_old)/log(ttemp_new/ttemp_old),kind=dp)
-    else
-      ztemp2=ztemp1+real(r_air/ga*log((akz(k-1)+bkz(k-1)*psint)/(akz(k)+bkz(k)*psint))*ttemp_new,kind=dp)
-    endif
-    ztout = ztemp1*(1.-frac)+ztemp2*frac
+    ztout = real(ztemp1,kind=dp)*(1.-frac)+real(ztemp2,kind=dp)*frac
   end subroutine zeta_to_z
 
   subroutine update_zeta_to_z(itime, ipart)
