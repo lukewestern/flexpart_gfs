@@ -98,7 +98,7 @@ readoptions.o  		binary_output_mod.o \
 drydepo_mod.o 		wetdepo_mod.o \
 timemanager_mod.o 	qvsat_mod.o \
 plume_mod.o 		settling_mod.o \
-initialise_mod.o
+initialise_mod.o 	getfields_mod.o
 
 OBJECTS_NCF = netcdf_output_mod.o
 
@@ -112,7 +112,6 @@ coordtrafo.o            psih.o \
 psim.o			\
 pbl_profile.o \
 juldate.o               \
-calcpar.o               \
 detectformat.o  \
 calcpv.o \
 initial_cond_calc.o     \
@@ -151,7 +150,6 @@ advance_mod.o: cmapf_mod.o com_mod.o turbulence_mod.o interpol_mod.o par_mod.o \
 assignland.o: com_mod.o par_mod.o windfields_mod.o
 binary_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o \
 	windfields_mod.o
-calcpar.o: com_mod.o par_mod.o drydepo_mod.o windfields_mod.o qvsat_mod.o
 calcpv.o: com_mod.o par_mod.o windfields_mod.o
 caldate.o: par_mod.o
 cbl.o: com_mod.o par_mod.o random_mod.o
@@ -168,6 +166,7 @@ FLEXPART.o: com_mod.o conv_mod.o netcdf_output_mod.o par_mod.o point_mod.o \
 	random_mod.o readoptions.o binary_output_mod.o txt_output_mod.o windfields_mod.o \
 	timemanager_mod.o plume_mod.o initialise_mod.o
 flux_mod.o: com_mod.o outg_mod.o par_mod.o coordinates_ecmwf.o particle_mod.o
+getfields_mod.o: com_mod.o par_mod.o drydepo_mod.o windfields_mod.o qvsat_mod.o
 settling_mod.o: com_mod.o par_mod.o windfields_mod.o
 initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
 	coordinates_ecmwf.o
@@ -193,7 +192,7 @@ readoptions.o: com_mod.o par_mod.o drydepo_mod.o
 timemanager_mod.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o advance_mod.o\
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf.o \
 	binary_output_mod.o drydepo_mod.o wetdepo_mod.o conv_mod.o windfields_mod.o \
-	plume_mod.o initialise_mod.o
+	plume_mod.o initialise_mod.o getfields_mod.o
 turbulence_mod.o: par_mod.o com_mod.o random_mod.o particle_mod.o
 txt_output_mod.o: com_mod.o par_mod.o point_mod.o outg_mod.o
 unc_mod.o: par_mod.o com_mod.o
