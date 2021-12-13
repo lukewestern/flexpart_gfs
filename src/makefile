@@ -113,7 +113,6 @@ psim.o			\
 pbl_profile.o \
 juldate.o               \
 detectformat.o  \
-calcpv.o \
 initial_cond_calc.o     \
 cbl.o 
 
@@ -150,7 +149,6 @@ advance_mod.o: cmapf_mod.o com_mod.o turbulence_mod.o interpol_mod.o par_mod.o \
 assignland.o: com_mod.o par_mod.o windfields_mod.o
 binary_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o \
 	windfields_mod.o
-calcpv.o: com_mod.o par_mod.o windfields_mod.o
 caldate.o: par_mod.o
 cbl.o: com_mod.o par_mod.o random_mod.o
 cmapf_mod.o: par_mod.o
