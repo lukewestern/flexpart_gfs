@@ -91,6 +91,7 @@ subroutine timemanager(metdata_format)
   use advance_mod, only: advance
   use drydepo_mod
   use wetdepo_mod
+  use plume_mod
 
   implicit none
   real, parameter ::        &

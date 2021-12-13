@@ -38,6 +38,7 @@ program flexpart
   use readoptions
   use windfields_mod
   use timemanager_mod
+  use plume_mod
 
 #ifdef USE_NCF
   use netcdf_output_mod, only: writeheader_netcdf

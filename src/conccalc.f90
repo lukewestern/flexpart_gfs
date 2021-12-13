@@ -45,13 +45,13 @@ subroutine conccalc(itime,weight)
   real :: rhoi
   real :: xl,yl,wx,wy,w
   real,parameter :: factor=.596831, hxmax=6.0, hymax=4.0, hzmax=150.
-!  integer xscav_count
+  !  integer xscav_count
 
   ! For forward simulations, make a loop over the number of species;
   ! for backward simulations, make an additional loop over the
   ! releasepoints
   !***************************************************************************
-!  xscav_count=0
+  !  xscav_count=0
   do i=1,numpart
     if (.not.part(i)%alive) cycle
 
@@ -61,7 +61,7 @@ subroutine conccalc(itime,weight)
       if (itage.lt.lage(nage)) exit
     end do
 
-!  if (xscav_frac1(i,1).lt.0) xscav_count=xscav_count+1
+  !  if (xscav_frac1(i,1).lt.0) xscav_count=xscav_count+1
            
   ! For special runs, interpolate the air density to the particle position
   !************************************************************************
@@ -279,7 +279,7 @@ subroutine conccalc(itime,weight)
         if ((itage.lt.10800).or.(xl.lt.0.5).or.(yl.lt.0.5).or. &
              (xl.gt.real(numxgridn-1)-0.5).or. &
              (yl.gt.real(numygridn-1)-0.5).or.((.not.lusekerneloutput))) then
-! no kernel, direct attribution to grid cell
+  ! no kernel, direct attribution to grid cell
           if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgridn-1).and. &
                (jy.le.numygridn-1)) then
             if (DRYBKDEP.or.WETBKDEP) then
@@ -404,7 +404,7 @@ subroutine conccalc(itime,weight)
       endif
     endif
   end do
-!  write(*,*) 'xscav count:',xscav_count
+  !  write(*,*) 'xscav count:',xscav_count
 
   !***********************************************************************
   ! 2. Evaluate concentrations at receptor points, using the kernel method

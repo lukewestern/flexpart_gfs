@@ -1,5 +1,12 @@
 ! SPDX-FileCopyrightText: FLEXPART 1998-2019, see flexpart_license.txt
 ! SPDX-License-Identifier: GPL-3.0-or-later
+module plume_mod
+  
+  implicit none
+  private :: centerofmass,clustering,distance,distance2
+
+  public :: plumetraj,openouttraj
+contains
 
 subroutine plumetraj(itime)
   !                       i
@@ -45,7 +52,7 @@ subroutine plumetraj(itime)
 
   integer :: itime,ix,jy,ixp,jyp,indexh,i,j,k,m,n,il,ind,indz,indzp
   ! real :: xl(maxpart),yl(maxpart),zl(maxpart) ! moved to particle_mod and now xplum,yplum,zplum
-  real :: xcenter,ycenter,zcenter,dist,distance,rmsdist,zrmsdist
+  real :: xcenter,ycenter,zcenter,dist,rmsdist,zrmsdist
 
   real :: xclust(ncluster),yclust(ncluster),zclust(ncluster)
   real :: fclust(ncluster),rms,rmsclust(ncluster),zrms
@@ -338,7 +345,7 @@ subroutine clustering(n,xclust,yclust,zclust,fclust,rms, &
 
   integer :: n,i,j,l,numb(ncluster),ncl
   real :: xclust(ncluster),yclust(ncluster),x,y,z
-  real :: zclust(ncluster),distance2,distances,distancemin,rms,rmsold
+  real :: zclust(ncluster),distances,distancemin,rms,rmsold
   real :: xav(ncluster),yav(ncluster),zav(ncluster),fclust(ncluster)
   real :: rmsclust(ncluster)
   real :: zdist,zrms
@@ -485,7 +492,7 @@ subroutine clustering(n,xclust,yclust,zclust,fclust,rms, &
 
 end subroutine clustering
 
-function distance(rlat1,rlon1,rlat2,rlon2)
+real function distance(rlat1,rlon1,rlat2,rlon2)
 
   !$$$  SUBPROGRAM DOCUMENTATION BLOCK
   !
@@ -518,7 +525,7 @@ function distance(rlat1,rlon1,rlat2,rlon2)
 
   implicit none
 
-  real          :: rlat1,rlon1,rlat2,rlon2,distance
+  real          :: rlat1,rlon1,rlat2,rlon2
   real(kind=dp) :: clat1,clat2,slat1,slat2,cdlon,crd
   real(kind=dp),parameter :: rerth=6.3712e6_dp
   real(kind=dp),parameter :: pi=3.14159265358979_dp, dpr=180.0_dp/pi
@@ -538,7 +545,7 @@ function distance(rlat1,rlon1,rlat2,rlon2)
   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 end function distance
 
-function distance2(rlat1,rlon1,rlat2,rlon2)
+real function distance2(rlat1,rlon1,rlat2,rlon2)
 
   !$$$  SUBPROGRAM DOCUMENTATION BLOCK
   !
@@ -571,7 +578,7 @@ function distance2(rlat1,rlon1,rlat2,rlon2)
 
   implicit none
 
-  real                    :: rlat1,rlon1,rlat2,rlon2,distance2
+  real                    :: rlat1,rlon1,rlat2,rlon2
   real(kind=dp)           :: clat1,clat2,slat1,slat2,cdlon,crd
   real(kind=dp),parameter :: rerth=6.3712e6_dp
   real(kind=dp),parameter :: pi=3.14159265358979_dp
@@ -657,3 +664,5 @@ subroutine openouttraj
   stop
 
 end subroutine openouttraj
+
+end module plume_mod
