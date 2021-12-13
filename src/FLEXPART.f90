@@ -45,6 +45,7 @@ program flexpart
 #endif
   use binary_output_mod
   use txt_output_mod
+  use initialise_mod
 
   implicit none
 

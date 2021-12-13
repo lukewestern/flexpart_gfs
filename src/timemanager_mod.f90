@@ -92,6 +92,7 @@ subroutine timemanager(metdata_format)
   use drydepo_mod
   use wetdepo_mod
   use plume_mod
+  use initialise_mod
 
   implicit none
   real, parameter ::        &

@@ -145,8 +145,8 @@ subroutine initialize_particle(itime,ipart)
       part(ipart)%turbvel%w=part(ipart)%turbvel%w*sigw
     else if (cblflag.eq.1) then   ! modified by mc
       if(-h/ol.gt.5) then
-!if (ol.lt.0.) then
-!if (ol.gt.0.) then !by mc : only for test correct is lt.0
+  !if (ol.lt.0.) then
+  !if (ol.gt.0.) then !by mc : only for test correct is lt.0
         call initialize_cbl_vel(idummy,zt,ust,wst,h,sigw,part(ipart)%turbvel%w,ol)
       else
         part(ipart)%turbvel%w=part(ipart)%turbvel%w*sigw

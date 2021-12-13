@@ -928,5 +928,4 @@ subroutine boundcond_domainfill(itime,loutend)
          zcolumn_we,zcolumn_sn,acc_mass_we,acc_mass_sn
     close(unitboundcond)
   endif
-
 end subroutine boundcond_domainfill
