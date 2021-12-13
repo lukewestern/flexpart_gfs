@@ -95,14 +95,15 @@ point_mod.o          outg_mod.o \
 mean_mod.o	 	random_mod.o \
 com_mod.o		advance_mod.o \
 readoptions.o  		binary_output_mod.o \
-drydepo_mod.o 		wetdepo_mod.o
+drydepo_mod.o 		wetdepo_mod.o \
+timemanager_mod.o
 
 OBJECTS_NCF = netcdf_output_mod.o
 
 OBJECTS = \
 releaseparticles.o 	partoutput.o \
 conccalc.o \
-timemanager.o FLEXPART.o	\
+FLEXPART.o	\
 readpartpositions.o \
 domainfill.o \
 initialize_particle.o		\
@@ -170,7 +171,8 @@ domainfill.o: com_mod.o par_mod.o point_mod.o random_mod.o \
        interpol_mod.o coordinates_ecmwf.o particle_mod.o windfields_mod.o
 drydepo_mod.o: com_mod.o par_mod.o unc_mod.o interpol_mod.o point_mod.o windfields_mod.o
 FLEXPART.o: com_mod.o conv_mod.o netcdf_output_mod.o par_mod.o point_mod.o \
-	random_mod.o readoptions.o binary_output_mod.o txt_output_mod.o windfields_mod.o
+	random_mod.o readoptions.o binary_output_mod.o txt_output_mod.o windfields_mod.o \
+	timemanager_mod.o
 flux_mod.o: com_mod.o outg_mod.o par_mod.o coordinates_ecmwf.o particle_mod.o
 get_settling.o: com_mod.o par_mod.o windfields_mod.o
 initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
@@ -197,7 +199,7 @@ readpartpositions.o: com_mod.o par_mod.o random_mod.o particle_mod.o \
 	particle_mod.o coordinates_ecmwf.o netcdf_output_mod.o
 releaseparticles.o: com_mod.o par_mod.o point_mod.o random_mod.o xmass_mod.o \
 	interpol_mod.o coordinates_ecmwf.o windfields_mod.o netcdf_output_mod.o
-timemanager.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o advance_mod.o\
+timemanager_mod.o: com_mod.o flux_mod.o netcdf_output_mod.o oh_mod.o outg_mod.o advance_mod.o\
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf.o \
 	binary_output_mod.o drydepo_mod.o wetdepo_mod.o conv_mod.o windfields_mod.o
 turbulence_mod.o: par_mod.o com_mod.o random_mod.o particle_mod.o
