@@ -4,6 +4,7 @@
 module readoptions
   use par_mod
   use com_mod
+  use date_mod
 
   implicit none
 
@@ -162,7 +163,7 @@ subroutine readavailable
   integer :: i,idiff,ldat,ltim,wftime1(maxwf),numbwfn(maxnests),k
   integer :: wftime1n(maxnests,maxwf),wftimen(maxnests,maxwf)
   logical :: lwarntd=.true.
-  real(kind=dp) :: juldate,jul,beg,endl
+  real(kind=dp) :: jul,beg,endl
   character(len=255) :: fname,spec,wfname1(maxwf),wfspec1(maxwf)
   character(len=255) :: wfname1n(maxnests,maxwf)
   character(len=40) :: wfspec1n(maxnests,maxwf)
@@ -446,7 +447,6 @@ subroutine readcommand
 
   implicit none
 
-  real(kind=dp) :: juldate
   character(len=50) :: line
   logical :: old
   integer :: readerror
@@ -2019,7 +2019,7 @@ subroutine readreleases
   integer :: numpartmax,i,j,id1,it1,id2,it2,idum,stat,irel,ispc,nsettle
   integer,parameter :: num_min_discrete=100
   real :: vsh(ni),fracth(ni),schmih(ni),releaserate,xdum,cun
-  real(kind=dp) :: jul1,jul2,julm,juldate
+  real(kind=dp) :: jul1,jul2,julm
   real,parameter :: eps2=1.e-9
   character(len=50) :: line
   logical :: old

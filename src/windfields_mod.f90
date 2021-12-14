@@ -5391,6 +5391,7 @@ subroutine writeprecip(itime,imem)
   use point_mod
   use par_mod
   use com_mod
+  use date_mod
 
   implicit none
 

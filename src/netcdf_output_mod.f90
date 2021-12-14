@@ -1856,6 +1856,7 @@ end subroutine partoutput_netcdf
 subroutine readpartpositions_netcdf(ibtime,ibdate)
   use random_mod
   use particle_mod
+  use date_mod
 
   implicit none 
 
@@ -1864,7 +1865,7 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
   integer             :: tlen,plen,tend,i
   integer             :: idate_start,itime_start
   character           :: adate*8,atime*6,timeunit*32,adate_start*8,atime_start*6
-  real(kind=dp)       :: julin,julcommand,julpartin,juldate
+  real(kind=dp)       :: julin,julcommand,julpartin
 
   integer :: idummy = -8
 

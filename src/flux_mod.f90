@@ -209,7 +209,8 @@ subroutine fluxoutput(itime)
   ! sparsee         .true. if in sparse matrix format, else .false.            *
   !                                                                            *
   !*****************************************************************************
-
+  use date_mod
+  
   implicit none
 
   real(kind=dp) :: jul

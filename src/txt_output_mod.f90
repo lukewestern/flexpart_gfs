@@ -33,6 +33,7 @@ subroutine writeheader_txt
   use outg_mod
   use par_mod
   use com_mod
+  use date_mod
 
   implicit none
 

@@ -79,6 +79,7 @@ subroutine timemanager(metdata_format)
   use oh_mod
   use par_mod
   use com_mod
+  use date_mod
 #ifdef USE_NCF
   use netcdf_output_mod, only: writeheader_partoutput,&
        create_particles_initialoutput

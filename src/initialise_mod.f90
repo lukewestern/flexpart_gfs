@@ -5,6 +5,7 @@ module initialise_mod
 	
 	use com_mod
 	use par_mod
+  use date_mod
 	use particle_mod
 	use windfields_mod
 	use random_mod
@@ -54,7 +55,7 @@ subroutine releaseparticles(itime)
   integer :: itime,numrel,i,j,k,n,ipart,minpart,ii
   integer :: kz,istart,iend
   integer :: nweeks,ndayofweek,nhour,jjjjmmdd,ihmmss,mm
-  real(kind=dp) :: juldate,julmonday,jul,jullocal,juldiff
+  real(kind=dp) :: julmonday,jul,jullocal,juldiff
   real,parameter :: eps=nxmax/3.e5,eps2=1.e-6
 
   integer :: ngrid,ix,jy,ixp,jyp,indz,indzp,xtn,ytn
@@ -426,7 +427,7 @@ subroutine readpartpositions
   integer :: id1,id2,it1,it2
   real :: xlonin,ylatin,topo,hmixi,pvi,qvi,rhoi,tri,tti
   character :: specin*7
-  real(kind=dp) :: julin,julpartin,juldate
+  real(kind=dp) :: julin,julpartin
 
   integer :: idummy = -8
 

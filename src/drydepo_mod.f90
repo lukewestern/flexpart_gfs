@@ -556,7 +556,8 @@ subroutine getvdep(n,ix,jy,ust,temp,pa,L,gr,rh,rr,snow,vdepo)
   ! xlanduse          fractions of numclasS landuses for each model grid point *
   !                                                                            *
   !*****************************************************************************
-
+  use date_mod
+  
   implicit none
 
   integer :: yyyymmdd,hhmmss,yyyy,mmdd,n,lseason,i,j,ix,jy
@@ -736,6 +737,7 @@ subroutine getvdep_nests(n,ix,jy,ust,temp,pa, &
   ! xlanduse          fractions of numclasS landuses for each model grid point *
   !                                                                            *
   !*****************************************************************************
+  use date_mod
 
   implicit none
 

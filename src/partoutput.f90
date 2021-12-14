@@ -19,6 +19,7 @@ subroutine partoutput(itime)!,active_per_rel)
 
   use par_mod
   use com_mod
+  use date_mod
   use interpol_mod
   use coordinates_ecmwf
   use particle_mod

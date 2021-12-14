@@ -5,7 +5,8 @@ module oh_mod
 
   !includes OH concentration field as well as the height information
   !for this field
-
+  use date_mod
+  
   implicit none
 
   integer :: nxOH,nyOH,nzOH
