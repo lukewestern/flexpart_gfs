@@ -12,7 +12,7 @@ module binary_output_mod
 
 contains
 
-subroutine writeheader
+subroutine writeheader_binary
 
   !*****************************************************************************
   !                                                                            *
@@ -154,9 +154,9 @@ subroutine writeheader
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
   stop
 
-end subroutine writeheader
+end subroutine writeheader_binary
 
-subroutine writeheader_nest
+subroutine writeheader_binary_nest
 
   !*****************************************************************************
   !                                                                            *
@@ -293,9 +293,9 @@ subroutine writeheader_nest
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
   stop
 
-end subroutine writeheader_nest
+end subroutine writeheader_binary_nest
 
-subroutine writeheader_nest_surf
+subroutine writeheader_binary_nest_surf
 
   !*****************************************************************************
   !                                                                            *
@@ -432,9 +432,9 @@ subroutine writeheader_nest_surf
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
   stop
 
-end subroutine writeheader_nest_surf
+end subroutine writeheader_binary_nest_surf
 
-subroutine writeheader_surf
+subroutine writeheader_binary_surf
 
   !*****************************************************************************
   !                                                                            *
@@ -571,7 +571,7 @@ subroutine writeheader_surf
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
   stop
 
-end subroutine writeheader_surf
+end subroutine writeheader_binary_surf
 
 subroutine openreceptors
 

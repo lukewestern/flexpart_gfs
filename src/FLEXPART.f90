@@ -39,13 +39,8 @@ program flexpart
   use windfields_mod
   use timemanager_mod
   use plume_mod
-
-#ifdef USE_NCF
-  use netcdf_output_mod, only: writeheader_netcdf
-#endif
-  use binary_output_mod
-  use txt_output_mod
   use initialise_mod
+  use output_mod
 
   implicit none
 
@@ -240,35 +235,6 @@ program flexpart
     call readOHfield ! CHECK ETA
   endif
 
-  ! Write basic information on the simulation to a file "header"
-  ! and open files that are to be kept open throughout the simulation
-  !******************************************************************
-  if (grid_output.eq.1) then
-#ifdef USE_NCF
-    if (lnetcdfout.eq.1) then 
-      call writeheader_netcdf(lnest=.false.)
-    else 
-      call writeheader
-    end if
-
-    if (nested_output.eq.1) then
-      if (lnetcdfout.eq.1) then
-        call writeheader_netcdf(lnest=.true.)
-      else
-        call writeheader_nest
-      endif
-    endif
-#endif
-  endif
-
-  call writeheader ! CHECK ETA
-  ! FLEXPART 9.2 ticket ?? write header in ASCII format 
-  call writeheader_txt
-  !if (nested_output.eq.1) call writeheader_nest
-  if (nested_output.eq.1.and.surf_only.ne.1) call writeheader_nest
-  if (nested_output.eq.1.and.surf_only.eq.1) call writeheader_nest_surf
-  if (nested_output.ne.1.and.surf_only.eq.1) call writeheader_surf
-
   call openreceptors ! CHECK ETA
   if ((iout.eq.4).or.(iout.eq.5)) call openouttraj ! CHECK ETA
 
@@ -306,6 +272,7 @@ program flexpart
   end if
 
   if (turboff) write(*,*) 'Turbulence switched off'
+  
   ! Calculate particle trajectories
   !********************************
   call timemanager(metdata_format)

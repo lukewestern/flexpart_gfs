@@ -79,12 +79,6 @@ subroutine timemanager(metdata_format)
   use oh_mod
   use par_mod
   use com_mod
-  use date_mod
-#ifdef USE_NCF
-  use netcdf_output_mod, only: writeheader_partoutput,&
-       create_particles_initialoutput
-#endif
-  use binary_output_mod
   use coordinates_ecmwf
   use particle_mod
   use conv_mod
@@ -95,6 +89,7 @@ subroutine timemanager(metdata_format)
   use plume_mod
   use initialise_mod
   use getfields_mod
+  use output_mod
 
   implicit none
   real, parameter ::        &
@@ -122,10 +117,10 @@ subroutine timemanager(metdata_format)
 #ifdef USE_NCF
   real ::                   &
     filesize!(maxpoint)        ! Keeping track of the size of the particledump output, so it can be splitted
-  real(kind=dp) ::          &
-    jul
-  integer ::                &
-    jjjjmmdd,ihmmss
+  ! real(kind=dp) ::          &
+  !   jul
+  ! integer ::                &
+  !   jjjjmmdd,ihmmss
 #endif
   real ::                   &
     outnum,                 & ! concentration calculation sample number
@@ -170,6 +165,14 @@ subroutine timemanager(metdata_format)
   ! Code may not be correct for decay of deposition
   ! changed by Petra Seibert 9/02
   !********************************************************************
+
+  ! Write basic information on the simulation to a file "header" for the
+  ! first time step and open files that are to be kept open throughout 
+  ! the simulation.
+  ! In addition, open new particle dump files if required and keep track
+  ! of the size of these files.
+  !*********************************************************************
+    call initialise_output(itime,filesize)
 
     if (WETDEP .and. itime .ne. 0 .and. numpart .gt. 0) then
       call wetdepo(itime,lsynctime,loutnext)
@@ -218,41 +221,8 @@ subroutine timemanager(metdata_format)
         call boundcond_domainfill(itime,loutend)
       endif
     else
-      if (itime.eq.0) then
-        if (ldirect.eq.1) then
-          call create_particles_initialoutput(ibtime,ibdate,ibtime,ibdate)
-        else
-          call create_particles_initialoutput(ietime,iedate,ietime,iedate)
-        endif
-      endif
       call releaseparticles(itime)
     endif
-
-#ifdef USE_NCF
-    if (ipout.ge.1) then
-      if (itime.eq.0) then
-        if (ldirect.eq.1) then
-          call writeheader_partoutput(ibtime,ibdate,ibtime,ibdate)
-        else 
-          call writeheader_partoutput(ietime,iedate,ietime,iedate)
-        endif
-      else if (mod(itime,ipoutfac*loutstep).eq.0) then
-        if (filesize.ge.max_partoutput_filesize) then 
-          jul=bdate+real(itime,kind=dp)/86400._dp
-          call caldate(jul,jjjjmmdd,ihmmss)
-          if (ldirect.eq.1) then 
-            call writeheader_partoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
-          else 
-            call writeheader_partoutput(ihmmss,jjjjmmdd,ietime,iedate)
-          endif
-          filesize = 0.
-        endif
-        do i=1,numpoint
-          filesize = filesize + npart(i)*13.*4./1000000.
-        end do
-      endif
-    endif
-#endif
 
   ! Compute convective mixing for forward runs
   ! for backward runs it is done before next windfield is read in
@@ -281,7 +251,7 @@ subroutine timemanager(metdata_format)
           if (mod(itime,ipoutfac*loutstep).eq.0) then
             call SYSTEM_CLOCK(count_clock, count_rate, count_max)
             s_temp = (count_clock - count_clock0)/real(count_rate)
-            call partoutput(itime)!,active_per_rel) ! dump particle positions
+            call output_particles(itime)!,active_per_rel) ! dump particle positions
             call SYSTEM_CLOCK(count_clock, count_rate, count_max)
             s_writepart = s_writepart + ((count_clock - count_clock0)/real(count_rate)-s_temp)
           endif
@@ -289,7 +259,7 @@ subroutine timemanager(metdata_format)
       endif
       ! Check whether concentrations are to be calculated and outputted
       !****************************************************************
-      call timemanager_concentrations(itime,loutstart,loutend,loutnext,outnum)
+      call output_concentrations(itime,loutstart,loutend,loutnext,outnum)
     endif
 
     if (itime.eq.ideltas) exit         ! almost finished
@@ -479,20 +449,7 @@ subroutine timemanager(metdata_format)
 
   ! Complete the calculation of initial conditions for particles not yet terminated
   !*****************************************************************************
-
-  do j=1,numpart
-    if (linit_cond.ge.1) call initial_cond_calc(itime,j)
-  end do
-
-  if (ipout.eq.2) call partoutput(itime)!,active_per_rel)     ! dump particle positions
-
-  if (linit_cond.ge.1) then
-    if(linversionout.eq.1) then
-      call initial_cond_output_inversion(itime)   ! dump initial cond. field
-    else
-      call initial_cond_output(itime)   ! dump initial cond. fielf
-    endif
-  endif
+  call finalise_output(itime)
 
   ! De-allocate memory and end
   !***************************
@@ -523,116 +480,5 @@ subroutine timemanager(metdata_format)
   deallocate(oroout, area, volume)
   endif
 end subroutine timemanager
-
-subroutine timemanager_concentrations(itime,loutstart,loutend,loutnext,outnum)
-  use unc_mod
-  use outg_mod
-  use par_mod
-  use com_mod
-#ifdef USE_NCF
-  use netcdf_output_mod, only: concoutput_netcdf,concoutput_nest_netcdf,&
-       &concoutput_surf_netcdf,concoutput_surf_nest_netcdf
-#endif
-  use binary_output_mod 
-
-  implicit none
-
-  integer,intent(in) ::     &
-    itime                     ! time index
-  integer,intent(inout) ::  &
-    loutstart,loutend,      & ! concentration calculation starting and ending time
-    loutnext
-  real,intent(inout) ::     &
-    outnum                    ! concentration calculation sample number
-  real(sp) ::               &
-    gridtotalunc              ! concentration calculation related
-  real(dep_prec) ::         &
-    wetgridtotalunc,        & ! concentration calculation related
-    drygridtotalunc           ! concentration calculation related
-  real ::                   &
-    weight                    ! concentration calculation sample weight
-
-  ! Is the time within the computation interval, if not, return
-  !************************************************************
-  if ((ldirect*itime.lt.ldirect*loutstart).or.(ldirect*itime.gt.ldirect*loutend)) then
-    return
-  endif
-
-  ! If we are exactly at the start or end of the concentration averaging interval,
-  ! give only half the weight to this sample
-  !*****************************************************************************
-  if (mod(itime-loutstart,loutsample).eq.0) then
-    if ((itime.eq.loutstart).or.(itime.eq.loutend)) then
-      weight=0.5
-    else
-      weight=1.0
-    endif
-    outnum=outnum+weight
-    call conccalc(itime,weight)
-  endif
-
-  ! If it is not time yet to write outputs, return
-  !***********************************************
-  if ((itime.ne.loutend).or.(outnum.le.0)) then
-    return
-  endif
-
-  ! Output and reinitialization of grid
-  ! If necessary, first sample of new grid is also taken
-  !*****************************************************
-  if ((iout.le.3.).or.(iout.eq.5)) then
-    if (surf_only.ne.1) then 
-#ifdef USE_NCF
-      call concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-#else
-      call concoutput(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-#endif
-    else
-#ifdef USE_NCF
-      call concoutput_surf_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-#else
-      if (linversionout.eq.1) then
-        call concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-      else
-        call concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-      endif
-#endif
-    endif
-
-    if (nested_output .eq. 1) then
-#ifdef USE_NCF
-      if (surf_only.ne.1) then
-        call concoutput_nest_netcdf(itime,outnum)
-      else 
-        call concoutput_surf_nest_netcdf(itime,outnum)
-      endif
-#else
-      if (surf_only.ne.1) then
-        call concoutput_nest(itime,outnum)
-      else 
-        if(linversionout.eq.1) then
-          call concoutput_inversion_nest(itime,outnum)
-        else 
-          call concoutput_surf_nest(itime,outnum)
-        endif
-      endif
-#endif
-    endif
-    outnum=0.
-  endif
-
-  write(*,45) itime,numpart,gridtotalunc,wetgridtotalunc,drygridtotalunc
-
-45      format(i13,' Seconds simulated: ',i13, ' Particles:    Uncertainty: ',3f7.3)
-
-  loutnext=loutnext+loutstep
-  loutstart=loutnext-loutaver/2
-  loutend=loutnext+loutaver/2
-  if (itime.eq.loutstart) then
-    weight=0.5
-    outnum=outnum+weight
-    call conccalc(itime,weight)
-  endif
-end subroutine timemanager_concentrations
 
 end module timemanager_mod

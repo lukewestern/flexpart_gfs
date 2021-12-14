@@ -385,7 +385,11 @@ subroutine releaseparticles(itime)
   end do ! numpoint
 
   call get_total_part_num(iend)
+
+  ! NetCDF only: write initial positions of new particles
+#ifdef USE_NCF
   if (iend-istart.gt.0) call write_particles_initialoutput(itime,istart,iend)
+#endif
   return
 
 996   continue
