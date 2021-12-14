@@ -105,7 +105,6 @@ OBJECTS_NCF = netcdf_output_mod.o
 
 OBJECTS = \
 FLEXPART.o	\
-assignland.o \
 psih.o \
 psim.o			\
 pbl_profile.o \
@@ -143,7 +142,6 @@ cleanall:
 ## DEPENDENCIES
 advance_mod.o: cmapf_mod.o com_mod.o turbulence_mod.o interpol_mod.o par_mod.o \
 	point_mod.o random_mod.o coordinates_ecmwf.o particle_mod.o settling_mod.o
-assignland.o: com_mod.o par_mod.o windfields_mod.o
 binary_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o \
 	windfields_mod.o date_mod.o
 cbl.o: com_mod.o par_mod.o random_mod.o
@@ -156,7 +154,7 @@ date_mod.o: par_mod.o
 detectformat.o: com_mod.o par_mod.o
 drydepo_mod.o: com_mod.o par_mod.o unc_mod.o interpol_mod.o point_mod.o windfields_mod.o \
 	date_mod.o
-FLEXPART.o: com_mod.o conv_mod.o par_mod.o point_mod.o \
+FLEXPART.o: com_mod.o conv_mod.o par_mod.o point_mod.o drydepo_mod.o \
 	random_mod.o readoptions.o windfields_mod.o \
 	timemanager_mod.o plume_mod.o initialise_mod.o output_mod.o
 flux_mod.o: com_mod.o outg_mod.o par_mod.o coordinates_ecmwf.o particle_mod.o date_mod.o

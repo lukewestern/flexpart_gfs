@@ -381,7 +381,6 @@ module com_mod
   real :: oron(0:nxmaxn-1,0:nymaxn-1,maxnests)
   real :: excessoron(0:nxmaxn-1,0:nymaxn-1,maxnests)
   real :: lsmn(0:nxmaxn-1,0:nymaxn-1,maxnests)
-  real :: xlandusen(0:nxmaxn-1,0:nymaxn-1,numclass,maxnests)
 
 
   ! 3d nested fields

@@ -41,6 +41,7 @@ program flexpart
   use plume_mod
   use initialise_mod
   use output_mod
+  use drydepo_mod
 
   implicit none
 

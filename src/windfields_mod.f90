@@ -13,7 +13,7 @@ module windfields_mod
   real :: oro(0:nxmax-1,0:nymax-1)   ! orography of the ECMWF model
   real :: excessoro(0:nxmax-1,0:nymax-1)   ! excess orography mother domain
   real :: lsm(0:nxmax-1,0:nymax-1)   ! land sea mask of the ECMWF model
-  real :: xlanduse(0:nxmax-1,0:nymax-1,numclass)   ! area fractions in percent [0-1]
+  
 
   ! 3d fields
   !**********

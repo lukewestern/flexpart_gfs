@@ -1282,6 +1282,8 @@ subroutine readlanduse
   !                                                                            *
   !*****************************************************************************
 
+  use drydepo_mod
+  
   implicit none
 
   integer :: ix,jy,i,k,lu_cat,lu_perc
