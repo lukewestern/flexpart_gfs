@@ -106,7 +106,6 @@ OBJECTS_NCF = netcdf_output_mod.o
 
 OBJECTS = \
 FLEXPART.o	\
-detectformat.o  \
 initial_cond_calc.o
 
 ifeq ($(ncf), no)
@@ -148,7 +147,6 @@ conv_mod.o: par_mod.o com_mod.o flux_mod.o par_mod.o particle_mod.o class_gribfi
 	random_mod.o interpol_mod.o coordinates_ecmwf.o windfields_mod.o qvsat_mod.o
 coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o particle_mod.o windfields_mod.o
 date_mod.o: par_mod.o
-detectformat.o: com_mod.o par_mod.o
 drydepo_mod.o: com_mod.o par_mod.o unc_mod.o interpol_mod.o point_mod.o windfields_mod.o \
 	date_mod.o stability_correction.o
 FLEXPART.o: com_mod.o conv_mod.o par_mod.o point_mod.o drydepo_mod.o \

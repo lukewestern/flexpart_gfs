@@ -61,7 +61,7 @@ subroutine set_upperlevel_convect()
   endif  
 end subroutine set_upperlevel_convect
 
-subroutine convmix(itime,metdata_format)
+subroutine convmix(itime)
   !                     i
   !**************************************************************
   !handles all the calculations related to convective mixing
@@ -97,7 +97,6 @@ subroutine convmix(itime,metdata_format)
   integer :: ipconv
   integer :: jy, kpart, ktop, ngrid,kz
   integer,allocatable :: igrid(:), ipoint(:), igridn(:,:)
-  integer :: metdata_format
 
   ! itime [s]                 current time
   ! igrid(maxpart)            horizontal grid position of each particle
@@ -279,7 +278,7 @@ subroutine convmix(itime,metdata_format)
     end if
 
   ! Calculate translocation matrix
-    call calcmatrix(lconv,delt,cbaseflux(ix,jy),metdata_format)
+    call calcmatrix(lconv,delt,cbaseflux(ix,jy))
     
   ! treat particle only if column has convection
     if (lconv .eqv. .true.) then
@@ -359,7 +358,7 @@ subroutine convmix(itime,metdata_format)
 
   ! calculate translocation matrix
   !*******************************
-        call calcmatrix(lconv,delt,cbasefluxn(ix,jy,inest),metdata_format)
+        call calcmatrix(lconv,delt,cbasefluxn(ix,jy,inest))
         igrold = igr
         ktop = 0
       endif
@@ -408,7 +407,7 @@ subroutine convmix(itime,metdata_format)
   return
 end subroutine convmix
 
-subroutine calcmatrix(lconv,delt,cbmf,metdata_format)
+subroutine calcmatrix(lconv,delt,cbmf)
   !                        o    i    o
   !*****************************************************************************
   !                                                                            *
@@ -441,11 +440,11 @@ subroutine calcmatrix(lconv,delt,cbmf,metdata_format)
   use com_mod
   use class_gribfile
   use qvsat_mod
+  use windfields_mod, only: metdata_format
 
   implicit none
 
   real :: rlevmass,summe
-  integer :: metdata_format
 
   integer :: iflag, k, kk, kuvz
 

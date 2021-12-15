@@ -6,7 +6,7 @@ implicit none
 
 contains
 
-subroutine timemanager(metdata_format)
+subroutine timemanager
 
   !*****************************************************************************
   !                                                                            *
@@ -38,7 +38,6 @@ subroutine timemanager(metdata_format)
   !   variables uap,ucp,uzp,us,vs,ws,cbt now in module com_mod                 *
   !  Unified ECMWF and GFS builds                                              *
   !   Marian Harustak, 12.5.2017                                               *
-  !   - Added passing of metdata_format as it was needed by called routines    *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -65,7 +64,6 @@ subroutine timemanager(metdata_format)
   !                    deposition                                              *
   ! WETDEP             .true. if wet deposition is switched on                 *
   ! weight             weight for each concentration sample (1/2 or 1)         *
-  ! metdata_format     format of metdata (ecmwf/gfs)                           *
   !                                                                            *
   !*****************************************************************************
   ! openmp change
@@ -94,8 +92,6 @@ subroutine timemanager(metdata_format)
   implicit none
   real, parameter ::        &
     e_inv = 1.0/exp(1.0)  
-  integer, intent(in) ::    &
-    metdata_format            ! Data type of the windfields
   integer ::                &
     j,i,                    & ! loop variable
     ks,                     & ! loop variable species
@@ -185,12 +181,12 @@ subroutine timemanager(metdata_format)
   !*************************************
 
     if ((ldirect.eq.-1).and.(lconvection.eq.1).and.(itime.lt.0)) then    
-      call convmix(itime,metdata_format)
+      call convmix(itime)
     endif
 
   ! Get necessary wind fields if not available
   !*******************************************
-    call getfields(itime,nstop1,metdata_format)
+    call getfields(itime,nstop1)
     if (nstop1.gt.1) stop 'NO METEO FIELDS AVAILABLE'
 
   ! In case of ETA coordinates being read from file, convert the z positions
@@ -228,7 +224,7 @@ subroutine timemanager(metdata_format)
   ! for backward runs it is done before next windfield is read in
   !**************************************************************
     if ((ldirect.eq.1).and.(lconvection.eq.1)) then
-      call convmix(itime,metdata_format)
+      call convmix(itime)
     endif
 
   ! If middle of averaging period of output fields is reached, accumulated

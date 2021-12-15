@@ -5,7 +5,7 @@ module windfields_mod
   use par_mod
   use com_mod
 
-	implicit none
+  implicit none
 
   ! Fixed fields, unchangeable with time
   !*************************************
@@ -93,7 +93,55 @@ module windfields_mod
 
   ! Save uv and w field heights for ETA coordinate system
   real,dimension(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem) :: etauvheight,etawheight
+
+  integer :: metdata_format  ! storing the input data type (ECMWF/NCEP)
 contains
+
+subroutine detectformat
+
+  !*****************************************************************************
+  !                                                                            *
+  !   This routine reads the 1st file with windfields to determine             *
+  !   the format.                                                              *
+  !                                                                            *
+  !     Authors: M. Harustak                                                   *
+  !                                                                            *
+  !     6 May 2015                                                             *
+  !                                                                            *
+  !   Unified ECMWF and GFS builds                                             *
+  !   Marian Harustak, 12.5.2017                                               *
+  !     - Added routine to FP10 Flexpart distribution                          *
+  !*****************************************************************************
+  !                                                                            *
+  ! Variables:                                                                 *
+  ! fname                file name of file to check                            *
+  !                                                                            *
+  !*****************************************************************************
+
+  use par_mod
+  use com_mod
+  use class_gribfile
+
+
+  implicit none
+
+  character(len=255) :: filename
+  character(len=255) :: wfname1(maxwf)
+
+  ! If no file is available
+  if ( maxwf.le.0 ) then
+    print*,'No wind file available'
+    metdata_format = GRIBFILE_CENTRE_UNKNOWN
+    return
+  endif
+
+  ! construct filename
+  filename = path(3)(1:length(3)) // trim(wfname(1))
+ 
+  ! get format
+  metdata_format = gribfile_centre(TRIM(filename))
+
+end subroutine detectformat
 
 subroutine gridcheck_ecmwf
 

@@ -13,7 +13,7 @@ module getfields_mod
   public :: getfields
 contains
 
-subroutine getfields(itime,nstop,metdata_format)
+subroutine getfields(itime,nstop)
   !                       i     o
   !*****************************************************************************
   !                                                                            *
@@ -68,8 +68,6 @@ subroutine getfields(itime,nstop,metdata_format)
   implicit none
 
   integer :: indj,itime,nstop,memaux
-  integer :: metdata_format
-
   real :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
   real :: vvh(0:nxmax-1,0:nymax-1,nuvzmax)
   real :: pvh(0:nxmax-1,0:nymax-1,nuvzmax)
@@ -136,8 +134,8 @@ subroutine getfields(itime,nstop,metdata_format)
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if
         call readwind_nests(indj+1,memind(2),uuhn,vvhn,wwhn)
-        call calcpar(memind(2),uuh,vvh,pvh,metdata_format)
-        call calcpar_nests(memind(2),uuhn,vvhn,pvhn,metdata_format)
+        call calcpar(memind(2),uuh,vvh,pvh)
+        call calcpar_nests(memind(2),uuhn,vvhn,pvhn)
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(2),uuh,vvh,wwh,pvh)
         else
@@ -175,8 +173,8 @@ subroutine getfields(itime,nstop,metdata_format)
           call readwind_gfs(indj,memind(1),uuh,vvh,wwh)
         end if
         call readwind_nests(indj,memind(1),uuhn,vvhn,wwhn)
-        call calcpar(memind(1),uuh,vvh,pvh,metdata_format)
-        call calcpar_nests(memind(1),uuhn,vvhn,pvhn,metdata_format)
+        call calcpar(memind(1),uuh,vvh,pvh)
+        call calcpar_nests(memind(1),uuhn,vvhn,pvhn)
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(1),uuh,vvh,wwh,pvh)
         else
@@ -195,8 +193,8 @@ subroutine getfields(itime,nstop,metdata_format)
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if
         call readwind_nests(indj+1,memind(2),uuhn,vvhn,wwhn)
-        call calcpar(memind(2),uuh,vvh,pvh,metdata_format)
-        call calcpar_nests(memind(2),uuhn,vvhn,pvhn,metdata_format)
+        call calcpar(memind(2),uuh,vvh,pvh)
+        call calcpar_nests(memind(2),uuhn,vvhn,pvhn)
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(2),uuh,vvh,wwh,pvh)
         else
@@ -280,8 +278,8 @@ subroutine calcpv(n,uuh,vvh,pvh)
 !$OMP jj,j,uy,dudy)
 !$OMP DO
   do jy=0,nymin1
-    if (sglobal.and.jy.eq.0) goto 10
-    if (nglobal.and.jy.eq.nymin1) goto 10
+    if (sglobal.and.jy.eq.0) cycle
+    if (nglobal.and.jy.eq.nymin1) cycle
     phi = (ylat0 + jy * dy) * pi / 180.
     f = 0.00014585 * sin(phi)
     tanphi = tan(phi)
@@ -361,29 +359,33 @@ subroutine calcpv(n,uuh,vvh,pvh)
 40        continue
   ! Upward branch
           kup=kup+1
-          if (kch.ge.nlck) goto 21     ! No more levels to check,
-  !                                       ! and no values found
-          if (kup.ge.nuvz) goto 41
-          kch=kch+1
-          k=kup
-          thdn=tth(ivr,jy,k,n)*ppmk(ivr,jy,k)
-          thup=tth(ivr,jy,k+1,n)*ppmk(ivr,jy,k+1)
-
-
-          if (((thdn.ge.theta).and.(thup.le.theta)).or. &
-          ((thdn.le.theta).and.(thup.ge.theta))) then
-            dt1=abs(theta-thdn)
-            dt2=abs(theta-thup)
-            dt=dt1+dt2
-            if (dt.lt.eps) then   ! Avoid division by zero error
-              dt1=0.5             ! G.W., 10.4.1996
-              dt2=0.5
-              dt=1.0
-            endif
-            vx(ii)=(vvh(ivr,jy,k)*dt2+vvh(ivr,jy,k+1)*dt1)/dt
-            goto 20
+          if (kch.ge.nlck) then ! No more levels to check, and no values found
+            ! Must use vv at current level and long. jux becomes smaller by 1
+            vx(ii)=vvh(ix,jy,kl)
+            jux=jux-1
           endif
-41        continue
+
+          if (kup.lt.nuvz) then
+            kch=kch+1
+            k=kup
+            thdn=tth(ivr,jy,k,n)*ppmk(ivr,jy,k)
+            thup=tth(ivr,jy,k+1,n)*ppmk(ivr,jy,k+1)
+
+
+            if (((thdn.ge.theta).and.(thup.le.theta)).or. &
+            ((thdn.le.theta).and.(thup.ge.theta))) then
+              dt1=abs(theta-thdn)
+              dt2=abs(theta-thup)
+              dt=dt1+dt2
+              if (dt.lt.eps) then   ! Avoid division by zero error
+                dt1=0.5             ! G.W., 10.4.1996
+                dt2=0.5
+                dt=1.0
+              endif
+              vx(ii)=(vvh(ivr,jy,k)*dt2+vvh(ivr,jy,k+1)*dt1)/dt
+              cycle ! Values found, next iteration
+            endif
+          endif
   ! Downward branch
           kdn=kdn-1
           if (kdn.lt.1) goto 40
@@ -403,16 +405,9 @@ subroutine calcpv(n,uuh,vvh,pvh)
               dt=1.0
             endif
             vx(ii)=(vvh(ivr,jy,k)*dt2+vvh(ivr,jy,k+1)*dt1)/dt
-            goto 20
+            cycle ! Values found, next iteration
           endif
           goto 40
-  ! This section used when no values were found
-21        continue
-  ! Must use vv at current level and long. jux becomes smaller by 1
-          vx(ii)=vvh(ix,jy,kl)
-          jux=jux-1
-  ! Otherwise OK
-20        continue
         end do
         if (jux.gt.0) then
           dvdx=(vx(2)-vx(1))/real(jux)/(dx*pi/180.)
@@ -437,55 +432,54 @@ subroutine calcpv(n,uuh,vvh,pvh)
 70        continue
   ! Upward branch
           kup=kup+1
-          if (kch.ge.nlck) goto 51     ! No more levels to check,
-  !                                     ! and no values found
-          if (kup.ge.nuvz) goto 71
-          kch=kch+1
-          k=kup
-          thdn=tth(ix,j,k,n)*ppmk(ix,j,k)
-          thup=tth(ix,j,k+1,n)*ppmk(ix,j,k+1)
-          if (((thdn.ge.theta).and.(thup.le.theta)).or. &
-          ((thdn.le.theta).and.(thup.ge.theta))) then
-            dt1=abs(theta-thdn)
-            dt2=abs(theta-thup)
-            dt=dt1+dt2
-            if (dt.lt.eps) then   ! Avoid division by zero error
-              dt1=0.5             ! G.W., 10.4.1996
-              dt2=0.5
-              dt=1.0
-            endif
-            uy(jj)=(uuh(ix,j,k)*dt2+uuh(ix,j,k+1)*dt1)/dt
-            goto 50
+          if (kch.ge.nlck) then ! No more levels to check, and no values found
+            ! Must use uu at current level and lat. juy becomes smaller by 1
+            uy(jj)=uuh(ix,jy,kl)
+            juy=juy-1
+            cycle
           endif
-71        continue
+
+          if (.not.(kup.ge.nuvz)) then
+            kch=kch+1
+            k=kup
+            thdn=tth(ix,j,k,n)*ppmk(ix,j,k)
+            thup=tth(ix,j,k+1,n)*ppmk(ix,j,k+1)
+            if (((thdn.ge.theta).and.(thup.le.theta)).or. &
+            ((thdn.le.theta).and.(thup.ge.theta))) then
+              dt1=abs(theta-thdn)
+              dt2=abs(theta-thup)
+              dt=dt1+dt2
+              if (dt.lt.eps) then   ! Avoid division by zero error
+                dt1=0.5             ! G.W., 10.4.1996
+                dt2=0.5
+                dt=1.0
+              endif
+              uy(jj)=(uuh(ix,j,k)*dt2+uuh(ix,j,k+1)*dt1)/dt
+              cycle ! Values found, next iteration
+            endif
+          endif
   ! Downward branch
           kdn=kdn-1
-          if (kdn.lt.1) goto 70
-          kch=kch+1
-          k=kdn
-          thdn=tth(ix,j,k,n)*ppmk(ix,j,k)
-          thup=tth(ix,j,k+1,n)*ppmk(ix,j,k+1)
-          if (((thdn.ge.theta).and.(thup.le.theta)).or. &
-          ((thdn.le.theta).and.(thup.ge.theta))) then
-            dt1=abs(theta-thdn)
-            dt2=abs(theta-thup)
-            dt=dt1+dt2
-            if (dt.lt.eps) then   ! Avoid division by zero error
-              dt1=0.5             ! G.W., 10.4.1996
-              dt2=0.5
-              dt=1.0
+          if (kdn.ge.1) then
+            kch=kch+1
+            k=kdn
+            thdn=tth(ix,j,k,n)*ppmk(ix,j,k)
+            thup=tth(ix,j,k+1,n)*ppmk(ix,j,k+1)
+            if (((thdn.ge.theta).and.(thup.le.theta)).or. &
+            ((thdn.le.theta).and.(thup.ge.theta))) then
+              dt1=abs(theta-thdn)
+              dt2=abs(theta-thup)
+              dt=dt1+dt2
+              if (dt.lt.eps) then   ! Avoid division by zero error
+                dt1=0.5             ! G.W., 10.4.1996
+                dt2=0.5
+                dt=1.0
+              endif
+              uy(jj)=(uuh(ix,j,k)*dt2+uuh(ix,j,k+1)*dt1)/dt
+              cycle ! Values found, next iteration
             endif
-            uy(jj)=(uuh(ix,j,k)*dt2+uuh(ix,j,k+1)*dt1)/dt
-            goto 50
           endif
           goto 70
-  ! This section used when no values were found
-51        continue
-  ! Must use uu at current level and lat. juy becomes smaller by 1
-          uy(jj)=uuh(ix,jy,kl)
-          juy=juy-1
-  ! Otherwise OK
-50        continue
         end do
       if (juy.gt.0) then
       dudy=(uy(2)-uy(1))/real(juy)/(dy*pi/180.)
@@ -497,14 +491,11 @@ subroutine calcpv(n,uuh,vvh,pvh)
       pvh(ix,jy,kl)=dthetadp*(f+(dvdx/cosphi-dudy &
            +uuh(ix,jy,kl)*tanphi)/r_earth)*(-1.e6)*9.81
 
-
-  !
   ! Resest jux and juy
       jux=jumpx
       juy=jumpy
       end do
     end do
-10  continue
   end do
 !$OMP END DO 
 !$OMP END PARALLEL
@@ -794,7 +785,7 @@ subroutine calcpv_nests(l,n,uuhn,vvhn,pvhn)
   !
 end subroutine calcpv_nests
 
-subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
+subroutine calcpar(n,uuh,vvh,pvh)
   !                   i  i   i   o
   !*****************************************************************************
   !                                                                            *
@@ -840,16 +831,12 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
   !                                                                            *
   !*****************************************************************************
 
-  use par_mod
-  use com_mod
   use class_gribfile
   use drydepo_mod
-  use windfields_mod
   use qvsat_mod
 
   implicit none
 
-  integer :: metdata_format
   integer :: n,ix,jy,i,kz,lz,kzmin,llev,loop_start
   real :: ttlev(nuvzmax),qvlev(nuvzmax),ol,hmixplus
   real :: ulev(nuvzmax),vlev(nuvzmax),rh,vd(maxspec),subsceff,ylat
@@ -919,11 +906,11 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
 
         ! calculate inverse Obukhov length scale with tth(llev)
         ol=obukhov(ps(ix,jy,1,n),tt2(ix,jy,1,n),td2(ix,jy,1,n), &
-             tth(ix,jy,llev,n),ustar(ix,jy,1,n),sshf(ix,jy,1,n),akm,bkm,akz(llev),metdata_format)
+             tth(ix,jy,llev,n),ustar(ix,jy,1,n),sshf(ix,jy,1,n),akm,bkm,akz(llev))
       else
         llev=0
         ol=obukhov(ps(ix,jy,1,n),tt2(ix,jy,1,n),td2(ix,jy,1,n), &
-            tth(ix,jy,2,n),ustar(ix,jy,1,n),sshf(ix,jy,1,n),akm,bkm,akzdummy,metdata_format)
+            tth(ix,jy,2,n),ustar(ix,jy,1,n),sshf(ix,jy,1,n),akm,bkm,akzdummy)
       end if
 
       if (ol.ne.0.) then
@@ -947,11 +934,11 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
         ! NCEP version hmix has been read in in readwind.f, is therefore not calculated here
       call richardson(ps(ix,jy,1,n),ustar(ix,jy,1,n),ttlev,qvlev, &
            ulev,vlev,nuvz,akz,bkz,sshf(ix,jy,1,n),tt2(ix,jy,1,n), &
-             td2(ix,jy,1,n),hmixdummy,wstar(ix,jy,1,n),hmixplus,metdata_format)
+             td2(ix,jy,1,n),hmixdummy,wstar(ix,jy,1,n),hmixplus)
       else
         call richardson(ps(ix,jy,1,n),ustar(ix,jy,1,n),ttlev,qvlev, &
              ulev,vlev,nuvz,akz,bkz,sshf(ix,jy,1,n),tt2(ix,jy,1,n), &
-             td2(ix,jy,1,n),hmix(ix,jy,1,n),wstar(ix,jy,1,n),hmixplus,metdata_format)
+             td2(ix,jy,1,n),hmix(ix,jy,1,n),wstar(ix,jy,1,n),hmixplus)
       end if
 
       if(lsubgrid.eq.1) then
@@ -1042,22 +1029,19 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
   !    thermal tropopause criterion
   !************************************************************************
 
-      do kz=kzmin,nuvz
-        do lz=kz+1,nuvz
+      outer: do kz=kzmin,nuvz
+        inner: do lz=kz+1,nuvz
           if ((zlev(lz)-zlev(kz)).gt.2000.) then
             if (((tth(ix,jy,kz,n)-tth(ix,jy,lz,n))/ &
                  (zlev(lz)-zlev(kz))).lt.0.002) then
               tropopause(ix,jy,1,n)=zlev(kz)
-              goto 51
+              exit outer
             endif
-            goto 50
+            exit inner
           endif
-        end do
-50      continue
-      end do
-51    continue
-
-
+        end do inner
+      end do outer
+      
     end do
   end do
   ! !$OMP END DO
@@ -1070,7 +1054,7 @@ subroutine calcpar(n,uuh,vvh,pvh,metdata_format)
   call calcpv(n,uuh,vvh,pvh)
 end subroutine calcpar
 
-subroutine calcpar_nests(n,uuhn,vvhn,pvhn,metdata_format)
+subroutine calcpar_nests(n,uuhn,vvhn,pvhn)
   !                         i  i    i    o
   !*****************************************************************************
   !                                                                            *
@@ -1094,7 +1078,6 @@ subroutine calcpar_nests(n,uuhn,vvhn,pvhn,metdata_format)
   !                                                                            *
   !   Unified ECMWF and GFS builds                                             *
   !   Marian Harustak, 12.5.2017                                               *
-  !     - Added passing of metdata_format as it was needed by called routines  *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -1110,14 +1093,11 @@ subroutine calcpar_nests(n,uuhn,vvhn,pvhn,metdata_format)
   !                                                                            *
   !*****************************************************************************
 
-  use par_mod
-  use com_mod
   use drydepo_mod
   use qvsat_mod
 
   implicit none
 
-  integer :: metdata_format
   integer :: n,ix,jy,i,l,kz,lz,kzmin
   real :: ttlev(nuvzmax),qvlev(nuvzmax),ol,hmixplus,dummyakzllev
   real :: ulev(nuvzmax),vlev(nuvzmax),rh,vd(maxspec),subsceff,ylat
@@ -1168,7 +1148,7 @@ subroutine calcpar_nests(n,uuhn,vvhn,pvhn,metdata_format)
 
       ol=obukhov(psn(ix,jy,1,n,l),tt2n(ix,jy,1,n,l), &
            td2n(ix,jy,1,n,l),tthn(ix,jy,2,n,l),ustarn(ix,jy,1,n,l), &
-           sshfn(ix,jy,1,n,l),akm,bkm,dummyakzllev,metdata_format)
+           sshfn(ix,jy,1,n,l),akm,bkm,dummyakzllev)
       if (ol.ne.0.) then
         olin(ix,jy,1,n,l)=1./ol
       else
@@ -1189,7 +1169,7 @@ subroutine calcpar_nests(n,uuhn,vvhn,pvhn,metdata_format)
       call richardson(psn(ix,jy,1,n,l),ustarn(ix,jy,1,n,l),ttlev, &
            qvlev,ulev,vlev,nuvz,akz,bkz,sshfn(ix,jy,1,n,l), &
            tt2n(ix,jy,1,n,l),td2n(ix,jy,1,n,l),hmixn(ix,jy,1,n,l), &
-           wstarn(ix,jy,1,n,l),hmixplus,metdata_format)
+           wstarn(ix,jy,1,n,l),hmixplus)
 
       if(lsubgrid.eq.1) then
         subsceff=min(excessoron(ix,jy,l),hmixplus)
@@ -1295,7 +1275,7 @@ subroutine calcpar_nests(n,uuhn,vvhn,pvhn,metdata_format)
   end do
 end subroutine calcpar_nests
 
-real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev,metdata_format)
+real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
 
   !********************************************************************
   !                                                                   *
@@ -1333,13 +1313,11 @@ real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev,metdata_format)
   !                                                                   *
   !********************************************************************
 
-  use par_mod
   use class_gribfile
   use qvsat_mod
 
   implicit none
 
-  integer :: metdata_format
   real :: akm(nwzmax),bkm(nwzmax)
   real :: ps,tsurf,tdsurf,tlev,ustar,hf,e,tv,rhoa,plev
   real :: ak1,bk1,theta,thetastar
@@ -1366,7 +1344,7 @@ real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev,metdata_format)
 end function obukhov
 
 subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
-       akz,bkz,hf,tt2,td2,h,wst,hmixplus,metdata_format)
+       akz,bkz,hf,tt2,td2,h,wst,hmixplus)
   !                        i    i    i     i    i    i    i
   ! i   i  i   i   i  o  o     o
   !****************************************************************************
@@ -1416,13 +1394,11 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
   !                                                                           *
   !****************************************************************************
 
-  use par_mod
   use class_gribfile
   use qvsat_mod
 
   implicit none
 
-  integer :: metdata_format
   integer :: i,k,nuvz,iter,llev,loop_start
   real :: tv,tvold,zref,z,zold,pint,pold,theta,thetaref,ri
   real :: akz(nuvz),bkz(nuvz),ulev(nuvz),vlev(nuvz),hf,wst,tt2,td2
@@ -1582,8 +1558,6 @@ real function scalev(ps,t,td,stress)
   !     stress  surface stress [N/m2]                                 *
   !                                                                   *
   !********************************************************************
-  
-  use par_mod
   use qvsat_mod
 
   implicit none
@@ -1594,7 +1568,6 @@ real function scalev(ps,t,td,stress)
   tv=t*(1.+0.378*e/ps)           ! virtual temperature
   rhoa=ps/(r_air*tv)              ! air density
   scalev=sqrt(abs(stress)/rhoa)
-
 end function scalev
 
 end module getfields_mod

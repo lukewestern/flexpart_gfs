@@ -50,9 +50,7 @@ program flexpart
     ix,jy,                & ! grid indices
     inest,                & ! loop variable for nested gridcells
     iopt,                 & ! temporarily storing inline options
-    detectformat,         & ! integer function in detectformat.f90 (should this be here?)
-    idummy=-320,          & ! dummy value used by the random routine
-    metdata_format=GRIBFILE_CENTRE_UNKNOWN  ! storing the input data type (ECMWF/NCEP)
+    idummy=-320             ! dummy value used by the random routine
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
   
@@ -151,7 +149,7 @@ program flexpart
   ! to ECMWF eta coordinates or the appropriate parts in advance and the
   ! interpolation subroutines need to be changed.
   !**********************
-  metdata_format = detectformat()
+  call detectformat
 
   if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
     print *,'ECMWF metdata detected'
@@ -276,7 +274,7 @@ program flexpart
   
   ! Calculate particle trajectories
   !********************************
-  call timemanager(metdata_format)
+  call timemanager
 
   CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
   s_total = (count_clock - count_clock0)/real(count_rate) - s_total
