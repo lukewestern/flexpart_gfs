@@ -449,7 +449,9 @@ subroutine timemanager
 
   ! De-allocate memory and end
   !***************************
-  call deallocate_all_particles()
+  call deallocate_all_particles
+  call windfields_deallocate
+
   if (iflux.eq.1) then
       deallocate(flux)
   endif

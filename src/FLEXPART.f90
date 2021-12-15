@@ -164,6 +164,10 @@ program flexpart
   !************************************************
   call com_mod_allocate_nests
 
+  ! Allocate memory for windfields
+  !*******************************
+  call windfields_allocate
+
   ! Read the model grid specifications,
   ! both for the mother domain and eventual nests
   !**********************************************

@@ -278,8 +278,8 @@ subroutine calcpv(n,uuh,vvh,pvh)
 !$OMP jj,j,uy,dudy)
 !$OMP DO
   do jy=0,nymin1
-    if (sglobal.and.jy.eq.0) cycle
-    if (nglobal.and.jy.eq.nymin1) cycle
+    if (sglobal.and.jy.eq.0) goto 10
+    if (nglobal.and.jy.eq.nymin1) goto 10
     phi = (ylat0 + jy * dy) * pi / 180.
     f = 0.00014585 * sin(phi)
     tanphi = tan(phi)
@@ -359,33 +359,29 @@ subroutine calcpv(n,uuh,vvh,pvh)
 40        continue
   ! Upward branch
           kup=kup+1
-          if (kch.ge.nlck) then ! No more levels to check, and no values found
-            ! Must use vv at current level and long. jux becomes smaller by 1
-            vx(ii)=vvh(ix,jy,kl)
-            jux=jux-1
-          endif
-
-          if (kup.lt.nuvz) then
-            kch=kch+1
-            k=kup
-            thdn=tth(ivr,jy,k,n)*ppmk(ivr,jy,k)
-            thup=tth(ivr,jy,k+1,n)*ppmk(ivr,jy,k+1)
+          if (kch.ge.nlck) goto 21     ! No more levels to check,
+  !                                       ! and no values found
+          if (kup.ge.nuvz) goto 41
+          kch=kch+1
+          k=kup
+          thdn=tth(ivr,jy,k,n)*ppmk(ivr,jy,k)
+          thup=tth(ivr,jy,k+1,n)*ppmk(ivr,jy,k+1)
 
 
-            if (((thdn.ge.theta).and.(thup.le.theta)).or. &
-            ((thdn.le.theta).and.(thup.ge.theta))) then
-              dt1=abs(theta-thdn)
-              dt2=abs(theta-thup)
-              dt=dt1+dt2
-              if (dt.lt.eps) then   ! Avoid division by zero error
-                dt1=0.5             ! G.W., 10.4.1996
-                dt2=0.5
-                dt=1.0
-              endif
-              vx(ii)=(vvh(ivr,jy,k)*dt2+vvh(ivr,jy,k+1)*dt1)/dt
-              cycle ! Values found, next iteration
+          if (((thdn.ge.theta).and.(thup.le.theta)).or. &
+          ((thdn.le.theta).and.(thup.ge.theta))) then
+            dt1=abs(theta-thdn)
+            dt2=abs(theta-thup)
+            dt=dt1+dt2
+            if (dt.lt.eps) then   ! Avoid division by zero error
+              dt1=0.5             ! G.W., 10.4.1996
+              dt2=0.5
+              dt=1.0
             endif
+            vx(ii)=(vvh(ivr,jy,k)*dt2+vvh(ivr,jy,k+1)*dt1)/dt
+            goto 20
           endif
+41        continue
   ! Downward branch
           kdn=kdn-1
           if (kdn.lt.1) goto 40
@@ -405,9 +401,16 @@ subroutine calcpv(n,uuh,vvh,pvh)
               dt=1.0
             endif
             vx(ii)=(vvh(ivr,jy,k)*dt2+vvh(ivr,jy,k+1)*dt1)/dt
-            cycle ! Values found, next iteration
+            goto 20
           endif
           goto 40
+  ! This section used when no values were found
+21        continue
+  ! Must use vv at current level and long. jux becomes smaller by 1
+          vx(ii)=vvh(ix,jy,kl)
+          jux=jux-1
+  ! Otherwise OK
+20        continue
         end do
         if (jux.gt.0) then
           dvdx=(vx(2)-vx(1))/real(jux)/(dx*pi/180.)
@@ -432,54 +435,55 @@ subroutine calcpv(n,uuh,vvh,pvh)
 70        continue
   ! Upward branch
           kup=kup+1
-          if (kch.ge.nlck) then ! No more levels to check, and no values found
-            ! Must use uu at current level and lat. juy becomes smaller by 1
-            uy(jj)=uuh(ix,jy,kl)
-            juy=juy-1
-            cycle
-          endif
-
-          if (.not.(kup.ge.nuvz)) then
-            kch=kch+1
-            k=kup
-            thdn=tth(ix,j,k,n)*ppmk(ix,j,k)
-            thup=tth(ix,j,k+1,n)*ppmk(ix,j,k+1)
-            if (((thdn.ge.theta).and.(thup.le.theta)).or. &
-            ((thdn.le.theta).and.(thup.ge.theta))) then
-              dt1=abs(theta-thdn)
-              dt2=abs(theta-thup)
-              dt=dt1+dt2
-              if (dt.lt.eps) then   ! Avoid division by zero error
-                dt1=0.5             ! G.W., 10.4.1996
-                dt2=0.5
-                dt=1.0
-              endif
-              uy(jj)=(uuh(ix,j,k)*dt2+uuh(ix,j,k+1)*dt1)/dt
-              cycle ! Values found, next iteration
+          if (kch.ge.nlck) goto 51     ! No more levels to check,
+  !                                     ! and no values found
+          if (kup.ge.nuvz) goto 71
+          kch=kch+1
+          k=kup
+          thdn=tth(ix,j,k,n)*ppmk(ix,j,k)
+          thup=tth(ix,j,k+1,n)*ppmk(ix,j,k+1)
+          if (((thdn.ge.theta).and.(thup.le.theta)).or. &
+          ((thdn.le.theta).and.(thup.ge.theta))) then
+            dt1=abs(theta-thdn)
+            dt2=abs(theta-thup)
+            dt=dt1+dt2
+            if (dt.lt.eps) then   ! Avoid division by zero error
+              dt1=0.5             ! G.W., 10.4.1996
+              dt2=0.5
+              dt=1.0
             endif
+            uy(jj)=(uuh(ix,j,k)*dt2+uuh(ix,j,k+1)*dt1)/dt
+            goto 50
           endif
+71        continue
   ! Downward branch
           kdn=kdn-1
-          if (kdn.ge.1) then
-            kch=kch+1
-            k=kdn
-            thdn=tth(ix,j,k,n)*ppmk(ix,j,k)
-            thup=tth(ix,j,k+1,n)*ppmk(ix,j,k+1)
-            if (((thdn.ge.theta).and.(thup.le.theta)).or. &
-            ((thdn.le.theta).and.(thup.ge.theta))) then
-              dt1=abs(theta-thdn)
-              dt2=abs(theta-thup)
-              dt=dt1+dt2
-              if (dt.lt.eps) then   ! Avoid division by zero error
-                dt1=0.5             ! G.W., 10.4.1996
-                dt2=0.5
-                dt=1.0
-              endif
-              uy(jj)=(uuh(ix,j,k)*dt2+uuh(ix,j,k+1)*dt1)/dt
-              cycle ! Values found, next iteration
+          if (kdn.lt.1) goto 70
+          kch=kch+1
+          k=kdn
+          thdn=tth(ix,j,k,n)*ppmk(ix,j,k)
+          thup=tth(ix,j,k+1,n)*ppmk(ix,j,k+1)
+          if (((thdn.ge.theta).and.(thup.le.theta)).or. &
+          ((thdn.le.theta).and.(thup.ge.theta))) then
+            dt1=abs(theta-thdn)
+            dt2=abs(theta-thup)
+            dt=dt1+dt2
+            if (dt.lt.eps) then   ! Avoid division by zero error
+              dt1=0.5             ! G.W., 10.4.1996
+              dt2=0.5
+              dt=1.0
             endif
+            uy(jj)=(uuh(ix,j,k)*dt2+uuh(ix,j,k+1)*dt1)/dt
+            goto 50
           endif
           goto 70
+  ! This section used when no values were found
+51        continue
+  ! Must use uu at current level and lat. juy becomes smaller by 1
+          uy(jj)=uuh(ix,jy,kl)
+          juy=juy-1
+  ! Otherwise OK
+50        continue
         end do
       if (juy.gt.0) then
       dudy=(uy(2)-uy(1))/real(juy)/(dy*pi/180.)
@@ -490,12 +494,13 @@ subroutine calcpv(n,uuh,vvh,pvh)
   !
       pvh(ix,jy,kl)=dthetadp*(f+(dvdx/cosphi-dudy &
            +uuh(ix,jy,kl)*tanphi)/r_earth)*(-1.e6)*9.81
-
+  !
   ! Resest jux and juy
       jux=jumpx
       juy=jumpy
       end do
     end do
+10  continue
   end do
 !$OMP END DO 
 !$OMP END PARALLEL
@@ -1041,7 +1046,7 @@ subroutine calcpar(n,uuh,vvh,pvh)
           endif
         end do inner
       end do outer
-      
+
     end do
   end do
   ! !$OMP END DO
