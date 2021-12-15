@@ -1,5 +1,13 @@
 ! SPDX-FileCopyrightText: FLEXPART 1998-2019, see flexpart_license.txt
 ! SPDX-License-Identifier: GPL-3.0-or-later
+module cbl_mod
+    
+    implicit none
+
+    private :: cuberoot
+
+    public :: cbl,re_initialize_particle,initialize_cbl_vel
+contains
 
 subroutine cbl(wp,zp,ust,wst,h,rhoa,rhograd,sigmaw,dsigmawdz,tlw,ptot,Q,phi,ath,bth,ol,flagrein)
 !                i  i i  i   i  i    i     i       i         i   o   o   o   o    o  i    o
@@ -29,7 +37,6 @@ subroutine cbl(wp,zp,ust,wst,h,rhoa,rhograd,sigmaw,dsigmawdz,tlw,ptot,Q,phi,ath,
     real ::pa,pb,alfa
     real ::Phi,Q,ptot  
     real :: timedir
-    real ::cuberoot
     real ::z0,ol,transition   
     
 
@@ -213,40 +220,16 @@ subroutine cbl(wp,zp,ust,wst,h,rhoa,rhograd,sigmaw,dsigmawdz,tlw,ptot,Q,phi,ath,
     return
 end subroutine cbl
 
-FUNCTION CUBEROOT (X) RESULT (Y)
+function cuberoot(x) result(y)
+    
+    implicit none
 
-IMPLICIT NONE
+    real, intent(in) :: x
+    real :: y 
+    real, parameter :: third=0.333333333
 
-real, INTENT(IN) :: X
-real:: Y
-
-real, PARAMETER :: THIRD = 0.333333333
-
-
-Y = SIGN((ABS(X))**THIRD, X)
-
-RETURN
-
-END FUNCTION CUBEROOT
-
-
-
-
-FUNCTION CUBEROOTD (X) RESULT (Y)
-
-IMPLICIT NONE
-
-DOUBLE PRECISION, INTENT(IN) :: X
-DOUBLE PRECISION :: Y
-
-DOUBLE PRECISION, PARAMETER :: THIRD = 0.33333333333333333333333333333333333333333333333333333333333333333333333333333333333D0
-
-
-Y = SIGN((ABS(X))**THIRD, X)
-
-RETURN
-
-END FUNCTION CUBEROOTD
+    y=sign((abs(x))**third,x)
+end function cuberoot
 
 subroutine re_initialize_particle(zp,ust,wst,h,sigmaw,wp,nrand,ol)
 !                                      i   i  i   i  i    io  io    i 
@@ -424,3 +407,5 @@ subroutine initialize_cbl_vel(idum,zp,ust,wst,h,sigmaw,wp, ol)
 
   return
 end subroutine initialize_cbl_vel
+
+end module cbl_mod

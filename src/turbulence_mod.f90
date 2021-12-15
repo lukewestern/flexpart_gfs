@@ -15,7 +15,9 @@ module turbulence_mod
 contains
 
 subroutine turbulence_boundarylayer(ipart,nrand,dt,zts,rhoa,rhograd)
-
+  
+  use cbl_mod
+  
   implicit none 
 
   integer, intent(in) ::          &

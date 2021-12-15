@@ -262,10 +262,11 @@ real function raerod (l,ust,z0)
   !*****************************************************************************
 
   use par_mod
+  use stability_correction
 
   implicit none
 
-  real :: l,psih,ust,z0
+  real :: l,ust,z0
 
   raerod=(alog(href/z0)-psih(href,l)+psih(z0,l))/(karman*ust)
 

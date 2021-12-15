@@ -608,6 +608,7 @@ subroutine initialize_particle(itime,ipart)
   use random_mod, only: ran3
   use omp_lib
   use interpol_mod
+  use cbl_mod
 
   implicit none
 

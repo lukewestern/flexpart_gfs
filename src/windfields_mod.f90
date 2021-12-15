@@ -1639,13 +1639,14 @@ subroutine pbl_profile(ps,td2m,zml1,t2m,tml1,u10m,uml1,stress,hf)
 
   use par_mod
   use qvsat_mod
+  use stability_correction
 
   implicit none
 
   integer :: iter
   real :: ps,td2m,rhoa,zml1,t2m,tml1,u10m,uml1,ustar,hf
   real :: al,alold,aldiff,tmean,crit
-  real :: deltau,deltat,thetastar,psim,psih,e,tv,stress
+  real :: deltau,deltat,thetastar,e,tv,stress
   integer,parameter :: maxiter=10
   real,parameter    :: r1=0.74
 
