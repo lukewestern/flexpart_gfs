@@ -6,10 +6,27 @@ module drydepo_mod
   
   implicit none
 
-  real :: xlanduse(0:nxmax-1,0:nymax-1,numclass)   ! area fractions in percent [0-1]
-  real :: xlandusen(0:nxmaxn-1,0:nymaxn-1,numclass,maxnests)
-
+  real,allocatable,dimension(:,:,:) ::   &
+    xlanduse                               ! area fractions in percent [0-1]
+  real,allocatable,dimension(:,:,:,:) :: &
+    xlandusen                              ! nested area fractions in percent [0-1]
+  real,allocatable,dimension(:,:,:,:) :: &
+    vdep                                   ! deposition velocities [m/s]
 contains
+
+subroutine drydepo_allocate
+  implicit none
+  if (.not.DRYDEP) return
+  write(*,*) 'allocate drydepo fields'
+  allocate(xlanduse(0:nxmax-1,0:nymax-1,numclass),      &
+    xlandusen(0:nxmaxn-1,0:nymaxn-1,numclass,maxnests), &
+    vdep(0:nxmax-1,0:nymax-1,maxspec,numwfmem))
+end subroutine drydepo_allocate
+
+subroutine drydepo_deallocate
+  if (.not.DRYDEP) return
+  deallocate(xlanduse,xlandusen,vdep)
+end subroutine drydepo_deallocate
 
 subroutine assignland
 
@@ -662,7 +679,9 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob)
   integer :: itime,i,j,k,memindnext
   integer :: ks!nix,njy,
   real :: prob(maxspec),vdepo(maxspec)
-  real,parameter :: eps=nxmax/3.e5
+  real :: eps
+
+  eps=nxmax/3.e5
 
   if (DRYDEP) then    ! reset probability for deposition
     do ks=1,nspec
@@ -731,9 +750,9 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob)
           if (DRYDEPSPEC(ks)) then
             if (depoindicator(ks)) then
               if (ngrid.le.0) then
-                call interpol_vdep(ks,vdepo(ks))
+                call interpol_vdep(vdep,ks,vdepo(ks))
               else
-                call interpol_vdep_nests(ks,vdepo(ks))
+                call interpol_vdep_nests(vdepn,ks,vdepo(ks))
               endif
             endif
   ! correction by Petra Seibert, 10 April 2001
@@ -746,6 +765,39 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob)
         end do
       endif
 end subroutine get_vdep_prob
+
+subroutine drydepo_probability(prob,dt,zts)
+  use par_mod
+  use com_mod
+  use interpol_mod
+
+  implicit none
+
+  real,intent(inout) :: prob(maxspec)
+  real :: dt,zts                      ! real(ldt), real(zt)
+  real :: vdepo(maxspec)              ! deposition velocities for all species
+  integer :: ks                       ! loop variable over species
+
+    
+  if ((DRYDEP).and.(zts.lt.2.*href)) then
+    do ks=1,nspec
+      if (DRYDEPSPEC(ks)) then
+        if (depoindicator(ks)) then
+          if (ngrid.le.0) then
+            call interpol_vdep(vdep,ks,vdepo(ks))
+          else
+            call interpol_vdep_nests(vdepn,ks,vdepo(ks))
+          endif
+        endif
+  ! correction by Petra Seibert, 10 April 2001
+  !   this formulation means that prob(n) = 1 - f(0)*...*f(n)
+  !   where f(n) is the exponential term
+        prob=1.+(prob-1.)*exp(-vdepo(ks)*abs(dt)/(2.*href))
+        !if (pp.eq.535) write(*,*) 'advance1', ks,dtt,p1,vdep(ix,jy,ks,1)
+      endif
+    end do
+  endif
+end subroutine drydepo_probability
 
 subroutine getvdep(n,ix,jy,ust,temp,pa,L,gr,rh,rr,snow,vdepo)
   !                   i i  i   i   i   i  i i  i  i    i o

@@ -42,6 +42,8 @@ program flexpart
   use initialise_mod
   use output_mod
   use drydepo_mod
+  use getfields_mod
+  use interpol_mod, only: interpol_allocate
 
   implicit none
 
@@ -160,20 +162,23 @@ program flexpart
     stop
   endif
 
-  ! If nested wind fields are used, allocate arrays
-  !************************************************
-  call com_mod_allocate_nests
+  ! ! If nested wind fields are used, allocate arrays
+  ! !************************************************
+  ! call com_mod_allocate_nests
 
-  ! Allocate memory for windfields
-  !*******************************
-  call windfields_allocate
+  ! ! Allocate memory for windfields
+  ! !*******************************
+  ! call windfields_allocate
 
   ! Read the model grid specifications,
   ! both for the mother domain and eventual nests
   !**********************************************
   call gridcheck_ecmwf
   call set_upperlevel_convect
-  call gridcheck_nests
+  if (numbnests.ge.1) then
+    call gridcheck_nests
+    call windfields_nest_allocate
+  endif
 
   ! Read the output grid specifications if requested by user
   !*********************************************************
@@ -198,10 +203,6 @@ program flexpart
   !***************************
   call readlanduse ! CHECK ETA
 
-  ! Assign fractional cover of landuse classes to each ECMWF grid point
-  !********************************************************************
-  call assignland ! CHECK ETA
-
   ! Read the coordinates of the release locations
   !**********************************************
   call readreleases ! CHECK ETA
@@ -210,9 +211,20 @@ program flexpart
   !****************************************************************
   call readdepo ! CHECK ETA
 
+  ! Allocate dry deposition fields if necessary
+  !*********************************************
+  call drydepo_allocate
+  call convection_allocate
+  call getfields_allocate
+  call interpol_allocate
+
+  ! Assign fractional cover of landuse classes to each ECMWF grid point
+  !********************************************************************
+  call assignland ! CHECK ETA
+
   ! Convert the release point coordinates from geografical to grid coordinates
   !***************************************************************************
-  call coordtrafo ! CHECK ETA
+  call coordtrafo(nxmin1,nymin1) ! CHECK ETA
 
   ! For continuation of previous run, read in particle positions
   !*************************************************************

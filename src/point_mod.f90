@@ -20,9 +20,15 @@ module point_mod
   real,allocatable, dimension (:,:) :: xmass
   real,allocatable, dimension (:) :: rho_rel
 
+  real ::      &
+    dx,        & ! grid distance in x direction
+    dy,        & ! grid distance in y direction
+    xlon0,     & ! geographical longitude and
+    ylat0        ! geographical latitude of lower left grid point
+
 contains
 
-subroutine coordtrafo
+subroutine coordtrafo(nxmin1,nymin1)
 
   !**********************************************************************
   !                                                                     *
@@ -45,7 +51,9 @@ subroutine coordtrafo
   use com_mod
 
   implicit none
-
+  integer,intent(in) ::   &
+    nxmin1,               & ! nx-1
+    nymin1                  ! ny-1
   integer :: i,j,k
   real :: yrspc ! small real number relative to x
 

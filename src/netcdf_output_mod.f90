@@ -31,33 +31,33 @@ module netcdf_output_mod
 
   use netcdf
 
-  use point_mod, only: ireleasestart,ireleaseend,kindz,&
+  use point_mod, only: ireleasestart,ireleaseend,kindz,dx,xlon0,dy,ylat0,&
                        xpoint1,ypoint1,xpoint2,ypoint2,zpoint1,zpoint2,npart,xmass
   use outg_mod,  only: outheight,oroout,densityoutgrid,factor3d,volume,&
                        wetgrid,wetgridsigma,drygrid,drygridsigma,grid,gridsigma,&
-                       area,arean,volumen, orooutn
+                       area,arean,volumen,orooutn
   use par_mod,   only: dep_prec, sp, dp, maxspec, maxreceptor, nclassunc,&
-                       unitoutrecept,unitoutreceptppt, nxmax,unittmp
+                       unitoutrecept,unitoutreceptppt,unittmp
   use com_mod,   only: path,length,ldirect,ibdate,ibtime,iedate,ietime, &
                        loutstep,loutaver,loutsample,outlon0,outlat0,&
-                       numxgrid,numygrid,dxout,dyout,numzgrid, height, &
+                       numxgrid,numygrid,dxout,dyout,numzgrid, &
                        outlon0n,outlat0n,dxoutn,dyoutn,numxgridn,numygridn, &
                        nspec,maxpointspec_act,species,numpoint,&
-                       dx,xlon0,dy,ylat0,compoint,method,lsubgrid,lconvection,&
+                       compoint,method,lsubgrid,lconvection,&
                        ind_source,ind_receptor,nageclass,lage,&
                        drydep,wetdep,decay,weta_gas,wetb_gas, numbnests, &
                        ccn_aero,in_aero, mintime, & ! wetc_in,wetd_in, &
                        reldiff,henry,f0,density,dquer,dsigma,dryvel,&
                        weightmolar,ohcconst,ohdconst,vsetaver,&
                        ! for concoutput_netcdf and concoutput_nest_netcdf
-                       nxmin1,nymin1,nz,oron,rhon,&
+                       oron,rhon,&
                        memind,xresoln,yresoln,xrn, xln, yrn,yln,nxn,nyn,&
                        xreceptor,yreceptor,numreceptor,creceptor,iout, &
                        itsplit, lsynctime, ctl, ifine, lagespectra, ipin, &
                        ioutputforeachrelease, iflux, mdomainfill, mquasilag, & 
                        nested_output, ipout, surf_only, linit_cond, &
                        flexversion,mpi_mode,DRYBKDEP,WETBKDEP,numpart,numpoint
-  use windfields_mod, only: oro,rho
+  use windfields_mod, only: oro,rho,nxmax,height,nxmin1,nymin1,nz
 
   use mean_mod
 
@@ -93,8 +93,7 @@ module netcdf_output_mod
   integer             :: hmixID,trID,ttID,lonID,latID,levID,massID(maxspec)
   integer             :: partIDi,tIDi,lonIDi,latIDi,levIDi ! For initial particle outputs
 
-  real,parameter :: eps=nxmax/3.e5
-
+  real :: eps
   !  private:: writemetadata, output_units, nf90_err
 
   ! switch output of release point information on/off
@@ -106,6 +105,7 @@ module netcdf_output_mod
 
   ! coordinate transformation from internal to world coord
   real :: xp1,yp1,xp2,yp2
+
 contains
 
 !****************************************************************
@@ -774,6 +774,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
 
   real, parameter     :: weightair=28.97
 
+  eps=nxmax/3.e5
 
   ! open output file
   call nf90_err(nf90_open(trim(ncfname), nf90_write, ncid))
@@ -1156,6 +1157,8 @@ subroutine concoutput_nest_netcdf(itime,outnum)
   real(dep_prec)      :: auxgrid(nclassunc)
   real                :: gridtotal
   real, parameter     :: weightair=28.97
+
+  eps=nxmax/3.e5
 
   ! open output file
   call nf90_err(nf90_open(trim(ncfnamen), nf90_write, ncid))

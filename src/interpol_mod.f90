@@ -1,7 +1,4 @@
 module interpol_mod
-
-  !use par_mod, only: nzmax, maxspec
-
   use par_mod
   use com_mod
   use windfields_mod
@@ -9,9 +6,12 @@ module interpol_mod
 
   implicit none
 
-  real :: uprof(nzmax),vprof(nzmax),wprof(nzmax),wprofeta(nzmax),detaprof(nzmax)
-  real :: usigprof(nzmax),vsigprof(nzmax),wsigprof(nzmax),wsigprofeta(nzmax)
-  real :: rhoprof(nzmax),rhogradprof(nzmax)
+  real,dimension(nzmax) ::          &
+    uprof,vprof,wprof,wprofeta,             &
+    usigprof,vsigprof,wsigprof,wsigprofeta, &
+    rhoprof,rhogradprof
+  logical,dimension(nzmax) ::       &
+    indzindicator
 
   real :: u,v,w,usig,vsig,wsig,ueta,veta,weta,wsigeta
 
@@ -22,7 +22,6 @@ module interpol_mod
   integer :: ix,jy,ixp,jyp,ngrid,indz,indzp,indzeta,indzpeta
   integer :: induv,indpuv
   logical :: depoindicator(maxspec)
-  logical :: indzindicator(nzmax)
   logical :: lbounds(2),lbounds_w(2),lbounds_uv(2) ! marking particles below or above bounds
 
   private :: interpol_all_eta,interpol_all_meter,interpol_misslev_eta,interpol_misslev_meter
@@ -35,10 +34,22 @@ module interpol_mod
 !$OMP p1,p2,p3,p4,ddx,ddy,rddx,rddy,dtt,dt1,dt2,ix,jy,ixp,jyp, &
 !$OMP ngrid,indz,indzp,depoindicator,indzindicator, &
 !$OMP wprofeta,wsigprofeta,induv,indpuv,lbounds,lbounds_w,lbounds_uv, &
-!$OMP indzeta,indzpeta,ueta,veta,weta,wsigeta,detaprof, &
+!$OMP indzeta,indzpeta,ueta,veta,weta,wsigeta, &
 !$OMP xtn,ytn,nix,njy,dz1out,dz2out)
 
 contains
+
+subroutine interpol_allocate
+  ! allocate(uprof(nzmax),vprof(nzmax),wprof(nzmax),wprofeta(nzmax),      &
+  !   usigprof(nzmax),vsigprof(nzmax),wsigprof(nzmax),wsigprofeta(nzmax), &
+  !   rhoprof(nzmax),rhogradprof(nzmax),indzindicator(nzmax))
+end subroutine interpol_allocate
+
+subroutine interpol_deallocate
+  ! deallocate(uprof,vprof,wprof,wprofeta,      &
+  !   usigprof,vsigprof,wsigprof,wsigprofeta, &
+  !   rhoprof,rhogradprof,indzindicator)
+end subroutine interpol_deallocate
 
 subroutine initialise_interpol_mod(itime,xt,yt,zt,zteta)
   ! This routine initialises all important values used in the interpol module
@@ -281,13 +292,14 @@ end subroutine find_vertical_variables
 subroutine find_ngrid(xt,yt)
 
   implicit none
-  real, parameter ::           &
-    eps=nxmax/3.e5            
+  real ::                      &
+    eps           
   real(kind=dp), intent(in) :: &
-    xt, yt                          ! particle positions on grid
+    xt,yt                           ! particle positions on grid
   integer ::                   &
     j
 
+  eps=nxmax/3.e5
   if (nglobal.and.(real(yt).gt.switchnorthg)) then
     ngrid=-1
   else if (sglobal.and.(real(yt).lt.switchsouthg)) then
@@ -941,7 +953,7 @@ subroutine interpol_rain(yy1,yy2,yy3,nxmax,nymax,nzmax,nx, &
    yint3=y3(1)
 end subroutine interpol_rain
 
-subroutine interpol_vdep(level,vdepo)
+subroutine interpol_vdep(field,level,output)
   !                           i     o
   !****************************************************************************
   !                                                                           *
@@ -964,27 +976,30 @@ subroutine interpol_vdep(level,vdepo)
   ! level                number of species for which interpolation is done    *
   !                                                                           *
   !****************************************************************************
-
   implicit none
 
-  integer :: level,indexh,m
-  real :: y(2),vdepo
+  integer, intent(in) ::  &
+    level                    ! number of species for which interpolation is done
+  real, intent(in) ::     &
+    field(:,:,:,:)           ! vdep
+  real, intent(inout) ::  &
+    output                   ! interpolated value
+  integer :: indexh,m
+  real :: y(2)
 
   ! a) Bilinear horizontal interpolation
   do m=1,2
     indexh=memind(m)
 
-    y(m)=p1*vdep(ix ,jy ,level,indexh) &
-         +p2*vdep(ixp,jy ,level,indexh) &
-         +p3*vdep(ix ,jyp,level,indexh) &
-         +p4*vdep(ixp,jyp,level,indexh)
+    y(m)=p1*field(ix ,jy ,level,indexh) &
+         +p2*field(ixp,jy ,level,indexh) &
+         +p3*field(ix ,jyp,level,indexh) &
+         +p4*field(ixp,jyp,level,indexh)
   end do
-
-
 
   ! b) Temporal interpolation
 
-  vdepo=(y(1)*dt2+y(2)*dt1)*dtt
+  output=(y(1)*dt2+y(2)*dt1)*dtt
 
   depoindicator(level)=.false.
 end subroutine interpol_vdep
@@ -1818,7 +1833,7 @@ subroutine interpol_rain_nests(yy1,yy2,yy3,nxmaxn,nymaxn,nzmax, &
    yint3=y3(1)
 end subroutine interpol_rain_nests
 
-subroutine interpol_vdep_nests(level,vdepo)
+subroutine interpol_vdep_nests(field,level,output)
   !                                 i     o
   !****************************************************************************
   !                                                                           *
@@ -1844,25 +1859,30 @@ subroutine interpol_vdep_nests(level,vdepo)
 
 
   implicit none
-
-  integer :: level,indexh,m
-  real :: y(2),vdepo
+  integer, intent(in) ::  &
+    level                    ! number of species for which interpolation is done
+  real, intent(in) ::     &
+    field(:,:,:,:,:)         ! vdepn
+  real, intent(inout) ::  &
+    output                   ! interpolated value
+  integer :: indexh,m
+  real :: y(2)
 
   ! a) Bilinear horizontal interpolation
 
   do m=1,2
     indexh=memind(m)
 
-    y(m)=p1*vdepn(ix ,jy ,level,indexh,ngrid) &
-         +p2*vdepn(ixp,jy ,level,indexh,ngrid) &
-         +p3*vdepn(ix ,jyp,level,indexh,ngrid) &
-         +p4*vdepn(ixp,jyp,level,indexh,ngrid)
+    y(m)=p1*field(ix ,jy ,level,indexh,ngrid) &
+         +p2*field(ixp,jy ,level,indexh,ngrid) &
+         +p3*field(ix ,jyp,level,indexh,ngrid) &
+         +p4*field(ixp,jyp,level,indexh,ngrid)
   end do
 
 
   ! b) Temporal interpolation
 
-  vdepo=(y(1)*dt2+y(2)*dt1)*dtt
+  output=(y(1)*dt2+y(2)*dt1)*dtt
 
   depoindicator(level)=.false.
 end subroutine interpol_vdep_nests

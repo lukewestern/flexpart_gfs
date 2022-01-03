@@ -137,7 +137,8 @@ cleanall:
 
 ## DEPENDENCIES
 advance_mod.o: cmapf_mod.o com_mod.o turbulence_mod.o interpol_mod.o par_mod.o \
-	point_mod.o random_mod.o coordinates_ecmwf.o particle_mod.o settling_mod.o
+	point_mod.o random_mod.o coordinates_ecmwf.o particle_mod.o settling_mod.o \
+	drydepo_mod.o
 binary_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o unc_mod.o \
 	windfields_mod.o date_mod.o
 cbl_mod.o: com_mod.o par_mod.o random_mod.o
@@ -149,11 +150,11 @@ coordinates_ecmwf.o: par_mod.o com_mod.o interpol_mod.o particle_mod.o windfield
 date_mod.o: par_mod.o
 drydepo_mod.o: com_mod.o par_mod.o unc_mod.o interpol_mod.o point_mod.o windfields_mod.o \
 	date_mod.o stability_correction.o
-FLEXPART.o: com_mod.o conv_mod.o par_mod.o point_mod.o drydepo_mod.o \
-	random_mod.o readoptions.o windfields_mod.o \
+FLEXPART.o: com_mod.o conv_mod.o par_mod.o point_mod.o drydepo_mod.o interpol_mod.o \
+	random_mod.o readoptions.o windfields_mod.o getfields_mod.o \
 	timemanager_mod.o plume_mod.o initialise_mod.o output_mod.o
 flux_mod.o: com_mod.o outg_mod.o par_mod.o coordinates_ecmwf.o particle_mod.o date_mod.o
-getfields_mod.o: com_mod.o par_mod.o drydepo_mod.o windfields_mod.o qvsat_mod.o
+getfields_mod.o: com_mod.o par_mod.o drydepo_mod.o wetdepo_mod.o windfields_mod.o qvsat_mod.o
 settling_mod.o: com_mod.o par_mod.o windfields_mod.o
 initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
 	coordinates_ecmwf.o
@@ -172,7 +173,7 @@ particle_mod.o: com_mod.o par_mod.o
 plume_mod.o: com_mod.o mean_mod.o par_mod.o point_mod.o particle_mod.o coordinates_ecmwf.o \
 	windfields_mod.o
 point_mod.o: com_mod.o par_mod.o
-readoptions.o: com_mod.o par_mod.o date_mod.o drydepo_mod.o
+readoptions.o: com_mod.o par_mod.o date_mod.o drydepo_mod.o point_mod.o windfields_mod.o
 stability_correction.o: par_mod.o
 timemanager_mod.o: com_mod.o flux_mod.o oh_mod.o outg_mod.o advance_mod.o\
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf.o \

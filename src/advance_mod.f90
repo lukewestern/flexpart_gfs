@@ -14,11 +14,11 @@ module advance_mod
 
   implicit none 
     real, parameter ::              &
-      eps=nxmax/3.e5,               &
       eps2=1.e-9,                   &
       eps3=tiny(1.0),               &
       eps_eta=1.e-4
-
+    real ::                         &
+      eps
   private :: advance_abovePBL,advance_PBL,advance_PettersonCorrection,&
     advance_updateXY,advance_adjusttopheight
 contains
@@ -93,7 +93,6 @@ subroutine advance(itime,ipart)
   ! up,vp,wp           random velocities due to turbulence (along wind, cross  *
   !                    wind, vertical wind                                     *
   ! usig,vsig,wsig     mesoscale wind fluctuations                             *
-  ! vdepo              Deposition velocities for all species                   *
   ! xt,yt,zt           Particle position                                       *
   !                                                                            *
   !*****************************************************************************
@@ -122,7 +121,6 @@ subroutine advance(itime,ipart)
     dawsave,dcwsave                 ! accumulated displacement in wind directions
   logical ::                      &
     abovePBL                        ! flag that will be set to 'true' if computation needs to be completed above PBL
-
   !type(particle) :: part
   ! openmp change
   save idummy
@@ -132,6 +130,8 @@ subroutine advance(itime,ipart)
 !$      idummy = idummy - thread
 !$    endif
   ! openmp change end 
+
+  eps=nxmax/3.e5
 
   part(ipart)%nstop=.false.
   do i=1,nmixz
@@ -408,6 +408,7 @@ end subroutine advance_abovePBL
 
 subroutine advance_PBL(itime,itimec,&
   dxsave,dysave,dawsave,dcwsave,abovePBL,nrand,ipart)
+  use drydepo_mod, only: drydepo_probability
 
   implicit none
 
@@ -427,11 +428,12 @@ subroutine advance_PBL(itime,itimec,&
     xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     rhoa,                         & ! air density, used in CBL
     rhograd,                      & ! vertical gradient of the air density, used in CBL
-    vdepo(maxspec),               & ! deposition velocities for all species
     settling = 0.                   ! settling velocity
   integer ::                      &
     loop,                         & ! loop variable for time in the PBL
     nsp                             ! loop variable for species
+
+  eps=nxmax/3.e5
 
   ! BEGIN TIME LOOP
   !================
@@ -557,26 +559,7 @@ subroutine advance_PBL(itime,itimec,&
     
   ! Determine probability of deposition
   !************************************
-
-    if ((DRYDEP).and.(zts.lt.2.*href)) then
-      do nsp=1,nspec
-        if (DRYDEPSPEC(nsp)) then
-          if (depoindicator(nsp)) then
-            if (ngrid.le.0) then
-              call interpol_vdep(nsp,vdepo(nsp))
-            else
-              call interpol_vdep_nests(nsp,vdepo(nsp))
-            endif
-          endif
-  ! correction by Petra Seibert, 10 April 2001
-  !   this formulation means that prob(n) = 1 - f(0)*...*f(n)
-  !   where f(n) is the exponential term
-          part(ipart)%prob(nsp)=1.+(part(ipart)%prob(nsp)-1.)* &
-                exp(-vdepo(nsp)*abs(dt)/(2.*href))
-          !if (pp.eq.535) write(*,*) 'advance1', ks,dtt,p1,vdep(ix,jy,ks,1)
-        endif
-      end do
-    endif
+    call drydepo_probability(part(ipart)%prob,dt,zts)
 
     if (zts.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))    ! if particle below ground -> reflection
 
@@ -717,6 +700,8 @@ subroutine advance_updateXY(xchange,ychange,ipart)
     xlon,ylat,xpol,ypol,          & ! temporarily storing new particle positions
     gridsize,cosfact                ! used to compute new positions of particles
 
+  eps=nxmax/3.e5
+
   if (ngrid.ge.0) then
     cosfact=dxconst/cos((real(part(ipart)%ylat)*dy+ylat0)*pi180)
     call update_xlon(ipart,real(xchange*cosfact*real(ldirect),kind=dp))
@@ -777,6 +762,8 @@ subroutine advance_adjusttopheight(ipart)
 
   integer, intent(in) ::          &
     ipart                           ! particle index
+
+  eps=nxmax/3.e5
 
   select case (wind_coord_type)
     case ('ETA')

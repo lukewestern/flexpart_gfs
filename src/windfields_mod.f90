@@ -4,8 +4,13 @@
 module windfields_mod
   use par_mod
   use com_mod
+  use point_mod
 
   implicit none
+  
+  !Windfield parameters
+  !********************
+  !integer :: nxmax,nymax,nuvzmax,nwzmax,nzmax !Size of windfield
 
   ! Fixed fields, unchangeable with time
   !*************************************
@@ -85,6 +90,37 @@ module windfields_mod
     oli                                   ! inverse Obukhov length (1/L) [m]
 
   integer :: metdata_format  ! storing the input data type (ECMWF/NCEP)
+
+
+  !****************************************************************************
+  ! Variables defining actual size and geographical location of the wind fields
+  !****************************************************************************
+
+  integer ::   &
+    nx,ny,nz,  & ! actual dimensions of wind fields in x,y and z direction, respectively
+    nxmin1,    & ! nx-1
+    nymin1,    & ! ny-1
+    nxfield,   & ! same as nx for limited area fields, but for global fields nx=nxfield+1
+    nuvz,nwz,  & ! vertical dimension of original ECMWF data (u,v components/ w components(staggered grid))
+    nmixz,     & ! number of levels up to maximum PBL height (3500 m)
+    nlev_ec      ! number of levels ECMWF model
+  real ::      &
+    dxconst,   & ! auxiliary variables for utransform
+    dyconst      ! auxiliary variables for vtransform
+  ! integer :: nconvlevmax !maximum number of levels for convection
+  ! integer :: na ! parameter used in Emanuel's convect subroutine
+
+  !*************************************************
+  ! Variables used for vertical model discretization
+  !*************************************************
+  real,allocatable,dimension(:) :: &
+    height,                        & ! heights of all levels [m]
+    wheight,                       & ! model level heights [m]
+    uvheight,                      & ! half-model level heights [m]
+    akm,bkm,                       & ! coefficients which regulate vertical discretization of ecmwf model levels
+    akz,bkz,                       & ! model discretization coefficients at the centre of the layers
+    aknew,bknew                      ! model discretization coefficients at the interpolated levels
+
 contains
 
 subroutine detectformat
@@ -365,15 +401,15 @@ subroutine gridcheck_ecmwf
 
     call grib_get_int(igrib,'numberOfPointsAlongAParallel', &
          isec2(2),iret)
-    ! nx=isec2(2)
-    ! WRITE(*,*) nx,nxmax
-    if (isec2(2).gt.nxmax) then
-      WRITE(*,*) 'FLEXPART error: Too many grid points in x direction.'
-      WRITE(*,*) 'Reduce resolution of wind fields.'
-      WRITE(*,*) 'Or change parameter settings in file ecmwf_mod.'
-      WRITE(*,*) isec2(2),nxmax
-    !    STOP
-    endif
+    ! ! nx=isec2(2)
+    ! ! WRITE(*,*) nx,nxmax
+    ! if (isec2(2).gt.nxmax) then
+    !   WRITE(*,*) 'FLEXPART error: Too many grid points in x direction.'
+    !   WRITE(*,*) 'Reduce resolution of wind fields.'
+    !   WRITE(*,*) 'Or change parameter settings in file ecmwf_mod.'
+    !   WRITE(*,*) isec2(2),nxmax
+    ! !    STOP
+    ! endif
 
     !get the size and data of the values array
     if (isec1(6).ne.-1) then
@@ -397,13 +433,13 @@ subroutine gridcheck_ecmwf
            isec2(12),iret)
       call grib_check(iret,gribFunction,gribErrorMsg)
 
-      !  get the size and data of the vertical coordinate array
-      call grib_get_real4_array(igrib,'pv',zsec2,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-
       nxfield=isec2(2)
       ny=isec2(3)
       nlev_ec=isec2(12)/2-1
+
+      !  get the size and data of the vertical coordinate array
+      call grib_get_real4_array(igrib,'pv',zsec2,iret)
+      call grib_check(iret,gribFunction,gribErrorMsg)
     endif
 
     !HSO  get the second part of the grid dimensions only from GRiB1 messages
@@ -507,6 +543,22 @@ subroutine gridcheck_ecmwf
     if(isec1(6).eq.131) iumax=max(iumax,nlev_ec-k+1)
     if(isec1(6).eq.135) iwmax=max(iwmax,nlev_ec-k+1)
 
+    if (isec1(6) .eq. 167) then
+      ! ! Assing grid values and allocate memory to read windfields
+      ! nxmax=nxfield
+      ! if (xglobal) then
+      !   nxmax=nxfield+1
+      ! endif
+      ! nymax=ny
+      ! nwzmax=iwmax+1
+      ! nuvzmax=iumax+1
+      ! nzmax=nuvzmax
+      ! nconvlevmax=iumax
+      ! na=nuvzmax
+      ! ! Temporary nxmax and nymax
+      call fixedfields_allocate
+    endif
+
     if(isec1(6).eq.129) then
       do jy=0,ny-1
         do ix=0,nxfield-1
@@ -534,8 +586,12 @@ subroutine gridcheck_ecmwf
   !
   ! CLOSING OF INPUT DATA FILE
   !
-
   call grib_close_file(ifile)
+
+  ! nconvlevmax=nuvzmax-1
+  ! na=nconvlevmax+1
+  write(*,*) nxmax,nymax,nwzmax,nuvzmax,nzmax!,nconvlevmax,na
+  call windfields_allocate
 
   !error message if no fields found with correct first longitude in it
   if (gotGrid.eq.0) then
@@ -548,23 +604,23 @@ subroutine gridcheck_ecmwf
   nwz =iwmax
   if(nuvz.eq.nlev_ec) nwz=nlev_ec+1
 
-  if (nuvz+1.gt.nuvzmax) then
-    write(*,*) 'FLEXPART error: Too many u,v grid points in z '// &
-         'direction.'
-    write(*,*) 'Reduce resolution of wind fields.'
-    write(*,*) 'Or change parameter settings in file par_mod.'
-    write(*,*) nuvz+1,nuvzmax
-    stop
-  endif
+  ! if (nuvz+1.gt.nuvzmax) then
+  !   write(*,*) 'FLEXPART error: Too many u,v grid points in z '// &
+  !        'direction.'
+  !   write(*,*) 'Reduce resolution of wind fields.'
+  !   write(*,*) 'Or change parameter settings in file par_mod.'
+  !   write(*,*) nuvz+1,nuvzmax
+  !   stop
+  ! endif
 
-  if (nwz.gt.nwzmax) then
-    write(*,*) 'FLEXPART error: Too many w grid points in z '// &
-         'direction.'
-    write(*,*) 'Reduce resolution of wind fields.'
-    write(*,*) 'Or change parameter settings in file par_mod.'
-    write(*,*) nwz,nwzmax
-    stop
-  endif
+  ! if (nwz.gt.nwzmax) then
+  !   write(*,*) 'FLEXPART error: Too many w grid points in z '// &
+  !        'direction.'
+  !   write(*,*) 'Reduce resolution of wind fields.'
+  !   write(*,*) 'Or change parameter settings in file par_mod.'
+  !   write(*,*) nwz,nwzmax
+  !   stop
+  ! endif
 
   ! If desired, shift all grids by nxshift grid cells
   !**************************************************
@@ -1039,6 +1095,17 @@ subroutine gridcheck_gfs
   nuvz=iumax
   nwz =iumax
   nlev_ec=iumax
+
+  ! ! Assing grid values and allocate memory to read windfields
+  ! nxmax=nx
+  ! nymax=ny
+  ! nwzmax=nwz
+  ! nuvzmax=nuvz
+  ! nzmax=nuvz
+  ! ! nconvlevmax=nuvzmax-1
+  ! ! na=nconvlevmax+1
+
+  call windfields_allocate
 
   if (nx.gt.nxmax) then
    write(*,*) 'FLEXPART error: Too many grid points in x direction.'
@@ -5527,74 +5594,16 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
   end do ! end loop over nests
 end subroutine verttransform_nests
 
-subroutine writeprecip(itime,imem)
-
-  !*****************************************************************************
-  !                                                                            *
-  !  This routine produces a file containing total precipitation for each      *
-  !  releases point.                                                           *
-  !                                                                            *
-  !     Author: S. Eckhardt                                                    * 
-  !     7 Mai 2017                                                             *
-  !*****************************************************************************
-
-  use point_mod
-  use par_mod
-  use com_mod
-  use date_mod
-
+subroutine fixedfields_allocate
   implicit none
-
-  integer :: jjjjmmdd,ihmmss,itime,i
-  real(kind=dp) :: jul
-  character :: adate*8,atime*6
-
-  integer :: ix,jy,imem
-  real :: xp1,yp1
-
-  
-  if (itime.eq.0) then
-      open(unitprecip,file=path(2)(1:length(2))//'wetscav_precip.txt', &
-       form='formatted',err=998)
-  else
-      open(unitprecip,file=path(2)(1:length(2))//'wetscav_precip.txt', &
-       ACCESS='APPEND',form='formatted',err=998)
-  endif
-
-  jul=bdate+real(itime,kind=dp)/86400._dp
-  call caldate(jul,jjjjmmdd,ihmmss)
-  write(adate,'(i8.8)') jjjjmmdd
-  write(atime,'(i6.6)') ihmmss
-
-  do i=1,numpoint
-    xp1=xpoint1(i)*dx+xlon0 !lat, long (real) coord
-    yp1=ypoint1(i)*dy+ylat0 !lat, long (real) coord
-    ix=int((xpoint1(i)+xpoint2(i))/2.)
-    jy=int((ypoint1(i)+ypoint2(i))/2.)
-    write(unitprecip,*)  jjjjmmdd, ihmmss, & 
-           xp1,yp1,lsprec(ix,jy,1,imem),convprec(ix,jy,1,imem) !time is the same as in the ECMWF windfield
-! units mm/h, valid for the time given in the windfield
-  end do
-
-  close(unitprecip)
-
-  return
-
-
-998   write(*,*) ' #### FLEXPART MODEL ERROR!   THE FILE         #### '
-  write(*,*) ' #### '//path(2)(1:length(2))//'header_txt'//' #### '
-  write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS    #### '
-  write(*,*) ' #### NAME ALREADY EXISTS, DELETE IT AND START #### '
-  write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
-  stop
-end subroutine writeprecip
-
-subroutine windfields_allocate
-  implicit none
-
   allocate(oro(0:nxmax-1,0:nymax-1))
   allocate(excessoro(0:nxmax-1,0:nymax-1))
   allocate(lsm(0:nxmax-1,0:nymax-1))
+  allocate(pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+end subroutine fixedfields_allocate
+
+subroutine windfields_allocate
+  implicit none
 
   ! Eta coordinates
   !****************
@@ -5623,7 +5632,6 @@ subroutine windfields_allocate
   allocate(tth(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
   allocate(qv(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(qvh(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
-  allocate(pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(rho(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(drhodz(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(pplev(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
@@ -5666,7 +5674,53 @@ subroutine windfields_allocate
   allocate(hmix(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(tropopause(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(oli(0:nxmax-1,0:nymax-1,1,numwfmem))
+
+  ! Vertical descritisation arrays
+  !*******************************
+  allocate(height(nzmax),wheight(nzmax),uvheight(nzmax))
+  allocate(akm(nwzmax),bkm(nwzmax),akz(nuvzmax),bkz(nuvzmax), &
+    aknew(nzmax),bknew(nzmax))
 end subroutine windfields_allocate
+
+subroutine windfields_nest_allocate
+  !*******************************************************************************    
+  ! Dynamic allocation of arrays
+  !
+  ! For nested wind fields. 
+  ! 
+  !*******************************************************************************
+  implicit none 
+
+  allocate(uun(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(vvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(wwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(ttn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(qvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(pvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(clwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(ciwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(clwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+
+  allocate(cloudsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(cloudshn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
+  allocate(rhon(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(drhodzn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(tthn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
+  allocate(qvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
+  allocate(clwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
+  allocate(ciwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
+  allocate(ctwcn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
+
+  clwcn(:,:,:,:,:)=0.
+  ciwcn(:,:,:,:,:)=0.
+  clwchn(:,:,:,:,:)=0.
+  ciwchn(:,:,:,:,:)=0.
+end subroutine windfields_nest_allocate
+
+subroutine windfields_nest_deallocate
+  deallocate(uun,vvn,wwn,ttn,qvn,pvn,clwcn,ciwcn,clwn,cloudsn, &
+    cloudshn,rhon,drhodzn,tthn,qvhn,clwchn,ciwchn,ctwcn)
+end subroutine windfields_nest_deallocate
 
 subroutine windfields_deallocate
   implicit none
@@ -5682,6 +5736,8 @@ subroutine windfields_deallocate
 
   deallocate(ps,sd,msl,tcc,u10,v10,tt2,td2,lsprec,convprec,sshf,ssr,surfstr, &
     ustar,wstar,hmix,tropopause,oli)
+
+  deallocate(height,wheight,uvheight,akm,bkm,akz,bkz,aknew,bknew)
 end subroutine windfields_deallocate
 
 end module windfields_mod

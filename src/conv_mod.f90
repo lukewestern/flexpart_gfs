@@ -10,40 +10,99 @@
 
 module conv_mod
 
-  use par_mod, only: nconvlevmax, na, nxmax, nymax, nxmaxn, nymaxn, maxnests
-
+  use par_mod, only: nxmaxn, nymaxn, maxnests,nxmax,nymax,nconvlevmax,na
+  use com_mod, only: lconvection,tt2n,td2n,psn,tthn,qvhn
+  use windfields_mod, only: metdata_format,nuvzmax,akz,bkz,akm,bkm,nuvz, &
+    uvheight,ps,tt2,td2,tth,qvh,pplev,tt,qv,nx,ny
   implicit none
 
   !integer,parameter :: nconvlevmax = nuvzmax-1, &
   !                     na = nconvlevmax+1
   !these parameters are defined in par_mod now!
-
-  real :: pconv(nconvlevmax),phconv(na),dpr(nconvlevmax)
-  real :: pconv_hpa(nconvlevmax),phconv_hpa(na)
-
-  real :: ft(nconvlevmax), fq(nconvlevmax)
-  real :: fmass(nconvlevmax,nconvlevmax),sub(nconvlevmax)
-  real :: fmassfrac(nconvlevmax,nconvlevmax)
-  real :: cbaseflux(0:nxmax-1,0:nymax-1)
-  real :: cbasefluxn(0:nxmaxn-1,0:nymaxn-1,maxnests)
-  real :: tconv(na),qconv(na),qsconv(na)
+  ! I do not know how to allocate each array for each thread, not automaticaly done...
+  real :: &!,allocatable,dimension(:) ::     &
+    pconv(nconvlevmax),                & ! 
+    phconv(na),                        & !
+    dpr(nconvlevmax),                  & !
+    pconv_hpa(nconvlevmax),            & !
+    phconv_hpa(na),                    & !
+    ft(nconvlevmax),                   & !
+    fq(nconvlevmax),                   & !
+    sub(nconvlevmax),                  & ! subsidence
+    tconv(na),                         & !
+    qconv(na),                         & !
+    qsconv(na)                            
+  real :: &!,allocatable,dimension(:,:) ::    & !
+    fmass(nconvlevmax,nconvlevmax),     & !
+    fmassfrac(nconvlevmax,nconvlevmax), & !
+    cbaseflux(0:nxmax-1,0:nymax-1)                         
+  real :: &!,allocatable,dimension(:,:,:) :: &
+    cbasefluxn(0:nxmaxn-1,0:nymaxn-1,maxnests)
+  integer,dimension(na) :: &
+    NENT
+  real,dimension(na,na) :: &
+    MENT,QENT,ELIJ,SIJ
+  real,dimension(na) ::    &
+    fup,fdown,M,MP,TVP,TV, &
+    WATER,QP,EP,TH,WT,     &
+    EVAP,CLW,SIGP,TP,CPN,  &
+    LV,LVCP,H,HP,GZ,HM
+  real,dimension(na) ::    &
+    uvzlev(nuvzmax),wsub(nuvzmax)
   real :: psconv,tt2conv,td2conv
   
   integer :: nconvlev,nconvtop
 
+  save :: uvzlev
+
 !$OMP THREADPRIVATE( ft, fq, fmass, sub, fmassfrac, &
 !$OMP pconv, phconv, dpr, pconv_hpa, phconv_hpa, &
 !$OMP tconv, qconv, qsconv, psconv, tt2conv, td2conv, &
-!$OMP nconvtop)
+!$OMP nconvtop,uvzlev,wsub,cbaseflux,cbasefluxn, &
+!$OMP fup,fdown,MENT,NENT,M,MP,QENT,ELIJ,SIJ,TVP,TV, &
+!$OMP WATER,QP,EP,TH,WT,EVAP,CLW,SIGP,TP,CPN,LV,LVCP, &
+!$OMP H,HP,GZ,HM)
 
 contains
+
+subroutine convection_allocate
+  implicit none
+  if (.not.lconvection.eq.1) return
+  ! ! nconvlevmax=nuvzmax-1
+  ! ! na=nconvlevmax+1
+  ! allocate(pconv(nconvlevmax),phconv(na),dpr(nconvlevmax), &
+  !   pconv_hpa(nconvlevmax),phconv_hpa(na),ft(nconvlevmax), &
+  !   fq(nconvlevmax),fmass(nconvlevmax,nconvlevmax),        &
+  !   sub(nconvlevmax),fmassfrac(nconvlevmax,nconvlevmax),   &
+  !   cbaseflux(0:nxmax-1,0:nymax-1),                        &
+  !   cbasefluxn(0:nxmaxn-1,0:nymaxn-1,maxnests),            &
+  !   tconv(na),qconv(na),qsconv(na))
+
+  ! allocate(uvzlev(nuvzmax),wsub(nuvzmax))
+
+  ! allocate(FUP(NA),FDOWN(NA),NENT(NA),                     &
+  !   M(NA),MP(NA),MENT(NA,NA),QENT(NA,NA),ELIJ(NA,NA),      &
+  !   SIJ(NA,NA),TVP(NA),TV(NA),WATER(NA),                   &
+  !   QP(NA),EP(NA),TH(NA),WT(NA),EVAP(NA),CLW(NA),          &
+  !   SIGP(NA),TP(NA),CPN(NA),                               &
+  !   LV(NA),LVCP(NA),H(NA),HP(NA),GZ(NA),HM(NA))
+end subroutine convection_allocate
+
+subroutine convection_deallocate
+  implicit none
+  if (.not.lconvection.eq.1) return
+  ! deallocate(pconv,phconv,dpr,pconv_hpa,phconv_hpa,ft,fq,sub, &
+  !   tconv,qconv,qsconv,fmass,fmassfrac,cbaseflux,cbasefluxn)
+  ! deallocate(uvzlev,wsub)
+  ! deallocate(fup,fdown,ment,M,MP,QENT,ELIJ,SIJ,TVP,TV, &
+  !   WATER,QP,EP,TH,WT,EVAP,CLW,SIGP,TP,CPN,LV,LVCP, &
+  !   H,HP,GZ,HM)
+end subroutine convection_deallocate
 
 subroutine set_upperlevel_convect()
   ! Determine the uppermost level for which the convection scheme shall be applied
   ! by assuming that there is no convection above 50 hPa (for standard SLP)
   !*****************************************************************************  
-  use com_mod
-
   implicit none
 
   integer :: i
@@ -87,7 +146,6 @@ subroutine convmix(itime)
   use flux_mod
   use par_mod
   use com_mod
-  use windfields_mod
   use class_gribfile
   use particle_mod
 
@@ -109,7 +167,6 @@ subroutine convmix(itime)
   integer :: mind1,mind2
   ! dt1,dt2,dtt,mind1,mind2       variables used for time interpolation
   integer :: itage,nage
-  real,parameter :: eps=nxmax/3.e5
 
   ! OMP changes
   integer :: cnt,kk
@@ -118,7 +175,8 @@ subroutine convmix(itime)
   integer :: conv_cnt, thread, part_cnt
 
   integer :: totpart,alivepart
-
+  real:: eps
+  eps=nxmax/3.e5
   ! Calculate auxiliary variables for time interpolation
   !*****************************************************
 
@@ -242,7 +300,8 @@ subroutine convmix(itime)
   part_cnt = 0
 
 
-!$OMP PARALLEL PRIVATE(kk,jy,ix,thread,tmarray,j,kz,ktop,lconv,kpart,ipart,ztold,nage,ipconv) REDUCTION(+:conv_cnt,part_cnt)
+!$OMP PARALLEL PRIVATE(kk,jy,ix,thread,tmarray,j,kz,ktop,lconv,kpart,ipart,&
+!$OMP ztold,nage,ipconv) REDUCTION(+:conv_cnt,part_cnt)
 !$    thread = OMP_GET_THREAD_NUM()
 
 !$OMP DO SCHEDULE(static)
@@ -440,7 +499,6 @@ subroutine calcmatrix(lconv,delt,cbmf)
   use com_mod
   use class_gribfile
   use qvsat_mod
-  use windfields_mod, only: metdata_format
 
   implicit none
 
@@ -592,18 +650,17 @@ subroutine redist (itime,ipart,ktop,ipconv)
   real,parameter :: const=r_air/ga
   integer :: ipart, ktop,ipconv,itime
   integer :: k, kz, levnew, levold
-  real :: uvzlev(nuvzmax)
-  real :: wsub(nuvzmax)
+
   real :: totlevmass, wsubpart
   real :: temp_levold,temp_levold1
   real :: sub_levold,sub_levold1
   real :: pint, pold, rn, tv, tvold, dlevfrac
   real :: ztold,ffraction
   real :: tv1, tv2, dlogp, dz, dz1, dz2
-  save :: iseed, uvzlev
+  save :: iseed
   integer :: iseed = -88
 
-!$OMP THREADPRIVATE(iseed,uvzlev)
+!$OMP THREADPRIVATE(iseed)
 !$  if (iseed.eq.-88) then
 !$    iseed = iseed - OMP_GET_THREAD_NUM()
 !$  endif
@@ -1071,17 +1128,6 @@ end subroutine redist
 
   !integer jc,jn
   !real alvnew,a2,ahm,alv,rm,sum,qnew,dphinv,tc,thbar,tnew,x
-
-  real :: FUP(NA),FDOWN(NA)
-  !
-  !-cv====>End Module   CONVECT    File convect.f
-
-  INTEGER :: NENT(NA)
-  REAL :: M(NA),MP(NA),MENT(NA,NA),QENT(NA,NA),ELIJ(NA,NA)
-  REAL :: SIJ(NA,NA),TVP(NA),TV(NA),WATER(NA)
-  REAL :: QP(NA),EP(NA),TH(NA),WT(NA),EVAP(NA),CLW(NA)
-  REAL :: SIGP(NA),TP(NA),CPN(NA)
-  REAL :: LV(NA),LVCP(NA),H(NA),HP(NA),GZ(NA),HM(NA)
   !REAL TOLD(NA)
   !
   ! -----------------------------------------------------------------------

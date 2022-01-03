@@ -5,6 +5,8 @@ module readoptions
   use par_mod
   use com_mod
   use date_mod
+  use point_mod
+  use windfields_mod
 
   implicit none
 

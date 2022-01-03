@@ -76,8 +76,9 @@ subroutine outgrid_init
   integer :: ks,kp,stat
   real :: ylat,gridarea,ylatp,ylatm,hzone,cosfactm,cosfactp
   real :: xlon,xl,yl,ddx,ddy,rddx,rddy,p1,p2,p3,p4,xtn,ytn,oroh
-  real,parameter :: eps=nxmax/3.e5
+  real :: eps
 
+  eps=nxmax/3.e5
 
   ! Compute surface area and volume of each grid cell: area, volume;
   ! and the areas of the northward and eastward facing walls: areaeast, areanorth
@@ -402,9 +403,9 @@ subroutine outgrid_init_nest
   integer :: stat
   real :: ylat,gridarea,ylatp,ylatm,hzone,cosfactm,cosfactp
   real :: xlon,xl,yl,ddx,ddy,rddx,rddy,p1,p2,p3,p4,xtn,ytn,oroh
-  real,parameter :: eps=nxmax/3.e5
+  real :: eps
 
-
+  eps=nxmax/3.e5
 
   ! gridunc,griduncn        uncertainty of outputted concentrations
   allocate(griduncn(0:numxgridn-1,0:numygridn-1,numzgrid,maxspec, &

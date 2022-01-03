@@ -2,16 +2,60 @@
 ! SPDX-License-Identifier: GPL-3.0-or-later
 module getfields_mod
   
-  use par_mod 
+  use par_mod
   use com_mod
   use windfields_mod
 
   implicit none
 
+  real,allocatable,dimension(:,:,:) ::    &
+    uuh,                                  & ! wind components in x-direction [m/s] 
+    vvh,                                  & ! wind components in y-direction [m/s] 
+    pvh,                                  & ! potential vorticity
+    wwh                                     ! wind components in y-direction [m/s] 
+  real,allocatable,dimension(:,:,:,:) ::  & ! Same for nexted grids
+    uuhn,                                 & !
+    vvhn,                                 & !
+    pvhn,                                 & !
+    wwhn,                                 & !
+    pwater                                  ! RLT added partial pressure water vapor 
+  real,allocatable,dimension(:,:,:) ::    & ! For calcpv
+    ppml,                                 & !
+    ppmk                                    !
+  real,allocatable,dimension(:) ::        & ! For calcpar
+    ttlev,                                & !
+    qvlev,                                & !
+    ulev,                                 & !
+    vlev,                                 & !
+    zlev                                    !
+
   private :: obukhov,richardson,scalev,calcpar,calcpar_nests,calcpv,calcpv_nests
 
   public :: getfields
 contains
+
+subroutine getfields_allocate
+  implicit none
+  allocate(uuh(0:nxmax-1,0:nymax-1,nuvzmax),      &
+    vvh(0:nxmax-1,0:nymax-1,nuvzmax),             &
+    pvh(0:nxmax-1,0:nymax-1,nuvzmax),             &
+    wwh(0:nxmax-1,0:nymax-1,nwzmax),              &
+    uuhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests), &
+    vvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests), &
+    pvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests), &
+    wwhn(0:nxmaxn-1,0:nymaxn-1,nwzmax,maxnests),  &
+    pwater(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+
+  allocate(ppml(0:nxmax-1,0:nymax-1,nuvzmax),ppmk(0:nxmax-1,0:nymax-1,nuvzmax))
+  allocate(ttlev(nuvzmax),qvlev(nuvzmax),ulev(nuvzmax),vlev(nuvzmax),zlev(nuvzmax))
+end subroutine getfields_allocate
+
+subroutine getfields_deallocate
+  implicit none
+  deallocate(uuh,vvh,pvh,wwh,uuhn,vvhn,pvhn,wwhn,pwater)
+  deallocate(ppml,ppmk)
+  deallocate(ttlev,qvlev,ulev,vlev,zlev)
+end subroutine getfields_deallocate
 
 subroutine getfields(itime,nstop)
   !                       i     o
@@ -64,25 +108,15 @@ subroutine getfields(itime,nstop)
   !*****************************************************************************
 
   use class_gribfile
+  use wetdepo_mod
 
   implicit none
 
   integer :: indj,itime,nstop,memaux
-  real :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real :: vvh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real :: pvh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real :: wwh(0:nxmax-1,0:nymax-1,nwzmax)
-  real :: uuhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
-  real :: vvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
-  real :: pvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
-  real :: wwhn(0:nxmaxn-1,0:nymaxn-1,nwzmax,maxnests)
-  ! RLT added partial pressure water vapor 
-  real :: pwater(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
   integer :: kz, ix
   character(len=100) :: rowfmt
 
   integer :: indmin = 1
-
 
   ! Check, if wind fields are available for the current time step
   !**************************************************************
@@ -95,7 +129,6 @@ subroutine getfields(itime,nstop)
     nstop=4
     return
   endif
-
 
   if ((ldirect*memtime(1).le.ldirect*itime).and. &
        (ldirect*memtime(2).gt.ldirect*itime)) then
@@ -134,7 +167,7 @@ subroutine getfields(itime,nstop)
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if
         call readwind_nests(indj+1,memind(2),uuhn,vvhn,wwhn)
-        call calcpar(memind(2),uuh,vvh,pvh)
+        call calcpar(memind(2))
         call calcpar_nests(memind(2),uuhn,vvhn,pvhn)
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(2),uuh,vvh,wwh,pvh)
@@ -173,7 +206,7 @@ subroutine getfields(itime,nstop)
           call readwind_gfs(indj,memind(1),uuh,vvh,wwh)
         end if
         call readwind_nests(indj,memind(1),uuhn,vvhn,wwhn)
-        call calcpar(memind(1),uuh,vvh,pvh)
+        call calcpar(memind(1))
         call calcpar_nests(memind(1),uuhn,vvhn,pvhn)
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(1),uuh,vvh,wwh,pvh)
@@ -193,7 +226,7 @@ subroutine getfields(itime,nstop)
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if
         call readwind_nests(indj+1,memind(2),uuhn,vvhn,wwhn)
-        call calcpar(memind(2),uuh,vvh,pvh)
+        call calcpar(memind(2))
         call calcpar_nests(memind(2),uuhn,vvhn,pvhn)
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(2),uuh,vvh,wwh,pvh)
@@ -223,7 +256,7 @@ subroutine getfields(itime,nstop)
   if (lwindinterv.gt.idiffmax) nstop=3
 end subroutine getfields
 
-subroutine calcpv(n,uuh,vvh,pvh)
+subroutine calcpv(n)
   !               i  i   i   o
   !*****************************************************************************
   !                                                                            *
@@ -250,12 +283,9 @@ subroutine calcpv(n,uuh,vvh,pvh)
   integer :: nlck
   real :: vx(2),uy(2),phi,tanphi,cosphi,dvdx,dudy,f
   real :: theta,thetap,thetam,dthetadp,dt1,dt2,dt
-  real :: pvavr,ppml(0:nxmax-1,0:nymax-1,nuvzmax),ppmk(0:nxmax-1,0:nymax-1,nuvzmax)
+  real :: pvavr
   real :: thup,thdn
   real,parameter :: eps=1.e-5, p0=101325
-  real :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real :: vvh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real :: pvh(0:nxmax-1,0:nymax-1,nuvzmax)
 
   ! Set number of levels to check for adjacent theta
   nlck=nuvz/3
@@ -534,7 +564,6 @@ subroutine calcpv(n,uuh,vvh,pvh)
         end do
      end do
   end if
-
 end subroutine calcpv
 
 subroutine calcpv_nests(l,n,uuhn,vvhn,pvhn)
@@ -563,12 +592,9 @@ subroutine calcpv_nests(l,n,uuhn,vvhn,pvhn)
   integer :: nlck,l
   real :: vx(2),uy(2),phi,tanphi,cosphi,dvdx,dudy,f
   real :: theta,thetap,thetam,dthetadp,dt1,dt2,dt
-  real :: ppml(0:nxmaxn-1,0:nymaxn-1,nuvzmax),ppmk(0:nxmaxn-1,0:nymaxn-1,nuvzmax)
   real :: thup,thdn
   real,parameter :: eps=1.e-5,p0=101325
-  real :: uuhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
-  real :: vvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
-  real :: pvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
+  real,dimension(:,:,:,:) :: uuhn,vvhn,pvhn
 
   ! Set number of levels to check for adjacent theta
   nlck=nuvz/3
@@ -776,21 +802,19 @@ subroutine calcpv_nests(l,n,uuhn,vvhn,pvhn)
       dudy=uuhn(ix,jyvp,kl,l)-uuhn(ix,jyvm,kl,l)
       dudy=dudy/real(jumpy)/(dyn(l)*pi/180.)
       end if
-  !
+
       pvhn(ix,jy,kl,l)=dthetadp*(f+(dvdx/cosphi-dudy &
            +uuhn(ix,jy,kl,l)*tanphi)/r_earth)*(-1.e6)*9.81
 
-  !
   ! Resest jux and juy
       jux=jumpx
       juy=jumpy
       end do
     end do
   end do
-  !
 end subroutine calcpv_nests
 
-subroutine calcpar(n,uuh,vvh,pvh)
+subroutine calcpar(n)
   !                   i  i   i   o
   !*****************************************************************************
   !                                                                            *
@@ -822,9 +846,6 @@ subroutine calcpar(n,uuh,vvh,pvh)
   !                                                                            *
   ! Variables:                                                                 *
   ! n                  temporal index for meteorological fields (1 to 3)       *
-  ! uuh                                                                        *
-  ! vvh                                                                        *
-  ! pvh                                                                        *
   ! metdata_format     format of metdata (ecmwf/gfs)                           * 
   !                                                                            *
   ! Constants:                                                                 *
@@ -843,12 +864,10 @@ subroutine calcpar(n,uuh,vvh,pvh)
   implicit none
 
   integer :: n,ix,jy,i,kz,lz,kzmin,llev,loop_start
-  real :: ttlev(nuvzmax),qvlev(nuvzmax),ol,hmixplus
-  real :: ulev(nuvzmax),vlev(nuvzmax),rh,vd(maxspec),subsceff,ylat
-  real :: altmin,tvold,pold,zold,pint,tv,zlev(nuvzmax),hmixdummy,akzdummy
-  real :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real :: vvh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real :: pvh(0:nxmax-1,0:nymax-1,nuvzmax)
+  real :: ol,hmixplus
+  real :: rh,subsceff,ylat
+  real :: altmin,tvold,pold,zold,pint,tv,hmixdummy,akzdummy
+  real :: vd(maxspec)
   real,parameter :: const=r_air/ga
 
   !write(*,*) 'in calcpar writting snowheight'
@@ -1056,7 +1075,7 @@ subroutine calcpar(n,uuh,vvh,pvh)
   ! Calculation of potential vorticity on 3-d grid
   !***********************************************
 
-  call calcpv(n,uuh,vvh,pvh)
+  call calcpv(n)
 end subroutine calcpar
 
 subroutine calcpar_nests(n,uuhn,vvhn,pvhn)
@@ -1104,12 +1123,11 @@ subroutine calcpar_nests(n,uuhn,vvhn,pvhn)
   implicit none
 
   integer :: n,ix,jy,i,l,kz,lz,kzmin
-  real :: ttlev(nuvzmax),qvlev(nuvzmax),ol,hmixplus,dummyakzllev
-  real :: ulev(nuvzmax),vlev(nuvzmax),rh,vd(maxspec),subsceff,ylat
-  real :: altmin,tvold,pold,zold,pint,tv,zlev(nuvzmax)
-  real :: uuhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
-  real :: vvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
-  real :: pvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
+  real :: ol,hmixplus,dummyakzllev
+  real :: rh,subsceff,ylat
+  real :: altmin,tvold,pold,zold,pint,tv
+  real :: vd(maxspec)
+  real,dimension(:,:,:,:) :: uuhn,vvhn,pvhn
   real,parameter :: const=r_air/ga
 
 
@@ -1323,7 +1341,7 @@ real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
 
   implicit none
 
-  real :: akm(nwzmax),bkm(nwzmax)
+  real,dimension(:) :: akm,bkm
   real :: ps,tsurf,tdsurf,tlev,ustar,hf,e,tv,rhoa,plev
   real :: ak1,bk1,theta,thetastar
 
@@ -1406,12 +1424,13 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
 
   integer :: i,k,nuvz,iter,llev,loop_start
   real :: tv,tvold,zref,z,zold,pint,pold,theta,thetaref,ri
-  real :: akz(nuvz),bkz(nuvz),ulev(nuvz),vlev(nuvz),hf,wst,tt2,td2
-  real :: psurf,ust,ttlev(nuvz),qvlev(nuvz),h,excess
+  real :: hf,wst,tt2,td2
+  real :: psurf,ust,h,excess
   real :: thetaold,zl,ul,vl,thetal,ril,hmixplus,wspeed,bvfsq,bvf
   real :: rh,rhold,rhl,theta1,theta2,zl1,zl2,thetam
   real,parameter    :: const=r_air/ga, ric=0.25, b=100., bs=8.5
   integer,parameter :: itmax=3
+  real,dimension(:) :: akz,bkz,ulev,vlev,ttlev,qvlev
 
   excess=0.0
   iter=0

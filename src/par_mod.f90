@@ -134,12 +134,20 @@ module par_mod
 ! integer,parameter :: nxmax=361,nymax=181,nuvzmax=92,nwzmax=92,nzmax=92,nxshift=359 ! 1.0 degree 92 level
 !  integer,parameter :: nxmax=361,nymax=181,nuvzmax=138,nwzmax=138,nzmax=138,nxshift=0 ! 1.0 degree 138 level
 !   integer,parameter :: nxmax=361,nymax=181,nuvzmax=138,nwzmax=138,nzmax=138,nxshift=359 ! 1.0 degree 138 level
-   integer,parameter :: nxmax=721,nymax=361,nuvzmax=138,nwzmax=138,nzmax=138,nxshift=359  ! 0.5 degree 138 level
+  integer,parameter :: nxmax=721,nymax=361,nuvzmax=138,nwzmax=138,nzmax=138!,nxshift=359  ! 0.5 degree 138 level
 !  integer,parameter :: nxmax=181,nymax=91,nuvzmax=92,nwzmax=92,nzmax=92,nxshift=0  ! CERA 2.0 degree 92 level
+  integer,parameter :: nxshift=359 
 
 ! GFS
 !   integer,parameter :: nxmax=361,nymax=181,nuvzmax=138,nwzmax=138,nzmax=138
 !   integer :: nxshift=0 ! shift not fixed for the executable 
+  !*********************************
+  ! Parmaters for GRIB file decoding
+  !*********************************
+
+  ! integer,parameter :: jpack=4*nxmax*nymax, jpunp=4*jpack
+  integer,parameter :: jpack=4*361*181, jpunp=4*jpack
+  ! ! jpack,jpunp             maximum dimensions needed for GRIB file decoding
 
 
   !*********************************************
@@ -166,15 +174,6 @@ module par_mod
   ! ntracermax         maximum number of tracer species in convection
   ! nconvlevmax        maximum number of levels for convection
   ! na                 parameter used in Emanuel's convect subroutine
-
-
-  !*********************************
-  ! Parmaters for GRIB file decoding
-  !*********************************
-
-  integer,parameter :: jpack=4*nxmax*nymax, jpunp=4*jpack
-
-  ! jpack,jpunp             maximum dimensions needed for GRIB file decoding
 
 
   !**************************************

@@ -13,7 +13,42 @@ module initialise_mod
 
 	implicit none
 
+  !**********************************************************
+  ! Variables used for domain-filling trajectory calculations
+  !**********************************************************
+
+  integer ::                            &
+    nx_we(2),                           & ! x indices of western and eastern boundary of domain-filling.
+    ny_sn(2),                           & ! y indices of southern and northern boundary of domain-filling.
+    numcolumn                             ! Maximum number of particles to be released within a single column.
+  integer,allocatable,dimension(:,:) :: &
+    numcolumn_we,                       & ! Number of particles to be released within one column
+                                          ! at the western and eastern boundary surfaces.
+    numcolumn_sn                           ! Same as numcolumn_we, but for southern and northern domain boundary.
+  real,allocatable,dimension(:,:,:) ::  &
+    zcolumn_we,                         & ! Altitudes where particles are to be released
+                                          ! at the western and eastern boundary surfaces.
+    zcolumn_sn,                         & ! Same as zcolumn_we, but for southern and northern domain boundary.
+    acc_mass_we,                        & ! Mass that has accumulated at the western and eastern boundary;
+                                          ! if it exceeds xmassperparticle, a particle is released and
+                                          ! acc_mass_we is reduced accordingly.
+    acc_mass_sn                           ! Same as acc_mass_we, but for southern and northern domain boundary
+  real ::                               &
+    xmassperparticle                      ! Air mass per particle in the domain-filling traj. option.
+
 contains
+
+subroutine domainfill_allocate
+  implicit none
+  allocate(numcolumn_we(2,0:nymax-1),numcolumn_sn(2,0:nxmax-1))
+  allocate(zcolumn_we(2,0:nymax-1,maxcolumn),zcolumn_sn(2,0:nxmax-1,maxcolumn), &
+    acc_mass_we(2,0:nymax-1,maxcolumn),acc_mass_sn(2,0:nxmax-1,maxcolumn))              
+end subroutine domainfill_allocate
+
+subroutine domainfill_deallocate
+  if (mdomainfill.lt.1) return
+  deallocate(numcolumn_we,numcolumn_sn,zcolumn_sn,zcolumn_we,acc_mass_sn,acc_mass_we)
+end subroutine domainfill_deallocate
 
 subroutine releaseparticles(itime)
   !                              o
@@ -56,7 +91,7 @@ subroutine releaseparticles(itime)
   integer :: kz,istart,iend
   integer :: nweeks,ndayofweek,nhour,jjjjmmdd,ihmmss,mm
   real(kind=dp) :: julmonday,jul,jullocal,juldiff
-  real,parameter :: eps=nxmax/3.e5,eps2=1.e-6
+  real,parameter :: eps2=1.e-6
 
   integer :: ngrid,ix,jy,ixp,jyp,indz,indzp,xtn,ytn
   real :: ddx,ddy,rddx,rddy,p1,p2,p3,p4
@@ -66,6 +101,9 @@ subroutine releaseparticles(itime)
   !data idummy/-7/,xmasssave/maxpoint*0./
 
   real :: frac,psint,zzlev,zzlev2,ttemp
+
+  real :: eps
+  eps=nxmax/3.e5
 
 
   ! Determine the actual date and time in Greenwich (i.e., UTC + correction for daylight savings time)
@@ -817,10 +855,10 @@ subroutine init_domainfill
   implicit none
 
   integer :: j,kz,lix,ljy,ncolumn,numparttot
-  real :: gridarea(0:nymax-1),pp(nzmax),ylat,ylatp,ylatm,hzone
+  real :: pp(nzmax),ylat,ylatp,ylatm,hzone
   real :: cosfactm,cosfactp,deltacol,dz1,dz2,dz,pnew,fractus
   real,parameter :: pih=pi/180.
-  real :: colmass(0:nxmax-1,0:nymax-1),colmasstotal,zposition
+  real :: colmasstotal,zposition
 
   integer :: ixm,ixp,jym,jyp,indzm,indzh,indzp,i,jj,ii
   real :: pvpart,ddx,ddy,rddx,rddy,p1,p2,p3,p4,y1(2)
@@ -829,10 +867,15 @@ subroutine init_domainfill
   real :: frac,psint,zzlev,zzlev2,ttemp
 
   logical :: deall
+
+  real,allocatable,dimension(:)   :: gridarea !
+  real,allocatable,dimension(:,:) :: colmass !
+
   ! Determine the release region (only full grid cells), over which particles
   ! shall be initialized
   ! Use 2 fields for west/east and south/north boundary
   !**************************************************************************
+  call domainfill_allocate
 
   nx_we(1)=max(int(xpoint1(1)),0)
   nx_we(2)=min((int(xpoint2(1))+1),nxmin1)
@@ -855,6 +898,9 @@ subroutine init_domainfill
   !***********************************************
   if (gdomainfill.and.ipin.ne.0) return
 
+  ! Allocate grid and column mass
+  !*******************************
+  allocate(gridarea(0:nymax-1),colmass(0:nxmax-1,0:nymax-1))
 
   ! Do not release particles twice (i.e., not at both in the leftmost and rightmost
   ! grid cell) for a global domain
@@ -1197,6 +1243,8 @@ subroutine init_domainfill
          zcolumn_we,zcolumn_sn,acc_mass_we,acc_mass_sn
     close(unitboundcond)
   endif
+
+  deallocate(gridarea,colmass)
 end subroutine init_domainfill
 
 subroutine boundcond_domainfill(itime,loutend)

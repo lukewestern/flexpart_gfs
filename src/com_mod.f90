@@ -13,8 +13,8 @@
 module com_mod
 
   use par_mod, only: dp, numpath, maxnests, maxageclass, maxspec, ni, &
-       numclass, nymax, nxmax, maxcolumn, maxwf, nzmax, nxmaxn, nymaxn, &
-       maxreceptor, maxrand, nwzmax, nuvzmax, numwfmem
+       numclass, maxcolumn, maxwf, nxmaxn, nymaxn, &
+       maxreceptor, maxrand, numwfmem
 
   implicit none
 
@@ -239,39 +239,6 @@ module com_mod
   ! area_hour, point_hour   daily variation of emission strengths for area and point sources
   ! area_dow, point_dow     day-of-week variation of emission strengths for area and point sources
 
-
-
-  !**********************************************************
-  ! Variables used for domain-filling trajectory calculations
-  !**********************************************************
-
-  integer :: nx_we(2),ny_sn(2)
-  integer :: numcolumn
-  integer :: numcolumn_we(2,0:nymax-1),numcolumn_sn(2,0:nxmax-1)
-  real :: zcolumn_we(2,0:nymax-1,maxcolumn)
-  real :: zcolumn_sn(2,0:nxmax-1,maxcolumn)
-  real :: xmassperparticle
-  real :: acc_mass_we(2,0:nymax-1,maxcolumn)
-  real :: acc_mass_sn(2,0:nxmax-1,maxcolumn)
-
-  ! nx_we(2)                x indices of western and eastern boundary of domain-filling
-  ! ny_sn(2)                y indices of southern and northern boundary of domain-filling
-  ! numcolumn_we            number of particles to be released within one column
-  !                    at the western and eastern boundary surfaces
-  ! numcolumn_sn            same as numcolumn_we, but for southern and northern domain boundary
-  ! numcolumn               maximum number of particles to be released within a single
-  !                    column
-  ! zcolumn_we              altitudes where particles are to be released
-  !                    at the western and eastern boundary surfaces
-  ! zcolumn_sn              same as zcolumn_we, but for southern and northern domain boundary
-  ! xmassperparticle        air mass per particle in the domain-filling traj. option
-  ! acc_mass_we             mass that has accumulated at the western and eastern boundary;
-  !                    if it exceeds xmassperparticle, a particle is released and
-  !                    acc_mass_we is reduced accordingly
-  ! acc_mass_sn             same as acc_mass_we, but for southern and northern domain boundary
-
-
-
   !******************************************************************************
   ! Variables associated with the ECMWF meteorological input data ("wind fields")
   !******************************************************************************
@@ -291,56 +258,6 @@ module com_mod
   ! memtime [s]             validation times of wind fields in memory
   ! memind                  pointer to wind field, in order to avoid shuffling
   !                         of wind fields
-
-
-
-  !****************************************************************************
-  ! Variables defining actual size and geographical location of the wind fields
-  !****************************************************************************
-
-  integer :: nx,ny,nxmin1,nymin1,nxfield,nuvz,nwz,nz,nmixz,nlev_ec
-  real :: dx,dy,xlon0,ylat0,dxconst,dyconst,height(nzmax),wheight(nzmax),uvheight(nzmax)
-
-  ! nx,ny,nz                actual dimensions of wind fields in x,y and z
-  !                    direction, respectively
-  ! nxmin1,nymin1           nx-1, ny-1, respectively
-  ! nuvz,nwz                vertical dimension of original ECMWF data
-  ! nxfield                 same as nx for limited area fields,
-  !                    but for global fields nx=nxfield+1
-  ! nmixz                   number of levels up to maximum PBL height (3500 m)
-
-  ! nuvz is used for u,v components
-  ! nwz is used for w components (staggered grid)
-  ! nz is used for the levels in transformed coordinates (terrain-following Cartesian
-  ! coordinates)
-
-  ! nlev_ec  number of levels ECMWF model
-  ! dx                      grid distance in x direction
-  ! dy                      grid distance in y direction
-  ! dxconst,dyconst         auxiliary variables for utransform,vtransform
-  ! height                  heights of all levels
-  ! xlon0                   geographical longitude and
-  ! ylat0                   geographical latitude of lower left grid point
-
-
-
-  !*************************************************
-  ! Variables used for vertical model discretization
-  !*************************************************
-
-  real :: akm(nwzmax),bkm(nwzmax)
-  real :: akz(nuvzmax),bkz(nuvzmax)
-  real :: aknew(nzmax),bknew(nzmax)
-
-  ! akm,bkm: coeffizients which regulate vertical discretization of ecmwf model
-  !     (at the border of model layers)
-  ! akz,bkz: model discretization coeffizients at the centre of the layers
-  ! aknew,bknew model discretization coeffizients at the interpolated levels
-
-  real :: vdep(0:nxmax-1,0:nymax-1,maxspec,numwfmem)
-
-  ! vdep [m/s]           deposition velocities
-
 
   !********************************************************************
   ! Variables associated with the ECMWF input data (nested wind fields)
@@ -685,43 +602,5 @@ contains
     end if
 
   end subroutine com_mod_allocate_part
-
-
-  subroutine com_mod_allocate_nests
-  !*******************************************************************************    
-  ! Dynamic allocation of arrays
-  !
-  ! For nested wind fields. 
-  ! 
-  !*******************************************************************************
-    implicit none 
-
-    allocate(uun(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(vvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(wwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(ttn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(qvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(pvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(clwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(ciwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(clwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-
-    allocate(cloudsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(cloudshn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
-    allocate(rhon(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(drhodzn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-    allocate(tthn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-    allocate(qvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-    allocate(clwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-    allocate(ciwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-    allocate(ctwcn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
-
-    clwcn(:,:,:,:,:)=0.
-    ciwcn(:,:,:,:,:)=0.
-    clwchn(:,:,:,:,:)=0.
-    ciwchn(:,:,:,:,:)=0.
-    
-  end subroutine com_mod_allocate_nests
-   
 
 end module com_mod

@@ -88,6 +88,7 @@ subroutine timemanager
   use initialise_mod
   use getfields_mod
   use output_mod
+  use interpol_mod, only: interpol_allocate,interpol_deallocate
 
   implicit none
   real, parameter ::        &
@@ -150,6 +151,10 @@ subroutine timemanager
   ! active_per_rel=.false.
 #endif
 
+  ! ! Allocate memory for windfields
+  ! !*******************************
+  ! call windfields_allocate
+  
   do itime=0,ideltas,lsynctime
 
   ! Computation of wet deposition, OH reaction and mass transfer
@@ -451,6 +456,12 @@ subroutine timemanager
   !***************************
   call deallocate_all_particles
   call windfields_deallocate
+  call domainfill_deallocate
+  call drydepo_deallocate
+  call convection_deallocate
+  call getfields_deallocate
+  call interpol_deallocate
+  if (numbnests.ge.1) call windfields_nest_deallocate
 
   if (iflux.eq.1) then
       deallocate(flux)
