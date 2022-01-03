@@ -72,6 +72,8 @@ subroutine assignland
   real :: xlandusep(lumaxx,lumaxy,numclass)
   ! character*2 ck
 
+  if (.not.DRYDEP) return
+  
   do ix=1,lumaxx
     do jy=1,lumaxy
           do k=1,numclass

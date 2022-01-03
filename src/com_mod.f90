@@ -572,7 +572,7 @@ module com_mod
   logical :: lroot=.true. ! true if serial version, or if MPI .and. root process
   
   logical, parameter :: interpolhmix=.false. ! true if the hmix shall be interpolated
-  logical, parameter :: turboff=.true.       ! true if the turbulence shall be switched off
+  logical, parameter :: turboff=.false.       ! true if the turbulence shall be switched off
 
   integer :: numthreads  ! number of available threads in parallel sections
   !integer :: nclassunc2, nrecclunc, ngriclunc
