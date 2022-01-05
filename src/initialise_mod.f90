@@ -24,7 +24,7 @@ module initialise_mod
   integer,allocatable,dimension(:,:) :: &
     numcolumn_we,                       & ! Number of particles to be released within one column
                                           ! at the western and eastern boundary surfaces.
-    numcolumn_sn                           ! Same as numcolumn_we, but for southern and northern domain boundary.
+    numcolumn_sn                          ! Same as numcolumn_we, but for southern and northern domain boundary.
   real,allocatable,dimension(:,:,:) ::  &
     zcolumn_we,                         & ! Altitudes where particles are to be released
                                           ! at the western and eastern boundary surfaces.

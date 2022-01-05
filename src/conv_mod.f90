@@ -622,7 +622,7 @@ subroutine calcmatrix(lconv,delt,cbmf)
   ! LB end
 end subroutine calcmatrix
 
-subroutine redist (itime,ipart,ktop,ipconv)
+subroutine redist(itime,ipart,ktop,ipconv)
 
   !**************************************************************************
   ! Do the redistribution of particles due to convection
@@ -868,7 +868,7 @@ subroutine redist (itime,ipart,ktop,ipconv)
             (tconv(levold)-tconv(levold-1)) &
             *(pconv(levold-1)-phconv(levold))/ &
             (pconv(levold-1)-pconv(levold))
-       sub_levold = sub(levold)/(1.-ga*sub(levold)/dpr(levold))
+       sub_levold = sub(levold)/(1.-ga*sub(levold)*lsynctime/dpr(levold))
        wsub(levold)=-1.*sub_levold*r_air*temp_levold/(phconv(levold))
       else
        wsub(levold)=0.
@@ -878,7 +878,7 @@ subroutine redist (itime,ipart,ktop,ipconv)
             (tconv(levold+1)-tconv(levold)) &
             *(pconv(levold)-phconv(levold+1))/ &
             (pconv(levold)-pconv(levold+1))
-       sub_levold1 = sub(levold+1)/(1.-ga*sub(levold+1)/dpr(levold+1))
+       sub_levold1 = sub(levold+1)/(1.-ga*sub(levold+1)*lsynctime/dpr(levold+1))
        wsub(levold+1)=-1.*sub_levold1*r_air*temp_levold1/ &
             (phconv(levold+1))
 
