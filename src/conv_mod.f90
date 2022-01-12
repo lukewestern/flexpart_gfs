@@ -11,9 +11,10 @@
 module conv_mod
 
   use par_mod, only: nxmaxn, nymaxn, maxnests,nxmax,nymax,nconvlevmax,na
-  use com_mod, only: lconvection,tt2n,td2n,psn,tthn,qvhn
+  use com_mod, only: lconvection
   use windfields_mod, only: metdata_format,nuvzmax,akz,bkz,akm,bkm,nuvz, &
-    uvheight,ps,tt2,td2,tth,qvh,pplev,tt,qv,nx,ny
+    uvheight,ps,tt2,td2,tth,qvh,pplev,tt,qv,nx,ny,tt2n,td2n,psn,tthn,qvhn, &
+    yln,yrn,xln,xrn,yresoln,xresoln,nxn,nyn
   implicit none
 
   !integer,parameter :: nconvlevmax = nuvzmax-1, &

@@ -7,7 +7,27 @@ module windfields_mod
   use point_mod
 
   implicit none
-  
+
+  !******************************************************************************
+  ! Variables associated with the ECMWF meteorological input data ("wind fields")
+  !******************************************************************************
+
+  integer ::            &
+    numbwf,             & ! actual number of wind fields
+    wftime(maxwf),      & ! times relative to beginning time of wind fields [s]
+    lwindinterv           ! Interval between wind fields currently in memory [s]
+  character(len=255) :: &
+    wfname(maxwf),      & ! file names of wind fields
+    wfspec(maxwf)         ! specifications of wind field file, e.g. if on hard
+
+  ! Nested equivalents
+  !*******************
+  character(len=255),allocatable,dimension(:,:) :: &
+    wfnamen                                          ! nested wind field names
+  character(len=18),allocatable,dimension(:,:) ::  &
+    wfspecn                                          ! specifications of wind field file, e.g. if on hard
+                                                     ! disc or on tape
+
   !Windfield parameters
   !********************
   !integer :: nxmax,nymax,nuvzmax,nwzmax,nzmax !Size of windfield
@@ -18,6 +38,13 @@ module windfields_mod
     oro,                              & ! orography of the ECMWF model
     excessoro,                        & ! excess orography mother domain
     lsm                                 ! land sea mask of the ECMWF model
+
+  ! Nested fields, unchangeable with time
+  !**************************************
+  real, allocatable,dimension(:,:,:) :: &
+    oron,                               & ! orography of the ECMWF model
+    excessoron,                         & ! excess orography mother domain
+    lsmn                                  ! land sea mask of the ECMWF model
 
   ! 3d fields necessary for eta coordinates option
   !************************************************
@@ -46,7 +73,7 @@ module windfields_mod
     pplev,                                & ! Pressure on half model levels
     prs,                                  & ! air pressure RLT
     rho_dry                                 ! dry air density RLT Only printed out in binary mode???
-  
+
   ! Cloud properties
   ! clouds:   no cloud, no precipitation   0
   !      cloud, no precipitation      1
@@ -66,6 +93,40 @@ module windfields_mod
     clouds                                  ! scavenging NIK, PS
   integer,allocatable,dimension(:,:,:) :: &
     cloudsh                                 ! scavenging NIK, PS
+
+  ! 3d nested fields
+  !*****************
+  real,allocatable,dimension(:,:,:,:,:) :: &
+    uun, vvn, wwn,                         & ! wind components in x,y and z direction [m/s]
+    ttn, tthn,                             & ! temperature data on internal and half model levels [K]
+    qvn, qvhn,                             & ! specific humidity data on internal and half model levels
+    pvn,                                   & ! potential vorticity
+    rhon,                                  & ! air density [kg/m3]
+    drhodzn                                  ! vertical air density gradient [kg/m2] 
+
+  ! ETA equivalents
+  real,allocatable,dimension(:,:,:,:,:) :: &
+    uuetan,vvetan,                         & ! wind components on half model levels in x and y direction [m/s]
+    wwetan,                                & ! wind component on model levels in z direction [eta/s]
+    ttetan,                                & ! temperature data on half model levels [K]
+    qvetan,                                & ! specific humidity data on half model levels
+    pvetan,                                & ! potential vorticity on half model levels
+    rhoetan,                               & ! air density on half model levels [kg/m3]
+    drhodzetan                               ! vertical air density gradient on half model levels [kg/m2]
+
+  ! Nested cloud properties
+  real,allocatable,dimension(:,:,:,:,:) :: &
+    clwcn,                                 & ! liquid   [kg/kg] ZHG
+    ciwcn,                                 & ! ice      [kg/kg] ZHG
+    clwn,                                  & ! combined [m3/m3] ZHG
+    clwchn,                                & ! original eta level liquid [kg/kg] ZHG
+    ciwchn                                   ! original eta level ice [kg/kg] ZHG
+  real,allocatable,dimension(:,:,:,:) ::   &
+    ctwcn                                    ! ESO: =icloud_stats(:,:,4,:) total cloud water content
+  integer(kind=1),allocatable,dimension(:,:,:,:,:) :: &
+    cloudsn                                  ! scavenging NIK, PS
+  integer,allocatable,dimension(:,:,:,:) :: &
+    cloudshn                                 ! scavenging NIK, PS
 
   ! 2d fields
   !**********
@@ -89,8 +150,30 @@ module windfields_mod
     tropopause,                         & ! altitude of thermal tropopause [m]
     oli                                   ! inverse Obukhov length (1/L) [m]
 
-  integer :: metdata_format  ! storing the input data type (ECMWF/NCEP)
+  ! 2d nested fields
+  !*******************
+  real, allocatable,dimension(:,:,:,:,:) :: &
+    psn,                                    & ! surface pressure
+    sdn,                                    & ! snow depth
+    msln,                                   & ! mean sea level pressure
+    tccn,                                   & ! total cloud cover
+    u10n,                                   & ! 10 meter u
+    v10n,                                   & ! 10 meter v
+    tt2n,                                   & ! 2 meter temperature
+    td2n,                                   & ! 2 meter dew point
+    lsprecn,                                & ! large scale total precipitation [mm/h]
+    convprecn,                              & ! convective precipitation [mm/h]
+    sshfn,                                  & ! surface sensible heat flux
+    ssrn,                                   & ! surface solar radiation
+    surfstrn,                               & ! surface stress
+    ustarn,                                 & ! friction velocity [m/s]
+    wstarn,                                 & ! convective velocity scale [m/s]
+    hmixn,                                  & ! mixing height [m]
+    tropopausen,                            & ! altitude of thermal tropopause [m]
+    olin,                                   & ! inverse Obukhov length (1/L) [m]
+    vdepn                                     !
 
+  integer :: metdata_format  ! storing the input data type (ECMWF/NCEP)
 
   !****************************************************************************
   ! Variables defining actual size and geographical location of the wind fields
@@ -120,6 +203,26 @@ module windfields_mod
     akm,bkm,                       & ! coefficients which regulate vertical discretization of ecmwf model levels
     akz,bkz,                       & ! model discretization coefficients at the centre of the layers
     aknew,bknew                      ! model discretization coefficients at the interpolated levels
+
+  !*********************************************************************
+  ! Variables characterizing size and location of the nested wind fields
+  !*********************************************************************
+
+  integer,allocatable,dimension(:) :: &
+    nxn,nyn                             ! actual dimensions of nested wind fields in x and y direction
+  real,allocatable,dimension(:) ::    &
+    dxn,dyn,                          & ! grid distances in x,y direction for the nested grids
+    xlon0n,                           & ! geographical longitude of lower left grid point of nested wind fields
+    ylat0n                              ! geographical latitude of lower left grid point of nested wind fields
+
+  !*************************************************
+  ! Certain auxiliary variables needed for the nests
+  !*************************************************
+
+  real,allocatable,dimension(:) :: &
+    xresoln,yresoln,               & ! Factors by which the resolutions in the nests
+                                     ! are enhanced compared to mother grid
+    xln,yln,xrn,yrn                  ! Corner points of nested grids in grid coordinates of mother grid
 
 contains
 
@@ -4694,10 +4797,9 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
     do kz=1,nz
       if (height(kz).gt.hmixmax) then
         nmixz=kz
-        goto 9
+        exit
       endif
     end do
-9   continue
   
   ! Do not repeat initialization of the Cartesian z grid
   !*****************************************************
@@ -4902,11 +5004,11 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
             dz=dz1+dz2
             kl=kz-1
             klp=kz
-            goto 47
+            exit
           endif
         end do
 
-47      ix1=ix-1
+        ix1=ix-1
         jy1=jy-1
         ixp=ix+1
         jyp=jy+1
@@ -5225,7 +5327,7 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
 
   real,dimension(0:nxmaxn-1,0:nymaxn-1,nuvzmax) :: rhohn,uvzlev,wzlev
   real,dimension(0:nxmaxn-1,0:nymaxn-1,nzmax) :: pinmconv
-  real,dimension(0:nxmaxn-1,0:nymaxn-1) :: tvold,pold,pint,tv
+  real,dimension(0:nxmaxn-1,0:nymaxn-1) :: tvold,pold,pint,tv,dpdeta
   real,dimension(0:nymaxn-1) :: cosf
 
   integer,dimension(0:nxmaxn-1,0:nymaxn-1) :: rain_cloud_above, idx
@@ -5483,7 +5585,48 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
       end do
     end do
 
+  ! Keep original fields if wind_coord_type==ETA
+    if (wind_coord_type.eq.'ETA') then
+      uuetan(0:nxm1,0:nym1,1:nz-1,n,l) = uuhn(0:nxm1,0:nym1,1:nz-1,l)
+      vvetan(0:nxm1,0:nym1,1:nz-1,n,l) = vvhn(0:nxm1,0:nym1,1:nz-1,l)
+      ttetan(0:nxm1,0:nym1,1:nz-1,n,l) = tthn(0:nxm1,0:nym1,1:nz-1,n,l)
+      qvetan(0:nxm1,0:nym1,1:nz-1,n,l) = qvhn(0:nxm1,0:nym1,1:nz-1,n,l)
+      pvetan(0:nxm1,0:nym1,1:nz-1,n,l) = pvhn(0:nxm1,0:nym1,1:nz-1,l)
+      rhoetan(0:nxm1,0:nym1,1:nz-1,n,l) = rhohn(0:nxm1,0:nym1,1:nz-1)
 
+      uuetan(0:nxm1,0:nym1,nz,n,l)=uuhn(0:nxm1,0:nym1,nuvz,l)
+      vvetan(0:nxm1,0:nym1,nz,n,l)=vvhn(0:nxm1,0:nym1,nuvz,l)
+      ttetan(0:nxm1,0:nym1,nz,n,l)=tthn(0:nxm1,0:nym1,nuvz,n,l)
+      qvetan(0:nxm1,0:nym1,nz,n,l)=qvhn(0:nxm1,0:nym1,nuvz,n,l)
+      pvetan(0:nxm1,0:nym1,nz,n,l)=pvhn(0:nxm1,0:nym1,nuvz,l)
+      rhoetan(0:nxm1,0:nym1,nz,n,l)=rhohn(0:nxm1,0:nym1,nuvz)
+      
+
+      drhodzetan(0:nxm1,0:nym1,1,n,l)=(rhoetan(0:nxm1,0:nym1,2,n,l)-rhoetan(0:nxm1,0:nym1,1,n,l))/ &
+           (height(2)-height(1))
+      do kz=2,nz-1
+        drhodzetan(0:nxm1,0:nym1,kz,n,l)=(rhoetan(0:nxm1,0:nym1,kz+1,n,l)-rhoetan(0:nxm1,0:nym1,kz-1,n,l))/ &
+             (height(kz+1)-height(kz-1)) ! Note that this is still in SI units and not in eta
+      end do
+      drhodzetan(0:nxm1,0:nym1,nz,n,l)=drhodzetan(0:nxm1,0:nym1,nz-1,n,l)
+
+      ! Convert w from Pa/s to eta/s, following FLEXTRA
+      !************************************************
+      do kz=1,nuvz-1
+        if (kz.eq.1) then
+          dpdeta=(akm(kz+1)-akm(kz)+(bkm(kz+1)-bkm(kz))*ps(:,:,1,n))/ &
+            (wheight(kz+1)-wheight(kz))
+        else if (kz.eq.nuvz-1) then
+          dpdeta=(akm(kz)-akm(kz-1)+(bkm(kz)-bkm(kz-1))*ps(:,:,1,n))/ &
+            (wheight(kz)-wheight(kz-1))
+        else
+          dpdeta=(akm(kz+1)-akm(kz-1)+(bkm(kz+1)-bkm(kz-1))*ps(:,:,1,n))/ &
+            (wheight(kz+1)-wheight(kz-1))
+        endif
+        wwetan(:,:,kz,n,l)=wwhn(:,:,kz,l)/dpdeta
+      end do      
+    endif  
+      
   !***********************************************************************************  
     if (readclouds_nest(l)) then !HG METHOD
   ! The method is loops all grids vertically and constructs the 3D matrix for clouds
@@ -5691,6 +5834,20 @@ subroutine windfields_nest_allocate
   !*******************************************************************************
   implicit none 
 
+  allocate(wfnamen(maxnests,maxwf))
+  allocate(wfspecn(maxnests,maxwf))
+
+  allocate(nxn(maxnests))
+  allocate(nyn(maxnests))
+  allocate(dxn(maxnests))
+  allocate(dyn(maxnests))
+  allocate(xlon0n(maxnests))
+  allocate(ylat0n(maxnests))
+
+  allocate(oron(0:nxmaxn-1,0:nymaxn-1,maxnests))
+  allocate(excessoron(0:nxmaxn-1,0:nymaxn-1,maxnests))
+  allocate(lsmn(0:nxmaxn-1,0:nymaxn-1,maxnests))
+
   allocate(uun(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(vvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(wwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
@@ -5700,6 +5857,16 @@ subroutine windfields_nest_allocate
   allocate(clwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(ciwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(clwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+
+  ! ETA equivalents
+  allocate(uuetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(vvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(wwetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(ttetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(qvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(pvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))  
+  allocate(rhoetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(drhodzetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
 
   allocate(cloudsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(cloudshn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
@@ -5711,6 +5878,37 @@ subroutine windfields_nest_allocate
   allocate(ciwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
   allocate(ctwcn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
 
+  ! 2d fields
+  !***********
+  allocate(psn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(sdn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(msln(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(tccn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(u10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(v10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(tt2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(td2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(lsprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(convprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(sshfn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(ssrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(surfstrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(ustarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(wstarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(hmixn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(tropopausen(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(olin(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(vdepn(0:nxmaxn-1,0:nymaxn-1,maxspec,numwfmem,maxnests))
+
+  allocate(xresoln(0:maxnests))
+  allocate(yresoln(0:maxnests))
+  allocate(xln(maxnests))
+  allocate(yln(maxnests))
+  allocate(xrn(maxnests))
+  allocate(yrn(maxnests))
+
+  ! Initialise
+  !************  
   clwcn(:,:,:,:,:)=0.
   ciwcn(:,:,:,:,:)=0.
   clwchn(:,:,:,:,:)=0.
@@ -5718,8 +5916,20 @@ subroutine windfields_nest_allocate
 end subroutine windfields_nest_allocate
 
 subroutine windfields_nest_deallocate
+  
+  deallocate(wfnamen,wfspecn)
+
+  deallocate(nxn,nyn,dxn,dyn,xlon0n,ylat0n)
+
+  deallocate(oron,excessoron,lsmn)
+
   deallocate(uun,vvn,wwn,ttn,qvn,pvn,clwcn,ciwcn,clwn,cloudsn, &
     cloudshn,rhon,drhodzn,tthn,qvhn,clwchn,ciwchn,ctwcn)
+
+  deallocate(psn,sdn,msln,tccn,u10n,v10n,tt2n,td2n,lsprecn,convprecn, &
+    sshfn,ssrn,surfstrn,ustarn,wstarn,hmixn,tropopausen,olin,vdepn)
+
+  deallocate(xresoln,yresoln,xln,yln,xrn,yrn)
 end subroutine windfields_nest_deallocate
 
 subroutine windfields_deallocate

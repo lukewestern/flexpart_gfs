@@ -27,7 +27,10 @@ module interpol_mod
   private :: interpol_all_eta,interpol_all_meter,interpol_misslev_eta,interpol_misslev_meter
   private :: interpol_wind_eta,interpol_wind_meter,interpol_wind_short_eta,interpol_wind_short_meter
   private :: interpol_partoutput_value_eta,interpol_partoutput_value_meter
-  private :: interpol_mixinglayer_eta,interpol_mixinglayer_meter
+  private :: interpol_mixinglayer_eta,interpol_mixinglayer_meter,interpol_misslev_meter_nests
+  private :: interpol_all_eta_nests,interpol_all_meter_nests,interpol_misslev_eta_nests
+  private :: interpol_wind_short_eta_nests,interpol_wind_short_meter_nests
+  private :: interpol_wind_eta_nests,interpol_wind_meter_nests
 
 !$OMP THREADPRIVATE(uprof,vprof,wprof,usigprof,vsigprof,wsigprof, &
 !$OMP rhoprof,rhogradprof,u,v,w,usig,vsig,wsig, &
@@ -382,6 +385,25 @@ subroutine bilinear_horizontal_interpolation(field,output,zlevel,ztot)
   end do
 end subroutine bilinear_horizontal_interpolation
 
+subroutine bilinear_horizontal_interpolation_nests(field,output,zlevel,ztot)
+
+  implicit none
+
+  integer, intent(in) :: zlevel,ztot                                       ! interpolation z level, z
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,maxnests) ! input field to interpolate over
+  real, intent(inout) :: output(2)                                         ! interpolated values
+  integer             :: m, indexh
+
+  do m=1,2
+    indexh=memind(m)
+
+    output(m)=p1*field(ix ,jy ,zlevel,indexh,ngrid) &
+         + p2*field(ixp,jy ,zlevel,indexh,ngrid) &
+         + p3*field(ix ,jyp,zlevel,indexh,ngrid) &
+         + p4*field(ixp,jyp,zlevel,indexh,ngrid)
+  end do
+end subroutine bilinear_horizontal_interpolation_nests
+
 subroutine bilinear_spatial_interpolation(field,output,zlevel,dz1,dz2,ztot)
   implicit none
   integer, intent(in) :: zlevel,ztot                               ! interpolation z level
@@ -407,6 +429,31 @@ subroutine bilinear_spatial_interpolation(field,output,zlevel,dz1,dz2,ztot)
   end do
 end subroutine bilinear_spatial_interpolation
   
+subroutine bilinear_spatial_interpolation_nests(field,output,zlevel,dz1,dz2,ztot)
+  implicit none
+  integer, intent(in) :: zlevel,ztot                                        ! interpolation z level
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,maxnests)  ! input field to interpolate over
+  real, intent(in)    :: dz1,dz2
+  real, intent(inout) :: output(2)                                          ! interpolated values
+  integer             :: m,n,indexh,indzh
+  real                :: output1(2)
+
+  do m=1,2
+    indexh=memind(m)
+    do n=1,2
+      indzh=zlevel+n-1
+      output1(n)=p1*field(ix ,jy ,indzh,indexh,ngrid) &
+           + p2*field(ixp,jy ,indzh,indexh,ngrid) &
+           + p3*field(ix ,jyp,indzh,indexh,ngrid) &
+           + p4*field(ixp,jyp,indzh,indexh,ngrid)
+    end do
+  !**********************************
+  ! 2.) Linear vertical interpolation on logarithmic scale
+  !**********************************
+    output(m)=(output1(1)*dz2 + output1(2)*dz1)!(output1(1)**dz2) * (output1(2)**dz1)
+  end do
+end subroutine bilinear_spatial_interpolation_nests
+
 subroutine compute_standard_deviation(field,output,zlevel1,zlevel2,ztot)
   implicit none
   real,parameter      :: eps=1.0e-30
@@ -444,6 +491,44 @@ subroutine compute_standard_deviation(field,output,zlevel1,zlevel2,ztot)
     output=sqrt(xaux/(ndivide-1.))
   endif  
 end subroutine compute_standard_deviation
+
+subroutine compute_standard_deviation_nests(field,output,zlevel1,zlevel2,ztot)
+  implicit none
+  real,parameter      :: eps=1.0e-30
+  integer, intent(in) :: zlevel1,zlevel2,ztot                     ! interpolation z levels
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,maxnests) ! input field to interpolate over
+  real, intent(inout) :: output                                   ! standard deviation
+  real                :: xaux,ndivide
+  real                :: sl, sq
+  integer             :: m, indexh,zlevel
+
+  sl=0.
+  sq=0.
+  do m=1,2
+    indexh=memind(m)
+    do zlevel=zlevel1,zlevel2
+      sl=sl+field(ix ,jy ,zlevel,indexh,ngrid)+field(ixp,jy ,zlevel,indexh,ngrid) &
+           +field(ix ,jyp,zlevel,indexh,ngrid)+field(ixp,jyp,zlevel,indexh,ngrid)
+      sq=sq+field(ix ,jy ,zlevel,indexh,ngrid)*field(ix ,jy ,zlevel,indexh,ngrid)+ &
+           field(ixp,jy ,zlevel,indexh,ngrid)*field(ixp,jy ,zlevel,indexh,ngrid)+ &
+           field(ix ,jyp,zlevel,indexh,ngrid)*field(ix ,jyp,zlevel,indexh,ngrid)+ &
+           field(ixp,jyp,zlevel,indexh,ngrid)*field(ixp,jyp,zlevel,indexh,ngrid)
+    end do
+  end do
+
+  if (zlevel1.eq.zlevel2) then
+    ndivide=8.
+  else
+    ndivide=16.
+  endif
+
+  xaux=sq-sl*sl/ndivide
+  if (xaux.lt.eps) then
+    output=0.
+  else
+    output=sqrt(xaux/(ndivide-1.))
+  endif  
+end subroutine compute_standard_deviation_nests
 
 ! Interpolation functions
 !************************
@@ -583,7 +668,7 @@ subroutine interpol_misslev()
           if (ngrid.le.0) then
             call interpol_misslev_eta(n)
           else
-            call interpol_misslev_nests(n)
+            call interpol_misslev_eta_nests(n)
           endif
         endif
       end do
@@ -594,7 +679,7 @@ subroutine interpol_misslev()
           if (ngrid.le.0) then
             call interpol_misslev_meter(n)
           else
-            call interpol_misslev_nests(n)
+            call interpol_misslev_meter_nests(n)
           endif
         endif
       end do
@@ -605,7 +690,7 @@ subroutine interpol_misslev()
           if (ngrid.le.0) then
             call interpol_misslev_meter(n)
           else
-            call interpol_misslev_nests(n)
+            call interpol_misslev_meter_nests(n)
           endif
         endif
       end do
@@ -664,11 +749,23 @@ subroutine interpol_wind(itime,xt,yt,zt,zteta,pp)
   !**********************************************************
   select case (wind_coord_type)
     case ('ETA')
-      call interpol_wind_eta(zt,zteta)
+      if (ngrid.le.0) then
+        call interpol_wind_eta(zt,zteta)
+      else
+        call interpol_wind_eta_nests(zt,zteta)
+      endif
     case ('METER')
-      call interpol_wind_meter(zt)
+      if (ngrid.le.0) then
+        call interpol_wind_meter(zt)
+      else
+        call interpol_wind_meter_nests(zt)
+      endif
     case default
-      call interpol_wind_meter(zt)
+      if (ngrid.le.0) then
+        call interpol_wind_meter(zt)
+      else
+        call interpol_wind_meter_nests(zt)
+      endif
   end select
 end subroutine interpol_wind
 
@@ -704,10 +801,6 @@ subroutine interpol_wind_short(itime,xt,yt,zt,zteta)
   real, intent(in) :: xt,yt,zt
   real, intent(in) :: zteta
 
-  if (ngrid.gt.0) then
-    call interpol_wind_short_nests(itime,xtn,ytn,zt)
-    return
-  endif
   !********************************************
   ! Multilinear interpolation in time and space
   !********************************************
@@ -723,10 +816,13 @@ subroutine interpol_wind_short(itime,xt,yt,zt,zteta)
   select case (wind_coord_type)
     case ('ETA')
       call interpol_wind_short_eta(zt,zteta)
+      call interpol_wind_short_eta_nests(zt,zteta)
     case ('METER')
       call interpol_wind_short_meter(zt)
+      call interpol_wind_short_meter_nests(zt)
     case default
       call interpol_wind_short_meter(zt)
+      call interpol_wind_short_meter_nests(zt)
   end select
 end subroutine interpol_wind_short
 
@@ -1040,7 +1136,7 @@ end subroutine interpol_density
 
 ! Nested interpolation functions
 !*******************************
-subroutine interpol_all_nests(itime,xt,yt,zt)
+subroutine interpol_all_nests(itime,xt,yt,zt,zteta)
   !                                i   i  i  i
   !*****************************************************************************
   !                                                                            *
@@ -1074,16 +1170,12 @@ subroutine interpol_all_nests(itime,xt,yt,zt)
 
   implicit none
 
-  integer :: itime
-  real :: xt,yt,zt
+  integer, intent(in) :: itime
+  real, intent(in)    :: xt,yt,zt,zteta
 
   ! Auxiliary variables needed for interpolation
   real :: ust1(2),wst1(2),oli1(2),oliaux
   real :: y1(2),y2(2),y3(2),rho1(2),rhograd1(2)
-  real :: usl,vsl,wsl,usq,vsq,wsq,xaux
-  integer :: i,m,n,indexh
-  real,parameter :: eps=1.0e-30
-
 
   !********************************************
   ! Multilinear interpolation in time and space
@@ -1091,52 +1183,25 @@ subroutine interpol_all_nests(itime,xt,yt,zt)
 
   ! Determine the lower left corner and its distance to the current position
   !*************************************************************************
-
-  ddx=xt-real(ix)
-  ddy=yt-real(jy)
-  rddx=1.-ddx
-  rddy=1.-ddy
-  p1=rddx*rddy
-  p2=ddx*rddy
-  p3=rddx*ddy
-  p4=ddx*ddy
+  call find_grid_distances(xt,yt)
 
   ! Calculate variables for time interpolation
   !*******************************************
-
-  dt1=real(itime-memtime(1))
-  dt2=real(memtime(2)-itime)
-  dtt=1./(dt1+dt2)
-
+  call find_time_variables(itime)
 
   !*****************************************
   ! 1. Interpolate u*, w* and Obukhov length
   !*****************************************
 
   ! a) Bilinear horizontal interpolation
-
-  do m=1,2
-    indexh=memind(m)
-
-    ust1(m)=p1*ustarn(ix ,jy ,1,indexh,ngrid) &
-         + p2*ustarn(ixp,jy ,1,indexh,ngrid) &
-         + p3*ustarn(ix ,jyp,1,indexh,ngrid) &
-         + p4*ustarn(ixp,jyp,1,indexh,ngrid)
-    wst1(m)=p1*wstarn(ix ,jy ,1,indexh,ngrid) &
-         + p2*wstarn(ixp,jy ,1,indexh,ngrid) &
-         + p3*wstarn(ix ,jyp,1,indexh,ngrid) &
-         + p4*wstarn(ixp,jyp,1,indexh,ngrid)
-    oli1(m)=p1*olin(ix ,jy ,1,indexh,ngrid) &
-         + p2*olin(ixp,jy ,1,indexh,ngrid) &
-         + p3*olin(ix ,jyp,1,indexh,ngrid) &
-         + p4*olin(ixp,jyp,1,indexh,ngrid)
-  end do
+  call bilinear_horizontal_interpolation_nests(ustarn,ust1,1,1)
+  call bilinear_horizontal_interpolation_nests(wstarn,wst1,1,1)
+  call bilinear_horizontal_interpolation_nests(olin,oli1,1,1)
 
   ! b) Temporal interpolation
-
-  ust=(ust1(1)*dt2+ust1(2)*dt1)*dtt
-  wst=(wst1(1)*dt2+wst1(2)*dt1)*dtt
-  oliaux=(oli1(1)*dt2+oli1(2)*dt1)*dtt
+  call temporal_interpolation(ust1(1),ust1(2),ust)
+  call temporal_interpolation(wst1(1),wst1(2),wst)
+  call temporal_interpolation(oli1(1),oli1(2),oliaux)
 
   if (oliaux.ne.0.) then
     ol=1./oliaux
@@ -1144,553 +1209,18 @@ subroutine interpol_all_nests(itime,xt,yt,zt)
     ol=99999.
   endif
 
-
-  !*****************************************************
-  ! 2. Interpolate vertical profiles of u,v,w,rho,drhodz
-  !*****************************************************
-
-
-  ! Determine the level below the current position
-  !***********************************************
-
-  do i=2,nz
-    if (height(i).gt.zt) then
-      indz=i-1
-      indzp=i
-      exit
-    endif
-  end do
-
-  !**************************************
-  ! 1.) Bilinear horizontal interpolation
-  ! 2.) Temporal interpolation (linear)
-  !**************************************
-
-  ! Loop over 2 time steps and indz levels
-  !***************************************
-
-  do n=indz,indz+1
-    usl=0.
-    vsl=0.
-    wsl=0.
-    usq=0.
-    vsq=0.
-    wsq=0.
-    do m=1,2
-      indexh=memind(m)
-      y1(m)=p1*uun(ix ,jy ,n,indexh,ngrid) &
-           +p2*uun(ixp,jy ,n,indexh,ngrid) &
-           +p3*uun(ix ,jyp,n,indexh,ngrid) &
-           +p4*uun(ixp,jyp,n,indexh,ngrid)
-      y2(m)=p1*vvn(ix ,jy ,n,indexh,ngrid) &
-           +p2*vvn(ixp,jy ,n,indexh,ngrid) &
-           +p3*vvn(ix ,jyp,n,indexh,ngrid) &
-           +p4*vvn(ixp,jyp,n,indexh,ngrid)
-      y3(m)=p1*wwn(ix ,jy ,n,indexh,ngrid) &
-           +p2*wwn(ixp,jy ,n,indexh,ngrid) &
-           +p3*wwn(ix ,jyp,n,indexh,ngrid) &
-           +p4*wwn(ixp,jyp,n,indexh,ngrid)
-      rhograd1(m)=p1*drhodzn(ix ,jy ,n,indexh,ngrid) &
-           +p2*drhodzn(ixp,jy ,n,indexh,ngrid) &
-           +p3*drhodzn(ix ,jyp,n,indexh,ngrid) &
-           +p4*drhodzn(ixp,jyp,n,indexh,ngrid)
-      rho1(m)=p1*rhon(ix ,jy ,n,indexh,ngrid) &
-           +p2*rhon(ixp,jy ,n,indexh,ngrid) &
-           +p3*rhon(ix ,jyp,n,indexh,ngrid) &
-           +p4*rhon(ixp,jyp,n,indexh,ngrid)
-
-     usl=usl+uun(ix ,jy ,n,indexh,ngrid)+uun(ixp,jy ,n,indexh,ngrid) &
-          +uun(ix ,jyp,n,indexh,ngrid)+uun(ixp,jyp,n,indexh,ngrid)
-     vsl=vsl+vvn(ix ,jy ,n,indexh,ngrid)+vvn(ixp,jy ,n,indexh,ngrid) &
-          +vvn(ix ,jyp,n,indexh,ngrid)+vvn(ixp,jyp,n,indexh,ngrid)
-     wsl=wsl+wwn(ix ,jy ,n,indexh,ngrid)+wwn(ixp,jy ,n,indexh,ngrid) &
-          +wwn(ix ,jyp,n,indexh,ngrid)+wwn(ixp,jyp,n,indexh,ngrid)
-
-    usq=usq+uun(ix ,jy ,n,indexh,ngrid)*uun(ix ,jy ,n,indexh,ngrid)+ &
-         uun(ixp,jy ,n,indexh,ngrid)*uun(ixp,jy ,n,indexh,ngrid)+ &
-         uun(ix ,jyp,n,indexh,ngrid)*uun(ix ,jyp,n,indexh,ngrid)+ &
-         uun(ixp,jyp,n,indexh,ngrid)*uun(ixp,jyp,n,indexh,ngrid)
-    vsq=vsq+vvn(ix ,jy ,n,indexh,ngrid)*vvn(ix ,jy ,n,indexh,ngrid)+ &
-         vvn(ixp,jy ,n,indexh,ngrid)*vvn(ixp,jy ,n,indexh,ngrid)+ &
-         vvn(ix ,jyp,n,indexh,ngrid)*vvn(ix ,jyp,n,indexh,ngrid)+ &
-         vvn(ixp,jyp,n,indexh,ngrid)*vvn(ixp,jyp,n,indexh,ngrid)
-    wsq=wsq+wwn(ix ,jy ,n,indexh,ngrid)*wwn(ix ,jy ,n,indexh,ngrid)+ &
-         wwn(ixp,jy ,n,indexh,ngrid)*wwn(ixp,jy ,n,indexh,ngrid)+ &
-         wwn(ix ,jyp,n,indexh,ngrid)*wwn(ix ,jyp,n,indexh,ngrid)+ &
-         wwn(ixp,jyp,n,indexh,ngrid)*wwn(ixp,jyp,n,indexh,ngrid)
-    end do
-    uprof(n)=(y1(1)*dt2+y1(2)*dt1)*dtt
-    vprof(n)=(y2(1)*dt2+y2(2)*dt1)*dtt
-    wprof(n)=(y3(1)*dt2+y3(2)*dt1)*dtt
-    rhoprof(n)=(rho1(1)*dt2+rho1(2)*dt1)*dtt
-    rhogradprof(n)=(rhograd1(1)*dt2+rhograd1(2)*dt1)*dtt
-    indzindicator(n)=.false.
-
-  ! Compute standard deviations
-  !****************************
-
-    xaux=usq-usl*usl/8.
-    if (xaux.lt.eps) then
-      usigprof(n)=0.
-    else
-      usigprof(n)=sqrt(xaux/7.)
-    endif
-
-    xaux=vsq-vsl*vsl/8.
-    if (xaux.lt.eps) then
-      vsigprof(n)=0.
-    else
-      vsigprof(n)=sqrt(xaux/7.)
-    endif
-
-
-    xaux=wsq-wsl*wsl/8.
-    if (xaux.lt.eps) then
-      wsigprof(n)=0.
-    else
-      wsigprof(n)=sqrt(xaux/7.)
-    endif
-
-  end do
+  ! Interpolate over the windfields depending on the prefered
+  ! coordinate system
+  !**********************************************************
+  select case (wind_coord_type)
+    case ('ETA')
+      call interpol_all_eta_nests(zt,zteta)
+    case ('METER')
+      call interpol_all_meter_nests(zt)
+    case default
+      call interpol_all_meter_nests(zt)
+  end select
 end subroutine interpol_all_nests
-
-subroutine interpol_misslev_nests(n)
-  !                                  i
-  !*****************************************************************************
-  !                                                                            *
-  !  This subroutine interpolates u,v,w, density and density gradients.        *
-  !                                                                            *
-  !    Author: A. Stohl                                                        *
-  !                                                                            *
-  !    16 December 1997                                                        *
-  !                                                                            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  ! n                  level                                                   *
-  !                                                                            *
-  ! Constants:                                                                 *
-  !                                                                            *
-  !*****************************************************************************
-
-  use turbulence_mod
-
-  implicit none
-
-  ! Auxiliary variables needed for interpolation
-  real :: y1(2),y2(2),y3(2),rho1(2),rhograd1(2)
-  real :: usl,vsl,wsl,usq,vsq,wsq,xaux
-  integer :: m,n,indexh
-  real,parameter :: eps=1.0e-30
-
-
-  !********************************************
-  ! Multilinear interpolation in time and space
-  !********************************************
-
-
-  !**************************************
-  ! 1.) Bilinear horizontal interpolation
-  ! 2.) Temporal interpolation (linear)
-  !**************************************
-
-  ! Loop over 2 time steps
-  !***********************
-
-  usl=0.
-  vsl=0.
-  wsl=0.
-  usq=0.
-  vsq=0.
-  wsq=0.
-  do m=1,2
-    indexh=memind(m)
-    y1(m)=p1*uun(ix ,jy ,n,indexh,ngrid) &
-         +p2*uun(ixp,jy ,n,indexh,ngrid) &
-         +p3*uun(ix ,jyp,n,indexh,ngrid) &
-         +p4*uun(ixp,jyp,n,indexh,ngrid)
-    y2(m)=p1*vvn(ix ,jy ,n,indexh,ngrid) &
-         +p2*vvn(ixp,jy ,n,indexh,ngrid) &
-         +p3*vvn(ix ,jyp,n,indexh,ngrid) &
-         +p4*vvn(ixp,jyp,n,indexh,ngrid)
-    y3(m)=p1*wwn(ix ,jy ,n,indexh,ngrid) &
-         +p2*wwn(ixp,jy ,n,indexh,ngrid) &
-         +p3*wwn(ix ,jyp,n,indexh,ngrid) &
-         +p4*wwn(ixp,jyp,n,indexh,ngrid)
-    rho1(m)=p1*rhon(ix ,jy ,n,indexh,ngrid) &
-         +p2*rhon(ixp,jy ,n,indexh,ngrid) &
-         +p3*rhon(ix ,jyp,n,indexh,ngrid) &
-         +p4*rhon(ixp,jyp,n,indexh,ngrid)
-    rhograd1(m)=p1*drhodzn(ix ,jy ,n,indexh,ngrid) &
-         +p2*drhodzn(ixp,jy ,n,indexh,ngrid) &
-         +p3*drhodzn(ix ,jyp,n,indexh,ngrid) &
-         +p4*drhodzn(ixp,jyp,n,indexh,ngrid)
-
-     usl=usl+uun(ix ,jy ,n,indexh,ngrid)+uun(ixp,jy ,n,indexh,ngrid) &
-          +uun(ix ,jyp,n,indexh,ngrid)+uun(ixp,jyp,n,indexh,ngrid)
-     vsl=vsl+vvn(ix ,jy ,n,indexh,ngrid)+vvn(ixp,jy ,n,indexh,ngrid) &
-          +vvn(ix ,jyp,n,indexh,ngrid)+vvn(ixp,jyp,n,indexh,ngrid)
-     wsl=wsl+wwn(ix ,jy ,n,indexh,ngrid)+wwn(ixp,jy ,n,indexh,ngrid) &
-          +wwn(ix ,jyp,n,indexh,ngrid)+wwn(ixp,jyp,n,indexh,ngrid)
-
-    usq=usq+uun(ix ,jy ,n,indexh,ngrid)*uun(ix ,jy ,n,indexh,ngrid)+ &
-         uun(ixp,jy ,n,indexh,ngrid)*uun(ixp,jy ,n,indexh,ngrid)+ &
-         uun(ix ,jyp,n,indexh,ngrid)*uun(ix ,jyp,n,indexh,ngrid)+ &
-         uun(ixp,jyp,n,indexh,ngrid)*uun(ixp,jyp,n,indexh,ngrid)
-    vsq=vsq+vvn(ix ,jy ,n,indexh,ngrid)*vvn(ix ,jy ,n,indexh,ngrid)+ &
-         vvn(ixp,jy ,n,indexh,ngrid)*vvn(ixp,jy ,n,indexh,ngrid)+ &
-         vvn(ix ,jyp,n,indexh,ngrid)*vvn(ix ,jyp,n,indexh,ngrid)+ &
-         vvn(ixp,jyp,n,indexh,ngrid)*vvn(ixp,jyp,n,indexh,ngrid)
-    wsq=wsq+wwn(ix ,jy ,n,indexh,ngrid)*wwn(ix ,jy ,n,indexh,ngrid)+ &
-         wwn(ixp,jy ,n,indexh,ngrid)*wwn(ixp,jy ,n,indexh,ngrid)+ &
-         wwn(ix ,jyp,n,indexh,ngrid)*wwn(ix ,jyp,n,indexh,ngrid)+ &
-         wwn(ixp,jyp,n,indexh,ngrid)*wwn(ixp,jyp,n,indexh,ngrid)
-  end do
-  uprof(n)=(y1(1)*dt2+y1(2)*dt1)*dtt
-  vprof(n)=(y2(1)*dt2+y2(2)*dt1)*dtt
-  wprof(n)=(y3(1)*dt2+y3(2)*dt1)*dtt
-  rhoprof(n)=(rho1(1)*dt2+rho1(2)*dt1)*dtt
-  rhogradprof(n)=(rhograd1(1)*dt2+rhograd1(2)*dt1)*dtt
-  indzindicator(n)=.false.
-
-  ! Compute standard deviations
-  !****************************
-
-  xaux=usq-usl*usl/8.
-  if (xaux.lt.eps) then
-    usigprof(n)=0.
-  else
-    usigprof(n)=sqrt(xaux/7.)
-  endif
-
-  xaux=vsq-vsl*vsl/8.
-  if (xaux.lt.eps) then
-    vsigprof(n)=0.
-  else
-    vsigprof(n)=sqrt(xaux/7.)
-  endif
-
-
-  xaux=wsq-wsl*wsl/8.
-  if (xaux.lt.eps) then
-    wsigprof(n)=0.
-  else
-    wsigprof(n)=sqrt(xaux/7.)
-  endif
-end subroutine interpol_misslev_nests
-
-subroutine interpol_wind_short_nests(itime,xt,yt,zt)
-  !                                       i   i  i  i
-  !*****************************************************************************
-  !                                                                            *
-  !  This subroutine interpolates the wind data to current trajectory position.*
-  !                                                                            *
-  !    Author: A. Stohl                                                        *
-  !                                                                            *
-  !    16 December 1997                                                        *
-  !                                                                            *
-  !  Revision March 2005 by AST : all output variables in common block         *
-  !                                                                            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  ! u,v,w              wind components                                         *
-  ! itime [s]          current temporal position                               *
-  ! memtime(3) [s]     times of the wind fields in memory                      *
-  ! xt,yt,zt           coordinates position for which wind data shall be       *
-  !                    calculated                                              *
-  !                                                                            *
-  ! Constants:                                                                 *
-  !                                                                            *
-  !*****************************************************************************
-
-  implicit none
-
-  integer :: itime
-  real :: xt,yt,zt
-
-  ! Auxiliary variables needed for interpolation
-  real :: dz1,dz2,dz
-  real :: u1(2),v1(2),w1(2),uh(2),vh(2),wh(2)
-  integer :: i,m,n,indexh,indzh
-
-
-  !********************************************
-  ! Multilinear interpolation in time and space
-  !********************************************
-
-  ddx=xt-real(ix)
-  ddy=yt-real(jy)
-  rddx=1.-ddx
-  rddy=1.-ddy
-  p1=rddx*rddy
-  p2=ddx*rddy
-  p3=rddx*ddy
-  p4=ddx*ddy
-
-  ! Calculate variables for time interpolation
-  !*******************************************
-
-  dt1=real(itime-memtime(1))
-  dt2=real(memtime(2)-itime)
-  dtt=1./(dt1+dt2)
-
-  ! Determine the level below the current position for u,v
-  !*******************************************************
-
-  do i=2,nz
-    if (height(i).gt.zt) then
-      indz=i-1
-      exit
-    endif
-  end do
-
-  ! Vertical distance to the level below and above current position
-  !****************************************************************
-
-  dz=1./(height(indz+1)-height(indz))
-  dz1=(zt-height(indz))*dz
-  dz2=(height(indz+1)-zt)*dz
-
-
-  !**********************************************************************
-  ! 1.) Bilinear horizontal interpolation
-  ! This has to be done separately for 6 fields (Temporal(2)*Vertical(3))
-  !**********************************************************************
-
-  ! Loop over 2 time steps and 2 levels
-  !************************************
-
-  do m=1,2
-    indexh=memind(m)
-    do n=1,2
-      indzh=indz+n-1
-
-      u1(n)=p1*uun(ix ,jy ,indzh,indexh,ngrid) &
-           +p2*uun(ixp,jy ,indzh,indexh,ngrid) &
-           +p3*uun(ix ,jyp,indzh,indexh,ngrid) &
-           +p4*uun(ixp,jyp,indzh,indexh,ngrid)
-      v1(n)=p1*vvn(ix ,jy ,indzh,indexh,ngrid) &
-           +p2*vvn(ixp,jy ,indzh,indexh,ngrid) &
-           +p3*vvn(ix ,jyp,indzh,indexh,ngrid) &
-           +p4*vvn(ixp,jyp,indzh,indexh,ngrid)
-      w1(n)=p1*wwn(ix ,jy ,indzh,indexh,ngrid) &
-           +p2*wwn(ixp,jy ,indzh,indexh,ngrid) &
-           +p3*wwn(ix ,jyp,indzh,indexh,ngrid) &
-           +p4*wwn(ixp,jyp,indzh,indexh,ngrid)
-
-    end do
-
-
-  !**********************************
-  ! 2.) Linear vertical interpolation
-  !**********************************
-
-    uh(m)=dz2*u1(1)+dz1*u1(2)
-    vh(m)=dz2*v1(1)+dz1*v1(2)
-    wh(m)=dz2*w1(1)+dz1*w1(2)
-  end do
-
-
-  !************************************
-  ! 3.) Temporal interpolation (linear)
-  !************************************
-
-  u=(uh(1)*dt2+uh(2)*dt1)*dtt
-  v=(vh(1)*dt2+vh(2)*dt1)*dtt
-  w=(wh(1)*dt2+wh(2)*dt1)*dtt
-end subroutine interpol_wind_short_nests
-
-subroutine interpol_wind_nests(itime,xt,yt,zt)
-  !                                 i   i  i  i
-  !*****************************************************************************
-  !                                                                            *
-  !  This subroutine interpolates the wind data to current trajectory position.*
-  !                                                                            *
-  !    Author: A. Stohl                                                        *
-  !                                                                            *
-  !    16 December 1997                                                        *
-  !    16 December 1997                                                        *
-  !                                                                            *
-  !  Revision March 2005 by AST : all output variables in common block cal-    *
-  !                               culation of standard deviation done in this  *
-  !                               routine rather than subroutine call in order *
-  !                               to save computation time                     *
-  !                                                                            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  ! u,v,w              wind components                                         *
-  ! itime [s]          current temporal position                               *
-  ! memtime(3) [s]     times of the wind fields in memory                      *
-  ! xt,yt,zt           coordinates position for which wind data shall be       *
-  !                    calculated                                              *
-  !                                                                            *
-  ! Constants:                                                                 *
-  !                                                                            *
-  !*****************************************************************************
-
-  implicit none
-
-  integer :: itime
-  real :: xt,yt,zt
-
-  ! Auxiliary variables needed for interpolation
-  real :: dz1,dz2,dz
-  real :: u1(2),v1(2),w1(2),uh(2),vh(2),wh(2)
-  real :: usl,vsl,wsl,usq,vsq,wsq,xaux
-  integer :: i,m,n,indexh,indzh
-  real,parameter :: eps=1.0e-30
-
-
-  !********************************************
-  ! Multilinear interpolation in time and space
-  !********************************************
-
-  ! Determine the lower left corner and its distance to the current position
-  !*************************************************************************
-
-  ddx=xt-real(ix)
-  ddy=yt-real(jy)
-  rddx=1.-ddx
-  rddy=1.-ddy
-  p1=rddx*rddy
-  p2=ddx*rddy
-  p3=rddx*ddy
-  p4=ddx*ddy
-
-  ! Calculate variables for time interpolation
-  !*******************************************
-
-  dt1=real(itime-memtime(1))
-  dt2=real(memtime(2)-itime)
-  dtt=1./(dt1+dt2)
-
-  ! Determine the level below the current position for u,v
-  !*******************************************************
-
-  do i=2,nz
-    if (height(i).gt.zt) then
-      indz=i-1
-      exit
-    endif
-  end do
-
-  ! Vertical distance to the level below and above current position
-  !****************************************************************
-
-  dz=1./(height(indz+1)-height(indz))
-  dz1=(zt-height(indz))*dz
-  dz2=(height(indz+1)-zt)*dz
-
-
-  !**********************************************************************
-  ! 1.) Bilinear horizontal interpolation
-  ! This has to be done separately for 6 fields (Temporal(2)*Vertical(3))
-  !**********************************************************************
-
-  ! Loop over 2 time steps and 2 levels
-  !************************************
-
-  usl=0.
-  vsl=0.
-  wsl=0.
-  usq=0.
-  vsq=0.
-  wsq=0.
-  do m=1,2
-    indexh=memind(m)
-    do n=1,2
-      indzh=indz+n-1
-
-      u1(n)=p1*uun(ix ,jy ,indzh,indexh,ngrid) &
-           +p2*uun(ixp,jy ,indzh,indexh,ngrid) &
-           +p3*uun(ix ,jyp,indzh,indexh,ngrid) &
-           +p4*uun(ixp,jyp,indzh,indexh,ngrid)
-      v1(n)=p1*vvn(ix ,jy ,indzh,indexh,ngrid) &
-           +p2*vvn(ixp,jy ,indzh,indexh,ngrid) &
-           +p3*vvn(ix ,jyp,indzh,indexh,ngrid) &
-           +p4*vvn(ixp,jyp,indzh,indexh,ngrid)
-      w1(n)=p1*wwn(ix ,jy ,indzh,indexh,ngrid) &
-           +p2*wwn(ixp,jy ,indzh,indexh,ngrid) &
-           +p3*wwn(ix ,jyp,indzh,indexh,ngrid) &
-           +p4*wwn(ixp,jyp,indzh,indexh,ngrid)
-
-      usl=usl+uun(ix ,jy ,indzh,indexh,ngrid)+ &
-           uun(ixp,jy ,indzh,indexh,ngrid) &
-           +uun(ix ,jyp,indzh,indexh,ngrid)+ &
-           uun(ixp,jyp,indzh,indexh,ngrid)
-      vsl=vsl+vvn(ix ,jy ,indzh,indexh,ngrid)+ &
-           vvn(ixp,jy ,indzh,indexh,ngrid) &
-           +vvn(ix ,jyp,indzh,indexh,ngrid)+ &
-           vvn(ixp,jyp,indzh,indexh,ngrid)
-      wsl=wsl+wwn(ix ,jy ,indzh,indexh,ngrid)+ &
-           wwn(ixp,jy ,indzh,indexh,ngrid) &
-           +wwn(ix ,jyp,indzh,indexh,ngrid)+ &
-           wwn(ixp,jyp,indzh,indexh,ngrid)
-
-      usq=usq+uun(ix ,jy ,indzh,indexh,ngrid)* &
-           uun(ix ,jy ,indzh,indexh,ngrid)+ &
-           uun(ixp,jy ,indzh,indexh,ngrid)*uun(ixp,jy ,indzh,indexh,ngrid)+ &
-           uun(ix ,jyp,indzh,indexh,ngrid)*uun(ix ,jyp,indzh,indexh,ngrid)+ &
-           uun(ixp,jyp,indzh,indexh,ngrid)*uun(ixp,jyp,indzh,indexh,ngrid)
-      vsq=vsq+vvn(ix ,jy ,indzh,indexh,ngrid)* &
-           vvn(ix ,jy ,indzh,indexh,ngrid)+ &
-           vvn(ixp,jy ,indzh,indexh,ngrid)*vvn(ixp,jy ,indzh,indexh,ngrid)+ &
-           vvn(ix ,jyp,indzh,indexh,ngrid)*vvn(ix ,jyp,indzh,indexh,ngrid)+ &
-           vvn(ixp,jyp,indzh,indexh,ngrid)*vvn(ixp,jyp,indzh,indexh,ngrid)
-      wsq=wsq+wwn(ix ,jy ,indzh,indexh,ngrid)* &
-           wwn(ix ,jy ,indzh,indexh,ngrid)+ &
-           wwn(ixp,jy ,indzh,indexh,ngrid)*wwn(ixp,jy ,indzh,indexh,ngrid)+ &
-           wwn(ix ,jyp,indzh,indexh,ngrid)*wwn(ix ,jyp,indzh,indexh,ngrid)+ &
-           wwn(ixp,jyp,indzh,indexh,ngrid)*wwn(ixp,jyp,indzh,indexh,ngrid)
-    end do
-
-
-  !**********************************
-  ! 2.) Linear vertical interpolation
-  !**********************************
-
-    uh(m)=dz2*u1(1)+dz1*u1(2)
-    vh(m)=dz2*v1(1)+dz1*v1(2)
-    wh(m)=dz2*w1(1)+dz1*w1(2)
-  end do
-
-
-  !************************************
-  ! 3.) Temporal interpolation (linear)
-  !************************************
-
-  u=(uh(1)*dt2+uh(2)*dt1)*dtt
-  v=(vh(1)*dt2+vh(2)*dt1)*dtt
-  w=(wh(1)*dt2+wh(2)*dt1)*dtt
-
-
-  ! Compute standard deviations
-  !****************************
-
-  xaux=usq-usl*usl/16.
-  if (xaux.lt.eps) then
-    usig=0.
-  else
-    usig=sqrt(xaux/15.)
-  endif
-
-  xaux=vsq-vsl*vsl/16.
-  if (xaux.lt.eps) then
-    vsig=0.
-  else
-    vsig=sqrt(xaux/15.)
-  endif
-
-
-  xaux=wsq-wsl*wsl/16.
-  if (xaux.lt.eps) then
-    wsig=0.
-  else
-    wsig=sqrt(xaux/15.)
-  endif
-end subroutine interpol_wind_nests
 
 subroutine interpol_rain_nests(yy1,yy2,yy3,nxmaxn,nymaxn,nzmax, &
        maxnests,ngrid,nxn,nyn,iwftouse,xt,yt,level,itime1,itime2,itime, &
@@ -1953,6 +1483,63 @@ subroutine interpol_all_eta(zt,zteta)
   end do
 end subroutine interpol_all_eta
 
+subroutine interpol_all_eta_nests(zt,zteta)
+  implicit none 
+  real, intent(in)    :: zt,zteta
+  real                :: y1(2),y2(2),y3(2),rho1(2),rhograd1(2)
+  integer             :: n
+  
+  ! Determine the level below the current position
+  !***********************************************
+  call find_z_level_meters(zt)
+  !**************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! 2.) Temporal interpolation (linear)
+  !**************************************
+
+  ! Loop over 2 time steps and indz levels
+  !***************************************
+  do n=indz,indzp
+    call bilinear_horizontal_interpolation_nests(wwn,y3,n,nwzmax)
+    call temporal_interpolation(y3(1),y3(2),wprof(n))
+    !indzindicator(n)=.false.
+
+  ! Compute standard deviations
+  !****************************
+    call compute_standard_deviation_nests(wwn,wsigprof(n),n,n,nwzmax)
+  end do
+
+  ! Same for zt in eta coordinates
+  !*******************************
+  call find_z_level_eta(zteta)
+  !**************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! 2.) Temporal interpolation (linear)
+  !**************************************
+
+  ! Loop over 2 time steps and indz levels
+  !***************************************
+  do n=induv,indpuv
+    call bilinear_horizontal_interpolation_nests(uuetan,y1,n,nzmax)
+    call bilinear_horizontal_interpolation_nests(vvetan,y2,n,nzmax)
+    call compute_standard_deviation_nests(uuetan,usigprof(n),n,n,nzmax)
+    call compute_standard_deviation_nests(vvetan,vsigprof(n),n,n,nzmax)
+    call bilinear_horizontal_interpolation_nests(rhoetan,rho1,n,nzmax)
+    call bilinear_horizontal_interpolation_nests(drhodzetan,rhograd1,n,nzmax)
+    call temporal_interpolation(y1(1),y1(2),uprof(n))
+    call temporal_interpolation(y2(1),y2(2),vprof(n))
+    call temporal_interpolation(rho1(1),rho1(2),rhoprof(n))
+    call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(n))
+  end do
+
+  do n=indzeta,indzpeta
+    call bilinear_horizontal_interpolation_nests(wwetan,y3,n,nzmax)
+    call compute_standard_deviation_nests(wwetan,wsigprofeta(n),n,n,nzmax)
+    call temporal_interpolation(y3(1),y3(2),wprofeta(n))
+    indzindicator(n)=.false.
+  end do
+end subroutine interpol_all_eta_nests
+
 subroutine interpol_all_meter(zt)
   implicit none 
   real, intent(in)    :: zt
@@ -1998,6 +1585,49 @@ subroutine interpol_all_meter(zt)
   end do
 end subroutine interpol_all_meter
 
+subroutine interpol_all_meter_nests(zt)
+  implicit none 
+  real, intent(in)    :: zt
+  real                :: y1(2),y2(2),y3(2),rho1(2),rhograd1(2)
+  integer             :: n
+
+  !*****************************************************
+  ! 2. Interpolate vertical profiles of u,v,w,rho,drhodz
+  !*****************************************************
+
+
+  ! Determine the level below the current position
+  !***********************************************
+  call find_z_level_meters(zt)
+
+  !**************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! 2.) Temporal interpolation (linear)
+  !**************************************
+
+  ! Loop over 2 time steps and indz levels
+  !***************************************
+
+  do n=indz,indzp 
+    call bilinear_horizontal_interpolation_nests(uun,y1,n,nzmax)
+    call bilinear_horizontal_interpolation_nests(vvn,y2,n,nzmax)
+    call bilinear_horizontal_interpolation_nests(wwn,y3,n,nwzmax)
+    call bilinear_horizontal_interpolation_nests(drhodzn,rhograd1,n,nzmax)
+    call bilinear_horizontal_interpolation_nests(rhon,rho1,n,nzmax)
+    call compute_standard_deviation_nests(uun,usigprof(n),n,n,nzmax)
+    call compute_standard_deviation_nests(vvn,vsigprof(n),n,n,nzmax)
+    call compute_standard_deviation_nests(wwn,wsigprof(n),n,n,nwzmax)
+
+    call temporal_interpolation(y1(1),y1(2),uprof(n))
+    call temporal_interpolation(y2(1),y2(2),vprof(n))
+    call temporal_interpolation(y3(1),y3(2),wprof(n))
+    call temporal_interpolation(rho1(1),rho1(2),rhoprof(n))
+    call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(n))
+
+    indzindicator(n)=.false.
+  end do
+end subroutine interpol_all_meter_nests
+
 subroutine interpol_misslev_eta(n)
   implicit none
 
@@ -2035,6 +1665,43 @@ subroutine interpol_misslev_eta(n)
   ! call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(n)) 
 end subroutine interpol_misslev_eta
 
+subroutine interpol_misslev_eta_nests(n)
+  implicit none
+
+  ! Auxiliary variables needed for interpolation
+  real :: y1(2),y2(2),y3(2),rho1(2),rhograd1(2)
+  integer, intent(in) :: n
+
+  call bilinear_horizontal_interpolation(wwn,y3,n,nwzmax)
+  call compute_standard_deviation(wwn,wsigprof(n),n,n,nwzmax)
+
+  indzindicator(n)=.false.
+
+  if (ngrid.lt.0) then
+    call bilinear_horizontal_interpolation(uupoletan,y1,n,nzmax)
+    call bilinear_horizontal_interpolation(vvpoletan,y2,n,nzmax)
+    call compute_standard_deviation(uupoletan,usigprof(n),n,n,nzmax)
+    call compute_standard_deviation(vvpoletan,vsigprof(n),n,n,nzmax)
+  else
+    call bilinear_horizontal_interpolation(uuetan,y1,n,nzmax)
+    call bilinear_horizontal_interpolation(vvetan,y2,n,nzmax)
+    call compute_standard_deviation(uuetan,usigprof(n),n,n,nzmax)
+    call compute_standard_deviation(vvetan,vsigprof(n),n,n,nzmax)
+  endif
+
+  call bilinear_horizontal_interpolation(wwetan,y3,n,nzmax)
+  call compute_standard_deviation(wwetan,wsigprofeta(n),n,n,nzmax)
+ 
+  ! call bilinear_horizontal_interpolation(drhodzeta,rhograd1,n,nzmax)
+  call bilinear_horizontal_interpolation(rhoetan,rho1,n,nzmax)
+
+  call temporal_interpolation(y1(1),y1(2),uprof(n))
+  call temporal_interpolation(y2(1),y2(2),vprof(n))
+  call temporal_interpolation(y3(1),y3(2),wprofeta(n))
+  call temporal_interpolation(rho1(1),rho1(2),rhoprof(n))
+  ! call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(n)) 
+end subroutine interpol_misslev_eta_nests
+
 subroutine interpol_misslev_meter(n)
   implicit none
 
@@ -2067,6 +1734,52 @@ subroutine interpol_misslev_meter(n)
   call temporal_interpolation(rho1(1),rho1(2),rhoprof(n))
   call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(n)) 
 end subroutine interpol_misslev_meter
+
+subroutine interpol_misslev_meter_nests(n)
+  !                                  i
+  !*****************************************************************************
+  !                                                                            *
+  !  This subroutine interpolates u,v,w, density and density gradients.        *
+  !                                                                            *
+  !    Author: A. Stohl                                                        *
+  !                                                                            *
+  !    16 December 1997                                                        *
+  !                                                                            *
+  !*****************************************************************************
+  !                                                                            *
+  ! Variables:                                                                 *
+  ! n                  level                                                   *
+  !                                                                            *
+  ! Constants:                                                                 *
+  !                                                                            *
+  !*****************************************************************************
+
+  use turbulence_mod
+
+  implicit none
+
+  ! Auxiliary variables needed for interpolation
+  real :: y1(2),y2(2),y3(2),rho1(2),rhograd1(2)
+  integer, intent(in) :: n
+
+  call bilinear_horizontal_interpolation_nests(wwn,y3,n,nwzmax)
+  call bilinear_horizontal_interpolation_nests(uun,y1,n,nzmax)
+  call bilinear_horizontal_interpolation_nests(vvn,y2,n,nzmax)
+  call compute_standard_deviation_nests(wwn,wsigprof(n),n,n,nwzmax)
+  call compute_standard_deviation_nests(uun,usigprof(n),n,n,nzmax)
+  call compute_standard_deviation_nests(vvn,vsigprof(n),n,n,nzmax)
+
+  call bilinear_horizontal_interpolation_nests(drhodzn,rhograd1,n,nzmax)
+  call bilinear_horizontal_interpolation_nests(rhon,rho1,n,nzmax)
+
+  call temporal_interpolation(y1(1),y1(2),uprof(n))
+  call temporal_interpolation(y2(1),y2(2),vprof(n))
+  call temporal_interpolation(y3(1),y3(2),wprof(n))
+  call temporal_interpolation(rho1(1),rho1(2),rhoprof(n))
+  call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(n)) 
+
+  indzindicator(n)=.false.
+end subroutine interpol_misslev_meter_nests
 
 subroutine interpol_wind_eta(zt,zteta)
   implicit none
@@ -2126,6 +1839,58 @@ subroutine interpol_wind_eta(zt,zteta)
   call temporal_interpolation(wh(1),wh(2),weta)
 end subroutine interpol_wind_eta
 
+subroutine interpol_wind_eta_nests(zt,zteta)
+  implicit none
+
+  real, intent(in)    :: zt
+  real, intent(in)    :: zteta
+  ! Auxiliary variables needed for interpolation
+  real :: dz1,dz2,dz
+  real :: uh(2),vh(2),wh(2)
+
+  ! Determine the level below the current position for u,v
+  !*******************************************************
+  call find_z_level_meters(zt)
+
+  ! Vertical distance to the level below and above current position
+  !****************************************************************
+  call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds,.false.)
+
+  !**********************************************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! This has to be done separately for 6 fields (Temporal(2)*Vertical(3))
+  !**********************************************************************
+
+  ! Loop over 2 time steps and 2 levels
+  !************************************
+  call compute_standard_deviation_nests(wwn,wsig,indz,indz+1,nwzmax)
+  call bilinear_spatial_interpolation_nests(wwn,wh,indz,dz1,dz2,nwzmax)
+  call temporal_interpolation(wh(1),wh(2),w)
+
+  ! Same for eta coordinates
+  !*************************
+  ! First the half levels
+  !**********************
+  call find_z_level_eta(zteta)
+  call find_vertical_variables(uvheight,zteta,induv,dz1,dz2,lbounds_uv,.false.)
+
+  call compute_standard_deviation_nests(uuetan,usig,induv,induv+1,nzmax)
+  call bilinear_spatial_interpolation_nests(uuetan,uh,induv,dz1,dz2,nzmax)
+  call compute_standard_deviation_nests(vvetan,vsig,induv,induv+1,nzmax)
+  call bilinear_spatial_interpolation_nests(vvetan,vh,induv,dz1,dz2,nzmax)
+
+  call temporal_interpolation(uh(1),uh(2),u)
+  call temporal_interpolation(vh(1),vh(2),v)
+
+  ! Then for the model levels
+  !**************************
+  call find_vertical_variables(wheight,zteta,indzeta,dz1,dz2,lbounds_w,.true.)
+
+  call compute_standard_deviation_nests(wwetan,wsigeta,indzeta,indzeta+1,nzmax)
+  call bilinear_spatial_interpolation_nests(wwetan,wh,indzeta,dz1,dz2,nzmax)
+  call temporal_interpolation(wh(1),wh(2),weta)
+end subroutine interpol_wind_eta_nests
+
 subroutine interpol_wind_meter(zt)
   implicit none
 
@@ -2166,6 +1931,40 @@ subroutine interpol_wind_meter(zt)
   call temporal_interpolation(vh(1),vh(2),v)
   call temporal_interpolation(wh(1),wh(2),w)
 end subroutine interpol_wind_meter
+
+subroutine interpol_wind_meter_nests(zt)
+  implicit none
+
+  real, intent(in)    :: zt
+  ! Auxiliary variables needed for interpolation
+  real :: dz1,dz2,dz
+  real :: uh(2),vh(2),wh(2)
+
+  ! Determine the level below the current position for u,v
+  !*******************************************************
+  call find_z_level_meters(zt)
+  ! Vertical distance to the level below and above current position
+  !****************************************************************
+  call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds,.false.)
+
+  !**********************************************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! This has to be done separately for 6 fields (Temporal(2)*Vertical(3))
+  !**********************************************************************
+
+  ! Loop over 2 time steps and 2 levels
+  !************************************
+  call compute_standard_deviation_nests(wwn,wsig,indz,indz+1,nwzmax)
+  call compute_standard_deviation_nests(uun,usig,indz,indz+1,nzmax)
+  call compute_standard_deviation_nests(vvn,vsig,indz,indz+1,nzmax)
+  call bilinear_spatial_interpolation_nests(wwn,wh,indz,dz1,dz2,nwzmax)
+  call bilinear_spatial_interpolation_nests(uun,uh,indz,dz1,dz2,nzmax)
+  call bilinear_spatial_interpolation_nests(vvn,vh,indz,dz1,dz2,nzmax)
+
+  call temporal_interpolation(uh(1),uh(2),u)
+  call temporal_interpolation(vh(1),vh(2),v)
+  call temporal_interpolation(wh(1),wh(2),w)
+end subroutine interpol_wind_meter_nests
 
 subroutine interpol_wind_short_eta(zt,zteta)
   implicit none
@@ -2217,6 +2016,51 @@ subroutine interpol_wind_short_eta(zt,zteta)
   call temporal_interpolation(wh(1),wh(2),weta)
 end subroutine interpol_wind_short_eta
 
+subroutine interpol_wind_short_eta_nests(zt,zteta)
+  implicit none
+  real, intent(in) :: zt
+  real, intent(in) :: zteta
+  ! Auxiliary variables needed for interpolation
+  real :: dz1,dz2,dz
+  real :: uh(2),vh(2),wh(2)
+
+  ! Determine the level below the current position for u,v
+  !*******************************************************
+  call find_z_level_meters(zt)
+  call find_z_level_eta(zteta)
+
+  ! Vertical distance to the level below and above current position
+  !****************************************************************
+  call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds,.false.)
+
+  !**********************************************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! This has to be done separately for 6 fields (Temporal(2)*Vertical(3))
+  !**********************************************************************
+
+  ! Loop over 2 time steps and 2 levels
+  !************************************
+  call bilinear_spatial_interpolation_nests(wwn,wh,indz,dz1,dz2,nwzmax)
+  call temporal_interpolation(wh(1),wh(2),w)
+
+  ! Same for eta coordinates
+  !*************************
+  ! U,V level
+  !**********
+  call find_vertical_variables(uvheight,zteta,induv,dz1,dz2,lbounds_uv,.false.)
+
+  call bilinear_spatial_interpolation_nests(uuetan,uh,induv,dz1,dz2,nzmax)
+  call bilinear_spatial_interpolation_nests(vvetan,vh,induv,dz1,dz2,nzmax)
+  call temporal_interpolation(uh(1),uh(2),u)
+  call temporal_interpolation(vh(1),vh(2),v)
+
+  ! W level
+  !**********
+  call find_vertical_variables(wheight,zteta,indzeta,dz1,dz2,lbounds_w,.true.)
+  call bilinear_spatial_interpolation_nests(wwetan,wh,indzeta,dz1,dz2,nzmax)
+  call temporal_interpolation(wh(1),wh(2),weta)
+end subroutine interpol_wind_short_eta_nests
+
 subroutine interpol_wind_short_meter(zt)
   implicit none
   real, intent(in) :: zt
@@ -2252,6 +2096,65 @@ subroutine interpol_wind_short_meter(zt)
   call temporal_interpolation(uh(1),uh(2),u)
   call temporal_interpolation(vh(1),vh(2),v)
 end subroutine interpol_wind_short_meter
+
+subroutine interpol_wind_short_meter_nests(zt)
+  !                                       i   i  i  i
+  !*****************************************************************************
+  !                                                                            *
+  !  This subroutine interpolates the wind data to current trajectory position.*
+  !                                                                            *
+  !    Author: A. Stohl                                                        *
+  !                                                                            *
+  !    16 December 1997                                                        *
+  !                                                                            *
+  !  Revision March 2005 by AST : all output variables in common block         *
+  !                                                                            *
+  !*****************************************************************************
+  !                                                                            *
+  ! Variables:                                                                 *
+  ! u,v,w              wind components                                         *
+  ! itime [s]          current temporal position                               *
+  ! memtime(3) [s]     times of the wind fields in memory                      *
+  ! xt,yt,zt           coordinates position for which wind data shall be       *
+  !                    calculated                                              *
+  !                                                                            *
+  ! Constants:                                                                 *
+  !                                                                            *
+  !*****************************************************************************
+
+  implicit none
+
+  real, intent(in) :: zt
+  ! Auxiliary variables needed for interpolation
+  real :: dz1,dz2,dz
+  real :: uh(2),vh(2),wh(2)
+
+  ! Determine the level below the current position for u,v
+  !*******************************************************
+  call find_z_level_meters(zt)
+
+  ! Vertical distance to the level below and above current position
+  !****************************************************************
+  call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds,.false.)
+
+  !**********************************************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! This has to be done separately for 6 fields (Temporal(2)*Vertical(3))
+  !**********************************************************************
+
+  ! Loop over 2 time steps and 2 levels
+  !************************************
+  call bilinear_spatial_interpolation_nests(wwn,wh,indz,dz1,dz2,nwzmax)
+  call bilinear_spatial_interpolation_nests(uun,uh,indz,dz1,dz2,nzmax)
+  call bilinear_spatial_interpolation_nests(vvn,vh,indz,dz1,dz2,nzmax)
+
+  !************************************
+  ! 3.) Temporal interpolation (linear)
+  !************************************
+  call temporal_interpolation(wh(1),wh(2),w)
+  call temporal_interpolation(uh(1),uh(2),u)
+  call temporal_interpolation(vh(1),vh(2),v)
+end subroutine interpol_wind_short_meter_nests
 
 subroutine interpol_partoutput_value_eta(fieldname,output,j)
   implicit none

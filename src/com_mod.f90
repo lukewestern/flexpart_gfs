@@ -243,16 +243,6 @@ module com_mod
   ! Variables associated with the ECMWF meteorological input data ("wind fields")
   !******************************************************************************
 
-  integer :: numbwf,wftime(maxwf),lwindinterv
-  character(len=255) :: wfname(maxwf),wfspec(maxwf)
-
-  ! lwindinterv [s]         Interval between wind fields currently in memory
-  ! numbwf                  actual number of wind fields
-  ! wftime(maxwf) [s]       times relative to beginning time of wind fields
-  ! wfname(maxwf)           file names of wind fields
-  ! wfspec(maxwf)           specifications of wind field file, e.g. if on hard
-  !                         disc or on tape
-
   integer :: memtime(numwfmem),memind(3) ! eso: or memind(numwfmem) 
 
   ! memtime [s]             validation times of wind fields in memory
@@ -270,84 +260,6 @@ module com_mod
   integer :: numbnests
 
   ! numbnests    number of nested grids
-
-  character(len=255) :: wfnamen(maxnests,maxwf)
-  character(len=18) :: wfspecn(maxnests,maxwf)
-
-  ! wfnamen      nested wind field names
-  ! wfspecn      specifications of wind field file, e.g. if on hard
-  !         disc or on tape
-
-
-  !*********************************************************************
-  ! Variables characterizing size and location of the nested wind fields
-  !*********************************************************************
-
-  integer :: nxn(maxnests),nyn(maxnests)
-  real :: dxn(maxnests),dyn(maxnests),xlon0n(maxnests),ylat0n(maxnests)
-
-  ! nxn,nyn      actual dimensions of nested wind fields in x and y direction
-  ! dxn,dyn      grid distances in x,y direction for the nested grids
-  ! xlon0n       geographical longitude of lower left grid point of nested wind fields
-  ! ylat0n       geographical latitude of lower left grid point of nested wind fields
-
-
-  ! Nested fields, unchangeable with time
-  !**************************************
-
-  real :: oron(0:nxmaxn-1,0:nymaxn-1,maxnests)
-  real :: excessoron(0:nxmaxn-1,0:nymaxn-1,maxnests)
-  real :: lsmn(0:nxmaxn-1,0:nymaxn-1,maxnests)
-
-
-  ! 3d nested fields
-  !*****************
-
-  real,allocatable,dimension(:,:,:,:,:) :: uun, vvn, wwn, ttn, qvn, pvn,&
-       & rhon, drhodzn, tthn, qvhn, clwcn, ciwcn, clwn, clwchn, ciwchn
-  real,allocatable,dimension(:,:,:,:) :: ctwcn
-  integer,allocatable,dimension(:,:,:,:) :: cloudshn
-  integer(kind=1),allocatable,dimension(:,:,:,:,:) :: cloudsn
-
-  ! 2d nested fields
-  !*****************
-
-  real :: psn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: sdn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: msln(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: tccn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: u10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: v10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: tt2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: td2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: lsprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: convprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: sshfn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: ssrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: surfstrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: ustarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: wstarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: hmixn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: tropopausen(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  real :: olin(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests)
-  ! real :: diffkn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests) ! not in use?
-  real :: vdepn(0:nxmaxn-1,0:nymaxn-1,maxspec,numwfmem,maxnests)
-
-
-  !*************************************************
-  ! Certain auxiliary variables needed for the nests
-  !*************************************************
-
-  real :: xresoln(0:maxnests),yresoln(0:maxnests)
-
-  ! xresoln, yresoln   Factors by which the resolutions in the nests
-  !               are enhanced compared to mother grid
-
-  real :: xln(maxnests),yln(maxnests),xrn(maxnests),yrn(maxnests)
-
-  ! xln,yln,xrn,yrn    Corner points of nested grids in grid coordinates
-  !               of mother grid
-
 
   !******************************************************
   ! Variables defining the polar stereographic projection

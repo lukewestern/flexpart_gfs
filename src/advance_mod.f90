@@ -335,11 +335,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
   ztseta=real(part(ipart)%zeta)
   xts=real(part(ipart)%xlon)
   yts=real(part(ipart)%ylat)
-  if (ngrid.le.0) then
-    call interpol_wind(itime,xts,yts,zts,ztseta,ipart)
-  else
-    call interpol_wind_nests(itime,xtn,ytn,zts)
-  endif
+  call interpol_wind(itime,xts,yts,zts,ztseta,ipart)
 
   ! Compute everything for above the PBL
 
@@ -461,7 +457,7 @@ subroutine advance_PBL(itime,itimec,&
         yts=real(part(ipart)%ylat)
         call interpol_all(itime,xts,yts,zts,ztseta)
       else
-        call interpol_all_nests(itime,xtn,ytn,zts)
+        call interpol_all_nests(itime,xtn,ytn,zts,ztseta)
       endif
 
     else

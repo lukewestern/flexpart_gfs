@@ -12,7 +12,7 @@ module getfields_mod
     uuh,                                  & ! wind components in x-direction [m/s] 
     vvh,                                  & ! wind components in y-direction [m/s] 
     pvh,                                  & ! potential vorticity
-    wwh                                     ! wind components in y-direction [m/s] 
+    wwh                                     ! wind components in y-direction [m/s]
   real,allocatable,dimension(:,:,:,:) ::  & ! Same for nexted grids
     uuhn,                                 & !
     vvhn,                                 & !
@@ -168,7 +168,7 @@ subroutine getfields(itime,nstop)
         end if
         call readwind_nests(indj+1,memind(2),uuhn,vvhn,wwhn)
         call calcpar(memind(2))
-        call calcpar_nests(memind(2),uuhn,vvhn,pvhn)
+        call calcpar_nests(memind(2))
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(2),uuh,vvh,wwh,pvh)
         else
@@ -207,7 +207,7 @@ subroutine getfields(itime,nstop)
         end if
         call readwind_nests(indj,memind(1),uuhn,vvhn,wwhn)
         call calcpar(memind(1))
-        call calcpar_nests(memind(1),uuhn,vvhn,pvhn)
+        call calcpar_nests(memind(1))
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(1),uuh,vvh,wwh,pvh)
         else
@@ -227,7 +227,7 @@ subroutine getfields(itime,nstop)
         end if
         call readwind_nests(indj+1,memind(2),uuhn,vvhn,wwhn)
         call calcpar(memind(2))
-        call calcpar_nests(memind(2),uuhn,vvhn,pvhn)
+        call calcpar_nests(memind(2))
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(2),uuh,vvh,wwh,pvh)
         else
@@ -248,8 +248,10 @@ subroutine getfields(itime,nstop)
   end if
 
   ! RLT calculate dry air density
-  pwater=qv*prs/((r_air/r_water)*(1.-qv)+qv)
-  rho_dry=(prs-pwater)/(r_air*tt)
+  if (DRYDEP) then
+    pwater=qv*prs/((r_air/r_water)*(1.-qv)+qv)
+    rho_dry=(prs-pwater)/(r_air*tt)
+  endif
 
   lwindinterv=abs(memtime(2)-memtime(1))
 
@@ -566,7 +568,7 @@ subroutine calcpv(n)
   end if
 end subroutine calcpv
 
-subroutine calcpv_nests(l,n,uuhn,vvhn,pvhn)
+subroutine calcpv_nests(l,n)
   !                     i i  i    i    o
   !*****************************************************************************
   !                                                                            *
@@ -594,7 +596,6 @@ subroutine calcpv_nests(l,n,uuhn,vvhn,pvhn)
   real :: theta,thetap,thetam,dthetadp,dt1,dt2,dt
   real :: thup,thdn
   real,parameter :: eps=1.e-5,p0=101325
-  real,dimension(:,:,:,:) :: uuhn,vvhn,pvhn
 
   ! Set number of levels to check for adjacent theta
   nlck=nuvz/3
@@ -1078,7 +1079,7 @@ subroutine calcpar(n)
   call calcpv(n)
 end subroutine calcpar
 
-subroutine calcpar_nests(n,uuhn,vvhn,pvhn)
+subroutine calcpar_nests(n)
   !                         i  i    i    o
   !*****************************************************************************
   !                                                                            *
@@ -1127,7 +1128,6 @@ subroutine calcpar_nests(n,uuhn,vvhn,pvhn)
   real :: rh,subsceff,ylat
   real :: altmin,tvold,pold,zold,pint,tv
   real :: vd(maxspec)
-  real,dimension(:,:,:,:) :: uuhn,vvhn,pvhn
   real,parameter :: const=r_air/ga
 
 
@@ -1293,7 +1293,7 @@ subroutine calcpar_nests(n,uuhn,vvhn,pvhn)
   ! Calculation of potential vorticity on 3-d grid
   !***********************************************
 
-  call calcpv_nests(l,n,uuhn,vvhn,pvhn)
+  call calcpv_nests(l,n)
 
   end do
 end subroutine calcpar_nests

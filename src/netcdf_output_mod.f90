@@ -49,15 +49,15 @@ module netcdf_output_mod
                        ccn_aero,in_aero, mintime, & ! wetc_in,wetd_in, &
                        reldiff,henry,f0,density,dquer,dsigma,dryvel,&
                        weightmolar,ohcconst,ohdconst,vsetaver,&
-                       ! for concoutput_netcdf and concoutput_nest_netcdf
-                       oron,rhon,&
-                       memind,xresoln,yresoln,xrn, xln, yrn,yln,nxn,nyn,&
-                       xreceptor,yreceptor,numreceptor,creceptor,iout, &
+
+                       memind,xreceptor,yreceptor,numreceptor,creceptor,iout, &
                        itsplit, lsynctime, ctl, ifine, lagespectra, ipin, &
                        ioutputforeachrelease, iflux, mdomainfill, mquasilag, & 
                        nested_output, ipout, surf_only, linit_cond, &
                        flexversion,mpi_mode,DRYBKDEP,WETBKDEP,numpart,numpoint
-  use windfields_mod, only: oro,rho,nxmax,height,nxmin1,nymin1,nz
+  use windfields_mod, only: oro,rho,nxmax,height,nxmin1,nymin1,nz, &
+                       ! for concoutput_netcdf and concoutput_nest_netcdf 
+                       oron,rhon,xresoln,yresoln,xrn,xln,yrn,yln,nxn,nyn
 
   use mean_mod
 
