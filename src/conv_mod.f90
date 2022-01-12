@@ -847,7 +847,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
         endif
 
       case default
-        write(*,*) 'The wind_coord_type is not defined in redist.f90'
+        write(*,*) 'The chosen wind_coord_type is not defined in redist.f90'
         stop
 
     end select

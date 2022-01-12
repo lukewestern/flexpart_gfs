@@ -28,7 +28,6 @@ module com_mod
   integer :: length(numpath+2*maxnests)
   character(len=256) :: pathfile, flexversion, flexversion_major, arg1, arg2
   character(len=256) :: ohfields_path
-  character(len=256) :: wind_coord_type
   
   ! path                    path names needed for trajectory model
   ! length                  length of path names needed for trajectory model
@@ -488,7 +487,9 @@ module com_mod
 
   integer :: numthreads  ! number of available threads in parallel sections
   !integer :: nclassunc2, nrecclunc, ngriclunc
-
+  
+  !LB 04.05.2021, simple timing of IO and total running time
+  real :: s_readwind=0, s_writepartav=0, s_writepart=0, s_temp=0, s_total=0
   
 contains
   subroutine com_mod_allocate_part(nmpart)

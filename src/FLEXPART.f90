@@ -74,13 +74,6 @@ program flexpart
   flexversion='Version '//trim(flexversion_major)//'.4 (2019-11-12)'
   verbosity=0
 
-  ! Set the coordinate system. At the moment only ECMWF is possible. This bit needs
-  ! to be a parameter that can be set at compile time. Throughout the code there
-  ! will be select cases statements or ifdefs
-  !*****************************************************************
-  wind_coord_type='ETA'
-  !wind_coord_type='METER'
-  
   ! Read the pathnames where input/output files are stored
   !*******************************************************
 

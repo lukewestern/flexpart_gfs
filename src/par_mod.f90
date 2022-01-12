@@ -286,8 +286,12 @@ module par_mod
   !**********************************************************************************
   integer,parameter :: max_partoutput_filesize=10000
 
-!LB 04.05.2021, simple timing of IO and total running time
-  real :: s_readwind=0, s_writepartav=0, s_writepart=0, s_temp=0, s_total=0
 
+  ! Set the coordinate system. At the moment only ECMWF is possible. This bit needs
+  ! to be a parameter that can be set at compile time. Throughout the code there
+  ! will be select cases statements or ifdefs
+  !*****************************************************************
+  character(len=256),parameter :: wind_coord_type='ETA'
+  !character(len=256),parameter :: wind_coord_type='METER'
 
 end module par_mod
