@@ -1672,28 +1672,21 @@ subroutine interpol_misslev_eta_nests(n)
   real :: y1(2),y2(2),y3(2),rho1(2),rhograd1(2)
   integer, intent(in) :: n
 
-  call bilinear_horizontal_interpolation(wwn,y3,n,nwzmax)
-  call compute_standard_deviation(wwn,wsigprof(n),n,n,nwzmax)
+  call bilinear_horizontal_interpolation_nests(wwn,y3,n,nwzmax)
+  call compute_standard_deviation_nests(wwn,wsigprof(n),n,n,nwzmax)
 
   indzindicator(n)=.false.
 
-  if (ngrid.lt.0) then
-    call bilinear_horizontal_interpolation(uupoletan,y1,n,nzmax)
-    call bilinear_horizontal_interpolation(vvpoletan,y2,n,nzmax)
-    call compute_standard_deviation(uupoletan,usigprof(n),n,n,nzmax)
-    call compute_standard_deviation(vvpoletan,vsigprof(n),n,n,nzmax)
-  else
-    call bilinear_horizontal_interpolation(uuetan,y1,n,nzmax)
-    call bilinear_horizontal_interpolation(vvetan,y2,n,nzmax)
-    call compute_standard_deviation(uuetan,usigprof(n),n,n,nzmax)
-    call compute_standard_deviation(vvetan,vsigprof(n),n,n,nzmax)
-  endif
+  call bilinear_horizontal_interpolation_nests(uuetan,y1,n,nzmax)
+  call bilinear_horizontal_interpolation_nests(vvetan,y2,n,nzmax)
+  call compute_standard_deviation_nests(uuetan,usigprof(n),n,n,nzmax)
+  call compute_standard_deviation_nests(vvetan,vsigprof(n),n,n,nzmax)
 
-  call bilinear_horizontal_interpolation(wwetan,y3,n,nzmax)
-  call compute_standard_deviation(wwetan,wsigprofeta(n),n,n,nzmax)
+  call bilinear_horizontal_interpolation_nests(wwetan,y3,n,nzmax)
+  call compute_standard_deviation_nests(wwetan,wsigprofeta(n),n,n,nzmax)
  
   ! call bilinear_horizontal_interpolation(drhodzeta,rhograd1,n,nzmax)
-  call bilinear_horizontal_interpolation(rhoetan,rho1,n,nzmax)
+  call bilinear_horizontal_interpolation_nests(rhoetan,rho1,n,nzmax)
 
   call temporal_interpolation(y1(1),y1(2),uprof(n))
   call temporal_interpolation(y2(1),y2(2),vprof(n))
