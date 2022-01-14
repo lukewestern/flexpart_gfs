@@ -75,8 +75,6 @@ module com_mod
   integer :: ind_rel,ind_samp,ioutputforeachrelease,linit_cond,surf_only
   logical :: turbswitch
   integer :: cblflag !added by mc for cbl
-  !LB 14.05.2021, option for no grid output
-  integer :: grid_output
 
   ! ctl      factor, by which time step must be smaller than Lagrangian time scale
   ! ifine    reduction factor for time step used for vertical wind

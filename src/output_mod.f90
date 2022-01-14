@@ -30,7 +30,7 @@ subroutine initialise_output(itime,filesize)
 
   ! Writing header information to either binary or NetCDF format
   if (itime.eq.0) then
-    if (grid_output.eq.1) then
+    if (iout.ne.0) then ! No gridded output
 #ifdef USE_NCF
       if (lnetcdfout.eq.1) then 
         call writeheader_netcdf(lnest=.false.)
@@ -41,20 +41,25 @@ subroutine initialise_output(itime,filesize)
       if (nested_output.eq.1) then
         if (lnetcdfout.eq.1) then
           call writeheader_netcdf(lnest=.true.)
-        else
+        else if ((nested_output.eq.1).and.(surf_only.ne.1)) then
           call writeheader_binary_nest
+        else if ((nested_output.eq.1).and.(surf_only.eq.1)) then
+          call writeheader_binary_nest_surf
+        else if ((nested_output.ne.1).and.(surf_only.eq.1)) then 
+          call writeheader_binary_surf
         endif
       endif
-#endif
-    endif
+#else
+      call writeheader_binary
 
-    call writeheader_binary ! CHECK ETA
+      !if (nested_output.eq.1) call writeheader_nest
+      if ((nested_output.eq.1).and.(surf_only.ne.1)) call writeheader_binary_nest
+      if ((nested_output.eq.1).and.(surf_only.eq.1)) call writeheader_binary_nest_surf
+      if ((nested_output.ne.1).and.(surf_only.eq.1)) call writeheader_binary_surf
+#endif
+    endif ! iout.ne.0
     ! FLEXPART 9.2 ticket ?? write header in ASCII format 
     call writeheader_txt
-    !if (nested_output.eq.1) call writeheader_nest
-    if (nested_output.eq.1.and.surf_only.ne.1) call writeheader_binary_nest
-    if (nested_output.eq.1.and.surf_only.eq.1) call writeheader_binary_nest_surf
-    if (nested_output.ne.1.and.surf_only.eq.1) call writeheader_binary_surf
 
     ! NetCDF only: Create file for storing initial particle positions.
 #ifdef USE_NCF
@@ -65,7 +70,7 @@ subroutine initialise_output(itime,filesize)
         call create_particles_initialoutput(ietime,iedate,ietime,iedate)
       endif
     endif
-    ! Create header files for files that store the particle output
+    ! Create header files for files that store the particle dump output
     if (ipout.ge.1) then
       if (ldirect.eq.1) then
         call writeheader_partoutput(ibtime,ibdate,ibtime,ibdate)
@@ -362,6 +367,7 @@ subroutine output_concentrations(itime,loutstart,loutend,loutnext,outnum)
   real ::                   &
     weight                    ! concentration calculation sample weight
 
+
   ! Is the time within the computation interval, if not, return
   !************************************************************
   if ((ldirect*itime.lt.ldirect*loutstart).or.(ldirect*itime.gt.ldirect*loutend)) then
@@ -378,7 +384,21 @@ subroutine output_concentrations(itime,loutstart,loutend,loutnext,outnum)
       weight=1.0
     endif
     outnum=outnum+weight
-    call conccalc(itime,weight)
+    if (iout.ne.0) call conccalc(itime,weight)
+  endif
+
+  ! If no grid is to be written to file, return
+  !********************************************
+  if (iout.eq.0) then 
+    if (itime.ne.loutend) return
+    loutnext=loutnext+loutstep
+    loutstart=loutnext-loutaver/2
+    loutend=loutnext+loutaver/2
+    if (itime.eq.loutstart) then
+      weight=0.5
+      outnum=outnum+weight
+    endif
+    return
   endif
 
   ! If it is not time yet to write outputs, return
@@ -526,7 +546,7 @@ subroutine conccalc(itime,weight)
   !Af ind_samp is defined in readcommand.f
 
     if ( ind_samp .eq. -1 ) then
-      call update_zeta_to_z(itime,i)
+      ! call update_zeta_to_z(itime,i)
       call interpol_density(i,rhoi)
     elseif (ind_samp.eq.0) then 
       rhoi = 1.
@@ -853,6 +873,7 @@ subroutine conccalc(itime,weight)
   !***********************************************************************
   ! 2. Evaluate concentrations at receptor points, using the kernel method
   !***********************************************************************
+  if (numreceptor.eq.0) return
 
   do n=1,numreceptor
 

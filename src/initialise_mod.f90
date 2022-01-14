@@ -363,6 +363,7 @@ subroutine releaseparticles(itime)
   !Af          1="mass"
   !Af          2="mass mixing ratio"
   !Af IND_RECEPTOR switches between different units for concentrations at the receptor
+  !            0= no receptors
   !Af          1="mass"
   !Af          2="mass mixing ratio"
 

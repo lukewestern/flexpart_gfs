@@ -447,7 +447,6 @@ subroutine timemanager
           
   end do
 
-
   ! Complete the calculation of initial conditions for particles not yet terminated
   !*****************************************************************************
   call finalise_output(itime)
@@ -469,24 +468,24 @@ subroutine timemanager
   if (OHREA) then
       deallocate(OH_field,OH_hourly,lonOH,latOH,altOH)
   endif
-  if (grid_output.eq.1) then
-  if (ldirect.gt.0) then
-  deallocate(drygridunc,wetgridunc)
-  endif
-  deallocate(gridunc)
-  endif
+
   deallocate(xpoint1,xpoint2,ypoint1,ypoint2,zpoint1,zpoint2,xmass)
   deallocate(ireleasestart,ireleaseend,npart,kindz)
   deallocate(xmasssave)
-  if (nested_output.eq.1) then
-     deallocate(orooutn, arean, volumen)
-     if (ldirect.gt.0) then
-     deallocate(griduncn,drygriduncn,wetgriduncn)
-     endif
-  endif
-  if (grid_output.eq.1) then
-  deallocate(outheight,outheighthalf)
-  deallocate(oroout, area, volume)
+
+  if (iout.ne.0) then
+    deallocate(outheight,outheighthalf)
+    deallocate(oroout, area, volume)
+    deallocate(gridunc)
+    if (ldirect.gt.0) then
+      deallocate(drygridunc,wetgridunc)
+    endif
+    if (nested_output.eq.1) then
+      deallocate(orooutn, arean, volumen)
+      if (ldirect.gt.0) then
+        deallocate(griduncn,drygriduncn,wetgriduncn)
+      endif
+    endif
   endif
 end subroutine timemanager
 

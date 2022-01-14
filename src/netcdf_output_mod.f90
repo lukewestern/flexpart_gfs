@@ -327,7 +327,6 @@ subroutine writeheader_netcdf(lnest)
   ! setting cache size in bytes. It is set to 4 times the largest data block that is written
   !   size_type x nx x ny x nz
   ! create file
-
   call nf90_err(nf90_create(trim(fname), cmode = nf90_hdf5, ncid = ncid, &
     cache_size = cache_size))  
 
@@ -496,7 +495,7 @@ subroutine writeheader_netcdf(lnest)
      write(anspec,'(i3.3)') i
 
      ! concentration output
-     if (iout.eq.1.or.iout.eq.3.or.iout.eq.5) then
+     if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
         call nf90_err(nf90_def_var(ncid,'spec'//anspec//'_mr', nf90_float, dIDs, sID , &
              deflate_level = deflate_level,  &
              chunksizes = chunksizes ))
@@ -517,7 +516,7 @@ subroutine writeheader_netcdf(lnest)
      endif
 
      ! mixing ratio output
-     if (iout.eq.2.or.iout.eq.3) then
+     if ((iout.eq.2).or.(iout.eq.3)) then
         call nf90_err(nf90_def_var(ncid,'spec'//anspec//'_pptv', nf90_float, dIDs, sID , &
              deflate_level = deflate_level,  &
              chunksizes = chunksizes ))
@@ -864,13 +863,15 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
 
   ! brd134: for receptor points no option for nests yet to specify density
   !    and also altitude zreceptor not considered yet (needs revision)
-  do i=1,numreceptor
-    xl=xreceptor(i)
-    yl=yreceptor(i)
-    iix=max(min(nint(xl),nxmin1),0)
-    jjy=max(min(nint(yl),nymin1),0)
-    densityoutrecept(i)=rho(iix,jjy,1,memind(2))
-  end do
+  if (numreceptor.gt.0) then 
+    do i=1,numreceptor
+      xl=xreceptor(i)
+      yl=yreceptor(i)
+      iix=max(min(nint(xl),nxmin1),0)
+      jjy=max(min(nint(yl),nymin1),0)
+      densityoutrecept(i)=rho(iix,jjy,1,memind(2))
+    end do
+  endif
 
   ! Output is different for forward and backward simulations
   if (ldirect.eq.1) then
@@ -1085,8 +1086,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
 
   ! Reinitialization of grid
   !*************************
-
-  creceptor(1:numreceptor,1:nspec) = 0.
+  if (numreceptor.gt.0) creceptor(1:numreceptor,1:nspec) = 0.
   gridunc(:,:,:,1:nspec,:,:,1:nageclass) = 0.  
 end subroutine concoutput_netcdf
 
@@ -1421,7 +1421,7 @@ subroutine concoutput_nest_netcdf(itime,outnum)
   ! Reinitialization of grid
   !*************************
 
-  creceptor(1:numreceptor,1:nspec) = 0.
+  if (numreceptor.gt.0) creceptor(1:numreceptor,1:nspec) = 0.
   griduncn(:,:,:,1:nspec,:,:,1:nageclass) = 0.  
 end subroutine concoutput_nest_netcdf
 

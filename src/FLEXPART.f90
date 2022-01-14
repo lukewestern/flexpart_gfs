@@ -175,7 +175,7 @@ program flexpart
 
   ! Read the output grid specifications if requested by user
   !*********************************************************
-  if (grid_output.eq.1) then
+  if (iout.ne.0) then
     call readoutgrid
 
     if (nested_output.eq.1) then
@@ -185,7 +185,7 @@ program flexpart
 
   ! Read the receptor points for which extra concentrations are to be calculated
   !*****************************************************************************
-  call readreceptors ! CHECK ETA
+  call readreceptors
 
   ! Read the physico-chemical species property table
   !*************************************************
@@ -232,7 +232,7 @@ program flexpart
   ! Calculate volume, surface area, etc., of all output grid cells
   ! Allocate fluxes and OHfield if necessary
   !***************************************************************
-  if (grid_output.eq.1) then
+  if (iout.ne.0) then
     call outgrid_init ! CHECK ETA
     if (nested_output.eq.1) call outgrid_init_nest ! CHECK ETA
   endif

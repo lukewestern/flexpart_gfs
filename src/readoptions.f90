@@ -485,8 +485,7 @@ subroutine readcommand
   linversionout, &
   ohfields_path, &
   d_trop, &
-  d_strat, &
-  grid_output !LB
+  d_strat
 
   ! Presetting namelist command
   ldirect=0
@@ -521,7 +520,6 @@ subroutine readcommand
   cblflag=0 ! if using old-style COMMAND file, set to 1 here to use mc cbl routine
   linversionout=0
   ohfields_path="../../flexin/"
-  grid_output=1 !LB, option to not write grid
 
   !Af set release-switch
   WETBKDEP=.false.
@@ -618,9 +616,6 @@ subroutine readcommand
     ! Removed for backwards compatibility.
     if (old) call skplin(3,unitcommand)  !added by mc
     read(unitcommand,*) cblflag          !added by mc
-    !LB grid output option
-    if (old) call skplin(3,unitcommand)
-    read(unitcommand,*) grid_output
 
     close(unitcommand)
 
@@ -663,11 +658,6 @@ subroutine readcommand
   fine=1./real(ifine)
   ctl=1./ctl
 
-  !LB, warn if grid is not written
-  ! if (grid_output.ne.1) then
-  !   write(*,*) 'WARNING: GRID will not be written to file.'
-  ! endif
-
   ! Set the switches required for the various options for input/output units
   !*************************************************************************
   !AF Set the switches IND_REL and IND_SAMP for the release and sampling
@@ -685,6 +675,7 @@ subroutine readcommand
   !Af          1 = mass units
   !Af          2 = mass mixing ratio units
   !Af IND_RECEPTOR switches between different units for concentrations at the receptor
+  !            0 = no receptors
   !Af          1 = mass units
   !Af          2 = mass mixing ratio units
   !            3 = wet deposition in outputfield
@@ -698,7 +689,7 @@ subroutine readcommand
         ind_rel = 1
      endif
   !Af set sampling switch
-     if (ind_receptor .eq. 1) then !mass
+     if (ind_receptor .le. 1) then !mass
         ind_samp = 0
      else ! mass mix
         ind_samp = -1
@@ -783,6 +774,9 @@ subroutine readcommand
 
   ! Check for netcdf output switch
   !*******************************
+#ifdef USE_NCF
+  lnetcdfout = 1
+#endif
   if (iout.ge.8) then
      lnetcdfout = 1
      iout = iout - 8
@@ -796,7 +790,9 @@ subroutine readcommand
   ! Check whether a valid option for gridded model output has been chosen
   !**********************************************************************
 
-  if ((iout.lt.1).or.(iout.gt.5)) then
+  if (iout.eq.0) then
+    write(*,*) 'WARNING: IOUT set to zero, no gridded information will be written to file'
+  else if ((iout.lt.0).or.(iout.gt.5)) then
     write(*,*) ' #### FLEXPART MODEL ERROR! FILE COMMAND:     #### '
     write(*,*) ' #### IOUT MUST BE 1, 2, 3, 4 OR 5 FOR        #### '
     write(*,*) ' #### STANDARD FLEXPART OUTPUT OR  9 - 13     #### '
@@ -1851,7 +1847,6 @@ subroutine readreceptors
     return
   endif
 
-
   ! Open the RECEPTORS file and read output grid specifications
   !************************************************************
 
@@ -1959,7 +1954,10 @@ subroutine readreceptors
 999 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "RECEPTORS"  #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(1)(1:length(1))
-  stop
+  write(*,*) 'Continuing without RECEPTOR files'
+
+  numreceptor=0
+  return
 
 1000 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "RECEPTORS"    #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '

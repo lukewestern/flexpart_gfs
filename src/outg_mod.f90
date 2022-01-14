@@ -338,10 +338,12 @@ subroutine outgrid_init
 
   do ks=1,nspec
     do kp=1,maxpointspec_act
-      do i=1,numreceptor
-    ! Receptor points
-        creceptor(i,ks)=0.
-      end do
+      if (numreceptor.gt.0) then
+        do i=1,numreceptor
+      ! Receptor points
+          creceptor(i,ks)=0.
+        end do
+      endif
       do nage=1,nageclass
         do jy=0,numygrid-1
           do ix=0,numxgrid-1
