@@ -47,6 +47,7 @@ DRY DEPOSITION
     rho specifies the density of the substance, 
     dquer its mean diameter 
     dsig the measure of variation.
+    ndia the number of diameter bins particles are divided in within the variation domain
     If no detailed information for deposition velocity calculation is available, a constant deposition velocity vd [cm s-1] can be used. 
     Dry deposition of particles is switched off by negative rho.
 ---------------------------------------------------------------------------------------------------------------------------

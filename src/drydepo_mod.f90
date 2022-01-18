@@ -528,8 +528,8 @@ subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp)
     end do
 end subroutine drydepokernel_nest
 
-subroutine part0(dquer,dsigma,density,fract,schmi,cun,vsh)
-  !                  i      i       i      o     o    o   o
+subroutine part0(dquer,dsigma,density,ni,fract,schmi,cun,vsh)
+  !                  i      i       i   i   o     o    o   o
   !*****************************************************************************
   !                                                                            *
   !      Calculation of time independent factors of the dry deposition of      *
@@ -584,12 +584,12 @@ subroutine part0(dquer,dsigma,density,fract,schmi,cun,vsh)
 
   real,parameter :: tr=293.15
 
-  integer :: i
-  real :: dquer,dsigma,density,xdummy,d01,d02,delta,x01,x02,fract(ni)
-  real :: dmean,alpha,cun,dc,schmidt,schmi(ni),vsh(ni),kn,erf
+  integer :: i,ni
+  real :: dquer,dsigma,density,xdummy,d01,d02,delta,x01,x02
+  real :: dmean,alpha,cun,dc,schmidt,kn,erf
+  real,dimension(ni),intent(inout) :: fract,schmi,vsh
   real,parameter :: myl=1.81e-5,nyl=0.15e-4
   real,parameter :: lam=6.53e-8,kb=1.38e-23,eps=1.2e-38
-
 
   ! xdummy constant for all intervals
   !**********************************
@@ -1214,8 +1214,8 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,vdep)
 
   implicit none
 
-  real :: density(maxspec),schmi(maxspec,ni),fract(maxspec,ni)
-  real :: vset(maxspec,ni)
+  real :: density(maxspec),schmi(maxspec,maxndia),fract(maxspec,maxndia)
+  real :: vset(maxspec,maxndia)
   real :: vdep(maxspec),stokes,vdepj,rdp,ustar,alpha,ra,nyl
   real,parameter :: eps=1.e-5
   integer :: ic,j,nc
@@ -1223,7 +1223,7 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,vdep)
 
   do ic=1,nc                  ! loop over all species
     if (density(ic).gt.0.) then
-      do j=1,ni              ! loop over all diameter intervals
+      do j=1,ndia(ic)         ! loop over all diameter intervals
         if (ustar.gt.eps) then
 
   ! Stokes number for each diameter interval

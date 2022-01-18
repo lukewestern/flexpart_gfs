@@ -12,7 +12,7 @@
 
 module com_mod
 
-  use par_mod, only: dp, numpath, maxnests, maxageclass, maxspec, ni, &
+  use par_mod, only: dp, numpath, maxnests, maxageclass, maxspec, maxndia, &
        numclass, maxcolumn, maxwf, nxmaxn, nymaxn, &
        maxreceptor, maxrand, numwfmem
 
@@ -174,8 +174,9 @@ module com_mod
   real :: ccn_aero(maxspec),in_aero(maxspec)
   real :: reldiff(maxspec),henry(maxspec),f0(maxspec)
   real :: density(maxspec),dquer(maxspec),dsigma(maxspec)
+  integer :: ndia(maxspec)
   real :: vsetaver(maxspec),cunningham(maxspec),weightmolar(maxspec)
-  real :: vset(maxspec,ni),schmi(maxspec,ni),fract(maxspec,ni)
+  real :: vset(maxspec,maxndia),schmi(maxspec,maxndia),fract(maxspec,maxndia)
   real :: ri(5,numclass),rac(5,numclass),rcl(maxspec,5,numclass)
   real :: rgs(maxspec,5,numclass),rlu(maxspec,5,numclass)
   real :: rm(maxspec),dryvel(maxspec),kao(maxspec)

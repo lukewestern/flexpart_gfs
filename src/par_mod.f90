@@ -218,7 +218,7 @@ module par_mod
   ! ---------
   ! Sabine Eckhardt: change of landuse inventary numclass=13
   ! ---------
-  integer,parameter :: maxwf=50000, maxtable=1000, numclass=13, ni=11
+  integer,parameter :: maxwf=50000, maxtable=1000, numclass=13, maxndia=100
   integer,parameter :: numwfmem=2 ! Serial version/MPI with 2 fields
   !integer,parameter :: numwfmem=3 ! MPI with 3 fields
 
@@ -226,7 +226,7 @@ module par_mod
   ! maxtable                Maximum number of chemical species that can be
   !                         tabulated for FLEXPART
   ! numclass                Number of landuse classes available to FLEXPART
-  ! ni                      Number of diameter classes of particles
+  ! maxndia                 Maximum number of diameter classes of particles
   ! numwfmem                Number of windfields kept in memory. 2 for serial
   !                         version, 2 or 3 for MPI version
 

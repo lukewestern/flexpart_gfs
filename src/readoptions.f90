@@ -2027,7 +2027,7 @@ subroutine readreleases
 
   integer :: numpartmax,i,j,id1,it1,id2,it2,idum,stat,irel,ispc,nsettle
   integer,parameter :: num_min_discrete=100
-  real :: vsh(ni),fracth(ni),schmih(ni),releaserate,xdum,cun
+  real :: releaserate,xdum,cun
   real(kind=dp) :: jul1,jul2,julm
   real,parameter :: eps2=1.e-9
   character(len=50) :: line
@@ -2042,6 +2042,7 @@ subroutine readreleases
   integer,parameter :: unitreleasesout=2
   real,allocatable, dimension (:) :: mass
   integer,allocatable, dimension (:) :: specnum_rel,specnum_rel2
+  real,allocatable,dimension(:) :: vsh,fracth,schmih
 
   ! declare namelists
   namelist /releases_ctrl/ &
@@ -2259,6 +2260,10 @@ subroutine readreleases
       call readspecies(specnum_rel(i),i)
     endif
 
+    ! Allocate temporary memory necessary for the different diameter bins
+    !********************************************************************
+    allocate(vsh(ndia(i)),fracth(ndia(i)),schmih(ndia(i)))
+
   ! For backward runs, only 1 species is allowed
   !*********************************************
 
@@ -2299,8 +2304,8 @@ subroutine readreleases
     cunningham(i)=0.
     dquer(i)=dquer(i)*1000000.         ! Conversion m to um
     if (density(i).gt.0.) then         ! Additional parameters
-      call part0(dquer(i),dsigma(i),density(i),fracth,schmih,cun,vsh)
-      do j=1,ni
+      call part0(dquer(i),dsigma(i),density(i),ndia(i),fracth,schmih,cun,vsh)
+      do j=1,ndia(i)
         fract(i,j)=fracth(j)
         schmi(i,j)=schmih(j)
         vset(i,j)=vsh(j)
@@ -2354,6 +2359,7 @@ subroutine readreleases
       DRYDEPSPEC(i)=.true.
     endif
 
+    deallocate(vsh,fracth,schmih)
   end do ! end loop over species
 
   if (WETDEP.or.DRYDEP) DEP=.true.
@@ -2699,7 +2705,7 @@ subroutine readspecies(id_spec,pos_spec)
   ! ohnconst              OH reaction rate constant n                          *
   ! id_spec               SPECIES number as referenced in RELEASE file         *
   ! id_pos                position where SPECIES data shall be stored          *
-  !                                                                            *
+  ! ni                    Number of diameter classes of particles              *                                                              *
   ! Constants:                                                                 *
   !                                                                            *
   !*****************************************************************************
@@ -2716,6 +2722,7 @@ subroutine readspecies(id_spec,pos_spec)
   real :: pdsigma, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst
   real :: pcrain_aero, pcsnow_aero, pccn_aero, pin_aero
   real :: parea_dow(7), parea_hour(24), ppoint_dow(7), ppoint_hour(24)
+  integer :: pndia
   integer :: readerror
 
   ! declare namelist
@@ -2723,7 +2730,7 @@ subroutine readspecies(id_spec,pos_spec)
        pspecies, pdecay, pweta_gas, pwetb_gas, &
        pcrain_aero, pcsnow_aero, pccn_aero, pin_aero, &
        preldiff, phenry, pf0, pdensity, pdquer, &
-       pdsigma, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst, &
+       pdsigma, pndia, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst, &
        parea_dow, parea_hour, ppoint_dow, ppoint_hour
 
   pspecies="" ! read failure indicator value
@@ -2740,6 +2747,7 @@ subroutine readspecies(id_spec,pos_spec)
   pdensity=-9.9E09
   pdquer=0.0
   pdsigma=0.0
+  pndia=1
   pdryvel=-9.99
   pohcconst=-9.99
   pohdconst=-9.9E-09
@@ -2818,6 +2826,8 @@ subroutine readspecies(id_spec,pos_spec)
   !  write(*,*) 'dquer(pos_spec):', dquer(pos_spec)
     read(unitspecies,'(e18.1)',end=22) dsigma(pos_spec)
   !  write(*,*) dsigma(pos_spec)
+    read(unitspecies,'(i16)',end=22) ndia(pos_spec)
+    ! write(*,*) ndia(pos_spec)
     read(unitspecies,'(f18.2)',end=22) dryvel(pos_spec)
   !  write(*,*) dryvel(pos_spec)
     read(unitspecies,'(f18.2)',end=22) weightmolar(pos_spec)
@@ -2855,6 +2865,7 @@ subroutine readspecies(id_spec,pos_spec)
     pdensity=density(pos_spec)
     pdquer=dquer(pos_spec)
     pdsigma=dsigma(pos_spec)
+    pndia=ndia(pos_spec)
     pdryvel=dryvel(pos_spec)
     pweightmolar=weightmolar(pos_spec)
     pohcconst=ohcconst(pos_spec)
@@ -2887,6 +2898,7 @@ subroutine readspecies(id_spec,pos_spec)
     density(pos_spec)=pdensity
     dquer(pos_spec)=pdquer
     dsigma(pos_spec)=pdsigma
+    ndia(pos_spec)=pndia
     dryvel(pos_spec)=pdryvel
     weightmolar(pos_spec)=pweightmolar
     ohcconst(pos_spec)=pohcconst
@@ -2901,7 +2913,7 @@ subroutine readspecies(id_spec,pos_spec)
       area_dow(pos_spec,j)=parea_dow(j)
       point_dow(pos_spec,j)=ppoint_dow(j)
     end do
-
+    write(*,*) 'ndia', ndia(pos_spec), dsigma(pos_spec)
   endif
 
   i=pos_spec
@@ -2996,6 +3008,10 @@ subroutine readspecies(id_spec,pos_spec)
     end if
   end if
 
+  if (ndia(pos_spec).gt.maxndia) then
+    write(*,*) 'NDIA in SPECIES file', pos_spec, 'set to', ndia(pos_spec), 'larger than maxndia', &
+      maxndia, 'set in par_mod.f90'
+  endif
   !  if (dsigma(i).eq.0.) dsigma(i)=1.0001   ! avoid floating exception
   if (dquer(i).gt.0 .and. dsigma(i).le.1.) then !dsigma(i)=1.0001   ! avoid floating exception
     !write(*,*) '#### FLEXPART MODEL ERROR!                      ####'
