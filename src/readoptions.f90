@@ -2913,7 +2913,6 @@ subroutine readspecies(id_spec,pos_spec)
       area_dow(pos_spec,j)=parea_dow(j)
       point_dow(pos_spec,j)=ppoint_dow(j)
     end do
-    write(*,*) 'ndia', ndia(pos_spec), dsigma(pos_spec)
   endif
 
   i=pos_spec

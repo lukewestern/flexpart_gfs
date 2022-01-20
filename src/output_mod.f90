@@ -244,6 +244,7 @@ subroutine output_particles(itime)
     write(*,*) 'topo: ', topo(1), 'z:', part(1)%zeta,part(1)%z
     write(*,*) 'xtra,xeta: ', part(1)%xlon
     write(*,*) 'ytra,yeta: ', part(1)%ylat
+    write(*,*) 'mass: ', part(1)%mass(:)
     write(*,*) pvi(1),qvi(1),tti(1),rhoi(1),part(1)%alive,&
       count%alive,count%spawned,count%terminated
   endif

@@ -366,6 +366,8 @@ subroutine releaseparticles(itime)
   !            0= no receptors
   !Af          1="mass"
   !Af          2="mass mixing ratio"
+  !            3 = wet deposition in outputfield
+  !            4 = dry deposition in outputfield
 
   !Af switches for the releasefile:
   !Af IND_REL =  1 : xmass * rho

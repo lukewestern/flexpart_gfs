@@ -383,20 +383,18 @@ subroutine timemanager
           else if (decay(ks).gt.0.) then  ! no dry deposition, but radioactive decay
             part(j)%mass(ks)=part(j)%mass(ks)*exp(-real(abs(lsynctime))*decay(ks))
           endif
-
   ! Skip check on mass fraction when npoint represents particle number
           if (mdomainfill.eq.0.and.mquasilag.eq.0) then
             if (xmass(part(j)%npoint,ks).gt.0.) then
               xmassfract=max(xmassfract,real(npart(part(j)%npoint))* &
                 part(j)%mass(ks)/xmass(part(j)%npoint,ks))
             endif
-
           else
             xmassfract=1.0
           end if
         end do
-
-        if (xmassfract.lt.minmass) then   ! terminate all particles carrying less mass
+        
+        if (xmassfract.lt.minmassfrac) then   ! terminate all particles carrying less mass
           call terminate_particle(j)
         endif
 

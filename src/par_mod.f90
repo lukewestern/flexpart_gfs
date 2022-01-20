@@ -206,11 +206,12 @@ module par_mod
   !integer,parameter :: maxpart=5000000
   integer,parameter :: maxspec=4
 
-  real,parameter :: minmass=0.0001
+  real,parameter :: minmassfrac=0.0
 
   ! maxpart                 Maximum number of particles
   ! maxspec                 Maximum number of chemical species per release
-  ! minmass                 Terminate particles carrying less mass
+  ! minmassfrac             Terminate particles carrying a lower fraction
+  !                         compared to their initial mass
 
   ! maxpoint is also set dynamically during runtime
   ! maxpoint                Maximum number of release locations

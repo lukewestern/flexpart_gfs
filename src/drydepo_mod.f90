@@ -315,7 +315,7 @@ subroutine drydepo_massloss(ipart,ks,ldeltat,drydepopart)
   part(ipart)%mass(ks)=part(ipart)%mass(ks)*(1.-part(ipart)%prob(ks))*decfact
   if (decay(ks).gt.0.) then   ! correct for decay (see wetdepo)
     drydepopart=drydepopart*exp(real(abs(ldeltat))*decay(ks))
-  endif  
+  endif
 end subroutine drydepo_massloss
 
 subroutine drydepokernel(nunc,deposit,x,y,nage,kp)
@@ -780,7 +780,6 @@ subroutine drydepo_probability(prob,dt,zts)
   real :: vdepo(maxspec)              ! deposition velocities for all species
   integer :: ks                       ! loop variable over species
 
-    
   if ((DRYDEP).and.(zts.lt.2.*href)) then
     do ks=1,nspec
       if (DRYDEPSPEC(ks)) then
