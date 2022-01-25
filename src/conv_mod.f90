@@ -675,7 +675,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
   select case (wind_coord_type)
 
     case ('ETA')
-      ztold = part(abs(ipart))%zeta
+      ztold = real(part(abs(ipart))%zeta)
       ! find old particle grid position
       levold = nconvtop
       do kz = 2, nconvtop
@@ -751,7 +751,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
 
       endif
       
-      ztold = part(abs(ipart))%z
+      ztold = real(part(abs(ipart))%z)
       ! find old particle grid position
       levold = nconvtop
       do kz = 2, nconvtop
@@ -815,35 +815,25 @@ subroutine redist(itime,ipart,ktop,ipconv)
     select case (wind_coord_type)
 
       case ('ETA')
-        if (levnew.le.nconvtop) then
-          if (levnew.eq.levold) then
-            part(abs(ipart))%zeta = ztold
-          else
-            dlogp = (1.-dlevfrac)* &
-               (uvheight(levnew+1)-uvheight(levnew))
-            part(abs(ipart))%zeta = uvheight(levnew)+dlogp
-            if (part(abs(ipart))%zeta.ge.1.) part(abs(ipart))%zeta=1.-(part(abs(ipart))%zeta-1.)
-            if (part(abs(ipart))%zeta.eq.1.) part(abs(ipart))%zeta=part(abs(ipart))%zeta-1.e-4
-            if (ipconv.gt.0) ipconv=-1
-          endif
+        if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
+          dlogp = (1.-dlevfrac) * (uvheight(levnew+1)-uvheight(levnew))
+          call set_zeta(ipart,uvheight(levnew)+dlogp)
+          if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
+          if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
+          if (ipconv.gt.0) ipconv=-1
         endif
 
       case ('METER')
-        if (levnew.le.nconvtop) then
-          if (levnew.eq.levold) then
-            part(abs(ipart))%z = ztold
-          else
-            dlogp = (1.-dlevfrac)* &
-                 (log(phconv(levnew+1))-log(phconv(levnew)))
-            pint = log(phconv(levnew))+dlogp
-            dz1 = pint - log(phconv(levnew))
-            dz2 = log(phconv(levnew+1)) - pint
-            dz = dz1 + dz2
-            part(abs(ipart))%z = (uvzlev(levnew)*dz2+uvzlev(levnew+1)*dz1)/dz
-            if (part(abs(ipart))%z.lt.0.) &
-                part(abs(ipart))%z=-1.*part(abs(ipart))%z
-            if (ipconv.gt.0) ipconv=-1
-          endif
+        if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
+          dlogp = (1.-dlevfrac)* &
+               (log(phconv(levnew+1))-log(phconv(levnew)))
+          pint = log(phconv(levnew))+dlogp
+          dz1 = pint - log(phconv(levnew))
+          dz2 = log(phconv(levnew+1)) - pint
+          dz = dz1 + dz2
+          call set_z(ipart,(uvzlev(levnew)*dz2+uvzlev(levnew+1)*dz1)/dz)
+          if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
+          if (ipconv.gt.0) ipconv=-1
         endif
 
       case default
@@ -857,7 +847,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
     ! by the matrix
     !**************************************************************
 
-    if (levnew.le.nconvtop.and.levnew.eq.levold) then
+    if ((levnew.le.nconvtop).and.(levnew.eq.levold)) then
 
       ! determine compensating vertical velocity at the levels
       ! above and below the particel position
@@ -886,7 +876,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
       ! interpolate wsub to the vertical particle position
       select case (wind_coord_type)
         case ('ETA')
-          ztold = part(abs(ipart))%zeta
+          ztold = real(part(abs(ipart))%zeta)
           dz1 = ztold - uvheight(levold)
           dz2 = uvheight(levold+1) - ztold
           dz = dz1 + dz2
@@ -895,29 +885,26 @@ subroutine redist(itime,ipart,ktop,ipconv)
           call zeta_to_z(itime,part(abs(ipart))%xlon,part(abs(ipart))%ylat, &
             part(abs(ipart))%zeta,part(abs(ipart))%z)
 
-          ztold=part(abs(ipart))%z
           wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
-          
-          part(abs(ipart))%z = ztold+wsubpart*real(lsynctime)
 
-          if (part(abs(ipart))%z.lt.0.) then
-             part(abs(ipart))%z=-1.*part(abs(ipart))%z
-          endif
+          call update_z(ipart,wsubpart*real(lsynctime))
+
+          if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
 
           ! Convert new z(m) back to z(eta)
           call update_z_to_zeta(itime, ipart)
           
         case ('METER')
-          ztold = part(abs(ipart))%z
+          ztold = real(part(abs(ipart))%z)
           dz1 = ztold - uvzlev(levold)
           dz2 = uvzlev(levold+1) - ztold
           dz = dz1 + dz2
 
           wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
-          part(abs(ipart))%z = ztold+wsubpart*real(lsynctime)
-          if (part(abs(ipart))%z.lt.0.) then
-             part(abs(ipart))%z=-1.*part(abs(ipart))%z
-          endif
+
+          call update_z(ipart,wsubpart*real(lsynctime))
+
+          if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
 
         case default
           write(*,*) 'The wind_coord_type is not defined in redist.f90'
@@ -930,16 +917,11 @@ subroutine redist(itime,ipart,ktop,ipconv)
 
   select case (wind_coord_type)
     case ('ETA')
-      if (part(abs(ipart))%z .gt. height(nz)-0.5) &
-           part(abs(ipart))%z = height(nz)-0.5
-
-      if (part(abs(ipart))%zeta .lt. uvheight(nz)) &
-           part(abs(ipart))%zeta = uvheight(nz)+1.e-4
-      if (part(abs(ipart))%zeta.ge.1.) part(abs(ipart))%zeta=1.-(part(abs(ipart))%zeta-1.)
-      if (part(abs(ipart))%zeta.eq.1.) part(abs(ipart))%zeta=part(abs(ipart))%zeta-1.e-4
+      if (part(abs(ipart))%zeta .lt. uvheight(nz)) call set_zeta(ipart,uvheight(nz)+1.e-4)
+      if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
+      if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
     case ('METER')
-      if (part(abs(ipart))%z .gt. height(nz)-0.5) &
-           part(abs(ipart))%z = height(nz)-0.5
+      if (part(abs(ipart))%z .gt. height(nz)-0.5) call set_z(ipart,height(nz)-0.5)
     case default
       write(*,*) 'The wind_coord_type is not defined in redist.f90'
       stop

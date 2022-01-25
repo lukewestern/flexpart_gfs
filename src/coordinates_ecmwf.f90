@@ -20,7 +20,7 @@ contains
     ! itime [s]          current temporal position                               *
     ! xteta,yteta,zteta                   spatial position of trajectory         *
     !                                                                            *
-    !                                                                            *
+    ! etauvheight defined in windfields: half model heights for ETA coordinates  *
     ! Constants:                                                                 *
     !                                                                            *
     !*****************************************************************************
