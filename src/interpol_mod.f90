@@ -2171,6 +2171,9 @@ subroutine interpol_partoutput_value_eta(fieldname,output,j)
   endif
 
   select case(fieldname)
+    case('PR')
+      call bilinear_spatial_interpolation(prseta,field1,induv,dz1out,dz2out,nzmax)
+      call temporal_interpolation(field1(1),field1(2),output)
     case('PV')
       call bilinear_spatial_interpolation(pveta,field1,induv,dz1out,dz2out,nzmax)
       call temporal_interpolation(field1(1),field1(2),output)
@@ -2205,6 +2208,9 @@ subroutine interpol_partoutput_value_meter(fieldname,output,j)
   endif
 
   select case(fieldname)
+    case('PR')
+      call bilinear_spatial_interpolation(prs,field1,indz,dz1out,dz2out,nzmax)
+      call temporal_interpolation(field1(1),field1(2),output)
     case('PV')
       call bilinear_spatial_interpolation(pv,field1,indz,dz1out,dz2out,nzmax)
       call temporal_interpolation(field1(1),field1(2),output)

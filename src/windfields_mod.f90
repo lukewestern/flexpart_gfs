@@ -56,6 +56,7 @@ module windfields_mod
     qveta,                                & ! specific humidity data on half model levels
     pveta,                                & ! potential vorticity on half model levels
     rhoeta,                               & ! air density on half model levels [kg/m3]
+    prseta,                               & ! air pressure on half model levels
     drhodzeta,                            & ! vertical air density gradient on half model levels [kg/m2]
     tvirtual,                             & ! Virtual temperature on half model levels
     etauvheight,etawheight                  ! Saved half model and model heights for ETA coordinate system [m]
@@ -4256,6 +4257,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     qveta(:,:,:,n) = qvh(:,:,:,n)
     pveta(:,:,:,n) = pvh(:,:,:)
     rhoeta(:,:,:,n) = rhoh(:,:,:)
+    prseta(:,:,:,n) = prsh(:,:,:)
     drhodzeta(:,:,1,n)=(rhoeta(:,:,2,n)-rhoeta(:,:,1,n))/ &
          (height(2)-height(1))
     do kz=2,nz-1
@@ -5758,6 +5760,7 @@ subroutine windfields_allocate
   allocate(tteta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(qveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(pveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+  allocate(prseta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(rhoeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(drhodzeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(tvirtual(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
@@ -5938,7 +5941,7 @@ subroutine windfields_deallocate
   deallocate(oro,excessoro,lsm)
 
   deallocate(uueta,vveta,wweta,uupoleta,vvpoleta,tteta,qveta,pveta, &
-    rhoeta,drhodzeta,tvirtual,etauvheight,etawheight)
+    prseta,rhoeta,drhodzeta,tvirtual,etauvheight,etawheight)
 
   deallocate(uu,vv,ww,uupol,vvpol,tt,tth,qv,qvh,pv,rho,drhodz,pplev,prs,rho_dry)
 

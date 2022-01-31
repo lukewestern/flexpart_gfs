@@ -855,23 +855,23 @@ subroutine redist(itime,ipart,ktop,ipconv)
       ! is displaced by convection to this level
 
       if (levold.gt.1) then
-       temp_levold = tconv(levold-1) + &
+        temp_levold = tconv(levold-1) + &
             (tconv(levold)-tconv(levold-1)) &
             *(pconv(levold-1)-phconv(levold))/ &
             (pconv(levold-1)-pconv(levold))
-       sub_levold = sub(levold)/(1.-ga*sub(levold)*lsynctime/dpr(levold))
-       wsub(levold)=-1.*sub_levold*r_air*temp_levold/(phconv(levold))
+        sub_levold = sub(levold)/(1.-ga*sub(levold)*lsynctime/dpr(levold))
+        wsub(levold)=-1.*sub_levold*r_air*temp_levold/(phconv(levold))
       else
-       wsub(levold)=0.
+        wsub(levold)=0.
       endif
 
-       temp_levold1 = tconv(levold) + &
-            (tconv(levold+1)-tconv(levold)) &
-            *(pconv(levold)-phconv(levold+1))/ &
-            (pconv(levold)-pconv(levold+1))
-       sub_levold1 = sub(levold+1)/(1.-ga*sub(levold+1)*lsynctime/dpr(levold+1))
-       wsub(levold+1)=-1.*sub_levold1*r_air*temp_levold1/ &
-            (phconv(levold+1))
+      temp_levold1 = tconv(levold) + &
+          (tconv(levold+1)-tconv(levold)) &
+          *(pconv(levold)-phconv(levold+1))/ &
+          (pconv(levold)-pconv(levold+1))
+      sub_levold1 = sub(levold+1)/(1.-ga*sub(levold+1)*lsynctime/dpr(levold+1))
+      wsub(levold+1)=-1.*sub_levold1*r_air*temp_levold1/ &
+          (phconv(levold+1))
 
       ! interpolate wsub to the vertical particle position
       select case (wind_coord_type)
@@ -882,8 +882,9 @@ subroutine redist(itime,ipart,ktop,ipconv)
           dz = dz1 + dz2
 
           ! Convert z(eta) to z(m) in order to add subsidence
-          call zeta_to_z(itime,part(abs(ipart))%xlon,part(abs(ipart))%ylat, &
-            part(abs(ipart))%zeta,part(abs(ipart))%z)
+          call update_zeta_to_z(itime, ipart)
+          ! call zeta_to_z(itime,part(abs(ipart))%xlon,part(abs(ipart))%ylat, &
+          !   part(abs(ipart))%zeta,part(abs(ipart))%z)
 
           wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
 

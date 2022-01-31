@@ -157,7 +157,7 @@ subroutine output_particles(itime)
   character :: adate*8,atime*6
 
   real :: xlon(numpart),ylat(numpart),ztemp1,ztemp2
-  real :: tti(numpart),rhoi(numpart),pvi(numpart),qvi(numpart)
+  real :: tti(numpart),rhoi(numpart),pvi(numpart),qvi(numpart),pri(numpart)
   real :: topo(numpart),hmixi(numpart),tri(numpart),ztemp(numpart)
   real :: masstemp(numpart,nspec)
 
@@ -178,6 +178,7 @@ subroutine output_particles(itime)
     ylat(i)=-1.
     tti(i)=-1.
     rhoi(i)=-1.
+    pri(i)=-1.
     pvi(i)=-1.
     qvi(i)=-1.
     topo(i)=-1.
@@ -203,6 +204,8 @@ subroutine output_particles(itime)
       ! First set dz1out from interpol_mod to -1 so it only is calculated once per particle
       !************************************************************************************
       dz1out=-1
+      ! Pressure
+      call interpol_partoutput_value('PR',pri(i),i)
       ! Potential vorticity
       call interpol_partoutput_value('PV',pvi(i),i)
       ! Specific humidity
@@ -263,7 +266,7 @@ subroutine output_particles(itime)
 
     ! Dividing the openmp threads for writing
     j=0
-    do i=1,10
+    do i=1,11 !number of fields
       if (j.eq.numthreads) j = 0
       thread_divide(i) = j
       j = j + 1
@@ -286,17 +289,19 @@ subroutine output_particles(itime)
       if (mythread.eq.thread_divide(1)) call partoutput_netcdf(itime,xlon,'LO',j,ncid)
       if (mythread.eq.thread_divide(2)) call partoutput_netcdf(itime,ylat,'LA',j,ncid)
       if (mythread.eq.thread_divide(3)) call partoutput_netcdf(itime,ztemp,'ZZ',j,ncid)
-      !if (mythread.eq.thread_divide(12)) call partoutput_netcdf_int(itime,itramem(1:numpart),'IT',j,ncid)
-      if (mythread.eq.thread_divide(4)) call partoutput_netcdf(itime,topo,'TO',j,ncid)
       if (mythread.eq.thread_divide(5)) call partoutput_netcdf(itime,pvi,'PV',j,ncid)
       if (mythread.eq.thread_divide(6)) call partoutput_netcdf(itime,qvi,'QV',j,ncid)
       if (mythread.eq.thread_divide(7)) call partoutput_netcdf(itime,rhoi,'RH',j,ncid)
-      if (mythread.eq.thread_divide(8)) call partoutput_netcdf(itime,hmixi,'HM',j,ncid)
-      if (mythread.eq.thread_divide(9)) call partoutput_netcdf(itime,tri,'TR',j,ncid)
       if (mythread.eq.thread_divide(10)) call partoutput_netcdf(itime,tti,'TT',j,ncid)
-      do j=1,nspec
-        if (mythread.eq.mass_divide(j)) call partoutput_netcdf(itime,masstemp(:,j),'MA',j,ncid)
-      end do
+      if (mythread.eq.thread_divide(11)) call partoutput_netcdf(itime,pri,'PR',j,ncid)
+      if (mythread.eq.thread_divide(4)) call partoutput_netcdf(itime,topo,'TO',j,ncid)
+      if (mythread.eq.thread_divide(9)) call partoutput_netcdf(itime,tri,'TR',j,ncid)
+      if (mythread.eq.thread_divide(8)) call partoutput_netcdf(itime,hmixi,'HM',j,ncid)
+      if (mdomainfill.lt.1) then
+        do j=1,nspec
+          if (mythread.eq.mass_divide(j)) call partoutput_netcdf(itime,masstemp(:,j),'MA',j,ncid)
+        end do
+      endif
 #endif
 !$OMP END PARALLEL
     endif
@@ -924,5 +929,101 @@ subroutine conccalc(itime,weight)
     end do
   end do
 end subroutine conccalc
+
+subroutine partpos_average(itime,j)
+
+  !**********************************************************************
+  ! This subroutine averages particle quantities, to be used for particle
+  ! dump (in partoutput.f90). Averaging is done over output interval.
+  !**********************************************************************
+
+  use par_mod
+  use com_mod
+  use interpol_mod
+  use coordinates_ecmwf
+
+  implicit none
+
+  integer :: itime,j
+  real :: xlon,ylat,x,y,z
+  real :: topo,hm(2),hmixi,pvi,qvi
+  real :: tti,rhoi,ttemp
+  real :: uui,vvi
+  real :: tr(2),tri!,energy
+
+
+
+ ! Some variables needed for temporal interpolation
+  !*************************************************
+  call find_time_variables(itime)
+
+  xlon=xlon0+part(j)%xlon*dx
+  ylat=ylat0+part(j)%ylat*dy
+
+  !*****************************************************************************
+  ! Interpolate several variables (PV, specific humidity, etc.) to particle position
+  !*****************************************************************************
+
+  call determine_grid_coordinates(real(part(j)%xlon),real(part(j)%ylat))
+  call find_grid_distances(real(part(j)%xlon),real(part(j)%ylat))
+
+  ! Topography
+  !***********
+  call bilinear_horizontal_interpolation_2dim(oro,topo)
+
+  ! Potential vorticity, specific humidity, temperature, and density
+  !*****************************************************************
+  ! First set dz1out from interpol_mod to -1 so it only is calculated once per particle
+  !************************************************************************************
+  dz1out=-1
+  ! Potential vorticity
+  call interpol_partoutput_value('PV',pvi,j)
+  ! Specific humidity
+  call interpol_partoutput_value('QV',qvi,j)
+  ! Temperature
+  call interpol_partoutput_value('TT',tti,j)
+  ! U wind
+  call interpol_partoutput_value('UU',uui,j)
+  ! V wind
+  call interpol_partoutput_value('VV',vvi,j)
+  ! Density
+  call interpol_partoutput_value('RH',rhoi,j)
+  ! Reset dz1out
+  !*************
+  dz1out=-1
+
+  ! Convert eta z coordinate to meters if necessary. Can be moved to output only
+  !************************************************
+  call update_zeta_to_z(itime,j)
+  
+  ! energy=tti*cpa+(ztemp1+topo)*9.81+qvi*2501000.+(uui**2+vvi**2)/2.
+
+  ! Add new values to sum and increase counter by one
+  !**************************************************
+
+  npart_av(j)=npart_av(j)+1
+
+  ! Calculate Cartesian 3D coordinates suitable for averaging
+  !**********************************************************
+
+  xlon=xlon*pi180
+  ylat=ylat*pi180
+  x = cos(ylat)*sin(xlon)
+  y = -1.*cos(ylat)*cos(xlon)
+  z = sin(ylat)
+
+  part_av_cartx(j)=part_av_cartx(j)+x
+  part_av_carty(j)=part_av_carty(j)+y
+  part_av_cartz(j)=part_av_cartz(j)+z
+  part_av_z(j)=part_av_z(j)+part(j)%z
+  part_av_pv(j)=part_av_pv(j)+pvi
+  part_av_qv(j)=part_av_qv(j)+qvi
+  part_av_tt(j)=part_av_tt(j)+tti
+  part_av_uu(j)=part_av_uu(j)+uui
+  part_av_vv(j)=part_av_vv(j)+vvi
+  ! part_av_energy(j)=part_av_energy(j)+energy
+
+  return
+end subroutine partpos_average
 
 end module output_mod
