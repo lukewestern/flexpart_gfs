@@ -670,8 +670,8 @@ subroutine redist(itime,ipart,ktop,ipconv)
 
   ipconv=1
 
-  !  determine vertical grid position of particle in the eta system
-  !****************************************************************
+  ! !  determine vertical grid position of particle in the eta system
+  ! !****************************************************************
   select case (wind_coord_type)
 
     case ('ETA')
@@ -679,7 +679,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
       ! find old particle grid position
       levold = nconvtop
       do kz = 2, nconvtop
-        if (uvheight(kz) .le. ztold ) then
+        if (wheight(kz) .le. ztold ) then
           levold = kz-1
           exit
         endif
@@ -760,7 +760,6 @@ subroutine redist(itime,ipart,ktop,ipconv)
           exit
         endif
       end do
-
     case default
       write(*,*) 'The wind_coord_type is not defined in redist.f90'
       stop
@@ -816,8 +815,8 @@ subroutine redist(itime,ipart,ktop,ipconv)
 
       case ('ETA')
         if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
-          dlogp = (1.-dlevfrac) * (uvheight(levnew+1)-uvheight(levnew))
-          call set_zeta(ipart,uvheight(levnew)+dlogp)
+          dlogp = (1.-dlevfrac) * (wheight(levnew+1)-wheight(levnew))
+          call set_zeta(ipart,wheight(levnew)+dlogp)
           if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
           if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
           if (ipconv.gt.0) ipconv=-1
@@ -825,8 +824,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
 
       case ('METER')
         if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
-          dlogp = (1.-dlevfrac)* &
-               (log(phconv(levnew+1))-log(phconv(levnew)))
+          dlogp = (1.-dlevfrac)* (log(phconv(levnew+1))-log(phconv(levnew)))
           pint = log(phconv(levnew))+dlogp
           dz1 = pint - log(phconv(levnew))
           dz2 = log(phconv(levnew+1)) - pint
@@ -877,8 +875,8 @@ subroutine redist(itime,ipart,ktop,ipconv)
       select case (wind_coord_type)
         case ('ETA')
           ztold = real(part(abs(ipart))%zeta)
-          dz1 = ztold - uvheight(levold)
-          dz2 = uvheight(levold+1) - ztold
+          dz1 = ztold - wheight(levold)
+          dz2 = wheight(levold+1) - ztold
           dz = dz1 + dz2
 
           ! Convert z(eta) to z(m) in order to add subsidence
