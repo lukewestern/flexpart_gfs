@@ -103,6 +103,9 @@ module netcdf_output_mod
   logical, parameter :: write_vol = .false.
   logical, parameter :: write_area = .false.
 
+  ! switch for first time topo output in case of domainfill
+  logical :: topo_written=.false.
+
   ! coordinate transformation from internal to world coord
   real :: xp1,yp1,xp2,yp2
 
@@ -1570,7 +1573,7 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
 
   integer, intent(in) :: itime,idate,itime_start,idate_start
   ! integer, intent(in) :: irelease
-  integer             :: cache_size,ncid,j,totpart
+  integer             :: cache_size,ncid,j,i,totpart
   integer             :: timeDimID,partDimID,tID,memDimID
   integer             :: latDimID, lonDimID, lonID, latID
   character(len=11)   :: fprefix
@@ -1578,6 +1581,7 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   character           :: adate*8,atime*6,adate_start*8,atime_start*6,timeunit*32
   character(len=255)  :: fname_partoutput
   real                :: fillval
+  real, allocatable, dimension(:) :: coord
 
   open(unit=unittmp,file=trim(path(2)(1:length(2)))//'test_dir.txt',status='replace',&
        &err=110)
@@ -1637,6 +1641,20 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
     call nf90_err(nf90_put_att(ncid, latID, 'units', 'degrees_north'))
     call nf90_err(nf90_put_att(ncid, latID, 'standard_name', 'grid_latitude'))
     call nf90_err(nf90_put_att(ncid, latID, 'description', 'grid cell centers'))
+
+    if (.not.allocated(coord)) allocate(coord(nx))
+     do i = 1,nx
+        coord(i) = xlon0 + i*dx
+     enddo
+     call nf90_err(nf90_put_var(ncid, lonID, coord(1:nx)))
+     deallocate(coord)
+
+    if (.not.allocated(coord)) allocate(coord(ny))
+     do i = 1,ny
+        coord(i) = ylat0 + i*dy
+     enddo
+     call nf90_err(nf90_put_var(ncid, latID, coord(1:ny)))
+     deallocate(coord)
 
   endif
   ! create variables
@@ -1884,7 +1902,8 @@ subroutine partoutput_netcdf(itime,field,fieldname,imass,ncid)
       call nf90_err(nf90_put_var(ncid,itramemID,field, (/ tpointer_part,1 /),(/ 1,numpart /)))
     case('TO') ! Topography
       if (mdomainfill.ge.1) then 
-        if (itime.eq.0) call nf90_err(nf90_put_var(ncid,topoID,oro(0:nx-1,0:ny-1), (/ 1,1 /),(/ nx,ny /)))
+        if (topo_written.eqv..false.) call nf90_err(nf90_put_var(ncid,topoID,oro(0:nx-1,0:ny-1), (/ 1,1 /),(/ nx,ny /)))
+        topo_written=.true.
       else
         call nf90_err(nf90_put_var(ncid,topoID,field, (/ tpointer_part,1 /),(/ 1,numpart /)))
       endif
@@ -1898,14 +1917,14 @@ subroutine partoutput_netcdf(itime,field,fieldname,imass,ncid)
       call nf90_err(nf90_put_var(ncid,rhoID,field, (/ tpointer_part,1 /),(/ 1,numpart /)))
     case('HM') ! Mixing height
       if (mdomainfill.ge.1) then 
-        if (itime.eq.0) call nf90_err(nf90_put_var(ncid,hmixID,hmix(0:nx-1,0:ny-1,1,1), &
+        call nf90_err(nf90_put_var(ncid,hmixID,hmix(0:nx-1,0:ny-1,1,memind(1)), &
           (/ tpointer_part,1,1 /),(/ 1,nx,ny /)))
       else
         call nf90_err(nf90_put_var(ncid,hmixID,field, (/ tpointer_part,1 /),(/ 1,numpart /)))
       endif
     case('TR') ! Tropopause
       if (mdomainfill.ge.1) then 
-        if (itime.eq.0) call nf90_err(nf90_put_var(ncid,trID,tropopause(0:nx-1,0:ny-1,1,1), &
+        call nf90_err(nf90_put_var(ncid,trID,tropopause(0:nx-1,0:ny-1,1,memind(1)), &
           (/ tpointer_part,1,1 /),(/ 1,nx,ny /)))
       else
         call nf90_err(nf90_put_var(ncid,trID,field, (/ tpointer_part,1 /),(/ 1,numpart /)))
