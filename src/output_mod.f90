@@ -297,11 +297,9 @@ subroutine output_particles(itime)
       if (mythread.eq.thread_divide(4)) call partoutput_netcdf(itime,topo,'TO',j,ncid)
       if (mythread.eq.thread_divide(9)) call partoutput_netcdf(itime,tri,'TR',j,ncid)
       if (mythread.eq.thread_divide(8)) call partoutput_netcdf(itime,hmixi,'HM',j,ncid)
-      if (mdomainfill.lt.1) then
-        do j=1,nspec
-          if (mythread.eq.mass_divide(j)) call partoutput_netcdf(itime,masstemp(:,j),'MA',j,ncid)
-        end do
-      endif
+      do j=1,nspec
+        if (mythread.eq.mass_divide(j)) call partoutput_netcdf(itime,masstemp(:,j),'MA',j,ncid)
+      end do
 #endif
 !$OMP END PARALLEL
     endif

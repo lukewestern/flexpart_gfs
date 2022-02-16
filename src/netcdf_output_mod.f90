@@ -105,6 +105,7 @@ module netcdf_output_mod
 
   ! switch for first time topo output in case of domainfill
   logical :: topo_written=.false.
+  logical :: mass_written=.false.
 
   ! coordinate transformation from internal to world coord
   real :: xp1,yp1,xp2,yp2
@@ -1798,19 +1799,27 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   call nf90_err(nf90_put_att(ncid, ttID, 'standard_name', 'temperature'))
   call nf90_err(nf90_put_att(ncid, ttID, 'long_name', 'temperature'))
 
-  do j=1,nspec
-    ! Masses
-    write(anspec, '(i3.3)') j
-    call nf90_err(nf90_def_var(ncid, 'mass'//anspec, nf90_float, (/ timeDimID,partDimID /), massID(j)))
-    call nf90_err(nf90_def_var_chunking(ncid,massID(j),NF90_CHUNKED,chunksizes=(/ 1,totpart /)))
-    call nf90_err(nf90_def_var_deflate(ncid,massID(j),shuffle=0,deflate=1,deflate_level=1))
-    call nf90_err(nf90_put_att(ncid, massID(j), 'units', 'kg'))
-    call nf90_err(nf90_put_att(ncid, massID(j), '_FillValue', fillval))
-    call nf90_err(nf90_put_att(ncid, massID(j), 'positive', 'up'))
-    call nf90_err(nf90_put_att(ncid, massID(j), 'standard_name', 'mass'//anspec))
-    call nf90_err(nf90_put_att(ncid, massID(j), 'long_name', 'mass for nspec'//anspec))    
-  end do
-
+  if (mdomainfill.ge.1) then
+    call nf90_err(nf90_def_var(ncid, 'mass', nf90_float, massID(1)))
+    call nf90_err(nf90_put_att(ncid, massID(1), 'units', 'kg'))
+    call nf90_err(nf90_put_att(ncid, massID(1), '_FillValue', fillval))
+    call nf90_err(nf90_put_att(ncid, massID(1), 'positive', 'up'))
+    call nf90_err(nf90_put_att(ncid, massID(1), 'standard_name', 'mass'))
+    call nf90_err(nf90_put_att(ncid, massID(1), 'long_name', 'mass of each particle'))
+  else
+    do j=1,nspec
+      ! Masses
+      write(anspec, '(i3.3)') j
+      call nf90_err(nf90_def_var(ncid, 'mass'//anspec, nf90_float, (/ timeDimID,partDimID /), massID(j)))
+      call nf90_err(nf90_def_var_chunking(ncid,massID(j),NF90_CHUNKED,chunksizes=(/ 1,totpart /)))
+      call nf90_err(nf90_def_var_deflate(ncid,massID(j),shuffle=0,deflate=1,deflate_level=1))
+      call nf90_err(nf90_put_att(ncid, massID(j), 'units', 'kg'))
+      call nf90_err(nf90_put_att(ncid, massID(j), '_FillValue', fillval))
+      call nf90_err(nf90_put_att(ncid, massID(j), 'positive', 'up'))
+      call nf90_err(nf90_put_att(ncid, massID(j), 'standard_name', 'mass'//anspec))
+      call nf90_err(nf90_put_att(ncid, massID(j), 'long_name', 'mass for nspec'//anspec))    
+    end do
+  endif
   ! global (metadata) attributes
   !*******************************
   call writemetadata(ncid,lnest=.false.)
@@ -1932,7 +1941,12 @@ subroutine partoutput_netcdf(itime,field,fieldname,imass,ncid)
     case('TT') ! Temperature
       call nf90_err(nf90_put_var(ncid,ttID,field, (/ tpointer_part,1 /),(/ 1,numpart /)))
     case('MA') ! Mass
-      call nf90_err(nf90_put_var(ncid,massID(imass),field, (/ tpointer_part,1 /),(/ 1,numpart /)))
+      if (mdomainfill.ge.1) then
+        if (mass_written.eqv..false.) call nf90_err(nf90_put_var(ncid,massID(1),field(1)))
+        mass_written=.true.
+      else
+        call nf90_err(nf90_put_var(ncid,massID(imass),field, (/ tpointer_part,1 /),(/ 1,numpart /)))
+      endif
   end select
 
   ! call nf90_err(nf90_close(ncid))
