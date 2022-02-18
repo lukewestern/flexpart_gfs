@@ -2058,7 +2058,8 @@ subroutine sort2(n,arr,brr)
         a=arr(j)
         b=brr(j)
         i=j-1
-        do while((i.gt.0) .and. (arr(i).gt.a))
+        do while(i.gt.0)
+          if (arr(i).gt.a) exit
           arr(i+1)=arr(i)
           brr(i+1)=brr(i)
           i=i-1
