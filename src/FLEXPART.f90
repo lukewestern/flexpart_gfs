@@ -166,11 +166,12 @@ program flexpart
   ! Read the model grid specifications,
   ! both for the mother domain and eventual nests
   !**********************************************
+  call windfields_allocate
   call gridcheck_ecmwf
   call set_upperlevel_convect
   if (numbnests.ge.1) then
-    call gridcheck_nests
     call windfields_nest_allocate
+    call gridcheck_nests
   endif
 
   ! Read the output grid specifications if requested by user

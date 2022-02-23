@@ -695,7 +695,7 @@ subroutine gridcheck_ecmwf
   ! nconvlevmax=nuvzmax-1
   ! na=nconvlevmax+1
   write(*,*) nxmax,nymax,nwzmax,nuvzmax,nzmax!,nconvlevmax,na
-  call windfields_allocate
+  ! call windfields_allocate
 
   !error message if no fields found with correct first longitude in it
   if (gotGrid.eq.0) then
@@ -1209,7 +1209,7 @@ subroutine gridcheck_gfs
   ! ! nconvlevmax=nuvzmax-1
   ! ! na=nconvlevmax+1
 
-  call windfields_allocate
+  ! call windfields_allocate
 
   if (nx.gt.nxmax) then
    write(*,*) 'FLEXPART error: Too many grid points in x direction.'
