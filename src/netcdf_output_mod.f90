@@ -63,13 +63,6 @@ module netcdf_output_mod
 
   implicit none
 
-  private
-
-  public :: writeheader_netcdf,concoutput_surf_nest_netcdf,concoutput_netcdf,&
-       &concoutput_nest_netcdf,concoutput_surf_netcdf,writeheader_partoutput,partoutput_netcdf,&
-       open_partoutput_file,close_partoutput_file,readpartpositions_netcdf,create_particles_initialoutput,&
-       write_particles_initialoutput
-
   !  include 'netcdf.inc'
 
   ! parameter for data compression (1-9, 9 = most aggressive)
@@ -110,6 +103,13 @@ module netcdf_output_mod
   ! coordinate transformation from internal to world coord
   real :: xp1,yp1,xp2,yp2
 
+
+  private
+
+  public :: writeheader_netcdf,concoutput_surf_nest_netcdf,concoutput_netcdf,&
+       &concoutput_nest_netcdf,concoutput_surf_netcdf,writeheader_partoutput,partoutput_netcdf,&
+       open_partoutput_file,close_partoutput_file,readpartpositions_netcdf,create_particles_initialoutput,&
+       write_particles_initialoutput,topo_written,mass_written
 contains
 
 !****************************************************************
@@ -1942,9 +1942,8 @@ subroutine partoutput_netcdf(itime,field,fieldname,imass,ncid)
     case('TT') ! Temperature
       call nf90_err(nf90_put_var(ncid,ttID,field, (/ tpointer_part,1 /),(/ 1,numpart /)))
     case('MA') ! Mass
-      if (mdomainfill.ge.1) then
-        if (mass_written.eqv..false.) call nf90_err(nf90_put_var(ncid=ncid,varid=massID(1),values=field(1), &
-          (/ 1 /),(/ 1 /)))
+      if ((mdomainfill.ge.1).and.(imass.eq.1)) then
+        if (mass_written.eqv..false.) call nf90_err(nf90_put_var(ncid=ncid,varid=massID(1),values=field(1)))
         mass_written=.true.
       else
         call nf90_err(nf90_put_var(ncid,massID(imass),field, (/ tpointer_part,1 /),(/ 1,numpart /)))

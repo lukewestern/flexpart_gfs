@@ -304,6 +304,8 @@ subroutine output_particles(itime)
 !$OMP END PARALLEL
     endif
     call close_partoutput_file(ncid)
+    mass_written=.true. ! needs to be reduced within openmp loop
+    topo_written=.true. ! same
   else
     ! Open output file and write the output
     !**************************************
