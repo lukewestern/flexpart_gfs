@@ -373,7 +373,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
       if (density(nsp).gt.0.) then
         call get_settling(itime,xts,yts,zts,nsp,settling)  !bugfix
         w=w+settling
-        call update_z(ipart,settling*dt*real(ldirect))
+        if (wind_coord_type.eq.'ETA') call update_z(ipart,settling*dt*real(ldirect))
       end if
     endif
   end if
@@ -385,7 +385,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
  
   select case (wind_coord_type)
     case ('ETA')
-      if ((.not.turboff).and.(.not.lsettling)) then
+      if ((.not.turboff).or.(lsettling)) then
         call update_z(ipart,wp*dt*real(ldirect))
         if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))  ! if particle below ground -> reflection
         call update_z_to_zeta(itime,ipart)
