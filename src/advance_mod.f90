@@ -139,10 +139,8 @@ subroutine advance(itime,ipart)
   end do
   
   if (DRYDEP) then    ! reset probability for deposition
-    do nsp=1,nspec
-      depoindicator(nsp)=.true.
-      part(ipart)%prob(nsp)=0.
-    end do
+    depoindicator=.true.
+    part(ipart)%prob=0.
   endif
 
   dxsave=0.           ! reset position displacements
