@@ -237,13 +237,13 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
   logical, intent(in) :: bounds(2),wlevel         ! flag marking if particles are outside bounds  
   real, intent(inout) :: dz1,dz2           ! fractional distance to point 1 (closer to ground) and 2
   real                :: dz,dh1,dh,pfact
-  real                :: psint1(2),psint,pr1,pr2,temp       ! pressure of encompassing levels
+  real                :: psint1(2),psint,pr1,pr2,pr_test       ! pressure of encompassing levels
 
   ! To check if taking the logarithm is safe
   if (wlevel) then
-    temp=akm(zlevel+1)+bkm(zlevel+1)
+    pr_test=akm(zlevel+1)+bkm(zlevel+1)
   else
-    temp=akz(zlevel+1)+akz(zlevel+1)
+    pr_test=akz(zlevel+1)+akz(zlevel+1)
   endif
 
   ! If the particle is below bounds (bounds(1)==.true.):
@@ -258,7 +258,7 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
   ! Instead of the linear z variables, we need the ones that correspond to 
   ! the pressure of the height of the particle in relation to the model levels
   !***************************************************************************
-  else if (temp.eq.0) then
+  else if (pr_test.eq.0) then
     dz=1./(vertlevels(zlevel+1)-vertlevels(zlevel))
     dz1=(zpos-vertlevels(zlevel))*dz
     dz2=(vertlevels(zlevel+1)-zpos)*dz
@@ -310,10 +310,6 @@ subroutine find_vertical_variables_lin(vertlevels,zpos,zlevel,dz1,dz2,bounds,wle
   else if (bounds(2)) then
     dz1=1.
     dz2=0.
-
-  ! Instead of the linear z variables, we need the ones that correspond to 
-  ! the pressure of the height of the particle in relation to the model levels
-  !***************************************************************************
   else
     dz=1./(vertlevels(zlevel+1)-vertlevels(zlevel))
     dz1=(zpos-vertlevels(zlevel))*dz
