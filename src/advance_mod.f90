@@ -238,8 +238,8 @@ subroutine advance(itime,ipart)
   ! The autocorrelation time constant is taken as half the
   ! time interval between wind fields
   !****************************************************************
-  if (.not. turboff) then
-    call turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta,eps_eta)
+  if (.not. turboff) then ! mesoscale turbulence is found to give issues, so turned off
+    ! call turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta,eps_eta)
 
     !*************************************************************
     ! Transform along and cross wind components to xy coordinates,
@@ -387,7 +387,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
   select case (wind_coord_type)
     case ('ETA')
       if ((.not.turboff).or.(lsettling)) then
-        call update_zeta_to_z(itime,part)
+        call update_zeta_to_z(itime,ipart)
         call update_z(ipart,wp*dt*real(ldirect))
         if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))  ! if particle below ground -> reflection
         call update_z_to_zeta(itime,ipart)
