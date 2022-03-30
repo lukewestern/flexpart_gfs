@@ -169,7 +169,7 @@ subroutine output_particles(itime)
   !*************************************************
   call find_time_variables(itime)
 
-!$OMP PARALLEL PRIVATE(i,tr,hm)
+!$OMP PARALLEL PRIVATE(i,j,tr,hm)
 !$OMP DO
   do i=1,numpart
   ! Take only valid particles
