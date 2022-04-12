@@ -30,7 +30,7 @@ subroutine initialise_output(itime,filesize)
 
   ! Writing header information to either binary or NetCDF format
   if (itime.eq.0) then
-    if (iout.ne.0) then ! No gridded output
+    if (iout.ne.0) then
 #ifdef USE_NCF
       if (lnetcdfout.eq.1) then 
         call writeheader_netcdf(lnest=.false.)
@@ -41,25 +41,20 @@ subroutine initialise_output(itime,filesize)
       if (nested_output.eq.1) then
         if (lnetcdfout.eq.1) then
           call writeheader_netcdf(lnest=.true.)
-        else if ((nested_output.eq.1).and.(surf_only.ne.1)) then
+        else
           call writeheader_binary_nest
-        else if ((nested_output.eq.1).and.(surf_only.eq.1)) then
-          call writeheader_binary_nest_surf
-        else if ((nested_output.ne.1).and.(surf_only.eq.1)) then 
-          call writeheader_binary_surf
         endif
       endif
-#else
-      call writeheader_binary
-
-      !if (nested_output.eq.1) call writeheader_nest
-      if ((nested_output.eq.1).and.(surf_only.ne.1)) call writeheader_binary_nest
-      if ((nested_output.eq.1).and.(surf_only.eq.1)) call writeheader_binary_nest_surf
-      if ((nested_output.ne.1).and.(surf_only.eq.1)) call writeheader_binary_surf
 #endif
-    endif ! iout.ne.0
+    endif
+
+    call writeheader_binary ! CHECK ETA
     ! FLEXPART 9.2 ticket ?? write header in ASCII format 
     call writeheader_txt
+    !if (nested_output.eq.1) call writeheader_nest
+    if (nested_output.eq.1.and.surf_only.ne.1) call writeheader_binary_nest
+    if (nested_output.eq.1.and.surf_only.eq.1) call writeheader_binary_nest_surf
+    if (nested_output.ne.1.and.surf_only.eq.1) call writeheader_binary_surf
 
     ! NetCDF only: Create file for storing initial particle positions.
 #ifdef USE_NCF
@@ -70,7 +65,7 @@ subroutine initialise_output(itime,filesize)
         call create_particles_initialoutput(ietime,iedate,ietime,iedate)
       endif
     endif
-    ! Create header files for files that store the particle dump output
+    ! Create header files for files that store the particle output
     if (ipout.ge.1) then
       if (ldirect.eq.1) then
         call writeheader_partoutput(ibtime,ibdate,ibtime,ibdate)
@@ -140,37 +135,43 @@ subroutine output_particles(itime)
   !                                                                            *
   !*****************************************************************************
 
-  use interpol_mod
-  use coordinates_ecmwf
-  use particle_mod
+  use par_mod
+  use com_mod
 #ifdef USE_NCF
   use netcdf
   use netcdf_output_mod, only: partoutput_netcdf,open_partoutput_file,close_partoutput_file
   use omp_lib, only: OMP_GET_THREAD_NUM
 #endif
-
+  use particle_mod
+  use windfields_mod
   implicit none
 
   real(kind=dp) :: jul
   integer :: itime,i,j,jjjjmmdd,ihmmss
-  real :: tr(2),hm(2)
+  integer :: ix,jy,ixp,jyp,indexh,m,il,ind,indz,indzp
+  real :: dt1,dt2,dtt,ddx,ddy,rddx,rddy,p1,p2,p3,p4,dz1,dz2,dz
+  real :: hm(2),pv1(2),pvprof(2),qv1(2),qvprof(2),pr1(2),prprof(2)
+  real :: tt1(2),ttprof(2),rho1(2),rhoprof(2)
+  real :: tr(2)
   character :: adate*8,atime*6
 
-  real :: xlon(numpart),ylat(numpart),ztemp1,ztemp2
+  real :: xlon(numpart),ylat(numpart),ztemp(numpart)
   real :: tti(numpart),rhoi(numpart),pvi(numpart),qvi(numpart),pri(numpart)
-  real :: topo(numpart),hmixi(numpart),tri(numpart),ztemp(numpart)
-  real :: masstemp(numpart,nspec)
+  real :: topo(numpart),hmixi(numpart),tri(numpart)
 
 #ifdef USE_NCF
-  integer  :: ncid, mythread, thread_divide(12),mass_divide(nspec)
+  integer  :: ncid
 #endif
+
 
   ! Some variables needed for temporal interpolation
   !*************************************************
-  call find_time_variables(itime)
 
-! !$OMP PARALLEL PRIVATE(i,j,tr,hm)
-! !$OMP DO
+  dt1=real(itime-memtime(1))
+  dt2=real(memtime(2)-itime)
+  dtt=1./(dt1+dt2)
+
+
   do i=1,numpart
   ! Take only valid particles
   !**************************
@@ -178,153 +179,168 @@ subroutine output_particles(itime)
     ylat(i)=-1.
     tti(i)=-1.
     rhoi(i)=-1.
-    pri(i)=-1.
     pvi(i)=-1.
     qvi(i)=-1.
     topo(i)=-1.
     hmixi(i)=-1.
     tri(i)=-1.
+    pri(i)=-1.
     ztemp(i)=-1.
-    do j=1,nspec
-      masstemp(i,j)=-1.
-    end do
-    if (part(i)%alive) then
+    !if (part(i)%itra1.eq.itime) then
       xlon(i)=xlon0+part(i)%xlon*dx
       ylat(i)=ylat0+part(i)%ylat*dy
 
   !*****************************************************************************
   ! Interpolate several variables (PV, specific humidity, etc.) to particle position
   !*****************************************************************************
-      call determine_grid_coordinates(real(part(i)%xlon),real(part(i)%ylat))
-      call find_grid_distances(real(part(i)%xlon),real(part(i)%ylat))
+
+      ix=part(i)%xlon
+      jy=part(i)%ylat
+      ixp=ix+1
+      jyp=jy+1
+      ddx=part(i)%xlon-real(ix)
+      ddy=part(i)%ylat-real(jy)
+      rddx=1.-ddx
+      rddy=1.-ddy
+      p1=rddx*rddy
+      p2=ddx*rddy
+      p3=rddx*ddy
+      p4=ddx*ddy
+
+! eso: Temporary fix for particle exactly at north pole
+      if (jyp >= nymax) then
+      !  write(*,*) 'WARNING: conccalc.f90 jyp >= nymax'
+        jyp=jyp-1
+      end if
+
   ! Topography
   !***********
-      call bilinear_horizontal_interpolation_2dim(oro,topo(i))
 
-      ! First set dz1out from interpol_mod to -1 so it only is calculated once per particle
-      !************************************************************************************
-      dz1out=-1
-      ! Pressure
-      call interpol_partoutput_value('PR',pri(i),i)
-      ! Potential vorticity
-      call interpol_partoutput_value('PV',pvi(i),i)
-      ! Specific humidity
-      call interpol_partoutput_value('QV',qvi(i),i)
-      ! Temperature
-      call interpol_partoutput_value('TT',tti(i),i)
-      ! Density
-      call interpol_partoutput_value('RH',rhoi(i),i)
-      ! Reset dz1out
-      !*************
-      dz1out=-1
+      topo(i)=p1*oro(ix ,jy) &
+           + p2*oro(ixp,jy) &
+           + p3*oro(ix ,jyp) &
+           + p4*oro(ixp,jyp)
+
+
+  ! Potential vorticity, specific humidity, temperature, and density
+  !*****************************************************************
+
+      do il=2,nz
+        if (height(il).gt.part(i)%z) then
+          indz=il-1
+          indzp=il
+          exit
+        endif
+      end do
+
+      dz1=part(i)%z-height(indz)
+      dz2=height(indzp)-part(i)%z
+      dz=1./(dz1+dz2)
+      ztemp(i)=part(i)%z
+
+      do ind=indz,indzp
+        do m=1,2
+          indexh=memind(m)
+
+  ! Potential vorticity
+          pv1(m)=p1*pv(ix ,jy ,ind,indexh) &
+               +p2*pv(ixp,jy ,ind,indexh) &
+               +p3*pv(ix ,jyp,ind,indexh) &
+               +p4*pv(ixp,jyp,ind,indexh)
+  ! Specific humidity
+          qv1(m)=p1*qv(ix ,jy ,ind,indexh) &
+               +p2*qv(ixp,jy ,ind,indexh) &
+               +p3*qv(ix ,jyp,ind,indexh) &
+               +p4*qv(ixp,jyp,ind,indexh)
+  ! Temperature
+          tt1(m)=p1*tt(ix ,jy ,ind,indexh) &
+               +p2*tt(ixp,jy ,ind,indexh) &
+               +p3*tt(ix ,jyp,ind,indexh) &
+               +p4*tt(ixp,jyp,ind,indexh)
+  ! Density
+          rho1(m)=p1*rho(ix ,jy ,ind,indexh) &
+               +p2*rho(ixp,jy ,ind,indexh) &
+               +p3*rho(ix ,jyp,ind,indexh) &
+               +p4*rho(ixp,jyp,ind,indexh)
+  ! Pressure
+          pr1(m)=p1*prs(ix ,jy ,ind,indexh) &
+               +p2*prs(ixp,jy ,ind,indexh) &
+               +p3*prs(ix ,jyp,ind,indexh) &
+               +p4*prs(ixp,jyp,ind,indexh)
+        end do
+        pvprof(ind-indz+1)=(pv1(1)*dt2+pv1(2)*dt1)*dtt
+        qvprof(ind-indz+1)=(qv1(1)*dt2+qv1(2)*dt1)*dtt
+        ttprof(ind-indz+1)=(tt1(1)*dt2+tt1(2)*dt1)*dtt
+        rhoprof(ind-indz+1)=(rho1(1)*dt2+rho1(2)*dt1)*dtt
+        prprof(ind-indz+1)=(pr1(1)*dt2+pr1(2)*dt1)*dtt
+      end do
+      pvi(i)=(dz1*pvprof(2)+dz2*pvprof(1))*dz
+      qvi(i)=(dz1*qvprof(2)+dz2*qvprof(1))*dz
+      tti(i)=(dz1*ttprof(2)+dz2*ttprof(1))*dz
+      rhoi(i)=(dz1*rhoprof(2)+dz2*rhoprof(1))*dz
+      pri(i)=(dz1*prprof(2)+dz2*prprof(1))*dz
 
   ! Tropopause and PBL height
   !**************************
+
+      do m=1,2
+        indexh=memind(m)
+
   ! Tropopause
-      call bilinear_horizontal_interpolation(tropopause,tr,1,1)
-      call temporal_interpolation(tr(1),tr(2),tri(i))
+        tr(m)=p1*tropopause(ix ,jy ,1,indexh) &
+             + p2*tropopause(ixp,jy ,1,indexh) &
+             + p3*tropopause(ix ,jyp,1,indexh) &
+             + p4*tropopause(ixp,jyp,1,indexh)
+
   ! PBL height
-      call bilinear_horizontal_interpolation(hmix,hm,1,1)
-      call temporal_interpolation(hm(1),hm(2),hmixi(i))
-
-
-  ! Convert eta z coordinate to meters if necessary
-  !************************************************
-      call update_zeta_to_z(itime, i)
-      ztemp(i)=part(i)%z
-
-  ! Assign the masses
-  !******************
-      do j=1,nspec
-        masstemp(i,j)=part(i)%mass(j)
+        hm(m)=p1*hmix(ix ,jy ,1,indexh) &
+             + p2*hmix(ixp,jy ,1,indexh) &
+             + p3*hmix(ix ,jyp,1,indexh) &
+             + p4*hmix(ixp,jyp,1,indexh)
       end do
-    endif 
+
+      hmixi(i)=(hm(1)*dt2+hm(2)*dt1)*dtt
+      tri(i)=(tr(1)*dt2+tr(2)*dt1)*dtt
+
+    !endif 
   end do
-
-! !$OMP END DO
-! !$OMP END PARALLEL
-  if (numpart.gt.0) then
-    write(*,*) 'topo: ', topo(1), 'z:', part(1)%zeta,part(1)%z
-    write(*,*) 'xtra,xeta: ', part(1)%xlon
-    write(*,*) 'ytra,yeta: ', part(1)%ylat
-    write(*,*) 'mass,prob: ', part(1)%mass(:),part(1)%prob(:)
-    write(*,*) pvi(1),qvi(1),tti(1),rhoi(1),part(1)%alive,&
-      count%alive,count%spawned,count%terminated
-  endif
-
   ! Determine current calendar date, needed for the file name
   !**********************************************************
-
+  if (numpart.gt.0) then
+    write(*,*) 'topo: ', topo(1), 'z:', part(1)%z
+    write(*,*) 'xtra: ', xlon(1)
+    write(*,*) 'ytra: ', ylat(1)
+    !write(*,*) 'mass: ', xmass1(1,1)
+    write(*,*) pvi(1),qvi(1),tti(1),rhoi(1)
+  endif
   jul=bdate+real(itime,kind=dp)/86400._dp
   call caldate(jul,jjjjmmdd,ihmmss)
   write(adate,'(i8.8)') jjjjmmdd
   write(atime,'(i6.6)') ihmmss
 
   if (lnetcdfout.eq.1) then
+#ifdef USE_NCF
   ! open output file
     call open_partoutput_file(ncid)
-
-    ! Dividing the openmp threads for writing
-    j=0
-    do i=1,11 !number of fields
-      if (j.eq.numthreads) j = 0
-      thread_divide(i) = j
-      j = j + 1
-    end do
-    do i=1,nspec
-      if (j.eq.numthreads) j = 0
-      mass_divide(i) = j
-      j = j + 1
-    end do
-
     ! First allocate the time and particle dimention within the netcdf file
     call partoutput_netcdf(itime,xlon,'TI',j,ncid)
     call partoutput_netcdf(itime,xlon,'PA',j,ncid)
-
-
-    ! Fill the fields in parallel
-    if (numpart.gt.0) then
-
-    ! This bad way of parallelisation no longer works on Jet
-! !$OMP PARALLEL PRIVATE(j,mythread)
-! #ifdef USE_NCF
-!       mythread = omp_get_thread_num()
-!       if (mythread.eq.thread_divide(1)) call partoutput_netcdf(itime,xlon,'LO',j,ncid)
-!       if (mythread.eq.thread_divide(2)) call partoutput_netcdf(itime,ylat,'LA',j,ncid)
-!       if (mythread.eq.thread_divide(3)) call partoutput_netcdf(itime,ztemp,'ZZ',j,ncid)
-!       if (mythread.eq.thread_divide(5)) call partoutput_netcdf(itime,pvi,'PV',j,ncid)
-!       if (mythread.eq.thread_divide(6)) call partoutput_netcdf(itime,qvi,'QV',j,ncid)
-!       if (mythread.eq.thread_divide(7)) call partoutput_netcdf(itime,rhoi,'RH',j,ncid)
-!       if (mythread.eq.thread_divide(10)) call partoutput_netcdf(itime,tti,'TT',j,ncid)
-!       if (mythread.eq.thread_divide(11)) call partoutput_netcdf(itime,pri,'PR',j,ncid)
-!       if (mythread.eq.thread_divide(4)) call partoutput_netcdf(itime,topo,'TO',j,ncid)
-!       if (mythread.eq.thread_divide(9)) call partoutput_netcdf(itime,tri,'TR',j,ncid)
-!       if (mythread.eq.thread_divide(8)) call partoutput_netcdf(itime,hmixi,'HM',j,ncid)
-!       do j=1,nspec
-!         if (mythread.eq.mass_divide(j)) call partoutput_netcdf(itime,masstemp(:,j),'MA',j,ncid)
-!       end do
-! #endif
-! !$OMP END PARALLEL
-#ifdef USE_NCF
-      call partoutput_netcdf(itime,xlon,'LO',j,ncid)
-      call partoutput_netcdf(itime,ylat,'LA',j,ncid)
-      call partoutput_netcdf(itime,ztemp,'ZZ',j,ncid)
-      call partoutput_netcdf(itime,pvi,'PV',j,ncid)
-      call partoutput_netcdf(itime,qvi,'QV',j,ncid)
-      call partoutput_netcdf(itime,rhoi,'RH',j,ncid)
-      call partoutput_netcdf(itime,tti,'TT',j,ncid)
-      call partoutput_netcdf(itime,pri,'PR',j,ncid)
-      call partoutput_netcdf(itime,topo,'TO',j,ncid)
-      call partoutput_netcdf(itime,tri,'TR',j,ncid)
-      call partoutput_netcdf(itime,hmixi,'HM',j,ncid)
-      do j=1,nspec
-        call partoutput_netcdf(itime,masstemp(:,j),'MA',j,ncid)
-      end do
-#endif
-    endif
+    call partoutput_netcdf(itime,xlon,'LO',j,ncid)
+    call partoutput_netcdf(itime,ylat,'LA',j,ncid)
+    call partoutput_netcdf(itime,ztemp,'ZZ',j,ncid)
+    call partoutput_netcdf(itime,topo,'TO',j,ncid)
+    call partoutput_netcdf(itime,pvi,'PV',j,ncid)
+    call partoutput_netcdf(itime,qvi,'QV',j,ncid)
+    call partoutput_netcdf(itime,rhoi,'RH',j,ncid)
+    call partoutput_netcdf(itime,hmixi,'HM',j,ncid)
+    call partoutput_netcdf(itime,tri,'TR',j,ncid)
+    call partoutput_netcdf(itime,tti,'TT',j,ncid)
+    call partoutput_netcdf(itime,pri,'PR',j,ncid)
+    do j=1,nspec
+     ! call partoutput_netcdf(itime,xmass1(:,j),'MA',j,ncid)
+    end do
     call close_partoutput_file(ncid)
-    mass_written=.true. ! needs to be reduced within openmp loop
-    topo_written=.true. ! same
+#endif
   else
     ! Open output file and write the output
     !**************************************
@@ -345,13 +361,13 @@ subroutine output_particles(itime)
     ! Take only valid particles
     !**************************
 
-      if (part(i)%alive) then
+      !if (itra1(i).eq.itime) then
     ! Write the output
     !*****************      
-        write(unitpartout) part(i)%npoint,xlon(i),ylat(i),part(i)%z, &
-             part(i)%tstart,topo(i),pvi(i),qvi(i),rhoi(i),hmixi(i),tri(i),tti(i), &
-             (part(i)%mass(j),j=1,nspec)
-      endif
+        !write(unitpartout) npoint(i),xlon(i),ylat(i),ztra1(i), &
+        !     itramem(i),topo(i),pvi(i),qvi(i),rhoi(i),hmixi(i),tri(i),tti(i), &
+        !     (xmass1(i,j),j=1,nspec)
+      !endif
     end do
 
 
@@ -392,7 +408,6 @@ subroutine output_concentrations(itime,loutstart,loutend,loutnext,outnum)
   real ::                   &
     weight                    ! concentration calculation sample weight
 
-
   ! Is the time within the computation interval, if not, return
   !************************************************************
   if ((ldirect*itime.lt.ldirect*loutstart).or.(ldirect*itime.gt.ldirect*loutend)) then
@@ -409,21 +424,7 @@ subroutine output_concentrations(itime,loutstart,loutend,loutnext,outnum)
       weight=1.0
     endif
     outnum=outnum+weight
-    if (iout.ne.0) call conccalc(itime,weight)
-  endif
-
-  ! If no grid is to be written to file, return
-  !********************************************
-  if (iout.eq.0) then 
-    if (itime.ne.loutend) return
-    loutnext=loutnext+loutstep
-    loutstart=loutnext-loutaver/2
-    loutend=loutnext+loutaver/2
-    if (itime.eq.loutstart) then
-      weight=0.5
-      outnum=outnum+weight
-    endif
-    return
+    call conccalc(itime,weight)
   endif
 
   ! If it is not time yet to write outputs, return
@@ -571,7 +572,7 @@ subroutine conccalc(itime,weight)
   !Af ind_samp is defined in readcommand.f
 
     if ( ind_samp .eq. -1 ) then
-      ! call update_zeta_to_z(itime,i)
+      call update_zeta_to_z(itime,i)
       call interpol_density(i,rhoi)
     elseif (ind_samp.eq.0) then 
       rhoi = 1.
@@ -898,7 +899,6 @@ subroutine conccalc(itime,weight)
   !***********************************************************************
   ! 2. Evaluate concentrations at receptor points, using the kernel method
   !***********************************************************************
-  if (numreceptor.eq.0) return
 
   do n=1,numreceptor
 
@@ -948,101 +948,5 @@ subroutine conccalc(itime,weight)
     end do
   end do
 end subroutine conccalc
-
-subroutine partpos_average(itime,j)
-
-  !**********************************************************************
-  ! This subroutine averages particle quantities, to be used for particle
-  ! dump (in partoutput.f90). Averaging is done over output interval.
-  !**********************************************************************
-
-  use par_mod
-  use com_mod
-  use interpol_mod
-  use coordinates_ecmwf
-
-  implicit none
-
-  integer :: itime,j
-  real :: xlon,ylat,x,y,z
-  real :: topo,hm(2),hmixi,pvi,qvi
-  real :: tti,rhoi,ttemp
-  real :: uui,vvi
-  real :: tr(2),tri!,energy
-
-
-
- ! Some variables needed for temporal interpolation
-  !*************************************************
-  call find_time_variables(itime)
-
-  xlon=xlon0+part(j)%xlon*dx
-  ylat=ylat0+part(j)%ylat*dy
-
-  !*****************************************************************************
-  ! Interpolate several variables (PV, specific humidity, etc.) to particle position
-  !*****************************************************************************
-
-  call determine_grid_coordinates(real(part(j)%xlon),real(part(j)%ylat))
-  call find_grid_distances(real(part(j)%xlon),real(part(j)%ylat))
-
-  ! Topography
-  !***********
-  call bilinear_horizontal_interpolation_2dim(oro,topo)
-
-  ! Potential vorticity, specific humidity, temperature, and density
-  !*****************************************************************
-  ! First set dz1out from interpol_mod to -1 so it only is calculated once per particle
-  !************************************************************************************
-  dz1out=-1
-  ! Potential vorticity
-  call interpol_partoutput_value('PV',pvi,j)
-  ! Specific humidity
-  call interpol_partoutput_value('QV',qvi,j)
-  ! Temperature
-  call interpol_partoutput_value('TT',tti,j)
-  ! U wind
-  call interpol_partoutput_value('UU',uui,j)
-  ! V wind
-  call interpol_partoutput_value('VV',vvi,j)
-  ! Density
-  call interpol_partoutput_value('RH',rhoi,j)
-  ! Reset dz1out
-  !*************
-  dz1out=-1
-
-  ! Convert eta z coordinate to meters if necessary. Can be moved to output only
-  !************************************************
-  call update_zeta_to_z(itime,j)
-  
-  ! energy=tti*cpa+(ztemp1+topo)*9.81+qvi*2501000.+(uui**2+vvi**2)/2.
-
-  ! Add new values to sum and increase counter by one
-  !**************************************************
-
-  npart_av(j)=npart_av(j)+1
-
-  ! Calculate Cartesian 3D coordinates suitable for averaging
-  !**********************************************************
-
-  xlon=xlon*pi180
-  ylat=ylat*pi180
-  x = cos(ylat)*sin(xlon)
-  y = -1.*cos(ylat)*cos(xlon)
-  z = sin(ylat)
-
-  part_av_cartx(j)=part_av_cartx(j)+x
-  part_av_carty(j)=part_av_carty(j)+y
-  part_av_cartz(j)=part_av_cartz(j)+z
-  part_av_z(j)=part_av_z(j)+part(j)%z
-  part_av_pv(j)=part_av_pv(j)+pvi
-  part_av_qv(j)=part_av_qv(j)+qvi
-  part_av_tt(j)=part_av_tt(j)+tti
-  part_av_uu(j)=part_av_uu(j)+uui
-  part_av_vv(j)=part_av_vv(j)+vvi
-  ! part_av_energy(j)=part_av_energy(j)+energy
-
-  return
-end subroutine partpos_average
 
 end module output_mod
