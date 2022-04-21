@@ -1545,6 +1545,8 @@ subroutine write_particles_initialoutput(itime,istart,iend)
    integer :: newpart,ncid,j
 
    newpart = iend-istart
+   if (newpart.eq.0) return
+   write(*,*) newpart, ' particles are being added to partinit.'
    call nf90_err(nf90_open(trim(ncfname_partinit), nf90_write, ncid))
 
    allocate ( partindices(newpart) )
@@ -1880,7 +1882,7 @@ subroutine partoutput_netcdf(itime,field,fieldname,imass,ncid)
         if (tpointer_part.eq.1) then 
           allocate ( partindices(numpart) )
           do j=1,numpart 
-            partindices(j)=j+ppointer_part
+            partindices(j)=j
           end do 
 
           call nf90_err(nf90_put_var(ncid, partID,partindices, (/ 1 /),(/ numpart /)))
