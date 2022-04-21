@@ -165,12 +165,12 @@ subroutine output_particles(itime)
   integer  :: ncid, mythread, thread_divide(12),mass_divide(nspec)
 #endif
 
+!$OMP PARALLEL PRIVATE(i,j,tr,hm)
   ! Some variables needed for temporal interpolation
   !*************************************************
   call find_time_variables(itime)
 
-! !$OMP PARALLEL PRIVATE(i,j,tr,hm)
-! !$OMP DO
+!$OMP DO
   do i=1,numpart
   ! Take only valid particles
   !**************************
@@ -241,8 +241,8 @@ subroutine output_particles(itime)
     endif 
   end do
 
-! !$OMP END DO
-! !$OMP END PARALLEL
+!$OMP END DO
+!$OMP END PARALLEL
   if (numpart.gt.0) then
     write(*,*) 'topo: ', topo(1), 'z:', part(1)%zeta,part(1)%z
     write(*,*) 'xtra,xeta: ', part(1)%xlon
