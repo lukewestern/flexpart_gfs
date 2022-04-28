@@ -2193,7 +2193,7 @@ subroutine interpol_partoutput_value_eta(fieldname,output,j)
   real, intent(inout)         :: output
   real                        :: field1(2)
 
-  if (dz1out.eq.-1) then
+  if (int(dz1out).eq.-1) then
     call find_z_level_eta(real(part(j)%zeta))
     call find_vertical_variables(uvheight,real(part(j)%zeta),induv,dz1out,dz2out,lbounds_uv,.false.)
   endif
@@ -2236,7 +2236,7 @@ subroutine interpol_partoutput_value_meter(fieldname,output,j)
   real, intent(inout)         :: output
   real                        :: field1(2)
 
-  if (dz1out.eq.-1) then
+  if (int(dz1out).eq.-1) then
     call find_z_level_meters(real(part(j)%z))
     call find_vertical_variables(height,real(part(j)%z),indz,dz1out,dz2out,lbounds,.false.)
   endif
