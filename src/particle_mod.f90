@@ -314,6 +314,7 @@ contains
       do i=1,count%allocated+nmpart
         allocate( tmppart(i)%val_av(n_average) )
       end do
+      tmppart(i)%val_av(n_average) = 0
     endif
     if (count%allocated.gt.0) tmppart(1:count%allocated) = part
     call move_alloc(tmppart,part)
