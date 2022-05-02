@@ -342,7 +342,7 @@ subroutine timemanager
 
       call advance(itime,j)
 
-      if (average_output) call partpos_average(itime,j)
+      if (n_average.gt.0) call partpos_average(itime,j)
     end do 
 
 !$OMP END DO

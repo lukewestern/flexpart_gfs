@@ -37,7 +37,7 @@ SHELL = /bin/bash
 # Serial processing executable
 FLEXPART-SERIAL = FLEXPART
 
-export OMP_NESTED=TRUE
+export OMP_NESTED=FALSE
 
 #export TAU_MAKEFILE=/jetfs/home/lbakels/Codes/tau/x86_64/lib/Makefile.tau-pdt-openmp-opari
 #export TAU_OPTIONS='-optCompInst -optRevert'

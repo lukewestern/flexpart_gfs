@@ -295,6 +295,4 @@ module par_mod
   character(len=256),parameter :: wind_coord_type='ETA'
   !character(len=256),parameter :: wind_coord_type='METER'
 
-  logical,parameter :: average_output=.true.
-
 end module par_mod
