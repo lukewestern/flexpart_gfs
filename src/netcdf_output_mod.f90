@@ -1616,6 +1616,11 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   ! write(arelease, '(i3.3)') irelease
   fprefix = 'partoutput_'!rel'//arelease//'_'
 
+  ! Reset logicals that ensure ony 1 write out in case of domainfill
+  topo_written=.false.
+  mass_written=.false.
+  massav_written=.false.
+
   fname_partoutput = path(2)(1:length(2))//trim(fprefix)//adate//atime//'.nc'
   !ncfname_part(irelease) = fname_partoutput
   ncfname_part = fname_partoutput
