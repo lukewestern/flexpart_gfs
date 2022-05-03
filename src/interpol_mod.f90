@@ -2220,9 +2220,9 @@ subroutine interpol_partoutput_value_eta(fieldname,output,j)
     case('WW','ww')
       call find_z_level_meters(real(part(j)%z))
       call find_vertical_variables(height,real(part(j)%z),indz,dz1out,dz2out,lbounds,.false.)
-      dz1out = -1
       call bilinear_spatial_interpolation(ww,field1,induv,dz1out,dz2out,nzmax)
       call temporal_interpolation(field1(1),field1(2),output)
+      dz1out = -1
     case('RH','rh')
       call bilinear_spatial_interpolation(rhoeta,field1,induv,dz1out,dz2out,nzmax)
       call temporal_interpolation(field1(1),field1(2),output)

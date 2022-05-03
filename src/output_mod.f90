@@ -979,6 +979,9 @@ subroutine partpos_average(itime,j)
 
 
   if (n_average.eq.0) return
+
+  if (.not. part(j)%alive) return
+
  ! Some variables needed for temporal interpolation
   !*************************************************
   call find_time_variables(itime)
