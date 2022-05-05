@@ -325,7 +325,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
     dt,                           & ! real(ldt)
     xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     wp,                           & ! random turbulence velocities
-    settling = 0.                   ! settling velocity
+    settling                        ! settling velocity
   integer ::                      &
     nsp                             ! loop variables for number of species
 
@@ -333,6 +333,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
   ztseta=real(part(ipart)%zeta)
   xts=real(part(ipart)%xlon)
   yts=real(part(ipart)%ylat)
+  settling=0.
   call interpol_wind(itime,xts,yts,zts,ztseta,ipart)
 
   ! Compute everything for above the PBL
@@ -426,12 +427,13 @@ subroutine advance_PBL(itime,itimec,&
     xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     rhoa,                         & ! air density, used in CBL
     rhograd,                      & ! vertical gradient of the air density, used in CBL
-    settling = 0.                   ! settling velocity
+    settling                        ! settling velocity
   integer ::                      &
     loop,                         & ! loop variable for time in the PBL
     nsp                             ! loop variable for species
 
   eps=nxmax/3.e5
+  settling=0.
 
   ! BEGIN TIME LOOP
   !================
@@ -583,7 +585,7 @@ subroutine advance_PettersonCorrection(itime,ipart)
   real ::                         &
     xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     uold,vold,wold,woldeta,       & !
-    settling = 0.                   ! settling velocity
+    settling                        ! settling velocity
   real(kind=dp) ::                &
     ztemp                           ! temporarily storing z position
 
@@ -592,6 +594,7 @@ subroutine advance_PettersonCorrection(itime,ipart)
   yts=real(part(ipart)%ylat)
   zts=real(part(ipart)%z)
   ztseta=real(part(ipart)%zeta)
+  settling=0.
 
 
   ! Determine nested grid coordinates
