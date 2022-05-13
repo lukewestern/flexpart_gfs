@@ -1047,7 +1047,17 @@ subroutine interpol_rain(yy1,yy2,yy3,nxmax,nymax,nzmax,nx, &
   p3=rddx*ddy
   p4=ddx*ddy
 
+  ! eso: Temporary fix for particle exactly at north pole
+  if (jyp >= nymax) then
+    write(*,*) 'WARNING: interpol_mod.f90 jyp >= nymax. xt,yt:',xt,yt
+    jyp=jyp-1
+  end if
 
+  if (ixp >= nxmax) then
+    write(*,*) 'WARNING: interpol_mod.f90 ixp >= nxmax. xt,yt:',xt,yt
+    ixp=ixp-1
+  end if
+  
   ! Loop over 2 time steps
   !***********************
 
@@ -1360,7 +1370,17 @@ subroutine interpol_rain_nests(yy1,yy2,yy3,nxmaxn,nymaxn,nzmax, &
   p3=rddx*ddy
   p4=ddx*ddy
 
+  ! eso: Temporary fix for particle exactly at north pole
+  if (jyp >= nymax) then
+    write(*,*) 'WARNING: interpol_mod.f90 jyp >= nymax. xt,yt:',xt,yt
+    jyp=jyp-1
+  end if
 
+  if (ixp >= nxmax) then
+    write(*,*) 'WARNING: interpol_mod.f90 ixp >= nxmax. xt,yt:',xt,yt
+    ixp=ixp-1
+  end if
+  
   ! Loop over 2 time steps
   !***********************
 
