@@ -39,15 +39,15 @@ module conv_mod
     cbaseflux(0:nxmax-1,0:nymax-1)                         
   real :: &!,allocatable,dimension(:,:,:) :: &
     cbasefluxn(0:nxmaxn-1,0:nymaxn-1,maxnests)
-  integer,dimension(na) :: &
-    NENT
-  real,dimension(na,na) :: &
-    MENT,QENT,ELIJ,SIJ
-  real,dimension(na) ::    &
-    fup,fdown,M,MP,TVP,TV, &
-    WATER,QP,EP,TH,WT,     &
-    EVAP,CLW,SIGP,TP,CPN,  &
-    LV,LVCP,H,HP,GZ,HM
+  ! integer,dimension(na) :: &
+  !   NENT
+  ! real,dimension(na,na) :: &
+  !   MENT,QENT,ELIJ,SIJ
+  ! real,dimension(na) ::    &
+  !   fup,fdown,M,MP,TVP,TV, &
+  !   WATER,QP,EP,TH,WT,     &
+  !   EVAP,CLW,SIGP,TP,CPN,  &
+  !   LV,LVCP,H,HP,GZ,HM
   real,dimension(na) ::    &
     uvzlev(nuvzmax),wsub(nuvzmax)
   real :: psconv,tt2conv,td2conv
@@ -59,10 +59,11 @@ module conv_mod
 !$OMP THREADPRIVATE( ft, fq, fmass, sub, fmassfrac, &
 !$OMP pconv, phconv, dpr, pconv_hpa, phconv_hpa, &
 !$OMP tconv, qconv, qsconv, psconv, tt2conv, td2conv, &
-!$OMP nconvtop,uvzlev,wsub,cbaseflux,cbasefluxn, &
-!$OMP fup,fdown,MENT,NENT,M,MP,QENT,ELIJ,SIJ,TVP,TV, &
-!$OMP WATER,QP,EP,TH,WT,EVAP,CLW,SIGP,TP,CPN,LV,LVCP, &
-!$OMP H,HP,GZ,HM)
+!$OMP nconvtop,uvzlev,wsub,cbaseflux,cbasefluxn)
+! , &
+! !$OMP fup,fdown,MENT,NENT,M,MP,QENT,ELIJ,SIJ,TVP,TV, &
+! !$OMP WATER,QP,EP,TH,WT,EVAP,CLW,SIGP,TP,CPN,LV,LVCP, &
+! !$OMP H,HP,GZ,HM)
 
 contains
 
@@ -1105,6 +1106,17 @@ end subroutine redist
   !integer jc,jn
   !real alvnew,a2,ahm,alv,rm,sum,qnew,dphinv,tc,thbar,tnew,x
   !REAL TOLD(NA)
+
+  real :: FUP(NA),FDOWN(NA)
+  !
+  !-cv====>End Module   CONVECT    File convect.f
+
+  INTEGER :: NENT(NA)
+  REAL :: M(NA),MP(NA),MENT(NA,NA),QENT(NA,NA),ELIJ(NA,NA)
+  REAL :: SIJ(NA,NA),TVP(NA),TV(NA),WATER(NA)
+  REAL :: QP(NA),EP(NA),TH(NA),WT(NA),EVAP(NA),CLW(NA)
+  REAL :: SIGP(NA),TP(NA),CPN(NA)
+  REAL :: LV(NA),LVCP(NA),H(NA),HP(NA),GZ(NA),HM(NA)
   !
   ! -----------------------------------------------------------------------
   !
