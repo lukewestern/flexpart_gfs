@@ -157,6 +157,7 @@ contains
       itime,                        & ! time index
       ipart                           ! particle index
 
+    if (.not. part(ipart)%alive) return
     if (.not. wind_coord_type.eq.'ETA') return
 
     if (part(ipart)%meterupdate) return
