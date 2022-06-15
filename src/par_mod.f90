@@ -204,7 +204,7 @@ module par_mod
   !**************************************************
 
   !integer,parameter :: maxpart=5000000
-  integer,parameter :: maxspec=4
+  integer,parameter :: maxspec=1
 
   real,parameter :: minmassfrac=0.0
 
@@ -219,7 +219,7 @@ module par_mod
   ! ---------
   ! Sabine Eckhardt: change of landuse inventary numclass=13
   ! ---------
-  integer,parameter :: maxwf=50000, maxtable=1000, numclass=13, maxndia=100
+  integer,parameter :: maxwf=1000000, maxtable=1000, numclass=13, maxndia=100
   integer,parameter :: numwfmem=2 ! Serial version/MPI with 2 fields
   !integer,parameter :: numwfmem=3 ! MPI with 3 fields
 
@@ -248,7 +248,7 @@ module par_mod
   ! Dimension of random number field
   !*********************************
 
-  integer,parameter :: maxrand=10000000
+  integer,parameter :: maxrand=6000000
 
   ! maxrand                 number of random numbers used
   
@@ -285,7 +285,7 @@ module par_mod
 
   ! Maximum output of each partoutput NetCDF-4 file in Mb before a new one is created
   !**********************************************************************************
-  integer,parameter :: max_partoutput_filesize=10000
+  integer,parameter :: max_partoutput_filesize=30000
 
 
   ! Set the coordinate system. At the moment only ECMWF is possible. This bit needs

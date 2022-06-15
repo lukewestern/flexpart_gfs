@@ -174,7 +174,7 @@ subroutine timemanager
   ! of the size of these files.
   !*********************************************************************
     call initialise_output(itime,filesize)
-
+    write(*,*) 'Time: ', itime, 'seconds.'
     if (WETDEP .and. itime .ne. 0 .and. numpart .gt. 0) then
       call wetdepo(itime,lsynctime,loutnext)
     endif
