@@ -2269,6 +2269,10 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
     start=(/ tlen, 1 /),count=(/ 1, plen /)))
 
   do i=1,plen
+    if (part(i)%height.lt.0) then 
+      terminate_particle(i)
+      write(*,*) 'Particle ',i,'is not alive in the restart file.'
+    endif
     part(i)%nclass=min(int(ran1(idummy)*real(nclassunc))+1, &
          nclassunc)    
     part(i)%idt=mintime
