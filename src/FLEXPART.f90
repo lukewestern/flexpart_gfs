@@ -136,7 +136,7 @@ program flexpart
   !******************************************************************
   call readavailable
 
-  call readpartoptions
+  if (ipout.ne.0) call readpartoptions
 
   ! Detect metdata format
   !**********************
