@@ -2726,6 +2726,8 @@ subroutine readspecies(id_spec,pos_spec)
   real :: parea_dow(7), parea_hour(24), ppoint_dow(7), ppoint_hour(24)
   integer :: pndia
   integer :: readerror
+  integer :: pshape,porient
+  real ::pla,pia,psa
 
   ! declare namelist
   namelist /species_params/ &
@@ -2733,7 +2735,8 @@ subroutine readspecies(id_spec,pos_spec)
        pcrain_aero, pcsnow_aero, pccn_aero, pin_aero, &
        preldiff, phenry, pf0, pdensity, pdquer, &
        pdsigma, pndia, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst, &
-       parea_dow, parea_hour, ppoint_dow, ppoint_hour
+       parea_dow, parea_hour, ppoint_dow, ppoint_hour, &
+       pshape, pla, pia, psa, porient
 
   pspecies="" ! read failure indicator value
   pdecay=-999.9
@@ -2759,6 +2762,11 @@ subroutine readspecies(id_spec,pos_spec)
   parea_hour=-999.9
   ppoint_dow=-999.9
   ppoint_hour=-999.9
+  pshape=0 ! 0 for sphere, 1 for other shapes
+  pla=0. ! longest axis in micrometer
+  pia=0. ! Intermediate axis
+  psa=0. ! Smallest axis
+  porient=0 ! 0 for horizontal, 1 for random
 
 
   do j=1,24           ! initialize everything to no variation
@@ -2906,6 +2914,11 @@ subroutine readspecies(id_spec,pos_spec)
     ohcconst(pos_spec)=pohcconst
     ohdconst(pos_spec)=pohdconst
     ohnconst(pos_spec)=pohnconst
+    shape(pos_spec)=pshape
+    la(pos_spec)=pla
+    ia(pos_spec)=pia
+    sa(pos_spec)=psa
+    orient(pos_spec)=porient
 
     do j=1,24     ! 24 hours, starting with 0-1 local time
       area_hour(pos_spec,j)=parea_hour(j)

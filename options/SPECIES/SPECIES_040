@@ -8,7 +8,7 @@
  PCCN_AERO=0.9,               ! In-cloud scavenging (particles) - CCNeff (ccn_aero)
  PIN_AERO=0.1,                ! In-cloud scavenging (particles) - INeff (in_aero)
  PDENSITY=2000.0,             ! Dry deposition (particles) - rho
- PDQUER=4.0E-07,              ! Dry deposition (particles) - dquer
+ PDQUER=4.0E-07,              ! Dry deposition (particles) - dquer (equivalent diameter for shape)
  PDSIGMA=3.3,                 ! Dry deposition (particles) - dsig
  PNDIA=1,                     ! Dry deposition (particles) - ndia
  PDRYVEL=-9.9,                ! Alternative: dry deposition velocity
@@ -19,4 +19,9 @@
  POHCCONST=-0.9E-9,           ! OH Reaction rate - C [cm^3/molecule/sec]
  POHDCONST=-9.9,              ! OH Reaction rate - D [K]
  POHNCONST=2.0,               ! OH Reaction rate - C [cm^3/molecule/sec]
+ PSHAPE=1,                    ! 0 for sphere, 1 for other shapes
+ PLA=940,                      ! Longest axis in micrometer (Bagheri & Bonadonna 2016)
+ PIA=9.4,                      ! Intermediate axis
+ PSA=9.4,                      ! Smallest axis
+ PORIENT=0,                   ! 0 for horizontal, 1 for random orientation of particles
  /

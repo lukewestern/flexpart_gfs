@@ -885,6 +885,8 @@ subroutine getvdep(n,ix,jy,ust,temp,pa,L,gr,rh,rr,snow,vdepo)
   ! Calculate dynamic viscosity
   !****************************
 
+  ! Why is this different from the viscosity funtion???
+
   if (tc.lt.0) then
     myl=(1.718+0.0049*tc-1.2e-05*tc**2)*1.e-05
   else
@@ -961,7 +963,8 @@ subroutine getvdep(n,ix,jy,ust,temp,pa,L,gr,rh,rr,snow,vdepo)
   ! 6. Calculate deposition velocities for particles
   !*************************************************
 
-  call partdep(nspec,density,fract,schmi,vset,raquer,ust,nyl,vdepo)
+  call partdep(nspec,density,fract,schmi,vset,raquer,ust,nyl, &
+    rhoa,vdepo)
 
   !if (debug_mode) then
   !  print*,'getvdep:188: vdepo=', vdepo
@@ -1145,8 +1148,8 @@ subroutine getvdep_nests(n,ix,jy,ust,temp,pa, &
   ! 6. Calculate deposition velocities for particles
   !*************************************************
 
-  call partdep(nspec,density,fract,schmi,vset,raquer,ust,nyl,vdepo)
-
+  call partdep(nspec,density,fract,schmi,vset,raquer,ust,nyl, &
+    rhoa,vdepo)
 
   ! 7. If no detailed parameterization available, take constant deposition
   !    velocity if that is available
@@ -1160,8 +1163,8 @@ subroutine getvdep_nests(n,ix,jy,ust,temp,pa, &
   end do
 end subroutine getvdep_nests
 
-subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,vdep)
-  !                   i     i      i     i    i   i    i    i  i/o
+subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
+  !                   i     i      i     i    i   i    i    i  i, i, i/o
   !*****************************************************************************
   !                                                                            *
   !      Calculation of the dry deposition velocities of particles.            *
@@ -1213,44 +1216,103 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,vdep)
 
   implicit none
 
-  real :: density(maxspec),schmi(maxspec,maxndia),fract(maxspec,maxndia)
-  real :: vset(maxspec,maxndia)
-  real :: vdep(maxspec),stokes,vdepj,rdp,ustar,alpha,ra,nyl
+  real, intent(in) ::       &
+    nyl,                    & ! kinematic viscosity
+    rhoa,                   & ! air density
+    ustar,                  & ! friction velocity
+    ra,                     & ! aerodynamical resistance
+    vset(maxspec,maxndia),  & ! gravitational settling velocity of each interval
+    density(maxspec),       & ! density of the particle
+    fract(maxspec,maxndia)    ! mass fraction of each diameter interval
+  real, intent(inout) ::    &
+    vdep(maxspec)
+  real :: schmi(maxspec,maxndia)
+  real :: stokes,vdepj,rdp,alpha
+  real :: & ! Variables related to shape
+    dfdr, f, e, Fn, Fs, alpha2, beta2, ks, kn, c_d, &
+    settling, settling_old, reynolds
+
   real,parameter :: eps=1.e-5
-  integer :: ic,j,nc
+  integer :: ic,j,nc,i
 
 
   do ic=1,nc                  ! loop over all species
     if (density(ic).gt.0.) then
       do j=1,ndia(ic)         ! loop over all diameter intervals
-        if (ustar.gt.eps) then
+        if (ustar.gt.eps) then          
+          if ((shape(ic).eq.0).or.(dquer(ic).le.d_thresheqv)) then
 
-  ! Stokes number for each diameter interval
-  !*****************************************
 
-          stokes=vset(ic,j)/ga*ustar*ustar/nyl
-          alpha=-3./stokes
 
-  ! Deposition layer resistance
-  !****************************
+            ! Stokes number for each diameter interval
+            !*****************************************
+            ! Use this stokes number for different shapes
+            stokes=vset(ic,j)/ga*ustar*ustar/nyl
+            alpha=-3./stokes
 
-          if (alpha.le.log10(eps)) then
-            rdp=1./(schmi(ic,j)*ustar)
-          else
-            rdp=1./((schmi(ic,j)+10.**alpha)*ustar)
+            ! Deposition layer resistance
+            !****************************
+
+            if (alpha.le.log10(eps)) then
+              rdp=1./(schmi(ic,j)*ustar)
+            else
+              rdp=1./((schmi(ic,j)+10.**alpha)*ustar)
+            endif
+            vdepj=vset(ic,j)+1./(ra+rdp+ra*rdp*vset(ic,j))
+          else ! shape factor accounted for and large enough particle
+               ! Daria Tatsii: Bagheri & Bonadonna 2016
+            dfdr=density(ic)/rhoa
+            ! When using the shape option, dquer is the sphere equivalent diameter
+            f=sa(ic)/ia(ic)
+            e=ia(ic)/la(ic)
+            Fn=f*f*e*((dquer(ic))**3)/(sa(ic)*ia(ic)*la(ic)) ! Newton's regime
+            Fs=f*e**(1.3)*(dquer(ic)**3/(sa(ic)*ia(ic)*la(ic))) ! Stokes' regime
+
+            reynolds=dquer(ic)/1.e6*vset(ic,j)/nyl
+            settling_old=-1.0*vset(ic,j)
+
+            if (orient(ic).eq.1) then
+              alpha2=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
+              beta2=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
+              ks=(Fs**(1./3.) + Fs**(-1./3))/2.
+            else
+              alpha2=0.77 ! B&B: eq. 32
+              beta2=0.63
+              ks=0.5*((Fs**0.05)+(Fs**(-0.36)))  ! B&B Figure 12 k_(s,max)
+            endif
+
+            kn=10.**(alpha2*(-log10(Fn))**beta2)
+
+            do i=1,20
+              c_d=(24.*ks/reynolds)*(1.+0.125*((reynolds*kn/ks)**(2./3.)))+ &
+                (0.46*kn/(1.+5330./(reynolds*kn/ks)))
+
+              settling=-1.* &
+                      sqrt(4.*ga*dquer(ic)/1.e6*(density(ic)-rhoa)/ &
+                      (3.*c_d*rhoa))
+
+              if (abs((settling-settling_old)/settling).lt.0.01) exit
+
+              reynolds=dquer(ic)/1.e6*abs(settling)/nyl
+              settling_old=settling
+            end do
+            ! No layer resistance: deposition velocity is equal to settling velocity 
+            vdep(ic)=abs(settling)
           endif
-          vdepj=vset(ic,j)+1./(ra+rdp+ra*rdp*vset(ic,j))
+
         else
           vdepj=vset(ic,j)
         endif
 
-  ! deposition velocities of each interval are weighted with mass fraction
-  !***********************************************************************
+        ! deposition velocities of each interval are weighted with mass fraction
+        !***********************************************************************
 
         vdep(ic)=vdep(ic)+vdepj*fract(ic,j)
-        
-        !print*, 'partdep:113: ic', ic, 'vdep', vdep
-        !stop
+            
+            !print*, 'partdep:113: ic', ic, 'vdep', vdep
+            !stop
+
+          
       end do
     endif
 

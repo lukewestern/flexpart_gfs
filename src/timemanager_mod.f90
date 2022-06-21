@@ -472,7 +472,7 @@ subroutine timemanager
   deallocate(xpoint1,xpoint2,ypoint1,ypoint2,zpoint1,zpoint2,xmass)
   deallocate(ireleasestart,ireleaseend,npart,kindz)
   deallocate(xmasssave)
-  deallocate( partopt )
+  if (ipout.ne.0) deallocate( partopt )
   if (iout.ne.0) then
     deallocate(outheight,outheighthalf)
     deallocate(oroout, area, volume)

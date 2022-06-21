@@ -193,6 +193,9 @@ module com_mod
   real :: rgs(maxspec,5,numclass),rlu(maxspec,5,numclass)
   real :: rm(maxspec),dryvel(maxspec),kao(maxspec)
   real :: ohcconst(maxspec),ohdconst(maxspec),ohnconst(maxspec)
+  ! Daria Tatsii: species properties regarding shape
+  real :: la(maxspec),ia(maxspec),sa(maxspec)
+  integer :: shape(maxspec),orient(maxspec)
 
   real :: area_hour(maxspec,24),point_hour(maxspec,24)
   real :: area_dow(maxspec,7),point_dow(maxspec,7)
