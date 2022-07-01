@@ -226,6 +226,8 @@ subroutine output_particles(itime)
             masstemp(i,ns)=part(i)%mass(ns)
           end do
           cycle
+        case ('VS') ! Settling velocity
+          output(np,i)=part(i)%settling
         case ('ma') ! Mass averaged
           do ns=1,nspec
             masstemp_av(i,ns)=part(i)%val_av(i_av+(ns-1))/part(i)%ntime
@@ -1057,6 +1059,8 @@ subroutine partpos_average(itime,j)
         do ns=1,nspec
           part(j)%val_av(i_av+(ns-1))=part(j)%val_av(i_av+(ns-1))+part(j)%mass(ns)
         end do
+      case ('vs')
+        part(j)%val_av(i_av)=part(j)%val_av(i_av)+part(j)%settling
       case default
         call interpol_partoutput_value(partopt(np)%name,output,j)
         part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
