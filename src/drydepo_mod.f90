@@ -586,7 +586,7 @@ subroutine part0(dquer,dsigma,density,ni,fract,schmi,cun,vsh)
 
   integer :: i,ni
   real :: dquer,dsigma,density,xdummy,d01,d02,delta,x01,x02
-  real :: dmean,alpha,cun,dc,schmidt,kn,erf
+  real :: dmean,alpha,cun,dc,schmidt,kn,erf,fract_norm
   real,dimension(ni),intent(inout) :: fract,schmi,vsh
   real,parameter :: myl=1.81e-5,nyl=0.15e-4
   real,parameter :: lam=6.53e-8,kb=1.38e-23,eps=1.2e-38
@@ -600,6 +600,11 @@ subroutine part0(dquer,dsigma,density,ni,fract,schmi,cun,vsh)
   ! particles diameters are split up to ni intervals between
   ! dquer-3*dsigma and dquer+3*dsigma
   !*********************************************************
+  ! Normalisation
+  !**************
+  x01=alog(dsigma**3)/xdummy
+  x02=alog(dsigma**-3)/xdummy
+  fract_norm=0.5*(erf(x01)-erf(x02))
 
   delta=6./real(ni)
 
@@ -614,7 +619,7 @@ subroutine part0(dquer,dsigma,density,ni,fract,schmi,cun,vsh)
   ! Area under Gauss-function is calculated and gives mass fraction of interval
   !****************************************************************************
 
-    fract(i)=0.5*(erf(x01)-erf(x02))
+    fract(i)=0.5*(erf(x01)-erf(x02))/fract_norm
     !print*,'part0:: fract(',i,')', fract(i)
     !print*,'part0:: fract', fract(i), x01, x02, erf(x01), erf(x02)
 

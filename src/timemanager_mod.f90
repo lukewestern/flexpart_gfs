@@ -322,7 +322,8 @@ subroutine timemanager
         do ks=1,nspec
           if  ((xscav_frac1(j,ks).lt.0)) then
             call update_zeta_to_z(itime,j)
-            call get_vdep_prob(itime,part(j)%xlon,part(j)%ylat,part(j)%z,prob_rec)
+            call get_vdep_prob(itime,part(j)%xlon,part(j)%ylat, &
+              part(j)%z,prob_rec)
             if (DRYDEPSPEC(ks)) then        ! dry deposition
               xscav_frac1(j,ks)=prob_rec(ks)
             else
