@@ -129,7 +129,8 @@ subroutine output_particles(itime)
   !*****************************************************************************
   !                                                                            *
   !     Dump all particle positions                                            *
-  !                                                                            *
+  !     Binary output is no longer supported. If required, function can be     *
+  !     added below at "Put binary function here"                              *
   !     Author: A. Stohl                                                       *
   !                                                                            *
   !     12 March 1999                                                          *
@@ -171,6 +172,9 @@ subroutine output_particles(itime)
 
 #ifdef USE_NCF
   integer  :: ncid, mythread, thread_divide(12),mass_divide(nspec)
+#else
+  write(*,*) 'NETCDF missing! Please compile with netcdf if you want the particle dump.'
+  stop
 #endif
 
 !$OMP PARALLEL PRIVATE(i,j,tmp,ns,i_av,cartxyz_comp,cartxyz,np)
@@ -334,41 +338,7 @@ subroutine output_particles(itime)
     topo_written=.true. ! same
 #endif
   else
-    ! Open output file and write the output
-    !**************************************
-
-    if (ipout.eq.1.or.ipout.eq.3) then
-      open(unitpartout,file=path(2)(1:length(2))//'partposit_'//adate// &
-           atime,form='unformatted')
-    else
-      open(unitpartout,file=path(2)(1:length(2))//'partposit_end', &
-           form='unformatted')
-    endif
-
-    ! Write current time to file
-    !***************************
-
-    write(unitpartout) itime
-    do i=1,numpart
-    ! Take only valid particles
-    !**************************
-
-      if (part(i)%alive) then
-    ! Write the output
-    !*****************      
-        write(unitpartout) part(i)%npoint,xlon(i),ylat(i),part(i)%z, &
-             part(i)%tstart,topo(i),pvi(i),qvi(i),rhoi(i),hmixi(i),tri(i),tti(i), &
-             (part(i)%mass(j),j=1,nspec)
-      endif
-    end do
-
-
-    write(unitpartout) -99999,-9999.9,-9999.9,-9999.9,-99999, &
-         -9999.9,-9999.9,-9999.9,-9999.9,-9999.9,-9999.9,-9999.9, &
-         (-9999.9,j=1,nspec)
-
-
-    close(unitpartout)
+    ! Put binary function here
   endif
 end subroutine output_particles
 
