@@ -49,7 +49,7 @@ module netcdf_output_mod
                        ccn_aero,in_aero, mintime, & ! wetc_in,wetd_in, &
                        reldiff,henry,f0,density,dquer,dsigma,dryvel,&
                        weightmolar,ohcconst,ohdconst,vsetaver,&
-
+                       numparticlecount, &
                        memind,xreceptor,yreceptor,numreceptor,creceptor,iout, &
                        itsplit, lsynctime, ctl, ifine, lagespectra, ipin, &
                        ioutputforeachrelease, iflux, mdomainfill, mquasilag, & 
@@ -2234,5 +2234,82 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
 
   call nf90_err(nf90_close(ncidend))
 end subroutine readpartpositions_netcdf
+
+subroutine readinitconditions_netcdf(ibtime,ibdate)
+  use random_mod
+  use particle_mod
+  use date_mod
+
+  implicit none 
+
+  integer, intent(in) :: ibtime,ibdate
+  integer             :: ncidend,tIDend,pIDend,tempIDend
+  integer             :: tlen,plen,tend,i
+  integer             :: idate_start,itime_start
+  character           :: adate*8,atime*6,timeunit*32,adate_start*8,atime_start*6
+  real(kind=dp)       :: julin,julcommand,julpartin
+
+  integer :: idummy = -8
+
+  write(adate,'(i8.8)') ibdate
+  write(atime,'(i6.6)') ibtime
+  
+  if (mquasilag.ne.0) then 
+    write(*,*) 'Combination of ipin, netcdf partoutput, and mquasilag!=0 does not work yet'
+    stop 
+  endif
+
+  ! Open part_ic.nc file
+  call nf90_err(nf90_open(trim('part_ic.nc'), mode=NF90_NOWRITE,ncid=ncidend))
+
+  ! Get the particle dimension
+  call nf90_err(nf90_inq_dimid(ncid=ncidend,name='particle',dimid=pIDend))
+  call nf90_err(nf90_inquire_dimension(ncid=ncidend,dimid=pIDend,len=plen))
+
+  ! Now spawn the correct number of particles
+  write(*,*) 'Npart:',plen
+  call spawn_particles(0,plen)
+
+  ! And give them the correct positions
+  ! Longitude
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='longitude',varid=tempIDend))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%xlon, & 
+    start=(/ 1 /),count=(/ plen /)))
+  part(:)%xlon=(part(:)%xlon-xlon0)/dx
+  ! Latitude
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='latitude',varid=tempIDend))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%ylat, & 
+    start=(/ 1 /),count=(/ plen /)))
+  part(:)%ylat=(part(:)%ylat-ylat0)/dx
+  ! Height
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='height',varid=tempIDend))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%z, & 
+    start=(/ 1 /),count=(/ plen /)))
+  ! Spawning time
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='time',varid=tempIDend))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%tstart, & 
+    start=(/ 1 /),count=(/ plen /)))
+  ! Mass
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='mass',varid=tempIDend))
+  call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%mass(1), & 
+    start=(/ 1 /),count=(/ plen /)))
+  ! ! Species
+  ! call nf90_err(nf90_inq_varid(ncid=ncidend,name='species',varid=tempIDend))
+  ! call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%species, & 
+  !   start=(/ 1 /),count=(/ plen /)))
+
+  part(:)%idt=part(:)%tstart
+  do i=1,plen
+    part(i)%nclass=min(int(ran1(idummy)*real(nclassunc))+1, &
+         nclassunc)
+    part(i)%npoint=i
+    ! Deactive particles that have not been born yet
+    ! Needs to be better, because it is going to give problems now when restarting
+    if (part(i)%tstart.ne.0) part(i)%alive=.false.
+  end do
+  call get_total_part_num(numpart)
+  numparticlecount=numpart
+  call nf90_err(nf90_close(ncidend))
+end subroutine readinitconditions_netcdf
 
 end module netcdf_output_mod

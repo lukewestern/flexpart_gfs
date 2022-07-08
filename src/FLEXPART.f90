@@ -224,6 +224,13 @@ program flexpart
   !*************************************************************
   if (ipin.eq.1) then
     call readpartpositions
+  else if (ipin.eq.2) then
+  ! Reading initial conditions from netcdf file
+#ifdef NETCDF
+    call readinitconditions_netcdf
+#else
+    stop 'Compile with netCDF if you want to use the ipin=2 option.'
+#endif
   else
     numpart=0
     numparticlecount=0

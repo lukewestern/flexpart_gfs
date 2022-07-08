@@ -51,7 +51,8 @@ module particle_mod
       tend,                       & ! termination time in seconds after start
       npoint,                     & ! release point
       nclass,                     &
-      idt
+      !species(maxspec),           & ! the number of the corresponding species file of the particle
+      idt                           ! internal time of the particle
     real               ::         &
       mass(maxspec),              & ! Particle mass for each particle species
       prob(maxspec)                 ! Probability of absorption at ground due to dry deposition

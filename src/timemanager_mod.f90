@@ -169,6 +169,7 @@ subroutine timemanager
   ! In addition, open new particle dump files if required and keep track
   ! of the size of these files.
   !*********************************************************************
+
     call initialise_output(itime,filesize)
     write(*,*) 'Time: ', itime, 'seconds.'
     if (WETDEP .and. itime .ne. 0 .and. numpart .gt. 0) then
@@ -192,7 +193,7 @@ subroutine timemanager
 
   ! In case of ETA coordinates being read from file, convert the z positions
   !*************************************************************************
-    if ((ipin.eq.1).and.(itime.eq.0).and.(wind_coord_type.eq.'ETA')) then 
+    if ((ipin.gt.0).and.(itime.eq.0).and.(wind_coord_type.eq.'ETA')) then 
       if (numpart.le.0) stop 'Something is going wrong reading the old particle file!'
 !$OMP PARALLEL PRIVATE(i)
 !$OMP DO
@@ -217,6 +218,17 @@ subroutine timemanager
       else 
         call boundcond_domainfill(itime,loutend)
       endif
+    else if (ipout.eq.2) then
+      ! If reading from user defined initial conditions, check which particles are 
+      ! to be activated
+      if (numpart.le.0) stop 'Something is going wrong reading the part_ic.nc file!'
+      do i=1,numpart
+        if (.not. part(i)%alive) then
+          if ((part(i)%tstart.ge.itime).and.(part(i)%tstart.lt.itime+lsynctime)) then
+            part(i)%alive=.true.
+          endif
+        endif
+      end do
     else
       call releaseparticles(itime)
     endif

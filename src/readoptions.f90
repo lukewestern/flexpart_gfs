@@ -423,6 +423,7 @@ subroutine readcommand
   !                      2 for mixing ratio output, 3 both, 4 for plume        *
   !                      trajectory output, 5 = options 1 and 4                *
   ! ipin                 1 continue simulation with dumped particle data, 0 no *
+  !                      2 use self-defined initial conditions in netcdf       *
   ! ipout                0 no particle dump, 1 every output time, 3 only at end*
   ! ipoutfac             increase particle dump interval by factor (default 1) *
   ! itsplit [s]          time constant for particle splitting                  *
