@@ -89,7 +89,7 @@ module netcdf_output_mod
   integer  :: lonavIDpart,latavIDpart,levavIDpart,pvavID,qvavID,pravID, &
     rhoavID,ttavID,topoavID,hmixavID,travID,uavID,vavID,wavID,vsetavID,massavID(maxspec)
   ! For initial particle outputs
-  integer  :: partIDi,tIDi,lonIDi,latIDi,levIDi,pvIDi,prIDi,qvIDi, &
+  integer  :: partIDi,tIDi,lonIDi,latIDi,levIDi,relIDi,pvIDi,prIDi,qvIDi, &
     rhoIDi,ttIDi,uIDi,vIDi,wIDi,vsetIDi,massIDi(maxspec),topoIDi,trIDi,hmixIDi
 
   real :: eps
@@ -1515,6 +1515,10 @@ subroutine create_particles_initialoutput(itime,idate,itime_start,idate_start)
   call write_to_file(ncid,'height',nf90_float,(/ partDimID /),levIDi,(/ 1 /), &
    'meters',.true.,'height','height above ground')
 
+  ! release
+  call write_to_file(ncid,'release',nf90_int,(/ partDimID /),relIDi,(/ 1 /), &
+   '',.true.,'release','particle release')
+
   do np=1,num_partopt
     if (.not. partopt(np)%print) cycle
     select case(partopt(np)%name)
@@ -1571,43 +1575,44 @@ subroutine create_particles_initialoutput(itime,idate,itime_start,idate_start)
 end subroutine create_particles_initialoutput
 
 subroutine write_particles_initialoutput(itime,istart,iend)
-   use particle_mod
+  use particle_mod
 
-   implicit none
+  implicit none
 
-   integer, intent(in) ::  &
-      itime,               & ! time of particle release
-      istart,              & ! index of first newly released particle
-      iend                   ! index of last newly released partile
-   integer, allocatable    :: partindices(:),releasetimes(:)
-   integer :: newpart,ncid,j
+  integer, intent(in) ::  &
+    itime,               & ! time of particle release
+    istart,              & ! index of first newly released particle
+    iend                   ! index of last newly released partile
+  integer, allocatable    :: partindices(:),releasetimes(:)
+  integer :: newpart,ncid,j
 
-   newpart = iend-istart
-   if (newpart.eq.0) return
-   write(*,*) newpart, ' particles are being added to partinit.'
-   call nf90_err(nf90_open(trim(ncfname_partinit), nf90_write, ncid))
+  newpart = iend-istart
+  if (newpart.eq.0) return
+  write(*,*) newpart, ' particles are being added to partinit.'
+  call nf90_err(nf90_open(trim(ncfname_partinit), nf90_write, ncid))
 
-   allocate ( partindices(newpart) )
-  
-   do j=1,newpart
-      partindices(j)=j+partinitpointer
-   end do
+  allocate ( partindices(newpart) )
 
-   partinitpointer1= partinitpointer+1 ! this is also used in partinit_netcdf
-   call nf90_err(nf90_put_var(ncid,partIDi,partindices,(/ partinitpointer1 /),(/ newpart /)))
-   deallocate (partindices)
-   
-   allocate ( releasetimes(newpart) )
-   releasetimes=itime
-   call nf90_err(nf90_put_var(ncid,tIDi,releasetimes,(/ partinitpointer1 /),(/ newpart /)))
-   deallocate (releasetimes)
-   call nf90_err(nf90_put_var(ncid,lonIDi,xlon0+part(partinitpointer1:iend)%xlon*dx, (/ partinitpointer1 /),(/ newpart /)))
-   call nf90_err(nf90_put_var(ncid,latIDi,ylat0+part(partinitpointer1:iend)%ylat*dy, (/ partinitpointer1 /),(/ newpart /)))
-   call nf90_err(nf90_put_var(ncid,levIDi,part(partinitpointer1:iend)%z, (/ partinitpointer1 /),(/ newpart /)))
+  do j=1,newpart
+    partindices(j)=j+partinitpointer
+  end do
 
-   call nf90_err(nf90_close(ncid))
+  partinitpointer1= partinitpointer+1 ! this is also used in partinit_netcdf
+  call nf90_err(nf90_put_var(ncid,partIDi,partindices,(/ partinitpointer1 /),(/ newpart /)))
+  deallocate (partindices)
 
-   partinitpointer = partinitpointer+newpart
+  allocate ( releasetimes(newpart) )
+  releasetimes=itime
+  call nf90_err(nf90_put_var(ncid,tIDi,releasetimes,(/ partinitpointer1 /),(/ newpart /)))
+  deallocate (releasetimes)
+  call nf90_err(nf90_put_var(ncid,lonIDi,xlon0+part(partinitpointer1:iend)%xlon*dx, (/ partinitpointer1 /),(/ newpart /)))
+  call nf90_err(nf90_put_var(ncid,latIDi,ylat0+part(partinitpointer1:iend)%ylat*dy, (/ partinitpointer1 /),(/ newpart /)))
+  call nf90_err(nf90_put_var(ncid,levIDi,part(partinitpointer1:iend)%z, (/ partinitpointer1 /),(/ newpart /)))
+  call nf90_err(nf90_put_var(ncid,relIDi,part(partinitpointer1:iend)%npoint, (/ partinitpointer1 /),(/ newpart /)))
+
+  call nf90_err(nf90_close(ncid))
+
+  partinitpointer = partinitpointer+newpart
 end subroutine write_particles_initialoutput
 
 subroutine partinit_netcdf(itime,field,fieldname,imass,ncid)
