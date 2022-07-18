@@ -194,7 +194,8 @@ subroutine output_particles(itime,initial_output)
 
 !$OMP DO
   do i=1,numpart
-    if (.not. part(i)%alive) then
+    if ((.not. part(i)%alive) .or. &
+      (init_out .and. (i.lt.partinitpointer1-1))) then ! Only freshly spawned particles need to be computed for init_out
       output(:,i) = -1
       masstemp(i,:) = -1
       masstemp_av(i,:) = -1
@@ -215,6 +216,14 @@ subroutine output_particles(itime,initial_output)
       if (.not. partopt(np)%print) cycle ! Only compute when field should be printed
       i_av = partopt(np)%i_average
       if (init_out.and.(i_av.ne.0)) cycle ! no averages for initial particle output
+      if ((i_av.ne.0).and.(part(i)%ntime.eq.0)) then
+        if (partopt(np)%name.eq.'ma') then
+          masstemp_av(i,1:nspec) = -1
+        else
+          output(np,i) = -1
+        endif
+        cycle ! no averages for freshly spawned particles
+      endif
       select case (partopt(np)%name)
         case ('LO')
           output(np,i)=xlon0+part(i)%xlon*dx
@@ -296,7 +305,7 @@ subroutine output_particles(itime,initial_output)
     dz1out=-1
     cartxyz_comp=.false.
 
-    if (n_average.gt.0) then
+    if ((.not. init_out).and.(n_average.gt.0)) then
       part(i)%val_av = 0.
       part(i)%ntime = 0.
       part(i)%cartx_av = 0.
