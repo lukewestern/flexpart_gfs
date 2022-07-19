@@ -29,34 +29,20 @@ program flexpart
   !                                                                            *
   !*****************************************************************************
   use omp_lib, only: OMP_GET_MAX_THREADS
-  use point_mod
   use par_mod
   use com_mod
-  use conv_mod
   use random_mod, only: gasdev1
-  use class_gribfile
-  use readoptions
-  use windfields_mod
   use timemanager_mod
-  use plume_mod
-  use initialise_mod
   use output_mod
-  use drydepo_mod
-  use getfields_mod
-  use interpol_mod, only: interpol_allocate
-  use netcdf_output_mod
 
   implicit none
 
   integer ::              &
-    i,j,                  & ! loop variables
-    ix,jy,                & ! grid indices
-    inest,                & ! loop variable for nested gridcells
-    iopt,                 & ! temporarily storing inline options
+    i,                    & ! loop variable for random numbers
     idummy=-320             ! dummy value used by the random routine
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
-  
+
   ! Keeping track of the total running time of FLEXPART, printed out at the end.
   !*****************************************************************************
   CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
@@ -100,16 +86,7 @@ program flexpart
   !*******************************************************
   print*,'Welcome to FLEXPART ', trim(flexversion)
   print*,'FLEXPART is free software released under the GNU General Public License.'
-  
-  ! Read pathnames from file in working director that specify I/O directories
-  !**************************************************************************
-  call readpaths
-
-
-  ! Read the user specifications for the current model run
-  !*******************************************************
-  call readcommand
-
+ 
   ! Reading the number of threads available and print them for user
   !****************************************************************
 #ifdef _OPENMP
@@ -128,6 +105,71 @@ program flexpart
     write(*,*) "******************************************************"
     write(*,*)
   endif
+
+  ! Reading user specified options, allocating fields and checking bounds
+  !**********************************************************************
+  call read_options_and_initialise_flexpart
+
+  ! Inform whether output kernel is used or not
+  !*********************************************
+  if (lroot) then
+    if (.not.lusekerneloutput) then
+      write(*,*) "Concentrations are calculated without using kernel"
+    else
+      write(*,*) "Concentrations are calculated using kernel"
+    end if
+  end if
+
+  if (turboff) write(*,*) 'Turbulence switched off'
+  
+  ! Calculate particle trajectories
+  !********************************
+  call timemanager
+
+  CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
+  s_total = (count_clock - count_clock0)/real(count_rate) - s_total
+  
+  write(*,*) 'Read wind fields: ', s_readwind, ' seconds'
+  write(*,*) 'Write particle average files: ', s_writepartav, ' seconds'
+  write(*,*) 'Write particle files: ', s_writepart, ' seconds'
+  write(*,*) 'Total running time: ', s_total, ' seconds'
+  write(*,*) 'CONGRATULATIONS: YOU HAVE SUCCESSFULLY COMPLETED A FLE&
+       &XPART MODEL RUN!'
+
+end program flexpart
+
+
+subroutine read_options_and_initialise_flexpart
+
+  use point_mod
+  use par_mod
+  use com_mod
+  use conv_mod
+  use class_gribfile
+  use readoptions
+  use windfields_mod
+  use plume_mod
+  use initialise_mod
+  use drydepo_mod
+  use getfields_mod
+  use interpol_mod, only: interpol_allocate
+  use netcdf_output_mod
+  use outg_mod
+  use binary_output_mod
+
+  implicit none
+
+  integer ::              &
+    i,                    & ! loop variable for number of points
+    inest                   ! loop variable for nested gridcells
+
+  ! Read pathnames from file in working director that specify I/O directories
+  !**************************************************************************
+  call readpaths
+
+  ! Read the user specifications for the current model run
+  !*******************************************************
+  call readcommand
 
   ! Read the age classes to be used
   !********************************
@@ -155,6 +197,7 @@ program flexpart
   ! Allocate memory for windfields
   !*******************************
   call windfields_allocate
+
   ! Read the model grid specifications,
   ! both for the mother domain and eventual nests
   !**********************************************
@@ -201,6 +244,9 @@ program flexpart
   ! Read the coordinates of the release locations
   !**********************************************
   call readreleases ! CHECK ETA
+  ! Convert the release point coordinates from geografical to grid coordinates
+  !***************************************************************************
+  call coordtrafo(nxmin1,nymin1) ! CHECK ETA
 
   ! Read and compute surface resistances to dry deposition of gases
   !****************************************************************
@@ -216,10 +262,6 @@ program flexpart
   ! Assign fractional cover of landuse classes to each ECMWF grid point
   !********************************************************************
   call assignland ! CHECK ETA
-
-  ! Convert the release point coordinates from geografical to grid coordinates
-  !***************************************************************************
-  call coordtrafo(nxmin1,nymin1) ! CHECK ETA
 
   ! For continuation of previous run, read in particle positions
   !*************************************************************
@@ -269,30 +311,4 @@ program flexpart
     cbasefluxn(0:nxn(inest)-1,0:nyn(inest)-1,inest)=0.
   end do
 
-  ! Inform whether output kernel is used or not
-  !*********************************************
-  if (lroot) then
-    if (.not.lusekerneloutput) then
-      write(*,*) "Concentrations are calculated without using kernel"
-    else
-      write(*,*) "Concentrations are calculated using kernel"
-    end if
-  end if
-
-  if (turboff) write(*,*) 'Turbulence switched off'
-  
-  ! Calculate particle trajectories
-  !********************************
-  call timemanager
-
-  CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
-  s_total = (count_clock - count_clock0)/real(count_rate) - s_total
-  
-  write(*,*) 'Read wind fields: ', s_readwind, ' seconds'
-  write(*,*) 'Write particle average files: ', s_writepartav, ' seconds'
-  write(*,*) 'Write particle files: ', s_writepart, ' seconds'
-  write(*,*) 'Total running time: ', s_total, ' seconds'
-  write(*,*) 'CONGRATULATIONS: YOU HAVE SUCCESSFULLY COMPLETED A FLE&
-       &XPART MODEL RUN!'
-
-end program flexpart
+end subroutine read_options_and_initialise_flexpart
