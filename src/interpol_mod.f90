@@ -243,7 +243,7 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
   if (wlevel) then
     pr_test=akm(zlevel+1)+bkm(zlevel+1)
   else
-    pr_test=akz(zlevel+1)+akz(zlevel+1)
+    pr_test=akz(zlevel+1)+bkz(zlevel+1)
   endif
 
   ! If the particle is below bounds (bounds(1)==.true.):
