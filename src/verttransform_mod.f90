@@ -115,14 +115,16 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
   !*************************************************************
   call verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
 
-  ! If north pole is in the domain, calculate wind velocities in polar
+  ! If north or south pole is in the domain, calculate wind velocities in polar
   ! stereographic coordinates
   !*******************************************************************
   call verttransform_ecmwf_stereographic(n)
 
   ! Create cloud fields
   !*********************
-  call verttransform_ecmwf_clouds(n)
+  call verttransform_ecmwf_clouds(n,readclouds,sumclouds,nxmin1,nymin1,clouds(:,:,:,n), &
+    cloudsh(:,:,n),clw(:,:,:,n),ctwc(:,:,n),clwc(:,:,:,n),ciwc(:,:,:,n),lsprec(:,:,1,n), &
+    convprec(:,:,1,n),rho(:,:,:,n),tt(:,:,:,n),qv(:,:,:,n))
 end subroutine verttransform_ecmwf
 
 subroutine initialise_ecmwf_verttransform(n)
@@ -788,7 +790,8 @@ subroutine verttransform_ecmwf_stereographic(n)
   endif
 end subroutine verttransform_ecmwf_stereographic
 
-subroutine verttransform_ecmwf_clouds(n)
+subroutine verttransform_ecmwf_clouds(n,lreadclouds,lsumclouds,nxlim,nylim,clouds_tmp,cloudsh_tmp,&
+  clw_tmp,ctwc_tmp,clwc_tmp,ciwc_tmp,lsprec_tmp,convprec_tmp,rho_tmp,tt_tmp,qv_tmp)
   use par_mod
   use com_mod
   use cmapf_mod, only: cc2gll
@@ -796,14 +799,25 @@ subroutine verttransform_ecmwf_clouds(n)
 
   implicit none
 
+  logical,intent(in) :: lreadclouds,lsumclouds
+  integer, intent(in) :: nxlim,nylim
   integer, intent(in) :: n
+  integer(kind=1),intent(inout) :: clouds_tmp(0:nxlim,0:nylim,nzmax)
+  integer,intent(inout) :: cloudsh_tmp(0:nxlim,0:nylim)
+  real,intent(inout) :: clw_tmp(0:nxlim,0:nylim,nzmax)
+  real,intent(inout) :: ctwc_tmp(0:nxlim,0:nylim)
+  real,intent(inout) :: clwc_tmp(0:nxlim,0:nylim,nzmax)
+  real,intent(in) :: ciwc_tmp(0:nxlim,0:nylim,nzmax)
+  real,intent(in) :: lsprec_tmp(0:nxlim,0:nylim),convprec_tmp(0:nxlim,0:nylim)
+  real,intent(in),dimension(0:nxlim,0:nylim,nzmax) :: rho_tmp,tt_tmp,qv_tmp
+
   integer,dimension(0:nxmax-1,0:nymax-1) :: rain_cloud_above
 
   integer :: ix,jy,kz,kz_inv
   real :: pressure,rh,lsp,convp,cloudh_min,prec
 
   !***********************************************************************************  
-  if (readclouds) then !HG METHOD
+  if (lreadclouds) then !HG METHOD
   ! The method is loops all grids vertically and constructs the 3D matrix for clouds
   ! Cloud top and cloud bottom gid cells are assigned as well as the total column 
   ! cloud water. For precipitating grids, the type and whether it is in or below 
@@ -812,30 +826,30 @@ subroutine verttransform_ecmwf_clouds(n)
   ! to scavenging. Also clouds that are not precipitating are defined which may be 
   ! to include future cloud processing by non-precipitating-clouds. 
   !***********************************************************************************
-    write(*,*) 'Global ECMWF fields: using cloud water'
-    clw(:,:,:,n)=0.0
+    !write(*,*) 'Global ECMWF fields: using cloud water'
+    clw_tmp(0:nxlim,0:nylim,:)=0.0
   !    icloud_stats(:,:,:,n)=0.0
-    ctwc(:,:,n)=0.0
-    clouds(:,:,:,n)=0
+    ctwc_tmp(:,:)=0.0
+    clouds_tmp(0:nxlim,0:nylim,:)=0
   ! If water/ice are read separately into clwc and ciwc, store sum in clwc
-    if (.not.sumclouds) then 
-      clwc(:,:,:,n) = clwc(:,:,:,n) + ciwc(:,:,:,n)
+    if (.not.lsumclouds) then 
+      clwc_tmp(0:nxlim,0:nylim,:) = clwc_tmp(0:nxlim,0:nylim,:) + ciwc_tmp(:,:,:)
     end if
-    do jy=0,nymin1
-      do ix=0,nxmin1
-        lsp=lsprec(ix,jy,1,n)
-        convp=convprec(ix,jy,1,n)
+    do jy=0,nylim
+      do ix=0,nxlim
+        lsp=lsprec_tmp(ix,jy)
+        convp=convprec_tmp(ix,jy)
         prec=lsp+convp
   !        tot_cloud_h=0
   ! Find clouds in the vertical
         do kz=1, nz-1 !go from top to bottom
-          if (clwc(ix,jy,kz,n).gt.0) then      
+          if (clwc_tmp(ix,jy,kz).gt.0) then      
   ! assuming rho is in kg/m3 and hz in m gives: kg/kg * kg/m3 *m3/kg /m = m2/m3 
-            clw(ix,jy,kz,n)=(clwc(ix,jy,kz,n)*rho(ix,jy,kz,n))*(height(kz+1)-height(kz))
+            clw_tmp(ix,jy,kz)=(clwc_tmp(ix,jy,kz)*rho_tmp(ix,jy,kz))*(height(kz+1)-height(kz))
   !            tot_cloud_h=tot_cloud_h+(height(kz+1)-height(kz)) 
             
   !            icloud_stats(ix,jy,4,n)= icloud_stats(ix,jy,4,n)+clw(ix,jy,kz,n)          ! Column cloud water [m3/m3]
-            ctwc(ix,jy,n) = ctwc(ix,jy,n)+clw(ix,jy,kz,n)
+            ctwc_tmp(ix,jy) = ctwc_tmp(ix,jy)+clw_tmp(ix,jy,kz)
   !            icloud_stats(ix,jy,3,n)= min(height(kz+1),height(kz))                     ! Cloud BOT height stats      [m]
             cloudh_min=min(height(kz+1),height(kz))
           endif
@@ -845,24 +859,24 @@ subroutine verttransform_ecmwf_clouds(n)
         if ((lsp.gt.0.01).or.(convp.gt.0.01)) then ! cloud and precipitation
 
           do kz=nz,2,-1 !go Bottom up!
-            if (clw(ix,jy,kz,n).gt. 0) then ! is in cloud
-              cloudsh(ix,jy,n)=cloudsh(ix,jy,n)+height(kz)-height(kz-1) 
-              clouds(ix,jy,kz,n)=1                               ! is a cloud
+            if (clw_tmp(ix,jy,kz).gt. 0) then ! is in cloud
+              cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+height(kz)-height(kz-1) 
+              clouds_tmp(ix,jy,kz)=1                               ! is a cloud
               if (lsp.ge.convp) then
-                clouds(ix,jy,kz,n)=3                            ! lsp in-cloud
+                clouds_tmp(ix,jy,kz)=3                            ! lsp in-cloud
               else
-                clouds(ix,jy,kz,n)=2                             ! convp in-cloud
+                clouds_tmp(ix,jy,kz)=2                             ! convp in-cloud
               endif                                              ! convective or large scale
-            elseif((clw(ix,jy,kz,n).le.0) .and. (cloudh_min.ge.height(kz))) then ! is below cloud
+            elseif((clw_tmp(ix,jy,kz).le.0) .and. (cloudh_min.ge.height(kz))) then ! is below cloud
               if (lsp.ge.convp) then
-                clouds(ix,jy,kz,n)=5                             ! lsp dominated washout
+                clouds_tmp(ix,jy,kz)=5                             ! lsp dominated washout
               else
-                clouds(ix,jy,kz,n)=4                             ! convp dominated washout
+                clouds_tmp(ix,jy,kz)=4                             ! convp dominated washout
               endif                                              ! convective or large scale 
             endif
 
             if (height(kz).ge. 19000) then                        ! set a max height for removal
-              clouds(ix,jy,kz,n)=0
+              clouds_tmp(ix,jy,kz)=0
             endif !clw>0
           end do !nz
         endif ! precipitation
@@ -877,38 +891,38 @@ subroutine verttransform_ecmwf_clouds(n)
   !**************************************************************************
   !   create a cloud and rainout/washout field, clouds occur where rh>80%
   !   total cloudheight is stored at level 0
-    write(*,*) 'Global fields: using cloud water from Parameterization'
-    do jy=0,nymin1
-      do ix=0,nxmin1
+    !write(*,*) 'Global fields: using cloud water from Parameterization'
+    do jy=0,nylim
+      do ix=0,nxlim
   ! OLD METHOD
         rain_cloud_above(ix,jy)=0
-        lsp=lsprec(ix,jy,1,n)
-        convp=convprec(ix,jy,1,n)
-        cloudsh(ix,jy,n)=0
+        lsp=lsprec_tmp(ix,jy)
+        convp=convprec_tmp(ix,jy)
+        cloudsh_tmp(ix,jy)=0
         do kz_inv=1,nz-1
           kz=nz-kz_inv+1
-          pressure=rho(ix,jy,kz,n)*r_air*tt(ix,jy,kz,n)
-          rh=qv(ix,jy,kz,n)/f_qvsat(pressure,tt(ix,jy,kz,n))
-          clouds(ix,jy,kz,n)=0
+          pressure=rho_tmp(ix,jy,kz)*r_air*tt_tmp(ix,jy,kz)
+          rh=qv_tmp(ix,jy,kz)/f_qvsat(pressure,tt_tmp(ix,jy,kz))
+          clouds_tmp(ix,jy,kz)=0
           if (rh.gt.0.8) then ! in cloud
             if ((lsp.gt.0.01).or.(convp.gt.0.01)) then ! cloud and precipitation
               rain_cloud_above(ix,jy)=1
-              cloudsh(ix,jy,n)=cloudsh(ix,jy,n)+ &
+              cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+ &
                    height(kz)-height(kz-1)
               if (lsp.ge.convp) then
-                clouds(ix,jy,kz,n)=3 ! lsp dominated rainout
+                clouds_tmp(ix,jy,kz)=3 ! lsp dominated rainout
               else
-                clouds(ix,jy,kz,n)=2 ! convp dominated rainout
+                clouds_tmp(ix,jy,kz)=2 ! convp dominated rainout
               endif
             else ! no precipitation
-              clouds(ix,jy,kz,n)=1 ! cloud
+              clouds_tmp(ix,jy,kz)=1 ! cloud
             endif
           else ! no cloud
             if (rain_cloud_above(ix,jy).eq.1) then ! scavenging
               if (lsp.ge.convp) then
-                clouds(ix,jy,kz,n)=5 ! lsp dominated washout
+                clouds_tmp(ix,jy,kz)=5 ! lsp dominated washout
               else
-                clouds(ix,jy,kz,n)=4 ! convp dominated washout
+                clouds_tmp(ix,jy,kz)=4 ! convp dominated washout
               endif
             endif
           endif
@@ -1870,115 +1884,17 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
         endif
         wwetan(:,:,kz,n,l)=wwhn(:,:,kz,l)/dpdeta
       end do      
-    endif  
+    endif
+ 
+
+    ! Create cloud fields
+    !*********************
+    call verttransform_ecmwf_clouds(n,readclouds_nest(l),sumclouds_nest(l),nxm1,nym1,        &
+      cloudsn(0:nxm1,0:nym1,:,n,l),cloudshn(0:nxm1,0:nym1,n,l),clwn(0:nxm1,0:nym1,:,n,l),  &
+      ctwcn(0:nxm1,0:nym1,n,l),clwcn(0:nxm1,0:nym1,:,n,l),ciwcn(0:nxm1,0:nym1,:,n,l),        &
+      lsprecn(0:nxm1,0:nym1,1,n,l),convprecn(0:nxm1,0:nym1,1,n,l),rhon(0:nxm1,0:nym1,:,n,l), &
+      ttn(0:nxm1,0:nym1,:,n,l),qvn(0:nxm1,0:nym1,:,n,l))
       
-  !***********************************************************************************  
-    if (readclouds_nest(l)) then !HG METHOD
-  ! The method is loops all grids vertically and constructs the 3D matrix for clouds
-  ! Cloud top and cloud bottom gid cells are assigned as well as the total column 
-  ! cloud water. For precipitating grids, the type and whether it is in or below 
-  ! cloud scavenging are assigned with numbers 2-5 (following the old metod).
-  ! Distinction is done for lsp and convp though they are treated the same in regards
-  ! to scavenging. Also clouds that are not precipitating are defined which may be 
-  ! to include future cloud processing by non-precipitating-clouds. 
-  !***********************************************************************************
-      write(*,*) 'Nested ECMWF fields: using cloud water'
-      clwn(0:nxm1,0:nym1,:,n,l)=0.0
-  !    icloud_stats(0:nxm1,0:nym1,:,n)=0.0
-      ctwcn(0:nxm1,0:nym1,n,l)=0.0
-      cloudsn(0:nxm1,0:nym1,:,n,l)=0
-  ! If water/ice are read separately into clwc and ciwc, store sum in clwcn
-      if (.not.sumclouds_nest(l)) then 
-        clwcn(0:nxm1,0:nym1,:,n,l) = clwcn(0:nxm1,0:nym1,:,n,l) + ciwcn(0:nxm1,0:nym1,:,n,l)
-      end if
-      do jy=0,nym1
-        do ix=0,nxm1
-          lsp=lsprecn(ix,jy,1,n,l)
-          convp=convprecn(ix,jy,1,n,l)
-          prec=lsp+convp
-          tot_cloud_h=0
-  ! Find clouds in the vertical
-          do kz=1, nz-1 !go from top to bottom
-            if (clwcn(ix,jy,kz,n,l).gt.0) then      
-  ! assuming rho is in kg/m3 and hz in m gives: kg/kg * kg/m3 *m3/kg /m = m2/m3 
-              clwn(ix,jy,kz,n,l)=(clwcn(ix,jy,kz,n,l)*rhon(ix,jy,kz,n,l))*(height(kz+1)-height(kz))
-              tot_cloud_h=tot_cloud_h+(height(kz+1)-height(kz)) 
-              ctwcn(ix,jy,n,l) = ctwcn(ix,jy,n,l)+clwn(ix,jy,kz,n,l)
-  !            icloud_stats(ix,jy,4,n)= icloud_stats(ix,jy,4,n)+clw(ix,jy,kz,n)          ! Column cloud water [m3/m3]
-  !           icloud_stats(ix,jy,3,n)= min(height(kz+1),height(kz))                     ! Cloud BOT height stats      [m]
-              cloudh_min=min(height(kz+1),height(kz))
-            endif
-          end do
-
-  ! If Precipitation. Define removal type in the vertical
-          if ((lsp.gt.0.01).or.(convp.gt.0.01)) then ! cloud and precipitation
-
-            do kz=nz,1,-1 !go Bottom up!
-              if (clwn(ix,jy,kz,n,l).gt.0.0) then ! is in cloud
-                cloudshn(ix,jy,n,l)=cloudshn(ix,jy,n,l)+height(kz)-height(kz-1) 
-                cloudsn(ix,jy,kz,n,l)=1                               ! is a cloud
-                if (lsp.ge.convp) then
-                  cloudsn(ix,jy,kz,n,l)=3                            ! lsp in-cloud
-                else
-                  cloudsn(ix,jy,kz,n,l)=2                             ! convp in-cloud
-                endif                                              ! convective or large scale
-              else if((clwn(ix,jy,kz,n,l).le.0.0) .and. (cloudh_min.ge.height(kz))) then ! is below cloud
-                if (lsp.ge.convp) then
-                  cloudsn(ix,jy,kz,n,l)=5                             ! lsp dominated washout
-                else
-                  cloudsn(ix,jy,kz,n,l)=4                             ! convp dominated washout
-                endif                                              ! convective or large scale 
-              endif
-
-              if (height(kz).ge. 19000) then                        ! set a max height for removal
-                cloudsn(ix,jy,kz,n,l)=0
-              endif !clw>0
-            end do !nz
-          endif ! precipitation
-        end do
-      end do
-  !********************************************************************
-    else ! old method:
-  !********************************************************************
-      write(*,*) 'Nested fields: using cloud water from Parameterization'
-      do jy=0,nyn(l)-1
-        do ix=0,nxn(l)-1
-          rain_cloud_above(ix,jy)=0
-          lsp=lsprecn(ix,jy,1,n,l)
-          convp=convprecn(ix,jy,1,n,l)
-          cloudshn(ix,jy,n,l)=0
-          do kz_inv=1,nz-1
-            kz=nz-kz_inv+1
-            pressure=rhon(ix,jy,kz,n,l)*r_air*ttn(ix,jy,kz,n,l)
-            rh=qvn(ix,jy,kz,n,l)/f_qvsat(pressure,ttn(ix,jy,kz,n,l))
-            cloudsn(ix,jy,kz,n,l)=0
-            if (rh.gt.0.8) then ! in cloud
-              if ((lsp.gt.0.01).or.(convp.gt.0.01)) then
-                rain_cloud_above(ix,jy)=1
-                cloudshn(ix,jy,n,l)=cloudshn(ix,jy,n,l)+ &
-                     height(kz)-height(kz-1)
-                if (lsp.ge.convp) then
-                  cloudsn(ix,jy,kz,n,l)=3 ! lsp dominated rainout
-                else
-                  cloudsn(ix,jy,kz,n,l)=2 ! convp dominated rainout
-                endif
-              else ! no precipitation
-                cloudsn(ix,jy,kz,n,l)=1 ! cloud
-              endif
-            else ! no cloud
-              if (rain_cloud_above(ix,jy).eq.1) then ! scavenging
-                if (lsp.ge.convp) then
-                  cloudsn(ix,jy,kz,n,l)=5 ! lsp dominated washout
-                else
-                  cloudsn(ix,jy,kz,n,l)=4 ! convp dominated washout
-                endif
-              endif
-            endif
-          end do
-        end do
-      end do
-    end if
-
   end do ! end loop over nests
 end subroutine verttransform_nests
 
