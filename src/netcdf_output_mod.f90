@@ -501,7 +501,11 @@ subroutine writeheader_netcdf(lnest)
 
   ! set chunksizes according to largest written portion of data in an individual call to 
   ! nf90_put_var
-  chunksizes = (/ nnx, nny, numzgrid, 1, 1, 1 /)
+  if (int(nnx,kind=8)*int(nny,kind=8)*int(numzgrid,kind=8).gt.2147483647) then ! Larger than an 
+    chunksizes = (/ nnx, nny, 1, 1, 1, 1 /)
+  else
+    chunksizes = (/ nnx, nny, numzgrid, 1, 1, 1 /)
+  endif
   dep_chunksizes = (/ nnx, nny, 1, 1, 1 /)
 
   do i = 1,nspec
