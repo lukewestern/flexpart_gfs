@@ -239,6 +239,14 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
   real                :: dz,dh1,dh,pfact
   real                :: psint1(2),psint,pr1,pr2,pr_test       ! pressure of encompassing levels
 
+  ! Only do logarithmic interpolation when using ETA coordinates, since the
+  ! levels are following pressure, while METER levels are linear.
+  !##############################################################
+  if (wind_coord_type.eq.'METER') then
+    call find_vertical_variables_lin(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
+    return
+  endif
+  
   ! To check if taking the logarithm is safe
   if (wlevel) then
     pr_test=akm(zlevel+1)+bkm(zlevel+1)
