@@ -539,7 +539,7 @@ subroutine readcommand
   ! distinguish namelist from fixed text input
   if ((readerror.ne.0).or.(ldirect.eq.0)) then ! parse as text file format
     if (lroot) write(*,*) 'COMMAND either having unrecognised entries, &
-      &or in old format, please update to namelist format'
+      &or in old format, please update to namelist format.'
       stop
   endif ! input format
 
@@ -593,7 +593,7 @@ subroutine readcommand
 
   !AF IND_SOURCE switches between different units for concentrations at the source
   !Af   NOTE that in backward simulations the release of computational particles
-  !Af   takes place at the "receptor" and the sampling of p[articles at the "source".
+  !Af   takes place at the "receptor" and the sampling of particles at the "source".
   !Af          1 = mass units
   !Af          2 = mass mixing ratio units
   !Af IND_RECEPTOR switches between different units for concentrations at the receptor
