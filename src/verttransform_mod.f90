@@ -131,6 +131,8 @@ subroutine initialise_ecmwf_verttransform(n)
   use par_mod
   use com_mod
   use qvsat_mod
+  use initialise_mod
+  use output_mod
 
   implicit none
 
@@ -138,6 +140,11 @@ subroutine initialise_ecmwf_verttransform(n)
   real,dimension(0:nxmax-1,0:nymax-1) ::  tvold,pold,pint,tv
   integer :: ix,jy,kz,ixm,jym
   real,parameter :: const=r_air/ga
+
+  if (ipin.eq.1) then
+    call read_heightlevels(height,nmixz)
+    return
+  endif
 
   loop1: do jy=0,nymin1
     do ix=0,nxmin1
@@ -180,6 +187,8 @@ subroutine initialise_ecmwf_verttransform(n)
       exit
     endif
   end do
+
+  call output_heightlevels(height,nmixz)
 end subroutine initialise_ecmwf_verttransform
 
 subroutine verttransform_ecmwf_heights(n,rhoh,pinmconv,prsh)

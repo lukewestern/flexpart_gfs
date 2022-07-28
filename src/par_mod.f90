@@ -265,7 +265,7 @@ module par_mod
 
   integer,parameter :: unitpath=1, unitcommand=1, unitageclasses=1, unitgrid=1, unitpartoptions=106
   integer,parameter :: unitavailab=1, unitreleases=88, unitpartout=93, unitpartout_average=105
-  integer,parameter :: unitrestart=106
+  integer,parameter :: unitrestart=106,unitheightlevels=107
   integer,parameter :: unitpartin=93, unitflux=98, unitouttraj=96
   integer,parameter :: unitvert=1, unitoro=1, unitpoin=1, unitreceptor=1
   integer,parameter :: unitoutgrid=97, unitoutgridppt=99, unitoutinfo=1

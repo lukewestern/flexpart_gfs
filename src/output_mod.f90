@@ -190,6 +190,28 @@ subroutine output_restart(itime)
 
 end subroutine output_restart
 
+subroutine output_heightlevels(height_tmp,nmixz_tmp)
+  implicit none
+
+  real,intent(in) :: height_tmp(nzmax)
+  integer,intent(in) :: nmixz_tmp
+  integer :: kz
+  character(len=256) :: heightlevels_filename
+
+  heightlevels_filename = path(2)(1:length(2))//'heightlevels.bin'
+
+  write(*,*) 'Writing Initialised heightlevels to file:', trim(heightlevels_filename)
+  
+  open(unitheightlevels,file=trim(heightlevels_filename),form='unformatted')
+
+  write(unitheightlevels) nmixz_tmp
+
+  do kz=1,nz
+    write(unitheightlevels) height_tmp(kz)
+  end do
+  close(unitheightlevels)
+end subroutine output_heightlevels
+
 subroutine output_particles(itime,initial_output)
   !                        i
   !*****************************************************************************

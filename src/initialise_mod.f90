@@ -625,8 +625,6 @@ subroutine readrestart
   !                                                                            *
   !*****************************************************************************
 
-  use netcdf_output_mod
-
   implicit none
 
   integer :: i,j,ios
@@ -676,6 +674,36 @@ subroutine readrestart
   write(*,*) ' #### NAME DOES NOT EXISTS, RENAME THE APPROPRIATE #### '
   write(*,*) ' #### RESTART FILE TO restart.bin.                 #### '
 end subroutine readrestart
+
+subroutine read_heightlevels(height_tmp,nmixz_tmp)
+  implicit none
+
+  real,intent(out) :: height_tmp(nzmax)
+  integer,intent(out) :: nmixz_tmp
+  integer :: kz,ios
+  character(len=256) :: heightlevels_filename
+
+  heightlevels_filename = path(2)(1:length(2))//'heightlevels.bin'
+
+  write(*,*) 'Reading heightlevels from file:', trim(heightlevels_filename)
+  
+  open(unitheightlevels,file=trim(heightlevels_filename),form='unformatted',err=9988)
+
+  read(unitheightlevels,iostat=ios) nmixz_tmp
+
+  do kz=1,nz
+    read(unitheightlevels) height_tmp(kz)
+  end do
+  close(unitheightlevels)
+
+  return
+
+9988   write(*,*) ' #### FLEXPART MODEL ERROR!   THE FILE             #### '
+  write(*,*) ' #### '//path(2)(1:length(2))//'heightlevels.bin'//'    #### '
+  write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS        #### '
+  write(*,*) ' #### NAME DOES NOT EXISTS, REMOVE call read_heightlevels #### '
+  write(*,*) ' #### FROM VERTTRANSFORM_MOD.                 #### '
+end subroutine read_heightlevels
 
 subroutine initialize_particle(itime,ipart)
   !                        i    i   o  o  o
