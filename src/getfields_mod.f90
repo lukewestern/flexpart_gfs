@@ -1448,107 +1448,107 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
   ! reference level (2 m)
   !*****************************************************************
 
-30   iter=iter+1
+  do iter=1,itmax,1
 
-  pold=psurf
-  tvold=tt2*(1.+0.378*ew(td2,psurf)/psurf)
-  zold=2.0
-  zref=zold
-  rhold=ew(td2,psurf)/ew(tt2,psurf)
+    pold=psurf
+    tvold=tt2*(1.+0.378*ew(td2,psurf)/psurf)
+    zold=2.0
+    zref=zold
+    rhold=ew(td2,psurf)/ew(tt2,psurf)
 
-  thetaref=tvold*(100000./pold)**(r_air/cpa)+excess
-  thetaold=thetaref
+    thetaref=tvold*(100000./pold)**(r_air/cpa)+excess
+    thetaold=thetaref
 
 
-  ! Integrate z up to one level above zt
-  !*************************************
-  if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-    loop_start=2
-  else
-    loop_start=llev
-  end if
-  do k=loop_start,nuvz
-    pint=akz(k)+bkz(k)*psurf  ! pressure on model layers
-    tv=ttlev(k)*(1.+0.608*qvlev(k))
-
-    if (abs(tv-tvold).gt.0.2) then
-      z=zold+const*log(pold/pint)*(tv-tvold)/log(tv/tvold)
+    ! Integrate z up to one level above zt
+    !*************************************
+    if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
+      loop_start=2
     else
-      z=zold+const*log(pold/pint)*tv
+      loop_start=llev
+    end if
+    do k=loop_start,nuvz
+      pint=akz(k)+bkz(k)*psurf  ! pressure on model layers
+      tv=ttlev(k)*(1.+0.608*qvlev(k))
+
+      if (abs(tv-tvold).gt.0.2) then
+        z=zold+const*log(pold/pint)*(tv-tvold)/log(tv/tvold)
+      else
+        z=zold+const*log(pold/pint)*tv
+      endif
+
+      theta=tv*(100000./pint)**(r_air/cpa)
+    ! Petra
+      rh = qvlev(k) / f_qvsat( pint, ttlev(k) )
+
+
+    ! Calculate Richardson number at each level
+    !****************************************
+
+      ri=ga/thetaref*(theta-thetaref)*(z-zref)/ &
+           max(((ulev(k)-ulev(2))**2+(vlev(k)-vlev(2))**2+b*ust**2),0.1)
+
+    !  addition of second condition: MH should not be placed in an
+    !  unstable layer (PS / Feb 2000)
+      if (ri.gt.ric .and. thetaold.lt.theta) exit
+
+      tvold=tv
+      pold=pint
+      rhold=rh
+      thetaold=theta
+      zold=z
+    end do
+    k=min(k,nuvz) ! ESO: make sure k <= nuvz (ticket #139) !MD change to work without goto
+
+    ! Determine Richardson number between the critical levels
+    !********************************************************
+
+    zl1=zold
+    theta1=thetaold
+    do i=1,20
+      zl=zold+real(i)/20.*(z-zold)
+      ul=ulev(k-1)+real(i)/20.*(ulev(k)-ulev(k-1))
+      vl=vlev(k-1)+real(i)/20.*(vlev(k)-vlev(k-1))
+      thetal=thetaold+real(i)/20.*(theta-thetaold)
+      rhl=rhold+real(i)/20.*(rh-rhold)
+      ril=ga/thetaref*(thetal-thetaref)*(zl-zref)/ &
+           max(((ul-ulev(2))**2+(vl-vlev(2))**2+b*ust**2),0.1)
+      zl2=zl
+      theta2=thetal
+      if (ril.gt.ric) exit
+      zl1=zl
+      theta1=thetal
+    end do
+
+    h=zl
+    thetam=0.5*(theta1+theta2)
+    wspeed=sqrt(ul**2+vl**2)                    ! Wind speed at z=hmix
+    bvfsq=(ga/thetam)*(theta2-theta1)/(zl2-zl1) ! Brunt-Vaisala frequency
+                                                ! at z=hmix
+
+    ! Under stable conditions, limit the maximum effect of the subgrid-scale topography
+    ! by the maximum lifting possible from the available kinetic energy
+    !*****************************************************************************
+
+    if(bvfsq.le.0.) then
+      hmixplus=9999.
+    else
+      bvf=sqrt(bvfsq)
+      hmixplus=wspeed/bvf*convke
     endif
 
-    theta=tv*(100000./pint)**(r_air/cpa)
-  ! Petra
-    rh = qvlev(k) / f_qvsat( pint, ttlev(k) )
 
+    ! Calculate convective velocity scale
+    !************************************
 
-  ! Calculate Richardson number at each level
-  !****************************************
-
-    ri=ga/thetaref*(theta-thetaref)*(z-zref)/ &
-         max(((ulev(k)-ulev(2))**2+(vlev(k)-vlev(2))**2+b*ust**2),0.1)
-
-  !  addition of second condition: MH should not be placed in an
-  !  unstable layer (PS / Feb 2000)
-    if (ri.gt.ric .and. thetaold.lt.theta) goto 20
-
-    tvold=tv
-    pold=pint
-    rhold=rh
-    thetaold=theta
-    zold=z
+    if (hf.lt.0.) then
+      wst=(-h*ga/thetaref*hf/cpa)**0.333
+      excess=-bs*hf/cpa/wst
+    else
+      wst=0.
+      exit
+    endif
   end do
-  k=k-1 ! ESO: make sure k <= nuvz (ticket #139)
-20   continue
-
-  ! Determine Richardson number between the critical levels
-  !********************************************************
-
-  zl1=zold
-  theta1=thetaold
-  do i=1,20
-    zl=zold+real(i)/20.*(z-zold)
-    ul=ulev(k-1)+real(i)/20.*(ulev(k)-ulev(k-1))
-    vl=vlev(k-1)+real(i)/20.*(vlev(k)-vlev(k-1))
-    thetal=thetaold+real(i)/20.*(theta-thetaold)
-    rhl=rhold+real(i)/20.*(rh-rhold)
-    ril=ga/thetaref*(thetal-thetaref)*(zl-zref)/ &
-         max(((ul-ulev(2))**2+(vl-vlev(2))**2+b*ust**2),0.1)
-    zl2=zl
-    theta2=thetal
-    if (ril.gt.ric) exit
-    zl1=zl
-    theta1=thetal
-  end do
-
-  h=zl
-  thetam=0.5*(theta1+theta2)
-  wspeed=sqrt(ul**2+vl**2)                    ! Wind speed at z=hmix
-  bvfsq=(ga/thetam)*(theta2-theta1)/(zl2-zl1) ! Brunt-Vaisala frequency
-                                              ! at z=hmix
-
-  ! Under stable conditions, limit the maximum effect of the subgrid-scale topography
-  ! by the maximum lifting possible from the available kinetic energy
-  !*****************************************************************************
-
-  if(bvfsq.le.0.) then
-    hmixplus=9999.
-  else
-    bvf=sqrt(bvfsq)
-    hmixplus=wspeed/bvf*convke
-  endif
-
-
-  ! Calculate convective velocity scale
-  !************************************
-
-  if (hf.lt.0.) then
-    wst=(-h*ga/thetaref*hf/cpa)**0.333
-    excess=-bs*hf/cpa/wst
-    if (iter.lt.itmax) goto 30
-  else
-    wst=0.
-  endif
 
 end subroutine richardson
 
