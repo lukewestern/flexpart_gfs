@@ -179,12 +179,13 @@ readoptions.o: com_mod.o par_mod.o date_mod.o drydepo_mod.o point_mod.o windfiel
 stability_correction.o: par_mod.o
 timemanager_mod.o: com_mod.o flux_mod.o oh_mod.o outg_mod.o advance_mod.o\
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf.o \
-	drydepo_mod.o wetdepo_mod.o conv_mod.o windfields_mod.o \
+	drydepo_mod.o wetdepo_mod.o conv_mod.o windfields_mod.o netcdf_output_mod.o \
 	plume_mod.o initialise_mod.o getfields_mod.o output_mod.o
 turbulence_mod.o: par_mod.o com_mod.o random_mod.o particle_mod.o cbl_mod.o windfields_mod.o
 txt_output_mod.o: com_mod.o par_mod.o point_mod.o outg_mod.o date_mod.o
 unc_mod.o: par_mod.o com_mod.o
-verttransform_mod.o: par_mod.o com_mod.o cmapf_mod.o qvsat_mod.o windfields_mod.o
+verttransform_mod.o: par_mod.o com_mod.o cmapf_mod.o qvsat_mod.o windfields_mod.o \
+	initialise_mod.o output_mod.o
 wetdepo_mod.o: com_mod.o par_mod.o point_mod.o particle_mod.o interpol_mod.o \
 	coordinates_ecmwf.o unc_mod.o windfields_mod.o
 windfields_mod.o: par_mod.o com_mod.o cmapf_mod.o point_mod.o class_gribfile_mod.o qvsat_mod.o \
