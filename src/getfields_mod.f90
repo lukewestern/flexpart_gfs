@@ -1426,7 +1426,6 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
   real,dimension(:) :: akz,bkz,ulev,vlev,ttlev,qvlev
 
   excess=0.0
-  iter=0
 
   if (metdata_format.eq.GRIBFILE_CENTRE_NCEP) then
     ! NCEP version: find first model level above ground
@@ -1518,6 +1517,7 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
       if (ril.gt.ric) exit
       zl1=zl
       theta1=thetal
+      if (i.eq.20) stop 'RICHARDSON: NO RICHARDSON NUMBER GREATER THAN 0.25 FOUND'
     end do
 
     h=zl
