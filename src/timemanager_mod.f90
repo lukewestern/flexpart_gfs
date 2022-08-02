@@ -230,13 +230,15 @@ subroutine timemanager
       ! If reading from user defined initial conditions, check which particles are 
       ! to be activated
       if (numpart.le.0) stop 'Something is going wrong reading the part_ic.nc file!'
-      do i=1,numpart
+      do i=1,count%allocated
         if (.not. part(i)%alive) then
           if ((part(i)%tstart.ge.itime).and.(part(i)%tstart.lt.itime+lsynctime)) then
             call spawn_particle(itime,i)
+            call update_z_to_zeta(itime, i)
           endif
         endif
       end do
+      call get_total_part_num(numpart)
     else
       call releaseparticles(itime)
     endif

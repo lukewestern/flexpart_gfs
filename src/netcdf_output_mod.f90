@@ -1721,7 +1721,7 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   !totpart = maxpart!max(numpart,totpart)
   !cache_size = 4 * 1 * (12+nspec)
 
-  write(*,*) nspec,numpart,totpart
+  write(*,*) 'Write header, nspec,numpart,totpart: ', nspec,numpart,totpart
 
   call nf90_err(nf90_create(trim(fname_partoutput), cmode = nf90_hdf5, ncid = ncid))!, &
     ! cache_size = cache_size))
