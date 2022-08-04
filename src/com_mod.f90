@@ -53,7 +53,8 @@ module com_mod
   ! Variables defining the general model run specifications
   !********************************************************
 
-  integer :: ibdate,ibtime,iedate,ietime,itime_init
+  integer :: ibdate,ibtime,iedate,ietime,itime_init,loutnext_init
+  real :: outnum_init
   real(kind=dp) :: bdate,edate
 
 
@@ -64,6 +65,8 @@ module com_mod
   ! itime_init              starting time in [s] in case of a restart
   ! bdate                   beginning date of simulation (julian date)
   ! edate                   ending date of simulation (julian date)
+  ! outnum_init             concentration calculation sample number after restart
+  ! loutnext_init           first writing time after restart
 
 
   integer :: ldirect,ideltas
@@ -78,6 +81,7 @@ module com_mod
   ! loutstep [s]            gridded concentration output every loutstep seconds
   ! loutaver [s]            concentration output is an average over [s] seconds
   ! loutsample [s]          sampling interval of gridded concentration output
+  ! loutrestart [s]         time interval for writing restart files
   ! lsynctime [s]           synchronisation time of all particles
   ! method                  indicator which dispersion method is to be used
   ! outstep = real(abs(loutstep))
@@ -410,8 +414,9 @@ module com_mod
 
   !real, allocatable, dimension(:,:) :: xscav_frac1
 
-! Variables used for writing out interval averages for partoutput
-!****************************************************************
+  !****************************************************************
+  ! Variables used for writing out interval averages for partoutput
+  !****************************************************************
 
   integer, allocatable, dimension(:) :: npart_av
   real, allocatable, dimension(:) :: part_av_cartx,part_av_carty,part_av_cartz,part_av_z,part_av_topo
@@ -491,6 +496,7 @@ module com_mod
   real    :: tins
   logical, parameter :: nmlout=.true.
 
+  !**************************************************************
   ! These variables are used to avoid having separate versions of
   ! files in cases where differences with MPI version are minor (eso)
   !*****************************************************************
@@ -503,8 +509,12 @@ module com_mod
   integer :: numthreads  ! number of available threads in parallel sections
   !integer :: nclassunc2, nrecclunc, ngriclunc
   
+  !*********************************************************
   !LB 04.05.2021, simple timing of IO and total running time
+  !*********************************************************
   real :: s_readwind=0, s_writepartav=0, s_writepart=0, s_temp=0, s_total=0
+
+
 
 contains
   subroutine com_mod_allocate_part(nmpart)

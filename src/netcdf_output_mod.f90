@@ -59,7 +59,6 @@ module netcdf_output_mod
   use windfields_mod, only: oro,rho,nxmax,height,nxmin1,nymin1,nz,nx,ny,hmix, &
                        ! for concoutput_netcdf and concoutput_nest_netcdf 
                        tropopause,oron,rhon,xresoln,yresoln,xrn,xln,yrn,yln,nxn,nyn
-
   use mean_mod
 
   implicit none
@@ -118,7 +117,7 @@ module netcdf_output_mod
        &concoutput_nest_netcdf,concoutput_surf_netcdf,writeheader_partoutput,partoutput_netcdf,&
        open_partoutput_file,close_partoutput_file,readpartpositions_netcdf,create_particles_initialoutput,&
        write_particles_initialoutput,topo_written,mass_written,partinit_netcdf,open_partinit_file,&
-       readinitconditions_netcdf,partinitpointer1
+       readinitconditions_netcdf,partinitpointer1,tpointer
 contains
 
 !****************************************************************
@@ -337,6 +336,12 @@ subroutine writeheader_netcdf(lnest)
 
   cache_size = 16 * nnx * nny * numzgrid
 
+  ! If starting from a restart file, new data will be added to the existing grid file
+  if (ipin.eq.1) then
+    call read_gridIDs(lnest)
+    return
+  endif
+
   ! setting cache size in bytes. It is set to 4 times the largest data block that is written
   !   size_type x nx x ny x nz
   ! create file
@@ -554,7 +559,7 @@ subroutine writeheader_netcdf(lnest)
      endif
 
      ! wet and dry deposition fields for forward runs
-     if (wetdep) then
+     if ((ldirect.eq.1).and.(wetdep)) then
         call nf90_err(nf90_def_var(ncid,'WD_spec'//anspec, nf90_float, depdIDs, &
              wdsID, deflate_level = deflate_level, &
              chunksizes = dep_chunksizes))
@@ -573,7 +578,7 @@ subroutine writeheader_netcdf(lnest)
            wdspecID(i) = wdsID
         endif
      endif
-     if (drydep) then
+     if ((ldirect.eq.1).and.(drydep)) then
         call nf90_err(nf90_def_var(ncid,'DD_spec'//anspec, nf90_float, depdIDs, &
              ddsID, deflate_level = deflate_level, &
              chunksizes = dep_chunksizes))
@@ -716,6 +721,66 @@ subroutine writeheader_netcdf(lnest)
 
   return
 end subroutine writeheader_netcdf
+
+subroutine read_gridIDs(lnest)
+  
+  implicit none
+  logical, intent(in) :: lnest
+
+  integer :: ncid,i
+  character(len=3)            :: anspec
+
+  if (.not. lnest) then
+    ! open output file
+    call nf90_err(nf90_open(trim(ncfname), nf90_write, ncid))
+
+    call nf90_err(nf90_inq_varid(ncid=ncid,name='time',varid=timeID))
+
+    do i = 1,nspec
+      write(anspec,'(i3.3)') i
+
+      if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name='spec'//anspec//'_mr',varid=specID(i)))
+      endif
+      if ((iout.eq.2).or.(iout.eq.3)) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name='spec'//anspec//'_pptv',varid=specIDppt(i)))
+      endif
+      if ((ldirect.eq.1).and.(wetdep)) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name='WD_spec'//anspec,varid=wdspecID(i)))
+      endif
+      if ((ldirect.eq.1).and.(drydep)) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name='DD_spec'//anspec,varid=ddspecID(i)))
+      endif
+    end do
+
+  else
+
+    ! open output file
+    call nf90_err(nf90_open(trim(ncfnamen), nf90_write, ncid))
+
+    call nf90_err(nf90_inq_varid(ncid=ncid,name='time',varid=timeIDn))
+
+    do i = 1,nspec
+      write(anspec,'(i3.3)') i
+
+      if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name='spec'//anspec//'_mr',varid=specIDn(i)))
+      endif
+      if ((iout.eq.2).or.(iout.eq.3)) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name='spec'//anspec//'_pptv',varid=specIDnppt(i)))
+      endif
+      if ((ldirect.eq.1).and.(wetdep)) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name='WD_spec'//anspec,varid=wdspecIDn(i)))
+      endif
+      if ((ldirect.eq.1).and.(drydep)) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name='DD_spec'//anspec,varid=ddspecIDn(i)))
+      endif
+    end do 
+  endif
+
+  call nf90_err(nf90_close(ncid))
+
+end subroutine read_gridIDs
 
 subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
      
@@ -864,7 +929,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
           jjy=max(min(nint(yl),nymin1),0)
 
           densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,memind(2))*dz1+ &
-             rho(iix,jjy,kzz-1,memind(2))*dz2)/dz
+            rho(iix,jjy,kzz-1,memind(2))*dz2)/dz
         else
           xl=(xl-xln(ngrid))*xresoln(ngrid)
           yl=(yl-yln(ngrid))*yresoln(ngrid)
@@ -872,7 +937,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
           jjy=max(min(nint(yl),nyn(ngrid)-1),0)
 
           densityoutgrid(ix,jy,kz)=(rhon(iix,jjy,kzz,memind(2), ngrid)*dz1+ &
-             rhon(iix,jjy,kzz-1,memind(2), ngrid)*dz2)/dz
+            rhon(iix,jjy,kzz-1,memind(2), ngrid)*dz2)/dz
         endif
       end do
     end do

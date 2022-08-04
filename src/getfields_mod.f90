@@ -1561,7 +1561,7 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
       theta2=thetal
       if (ril.gt.ric) exit
       if (i.eq.20) then
-        write(*,*) 'WARNING: NO RICHARDSON NUMBER GREATER THAN 0.25 FOUND', k,ril
+        write(*,*) 'WARNING: NO RICHARDSON NUMBER GREATER THAN 0.25 FOUND', k,ril,ri
         exit
       endif
       zl1=zl

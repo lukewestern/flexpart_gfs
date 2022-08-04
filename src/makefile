@@ -162,7 +162,7 @@ initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
 	coordinates_ecmwf.o
 initialise_mod.o: com_mod.o turbulence_mod.o interpol_mod.o par_mod.o random_mod.o \
 	coordinates_ecmwf.o particle_mod.o windfields_mod.o date_mod.o \
-	netcdf_output_mod.o xmass_mod.o point_mod.o cbl_mod.o output_mod.o
+	netcdf_output_mod.o xmass_mod.o point_mod.o cbl_mod.o output_mod.o unc_mod.o
 interpol_mod.o: par_mod.o com_mod.o turbulence_mod.o particle_mod.o windfields_mod.o
 mean_mod.o: par_mod.o
 netcdf_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \

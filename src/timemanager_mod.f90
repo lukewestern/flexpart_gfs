@@ -132,9 +132,13 @@ subroutine timemanager
 
   ! First output for time 0
   !************************
-
-  loutnext=itime_init+loutstep/2
-  outnum=0.
+  if (itime_init.gt.0) then
+    loutnext=loutnext_init
+    outnum=outnum_init
+  else
+    loutnext=loutstep/2
+    outnum=0.
+  endif
   loutstart=loutnext-loutaver/2
   loutend=loutnext+loutaver/2
 
@@ -175,7 +179,7 @@ subroutine timemanager
 
   ! Writing restart file
   !*********************
-    if ((itime.ne.itime_init).and.(mod(itime,loutrestart).eq.0)) call output_restart(itime)
+    if ((itime.ne.itime_init).and.(mod(itime,loutrestart).eq.0)) call output_restart(itime,loutnext,outnum)
 
     if (itime.ne.0) write(*,*) part(1)%xlon,part(1)%ylat,part(1)%z,part(1)%zeta
     call initialise_output(itime,filesize)
@@ -261,7 +265,7 @@ subroutine timemanager
     if ((ldirect*itime.ge.ldirect*loutstart).and.(ldirect*itime.le.ldirect*loutend)) then
       ! If it is not time yet to write outputs, skip
       !***********************************************
-      if ((itime.eq.loutend).and.(outnum.gt.0)) then
+      if ((itime.eq.loutend).and.(outnum.gt.0).and.(itime.ne.itime_init)) then
 
         if ((iout.eq.4).or.(iout.eq.5)) call plumetraj(itime)
         if (iflux.eq.1) call fluxoutput(itime)

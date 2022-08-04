@@ -142,14 +142,18 @@ subroutine finalise_output(itime)
   endif
 end subroutine finalise_output
 
-subroutine output_restart(itime)
+subroutine output_restart(itime,loutnext,outnum)
   use particle_mod
   use coordinates_ecmwf
+  use netcdf_output_mod
+  use unc_mod
 
   implicit none
 
-  integer, intent(in) :: itime
+  integer, intent(in) :: itime,loutnext
+  real, intent(in) :: outnum
   integer :: i,j,jjjjmmdd,ihmmss,stat
+  integer :: ks,kp,kz,nage,jy,ix,l
   real(kind=dp) :: jul
   character :: adate*8,atime*6
 
@@ -172,6 +176,8 @@ subroutine output_restart(itime)
 
   write(unitrestart) itime
   write(unitrestart) numpart
+  write(unitrestart) loutnext
+  write(unitrestart) outnum
 
   do i=1,numpart
     call update_zeta_to_z(itime,i)
@@ -183,6 +189,47 @@ subroutine output_restart(itime)
       part(i)%mesovel%v,part(i)%mesovel%w,(part(i)%mass(j),j=1,nspec), &
       (part(i)%wetdepo(j),j=1,nspec),(part(i)%drydepo(j),j=1,nspec)
   end do
+  if (iout.gt.0) then
+    write(unitrestart) tpointer
+    do ks=1,nspec
+      do kp=1,maxpointspec_act
+        do nage=1,nageclass
+          do jy=0,numygrid-1
+            do ix=0,numxgrid-1
+              do l=1,nclassunc
+                do kz=1,numzgrid
+                  write(unitrestart) gridunc(ix,jy,kz,ks,kp,l,nage)
+                end do
+                if ((wetdep).and.(ldirect.gt.0)) then
+                  write(unitrestart) wetgridunc(ix,jy,ks,kp,l,nage)
+                endif
+                if ((drydep).and.(ldirect.gt.0)) then
+                  write(unitrestart) drygridunc(ix,jy,ks,kp,l,nage)
+                endif
+              end do
+            end do
+          end do
+          if (nested_output.eq.1) then
+            do jy=0,numygridn-1
+              do ix=0,numxgridn-1
+                do l=1,nclassunc
+                  do kz=1,numzgrid
+                    write(unitrestart) griduncn(ix,jy,kz,ks,kp,l,nage)
+                  end do
+                  if ((wetdep).and.(ldirect.gt.0)) then
+                    write(unitrestart) wetgriduncn(ix,jy,ks,kp,l,nage)
+                  endif
+                  if ((drydep).and.(ldirect.gt.0)) then
+                    write(unitrestart) drygriduncn(ix,jy,ks,kp,l,nage)
+                  endif
+                end do
+              end do
+            end do
+          endif
+        end do
+      end do
+    end do
+  endif
   close(unitrestart)
 
   open(unit=1234, iostat=stat, file=restart_filename3, status='old')

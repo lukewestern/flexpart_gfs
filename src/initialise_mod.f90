@@ -624,11 +624,14 @@ subroutine readrestart
   ! Variables:                                                                 *
   !                                                                            *
   !*****************************************************************************
+  use netcdf_output_mod
+  use unc_mod
 
   implicit none
 
   integer :: i,j,ios
   integer :: id1,id2,it1,it2
+  integer :: ks,kp,kz,nage,jy,ix,l
   real(kind=dp) :: julin,julpartin
   integer :: idummy = -8
 
@@ -638,8 +641,12 @@ subroutine readrestart
   open(unitpartin,file=path(2)(1:length(2))//'restart.bin', &
        form='unformatted',err=9989)
 
+  write(*,*) 'Reading Restart file:', path(2)(1:length(2))//'restart.bin'
+  
   read(unitpartin,iostat=ios) itime_init
   read(unitpartin) numpart
+  read(unitpartin) loutnext_init
+  read(unitpartin) outnum_init
   call spawn_particles(itime_init, numpart)
   do i=1,numpart
     read(unitpartin) part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta, &
@@ -652,6 +659,47 @@ subroutine readrestart
     part(i)%meterupdate=.true.
     if (.not. part(i)%alive) call terminate_particle(i)
   end do
+  if (iout.gt.0) then 
+    read(unitpartin) tpointer
+    do ks=1,nspec
+      do kp=1,maxpointspec_act
+        do nage=1,nageclass
+          do jy=0,numygrid-1
+            do ix=0,numxgrid-1
+              do l=1,nclassunc
+                do kz=1,numzgrid
+                  read(unitpartin) gridunc(ix,jy,kz,ks,kp,l,nage)
+                end do
+                if ((wetdep).and.(ldirect.gt.0)) then
+                  read(unitpartin) wetgridunc(ix,jy,ks,kp,l,nage)
+                endif
+                if ((drydep).and.(ldirect.gt.0)) then
+                  read(unitpartin) drygridunc(ix,jy,ks,kp,l,nage)
+                endif
+              end do
+            end do
+          end do
+          if (nested_output.eq.1) then
+            do jy=0,numygridn-1
+              do ix=0,numxgridn-1
+                do l=1,nclassunc
+                  do kz=1,numzgrid
+                    read(unitpartin) griduncn(ix,jy,kz,ks,kp,l,nage)
+                  end do
+                  if ((wetdep).and.(ldirect.gt.0)) then
+                    read(unitpartin) wetgriduncn(ix,jy,ks,kp,l,nage)
+                  endif
+                  if ((drydep).and.(ldirect.gt.0)) then
+                    read(unitpartin) drygriduncn(ix,jy,ks,kp,l,nage)
+                  endif
+                end do
+              end do
+            end do
+          endif
+        end do
+      end do
+    end do
+  endif
   close(unitpartin)
 
   julin=juldate(ibdate,ibtime)+real(itime_init,kind=dp)/86400._dp
