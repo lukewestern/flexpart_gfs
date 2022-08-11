@@ -704,6 +704,11 @@ subroutine readrestart
           endif
         end do
       end do
+      if ((drybkdep).or.(wetbkdep)) then
+        do i=1,numpart
+          read(unitpartin) xscav_frac1(i,ks)
+        end do
+      endif
     end do
   endif
   close(unitpartin)

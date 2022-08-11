@@ -228,6 +228,11 @@ subroutine output_restart(itime,loutnext,outnum)
           endif
         end do
       end do
+      if ((drybkdep).or.(wetbkdep)) then
+        do i=1,numpart
+          write(unitrestart) xscav_frac1(i,ks)
+        end do
+      endif
     end do
   endif
   close(unitrestart)
