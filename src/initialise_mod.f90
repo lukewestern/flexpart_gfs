@@ -663,7 +663,14 @@ subroutine readrestart
       (part(i)%wetdepo(j),j=1,nspec),(part(i)%drydepo(j),j=1,nspec)
     part(i)%etaupdate=.true.
     part(i)%meterupdate=.true.
-    if (.not. part(i)%alive) call terminate_particle(i)
+    if (.not. part(i)%alive) then
+      if (part(i)%tstart.le.itime_init) then
+        call terminate_particle(i)
+      else ! Particle is not spawned yet (original run with ipin=3)
+        count%alive = count%alive - 1
+        count%spawned = count%spawned -1
+      endif
+    endif
   end do
   if (iout.gt.0) then 
     read(unitpartin) tpointer
@@ -713,6 +720,8 @@ subroutine readrestart
   endif
   close(unitpartin)
 
+  numpart=count%spawned
+  
   julin=juldate(ibdate,ibtime)+real(itime_init,kind=dp)/86400._dp
   if (abs(julin-bdate).le.1.e-5) then
     write(*,*) ' #### FLEXPART ERROR: PLEASE KEEP IBDATE     #### '

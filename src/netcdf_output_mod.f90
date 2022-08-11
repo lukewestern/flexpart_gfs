@@ -337,7 +337,7 @@ subroutine writeheader_netcdf(lnest)
   cache_size = 16 * nnx * nny * numzgrid
 
   ! If starting from a restart file, new data will be added to the existing grid file
-  if (ipin.eq.1) then
+  if ((ipin.eq.1).or.(ipin.eq.4)) then
     call read_gridIDs(lnest)
     return
   endif
@@ -1783,7 +1783,7 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   ncfname_part = fname_partoutput
 
   totpart=0
-  if (ipin.gt.1) then
+  if (ipin.gt.1) then ! Not reading from a release has no npart
     totpart=numpart
   else
     do j=1,numpoint

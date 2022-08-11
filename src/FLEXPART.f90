@@ -310,7 +310,7 @@ subroutine initialise_warm_start
   implicit none
 
   itime_init=0
-  if (ipin.eq.1) then ! Restarting from restart.bin file
+  if ((ipin.eq.1).or.(ipin.eq.4)) then ! Restarting from restart.bin file
     call readrestart
   else if (ipin.eq.2) then ! Restarting from netcdf partoutput file
 #ifdef USE_NCF
@@ -329,4 +329,5 @@ subroutine initialise_warm_start
     numpart=0
     numparticlecount=0
   endif
+
 end subroutine initialise_warm_start

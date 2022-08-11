@@ -422,8 +422,10 @@ subroutine readcommand
   ! iout                 1 for conc. (residence time for backward runs) output,*
   !                      2 for mixing ratio output, 3 both, 4 for plume        *
   !                      trajectory output, 5 = options 1 and 4                *
-  ! ipin                 1 continue simulation with dumped particle data, 0 no *
-  !                      2 use self-defined initial conditions in netcdf       *
+  ! ipin                 1 continue simulation with restart.bin file,          *
+  !                      2 continue simulaion with dumped particle data, 0 no  *
+  !                      3 use self-defined initial conditions in netcdf       *
+  !                      4 initial run using option 3, restart from restart.bin*
   ! ipout                0 no particle dump, 1 every output time, 3 only at end*
   ! ipoutfac             increase particle dump interval by factor (default 1) *
   ! loutaver [s]         concentration output is an average over loutaver      *

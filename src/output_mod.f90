@@ -175,11 +175,11 @@ subroutine output_restart(itime,loutnext,outnum)
   !***************************
 
   write(unitrestart) itime
-  write(unitrestart) numpart
+  write(unitrestart) count%allocated
   write(unitrestart) loutnext
   write(unitrestart) outnum
 
-  do i=1,numpart
+  do i=1,count%allocated
     call update_zeta_to_z(itime,i)
     call update_z_to_zeta(itime,i)
     write(unitrestart) part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta, &
@@ -229,7 +229,7 @@ subroutine output_restart(itime,loutnext,outnum)
         end do
       end do
       if ((drybkdep).or.(wetbkdep)) then
-        do i=1,numpart
+        do i=1,count%allocated
           write(unitrestart) xscav_frac1(i,ks)
         end do
       endif

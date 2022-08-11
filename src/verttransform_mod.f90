@@ -141,7 +141,7 @@ subroutine initialise_ecmwf_verttransform(n)
   integer :: ix,jy,kz,ixm,jym
   real,parameter :: const=r_air/ga
 
-  if (ipin.eq.1) then
+  if ((ipin.eq.1).or.(ipin.eq.4)) then
     call read_heightlevels(height,nmixz)
     return
   endif
