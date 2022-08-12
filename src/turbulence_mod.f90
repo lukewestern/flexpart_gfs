@@ -14,14 +14,15 @@ module turbulence_mod
 
 contains
 
-subroutine turbulence_boundarylayer(ipart,nrand,dt,zts,rhoa,rhograd)
+subroutine turbulence_boundarylayer(ipart,nrand,dt,zts,rhoa,rhograd,thread)
   
   use cbl_mod
   
   implicit none 
 
   integer, intent(in) ::          &
-    ipart                           ! particle index
+    ipart,                        & ! particle index
+    thread                          ! number of the omp thread
   integer, intent(inout) ::       &
     nrand                           ! random number used for turbulence
   real,intent(in) ::              &
@@ -91,37 +92,37 @@ subroutine turbulence_boundarylayer(ipart,nrand,dt,zts,rhoa,rhograd)
           ! LB needs to be checked if this works with openmp
           if (cblflag.eq.1) then  !modified by mc
             if (-h/ol.gt.5) then  !modified by mc
-                flagrein=0
-                nrand=nrand+1
-                old_wp_buf=part(ipart)%turbvel%w
-                call cbl(part(ipart)%turbvel%w,zts,ust,wst,h,rhoa,rhograd,&
-                  sigw,dsigwdz,tlw,ptot_lhh,Q_lhh,phi_lhh,ath,bth,ol,flagrein) !inside the routine for inverse time
-                part(ipart)%turbvel%w=(part(ipart)%turbvel%w+ath*dtf+&
-                  bth*rannumb(nrand)*sqrt(dtf))*real(part(ipart)%icbt) 
+              flagrein=0
+              nrand=nrand+1
+              old_wp_buf=part(ipart)%turbvel%w
+              call cbl(part(ipart)%turbvel%w,zts,ust,wst,h,rhoa,rhograd,&
+                sigw,dsigwdz,tlw,ptot_lhh,Q_lhh,phi_lhh,ath,bth,ol,flagrein) !inside the routine for inverse time
+              part(ipart)%turbvel%w=(part(ipart)%turbvel%w+ath*dtf+&
+                bth*rannumb(nrand)*sqrt(dtf))*real(part(ipart)%icbt) 
+              delz=part(ipart)%turbvel%w*dtf
+              if (flagrein.eq.1) then
+                call re_initialize_particle(zts,ust,wst,h,sigw,old_wp_buf,nrand,ol)
+                part(ipart)%turbvel%w=old_wp_buf
                 delz=part(ipart)%turbvel%w*dtf
-                if (flagrein.eq.1) then
-                    call re_initialize_particle(zts,ust,wst,h,sigw,old_wp_buf,nrand,ol)
-                    part(ipart)%turbvel%w=old_wp_buf
-                    delz=part(ipart)%turbvel%w*dtf
-                    nan_count=nan_count+1
-                end if             
+                nan_count(thread)=nan_count(thread)+1
+              end if             
             else 
-                nrand=nrand+1
-                old_wp_buf=part(ipart)%turbvel%w
-                ath=-part(ipart)%turbvel%w/tlw+sigw*dsigwdz+&
-                  part(ipart)%turbvel%w*part(ipart)%turbvel%w/sigw*dsigwdz+sigw*sigw/rhoa*rhograd  !1-note for inverse time should be -wp/tlw*ldirect+... calculated for wp=-wp
-                                                                                    !2-but since ldirect =-1 for inverse time and this must be calculated for (-wp) and
-                                                                                    !3-the gaussian pdf is symmetric (i.e. pdf(w)=pdf(-w) ldirect can be discarded
-                bth=sigw*rannumb(nrand)*sqrt(2.*dtftlw)
-                part(ipart)%turbvel%w=(part(ipart)%turbvel%w+ath*dtf+bth)*real(part(ipart)%icbt)  
+              nrand=nrand+1
+              old_wp_buf=part(ipart)%turbvel%w
+              ath=-part(ipart)%turbvel%w/tlw+sigw*dsigwdz+&
+                part(ipart)%turbvel%w*part(ipart)%turbvel%w/sigw*dsigwdz+sigw*sigw/rhoa*rhograd  !1-note for inverse time should be -wp/tlw*ldirect+... calculated for wp=-wp
+                                                                                  !2-but since ldirect =-1 for inverse time and this must be calculated for (-wp) and
+                                                                                  !3-the gaussian pdf is symmetric (i.e. pdf(w)=pdf(-w) ldirect can be discarded
+              bth=sigw*rannumb(nrand)*sqrt(2.*dtftlw)
+              part(ipart)%turbvel%w=(part(ipart)%turbvel%w+ath*dtf+bth)*real(part(ipart)%icbt)  
+              delz=part(ipart)%turbvel%w*dtf
+              del_test=(1.-part(ipart)%turbvel%w)/part(ipart)%turbvel%w !catch infinity value
+              if (isnan(part(ipart)%turbvel%w).or.isnan(del_test)) then 
+                nrand=nrand+1                      
+                part(ipart)%turbvel%w=sigw*rannumb(nrand)
                 delz=part(ipart)%turbvel%w*dtf
-                del_test=(1.-part(ipart)%turbvel%w)/part(ipart)%turbvel%w !catch infinity value
-                if (isnan(part(ipart)%turbvel%w).or.isnan(del_test)) then 
-                    nrand=nrand+1                      
-                    part(ipart)%turbvel%w=sigw*rannumb(nrand)
-                    delz=part(ipart)%turbvel%w*dtf
-                    nan_count2=nan_count2+1
-                end if  
+                nan_count(thread)=nan_count(thread)+1
+              end if
             end if
   !******************** END CBL option *******************************            
   !*******************************************************************            

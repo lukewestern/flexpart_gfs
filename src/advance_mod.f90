@@ -23,9 +23,7 @@ module advance_mod
     advance_updateXY,advance_adjusttopheight
 contains
   
-subroutine advance(itime,ipart)
-  !                     i    i  i/oi/oi/o
-  !  i/o     i/o     i/o     o  i/oi/oi/o i/o  i/o
+subroutine advance(itime,ipart,thread)
   !*****************************************************************************
   !                                                                            *
   !  Calculation of turbulent particle trajectories utilizing a                *
@@ -104,7 +102,8 @@ subroutine advance(itime,ipart)
   implicit none
   integer, intent(in) ::          &
     itime,                        & ! time index
-    ipart                           ! particle index
+    ipart,                        & ! particle index
+    thread                          ! OMP thread
   integer ::                      &
     itimec,                       &
     i,j,k,                        & ! loop variables
@@ -112,7 +111,6 @@ subroutine advance(itime,ipart)
     memindnext,                   & ! seems useless
     ngr,                          & ! temporary new grid index of moved particle
     nsp,                          & ! loop variables for number of species
-    thread,                       & ! number of openmp threads (probably can be removed)
     idummy = -7                     ! used in random number routines
   real ::                         &
     ux,vy,                        & ! random turbulent velocities above PBL
@@ -126,7 +124,6 @@ subroutine advance(itime,ipart)
   save idummy
 !$OMP THREADPRIVATE(idummy)  
 !$    if (idummy.eq.-7) then
-!$      thread = OMP_GET_THREAD_NUM()
 !$      idummy = idummy - thread
 !$    endif
   ! openmp change end 
@@ -212,7 +209,7 @@ subroutine advance(itime,ipart)
   if (zeta.le.1.) then
     abovePBL=.false.
     call advance_PBL(itime,itimec,&
-      dxsave,dysave,dawsave,dcwsave,abovePBL,nrand,ipart)
+      dxsave,dysave,dawsave,dcwsave,abovePBL,nrand,ipart,thread)
   endif 
 
   !**********************************************************
@@ -409,7 +406,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
 end subroutine advance_abovePBL
 
 subroutine advance_PBL(itime,itimec,&
-  dxsave,dysave,dawsave,dcwsave,abovePBL,nrand,ipart)
+  dxsave,dysave,dawsave,dcwsave,abovePBL,nrand,ipart,thread)
   use drydepo_mod, only: drydepo_probability
 
   implicit none
@@ -418,7 +415,8 @@ subroutine advance_PBL(itime,itimec,&
     abovePBL                        ! flag that will be set to 'true' if computation needs to be completed above PBL
   integer, intent(in) ::          &
     itime,                        & ! time index
-    ipart                           ! particle index
+    ipart,                        & ! particle index
+    thread                          ! number of the omp thread
   real, intent(inout) ::          &
     dxsave,dysave,                & ! accumulated displacement in long and lat
     dawsave,dcwsave                 ! accumulated displacement in wind directions
@@ -491,7 +489,7 @@ subroutine advance_PBL(itime,itimec,&
   ! Determine the sigmas and the timescales 
   !****************************************
     if (.not.turboff) then
-      call turbulence_boundarylayer(ipart,nrand,dt,zts,rhoa,rhograd) ! Note: zts and nrand get updated
+      call turbulence_boundarylayer(ipart,nrand,dt,zts,rhoa,rhograd,thread) ! Note: zts and nrand get updated
     ! Determine time step for next integration
     !*****************************************
       if (turbswitch) then

@@ -477,7 +477,8 @@ module com_mod
   ! variables to control stability of CBL scheme under variation 
   ! of statistics in time and space 
   !********************************************************************
-  integer :: nan_count,nan_count2,sum_nan_count(3600),maxtl=1200 
+  integer :: sum_nan_count(3600),maxtl=1200
+  integer,allocatable,dimension(:) :: nan_count
   !added by mc , note that for safety sum_nan_count(N) with N>maxtl
 
   !********************************************************************

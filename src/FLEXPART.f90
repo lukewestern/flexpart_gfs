@@ -299,6 +299,9 @@ subroutine read_options_and_initialise_flexpart
     cbasefluxn(0:nxn(inest)-1,0:nyn(inest)-1,inest)=0.
   end do
 
+  ! Allocating nan_count for CBL option
+  !************************************
+  allocate(nan_count(numthreads))
 end subroutine read_options_and_initialise_flexpart
 
 

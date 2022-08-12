@@ -142,6 +142,10 @@ subroutine timemanager
   loutstart=loutnext-loutaver/2
   loutend=loutnext+loutaver/2
 
+  ! Initialise the nan count for CBL option
+  !****************************************
+  sum_nan_count = 0
+
   !**********************************************************************
   ! Loop over the whole modelling period in time steps of mintime seconds
   !**********************************************************************
@@ -313,7 +317,9 @@ subroutine timemanager
 !$OMP PARALLEL PRIVATE(prob_rec,ks,thread,j)
 
 #if (defined _OPENMP)
-        thread = OMP_GET_THREAD_NUM()
+    thread = OMP_GET_THREAD_NUM()
+#else
+    thread = 1
 #endif
 
 !$OMP DO
@@ -362,7 +368,7 @@ subroutine timemanager
   ! Integrate Lagevin equation for lsynctime seconds
   !*************************************************
 
-      call advance(itime,j)
+      call advance(itime,j,thread)
 
       if (n_average.gt.0) call partpos_average(itime,j)
     end do 
@@ -459,7 +465,9 @@ subroutine timemanager
     
     total_nan_intl=0
     i_nan=i_nan+1 ! added by mc to count nan during a time of maxtl (i.e. maximum tl fixed here to 20 minutes, see com_mod)
-    sum_nan_count(i_nan)=nan_count
+    do i=1,numthreads
+      sum_nan_count(i_nan)=sum_nan_count(i_nan)+nan_count(i)
+    end do
     if (i_nan > maxtl/lsynctime) i_nan=1 !lsynctime must be <= maxtl
     do ii_nan=1, (maxtl/lsynctime) 
       total_nan_intl=total_nan_intl+sum_nan_count(ii_nan)
@@ -495,6 +503,7 @@ subroutine timemanager
   deallocate(xpoint1,xpoint2,ypoint1,ypoint2,zpoint1,zpoint2,xmass)
   deallocate(ireleasestart,ireleaseend,npart,kindz)
   deallocate(xmasssave)
+  deallocate(nan_count)
   if (ipout.ne.0) deallocate( partopt )
   if (iout.ne.0) then
     deallocate(outheight,outheighthalf)
