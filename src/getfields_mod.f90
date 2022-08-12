@@ -1131,6 +1131,7 @@ subroutine calcpar_nests(n)
   real :: rh,subsceff,ylat
   real :: altmin,tvold,pold,zold,pint,tv
   real :: vd(maxspec)
+  real :: z0_tmp(numclass) ! temporary variable for z0 (shared between OMP threads)
   real,parameter :: const=r_air/ga
 
 
@@ -1141,7 +1142,14 @@ subroutine calcpar_nests(n)
 
   ! Loop over entire grid
   !**********************
+  z0_tmp = z0
+!$OMP PARALLEL DEFAULT(SHARED) &
+!$OMP PRIVATE(i,ix,jy,kz,lz,kzmin,tvold,pold,zold,zlev,tv,pint, &
+!$OMP rh,ierr,subsceff,ulev,vlev,ttlev,qvlev,ol,altmin,ylat,hmixplus, &
+!$OMP dummyakzllev,vd )
+  z0 = z0_tmp
 
+!$OMP DO
   do jy=0,nyn(l)-1
 
   ! Set minimum height for tropopause
@@ -1294,6 +1302,9 @@ subroutine calcpar_nests(n)
 
     end do
   end do
+
+!$OMP END DO
+!$OMP END PARALLEL
 
   ! Calculation of potential vorticity on 3-d grid
   !***********************************************
