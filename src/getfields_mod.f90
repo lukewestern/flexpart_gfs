@@ -881,7 +881,7 @@ subroutine calcpar(n)
   ! openmp change
   z0_tmp = z0
   !$OMP PARALLEL PRIVATE(jy,ix,ulev,vlev,ttlev,qvlev,llev,ylat,ol,i,hmixplus, &
-  !$OMP subsceff,vd,kz,lz,zlev,rh,kzmin,pold,zold,tvold,pint,tv,loop_start)
+  !$OMP subsceff,vd,kz,lz,zlev,rh,kzmin,pold,zold,tvold,pint,tv,loop_start,ierr)
   z0 = z0_tmp
 
   !$OMP DO
