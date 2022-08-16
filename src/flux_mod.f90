@@ -26,7 +26,7 @@ module flux_mod
 
 contains
 
-subroutine calcfluxes(itime,nage,jpart,xold,yold,zold)
+subroutine calcfluxes(itime,nage,jpart,xold,yold,zold,thread)
   !                       i     i    i    i    i
   !*****************************************************************************
   !                                                                            *
@@ -54,7 +54,7 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold)
   use coordinates_ecmwf
 
   implicit none
-
+  integer, intent(in) :: thread ! for OMP, number of thread
   integer :: itime,jpart,nage,ixave,jyave,kz,kzave,kp
   integer :: k,k1,k2,ix,ix1,ix2,ixs,jy,jy1,jy2
   real :: xold,yold,zold,xmean,ymean
@@ -96,14 +96,26 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold)
 
     do k=1,nspec
       do kz=k1,k2-1
+#ifdef _OPENMP
+        flux_omp(5,ixave,jyave,kz,k,kp,nage,thread)= &
+             flux_omp(5,ixave,jyave,kz,k,kp,nage,thread)+ &
+             part(jpart)%mass(k)
+#else
         flux(5,ixave,jyave,kz,k,kp,nage)= &
              flux(5,ixave,jyave,kz,k,kp,nage)+ &
              part(jpart)%mass(k)
+#endif
       end do
       do kz=k2,k1-1
+#ifdef _OPENMP
+        flux_omp(6,ixave,jyave,kz,k,kp,nage,thread)= &
+             flux_omp(6,ixave,jyave,kz,k,kp,nage,thread)+ &
+             part(jpart)%mass(k)
+#else
         flux(6,ixave,jyave,kz,k,kp,nage)= &
              flux(6,ixave,jyave,kz,k,kp,nage)+ &
              part(jpart)%mass(k)
+#endif
       end do
     end do
   endif
@@ -123,16 +135,28 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold)
       do k=1,nspec
         do ix=ix1,ix2-1
           if ((ix.ge.0).and.(ix.le.numxgrid-1)) then
+#ifdef _OPENMP
+            flux_omp(1,ix,jyave,kzave,k,kp,nage,thread)= &
+                 flux_omp(1,ix,jyave,kzave,k,kp,nage,thread) &
+                 +part(jpart)%mass(k)
+#else
             flux(1,ix,jyave,kzave,k,kp,nage)= &
                  flux(1,ix,jyave,kzave,k,kp,nage) &
                  +part(jpart)%mass(k)
+#endif
           endif
         end do
         do ix=ix2,ix1-1
           if ((ix.ge.0).and.(ix.le.numxgrid-1)) then
+#ifdef _OPENMP
+            flux_omp(2,ix,jyave,kzave,k,kp,nage,thread)= &
+                 flux_omp(2,ix,jyave,kzave,k,kp,nage,thread) &
+                 +part(jpart)%mass(k)
+#else
             flux(2,ix,jyave,kzave,k,kp,nage)= &
                  flux(2,ix,jyave,kzave,k,kp,nage) &
                  +part(jpart)%mass(k)
+#endif
           endif
         end do
       end do
@@ -146,15 +170,27 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold)
       if ((ixs.ge.0).and.(ixs.le.numxgrid-1)) then
         if (xold.gt.part(jpart)%xlon) then       ! west-east flux
           do k=1,nspec
+#ifdef _OPENMP
+            flux_omp(1,ixs,jyave,kzave,k,kp,nage,thread)= &
+                 flux_omp(1,ixs,jyave,kzave,k,kp,nage,thread) &
+                 +part(jpart)%mass(k)
+#else
             flux(1,ixs,jyave,kzave,k,kp,nage)= &
                  flux(1,ixs,jyave,kzave,k,kp,nage) &
                  +part(jpart)%mass(k)
+#endif
           end do
         else                                 ! east-west flux
           do k=1,nspec
+#ifdef _OPENMP
+            flux_omp(2,ixs,jyave,kzave,k,kp,nage,thread)= &
+                 flux_omp(2,ixs,jyave,kzave,k,kp,nage,thread) &
+                 +part(jpart)%mass(k)
+#else
             flux(2,ixs,jyave,kzave,k,kp,nage)= &
                  flux(2,ixs,jyave,kzave,k,kp,nage) &
                  +part(jpart)%mass(k)
+#endif
           end do
         endif
       endif
@@ -173,16 +209,28 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold)
     do k=1,nspec
       do jy=jy1,jy2-1
         if ((jy.ge.0).and.(jy.le.numygrid-1)) then
+#ifdef _OPENMP
+          flux_omp(3,ixave,jy,kzave,k,kp,nage,thread)= &
+               flux_omp(3,ixave,jy,kzave,k,kp,nage,thread) &
+               +part(jpart)%mass(k)
+#else
           flux(3,ixave,jy,kzave,k,kp,nage)= &
                flux(3,ixave,jy,kzave,k,kp,nage) &
                +part(jpart)%mass(k)
+#endif
         endif
       end do
       do jy=jy2,jy1-1
         if ((jy.ge.0).and.(jy.le.numygrid-1)) then
+#ifdef _OPENMP
+          flux_omp(4,ixave,jy,kzave,k,kp,nage,thread)= &
+               flux_omp(4,ixave,jy,kzave,k,kp,nage,thread) &
+               +part(jpart)%mass(k)
+#else
           flux(4,ixave,jy,kzave,k,kp,nage)= &
                flux(4,ixave,jy,kzave,k,kp,nage) &
                +part(jpart)%mass(k)
+#endif
         endif
       end do
     end do
@@ -466,7 +514,7 @@ subroutine fluxoutput(itime)
 
   close(unitflux)
 
-
+  write(*,*) 'Flux:', itime, flux(:,ix,jy,kz,k,kp,nage)
   ! Reinitialization of grid
   !*************************
 

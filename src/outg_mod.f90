@@ -32,6 +32,7 @@ module outg_mod
   integer,allocatable, dimension (:) :: sparse_dump_i
 
   real,allocatable, dimension (:,:,:,:,:,:,:) :: flux
+  real,allocatable, dimension (:,:,:,:,:,:,:,:) :: flux_omp
 
   !1 fluxw west - east
   !2 fluxe east - west
@@ -219,6 +220,10 @@ subroutine outgrid_init
   if (iflux.eq.1) then
     allocate(flux(6,0:numxgrid-1,0:numygrid-1,numzgrid, &
          1:nspec,1:maxpointspec_act,1:nageclass),stat=stat)
+#ifdef _OPENMP
+    allocate(flux_omp(6,0:numxgrid-1,0:numygrid-1,numzgrid, &
+         1:nspec,1:maxpointspec_act,1:nageclass,numthreads))
+#endif
     if (stat.ne.0) write(*,*)'ERROR: could not allocate flux array '
   endif
 

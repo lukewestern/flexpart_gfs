@@ -322,7 +322,8 @@ subroutine timemanager
     thread = 1
 #endif
 
-!$OMP DO
+!$OMP DO SCHEDULE(dynamic, max(1,numpart/1000))
+!max(1,int(real(numpart)/numthreads/20.)))
     do j=1,numpart
 
   ! If integration step is due, do it
@@ -376,6 +377,16 @@ subroutine timemanager
 !$OMP END DO
 !$OMP END PARALLEL
 
+
+!$OMP PARALLEL PRIVATE(prob_rec,ks,kp,j,xmassfract,drydeposit,thread) 
+! !$OMP REDUCTION(+:flux,init_cond,drygridunc,drygriduncn)
+#if (defined _OPENMP)
+    thread = OMP_GET_THREAD_NUM()
+#else
+    thread = 1
+#endif
+
+!$OMP DO SCHEDULE(dynamic, max(1,numpart/1000))
     do j=1,numpart
   ! If integration step is due, do it
   !**********************************
@@ -390,7 +401,7 @@ subroutine timemanager
   !***************************************************
 
       if (iflux.eq.1) call calcfluxes(itime,nage,j,real(part(j)%xlon_prev), &
-        real(part(j)%ylat_prev),real(part(j)%z_prev)) !OMP reduction necessary for flux array
+        real(part(j)%ylat_prev),real(part(j)%z_prev),thread) !OMP reduction necessary for flux array
 
 
   ! Determine, when next time step is due
@@ -456,8 +467,15 @@ subroutine timemanager
 
     end do !loop over particles
 
+!$OMP END DO
+!$OMP END PARALLEL
 
-  ! openmp change end
+  ! OpenMP Reduction for dynamically allocated arrays. This is done manually since this
+  ! is not yet supported in most OpenMP versions
+  !************************************************************************************
+    do i=1,numthreads
+      flux=flux+flux_omp(:,:,:,:,:,:,:,i)
+    end do
 
   ! Counter of "unstable" particle velocity during a time scale of
   ! maximumtl=20 minutes (defined in com_mod)

@@ -91,7 +91,7 @@ program flexpart
   !****************************************************************
 #ifdef _OPENMP
     numthreads = OMP_GET_MAX_THREADS()
-    numthreads = min(40,numthreads)
+    !numthreads = min(40,numthreads)
 #else
     numthreads = 1
 #endif

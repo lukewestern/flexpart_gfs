@@ -154,7 +154,7 @@ subroutine convmix(itime)
   implicit none
 
   integer :: igr,igrold, ipart, itime, ix, j, inest
-  integer :: ipconv
+  integer :: ipconv,thread,ithread
   integer :: jy, kpart, ktop, ngrid,kz
   integer,allocatable :: igrid(:), ipoint(:), igridn(:,:)
 
@@ -298,7 +298,13 @@ subroutine convmix(itime)
   frst(cnt) = numpart+1
 
 !$OMP PARALLEL PRIVATE(kk,jy,ix,tmarray,j,kz,ktop,lconv,kpart,ipart,&
-!$OMP ztold,nage,ipconv)
+!$OMP ztold,nage,ipconv,thread)
+
+#if (defined _OPENMP)
+    thread = OMP_GET_THREAD_NUM()
+#else
+    thread = 1
+#endif
 
 !$OMP DO SCHEDULE(static)
   do kk=1,cnt-1
@@ -357,7 +363,7 @@ subroutine convmix(itime)
 
           if (nage.le.nageclass) &
             call calcfluxes(itime,nage,ipart,real(part(ipart)%xlon), &
-               real(part(ipart)%ylat),ztold)
+               real(part(ipart)%ylat),ztold,thread)
         endif
       enddo
 
@@ -365,6 +371,13 @@ subroutine convmix(itime)
   end do
 !$OMP END DO
 !$OMP END PARALLEL
+
+  ! OpenMP Reduction for dynamically allocated arrays. This is done manually since this
+  ! is not yet supported in most OpenMP versions
+  !************************************************************************************
+  do ithread=1,numthreads
+    flux=flux+flux_omp(:,:,:,:,:,:,:,ithread)
+  end do
 
   deallocate(frst)
 
@@ -436,13 +449,14 @@ subroutine convmix(itime)
 
           if (nage.le.nageclass) &
                call calcfluxes(itime,nage,ipart,real(part(ipart)%xlon), &
-               real(part(ipart)%ylat),ztold)
+               real(part(ipart)%ylat),ztold,1)
         endif
 
       endif !(lconv .eqv. .true.)
 
     end do
   end do
+  flux=flux_omp(:,:,:,:,:,:,:,1)
   !--------------------------------------------------------------------------
   ! write(*,*)'############################################'
   ! write(*,*)'TIME=',&
@@ -852,6 +866,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
             (tconv(levold)-tconv(levold-1)) &
             *(pconv(levold-1)-phconv(levold))/ &
             (pconv(levold-1)-pconv(levold))
+        ! Bug fix: Added lsynctime to make units correct
         sub_levold = sub(levold)/(1.-ga*sub(levold)*lsynctime/dpr(levold))
         wsub(levold)=-1.*sub_levold*r_air*temp_levold/(phconv(levold))
       else
@@ -862,6 +877,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
           (tconv(levold+1)-tconv(levold)) &
           *(pconv(levold)-phconv(levold+1))/ &
           (pconv(levold)-pconv(levold+1))
+      ! Bug fix: Added lsynctime to make units correct
       sub_levold1 = sub(levold+1)/(1.-ga*sub(levold+1)*lsynctime/dpr(levold+1))
       wsub(levold+1)=-1.*sub_levold1*r_air*temp_levold1/ &
           (phconv(levold+1))
