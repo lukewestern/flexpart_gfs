@@ -242,6 +242,14 @@ subroutine outgrid_init
     allocate(drygridunc(0:numxgrid-1,0:numygrid-1,maxspec, &
          maxpointspec_act,nclassunc,maxageclass),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc'
+#ifdef _OPENMP
+    allocate(wetgridunc_omp(0:numxgrid-1,0:numygrid-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass,numthreads),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc_omp'
+    allocate(drygridunc_omp(0:numxgrid-1,0:numygrid-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass,numthreads),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc_omp'
+#endif
   endif
 
 #ifdef USE_MPIINPLACE
@@ -366,6 +374,8 @@ subroutine outgrid_init
               if (ldirect.gt.0) then
               wetgridunc(ix,jy,ks,kp,l,nage)=0.
               drygridunc(ix,jy,ks,kp,l,nage)=0.
+              wetgridunc_omp(ix,jy,ks,kp,l,nage,:)=0.
+              drygridunc_omp(ix,jy,ks,kp,l,nage,:)=0.
               endif
               do kz=1,numzgrid
                 if (iflux.eq.1) then
@@ -438,6 +448,14 @@ subroutine outgrid_init_nest
     allocate(drygriduncn(0:numxgridn-1,0:numygridn-1,maxspec, &
          maxpointspec_act,nclassunc,maxageclass),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
+#ifdef _OPENMP
+    allocate(wetgriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass,numthreads),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested wetgridunc_omp'
+    allocate(drygriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass,numthreads),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested drygriduncn_omp'
+#endif
   endif
 
 #ifdef USE_MPIINPLACE
@@ -613,6 +631,8 @@ subroutine outgrid_init_nest
               if (ldirect.gt.0) then
                 wetgriduncn(ix,jy,ks,kp,l,nage)=0.
                 drygriduncn(ix,jy,ks,kp,l,nage)=0.
+                wetgriduncn_omp(ix,jy,ks,kp,l,nage,:)=0.
+                drygriduncn_omp(ix,jy,ks,kp,l,nage,:)=0.
               endif
   ! Concentration fields
               do kz=1,numzgrid

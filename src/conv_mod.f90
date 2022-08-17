@@ -372,17 +372,16 @@ subroutine convmix(itime)
 !$OMP END DO
 !$OMP END PARALLEL
 
+  deallocate(frst)
+
   ! OpenMP Reduction for dynamically allocated arrays. This is done manually since this
   ! is not yet supported in most OpenMP versions
   !************************************************************************************
   if (iflux.eq.1) then
     do ithread=1,numthreads
-      flux=flux+flux_omp(:,:,:,:,:,:,:,ithread)
+      flux(:,:,:,:,:,:,:)=flux(:,:,:,:,:,:,:)+flux_omp(:,:,:,:,:,:,:,ithread)
     end do
   endif
-
-  deallocate(frst)
-
 
   !*****************************************************************************
   ! 2. Nested domains
@@ -464,7 +463,7 @@ subroutine convmix(itime)
   !************************************************************************************
   if (iflux.eq.1) then
     do ithread=1,numthreads
-      flux=flux+flux_omp(:,:,:,:,:,:,:,ithread)
+      flux(:,:,:,:,:,:,:)=flux(:,:,:,:,:,:,:)+flux_omp(:,:,:,:,:,:,:,ithread)
     end do
   endif
   !--------------------------------------------------------------------------

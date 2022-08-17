@@ -190,7 +190,7 @@ subroutine timemanager
     
   ! Get necessary wind fields if not available
   !*******************************************
-    call getfields(itime,nstop1)
+    call getfields(itime,nstop1) !OMP on verttransform_ecmwf and readwind_ecmwf, getfields_mod.f90
     if (nstop1.gt.1) stop 'NO METEO FIELDS AVAILABLE'
 
   ! In case of ETA coordinates being read from file, convert the z positions
@@ -207,45 +207,49 @@ subroutine timemanager
     endif
 
     if (WETDEP .and. (itime.ne.0) .and. (numpart.gt.0)) then
-      call wetdepo(itime,lsynctime,loutnext)
+      call wetdepo(itime,lsynctime,loutnext) !OMP, wetdepo_mod.f90 (needs test)
     endif
 
     if (OHREA .and. (itime.ne.0) .and. (numpart.gt.0)) &
-      call ohreaction(itime,lsynctime,loutnext)
+      call ohreaction(itime,lsynctime,loutnext) !OMP, oh_mod.f90 (needs test)
 
   ! compute convection for backward runs
   !*************************************
 
-    if ((ldirect.eq.-1).and.(lconvection.eq.1).and.(itime.lt.0)) then    
-      call convmix(itime)
+    if ((ldirect.eq.-1).and.(lconvection.eq.1).and.(itime.lt.0)) then
+      call convmix(itime) !OMP (not the nested part yet), conv_mod.f90
     endif
 
   ! Get hourly OH fields if not available 
   !****************************************************
     if (OHREA) then
-      call gethourlyOH(itime)
+      call gethourlyOH(itime) !OMP, oh_mod.f90 (needs test)
     endif
         
   ! Release particles
   !******************
     if (mdomainfill.ge.1) then
       if (itime.eq.itime_init) then   
-        call init_domainfill
+        call init_domainfill !OMP, initialise_mod.f90 (needs test)
       else 
-        call boundcond_domainfill(itime,loutend)
+        call boundcond_domainfill(itime,loutend) !OMP, initialise_mod.f90 (needs test)
       endif
     else if ((ipin.eq.3).or.(ipin.eq.4)) then
       ! If reading from user defined initial conditions, check which particles are 
       ! to be activated
       if (numpart.le.0) stop 'Something is going wrong reading the part_ic.nc file!'
+!$OMP PARALLEL PRIVATE(i)
+!$OMP DO
       do i=1,count%allocated
         if (.not. part(i)%alive) then
           if ((part(i)%tstart.ge.itime).and.(part(i)%tstart.lt.itime+lsynctime)) then
             call spawn_particle(itime,i)
-            call update_z_to_zeta(itime, i)
+            call update_z_to_zeta(itime,i)
           endif
         endif
       end do
+!$OMP END DO
+!$OMP END PARALLEL
       call get_total_part_num(numpart)
     else
       call releaseparticles(itime)
@@ -255,13 +259,13 @@ subroutine timemanager
   ! for backward runs it is done before next windfield is read in
   !**************************************************************
     if ((ldirect.eq.1).and.(lconvection.eq.1)) then
-      call convmix(itime)
+      call convmix(itime) !OMP (not the nested part yet), conv_mod.f90
     endif
 
   ! If middle of averaging period of output fields is reached, accumulated
   ! deposited mass radioactively decays
   !***********************************************************************
-    if (DEP.and.(itime.eq.loutnext).and.(ldirect.gt.0)) call radioactive_decay()
+    if (DEP.and.(itime.eq.loutnext).and.(ldirect.gt.0)) call radioactive_decay() !ONP, unc_mod.f90 (needs test)
 
 
   ! Is the time within the computation interval, if not, skip
@@ -314,21 +318,29 @@ subroutine timemanager
   ! openmp change
   ! LB, openmp following CTM version, need to be very careful due to big differences
   ! between the openmp loop in this and the CTM version
-!$OMP PARALLEL PRIVATE(prob_rec,ks,thread,j)
+!$OMP PARALLEL PRIVATE(prob_rec,ks,kp,thread,j,xmassfract,drydeposit)
 
 #if (defined _OPENMP)
-    thread = OMP_GET_THREAD_NUM()
+    thread = OMP_GET_THREAD_NUM() ! Starts with 0
 #else
     thread = 1
 #endif
 
-!$OMP DO SCHEDULE(dynamic, max(1,numpart/1000))
+!$OMP DO 
+! SCHEDULE(dynamic, max(1,numpart/1000))
 !max(1,int(real(numpart)/numthreads/20.)))
     do j=1,numpart
 
   ! If integration step is due, do it
   !**********************************
       if (.not. part(j)%alive) cycle
+
+  ! Determine age class of the particle
+  !************************************
+      itage=abs(itime-part(j)%tstart)
+      do nage=1,nageclass
+        if (itage.lt.lage(nage)) exit
+      end do
 
   ! Initialize newly released particle
   !***********************************
@@ -372,31 +384,7 @@ subroutine timemanager
       call advance(itime,j,thread)
 
       if (n_average.gt.0) call partpos_average(itime,j)
-    end do 
 
-!$OMP END DO
-!$OMP END PARALLEL
-
-
-!$OMP PARALLEL PRIVATE(prob_rec,ks,kp,j,xmassfract,drydeposit,thread) 
-! !$OMP REDUCTION(+:flux,init_cond,drygridunc,drygriduncn)
-#if (defined _OPENMP)
-    thread = OMP_GET_THREAD_NUM()
-#else
-    thread = 1
-#endif
-
-!$OMP DO SCHEDULE(dynamic, max(1,numpart/1000))
-    do j=1,numpart
-  ! If integration step is due, do it
-  !**********************************
-      if (.not. part(j)%alive) cycle
-
-  ! Determine age class of the particle
-      itage=abs(itime-part(j)%tstart)
-      do nage=1,nageclass
-        if (itage.lt.lage(nage)) exit
-      end do
   ! Calculate the gross fluxes across layer interfaces
   !***************************************************
 
@@ -450,10 +438,10 @@ subroutine timemanager
           endif
 
           call drydepokernel(part(j)%nclass,drydeposit,real(part(j)%xlon), &
-               real(part(j)%ylat),nage,kp)
+               real(part(j)%ylat),nage,kp,thread+1)
           if (nested_output.eq.1) call drydepokernel_nest( &
                part(j)%nclass,drydeposit,real(part(j)%xlon),real(part(j)%ylat), &
-               nage,kp)
+               nage,kp,thread+1)
         endif
 
   ! Terminate trajectories that are older than maximum allowed age
@@ -473,19 +461,32 @@ subroutine timemanager
   ! OpenMP Reduction for dynamically allocated arrays. This is done manually since this
   ! is not yet supported in most OpenMP versions
   !************************************************************************************
+#ifdef _OPENMP
     if (iflux.eq.1) then
       do i=1,numthreads
-        flux=flux+flux_omp(:,:,:,:,:,:,:,i)
+        flux(:,:,:,:,:,:,:)=flux(:,:,:,:,:,:,:)+flux_omp(:,:,:,:,:,:,:,i)
         flux_omp(:,:,:,:,:,:,:,i)=0.
       end do
     endif
     if (linit_cond.ge.1) then
       do i=1,numthreads
-        init_cond=init_cond+init_cond_omp(:,:,:,:,:,i)
+        init_cond(:,:,:,:,:)=init_cond(:,:,:,:,:)+init_cond_omp(:,:,:,:,:,i)
         init_cond_omp(:,:,:,:,:,i)=0.
       end do
     endif
-    
+    if (DRYDEP.AND.(ldirect.eq.1).and.(iout.ne.0)) then
+      do i=1,numthreads
+        drygridunc(:,:,:,:,:,:)=drygridunc(:,:,:,:,:,:)+drygridunc_omp(:,:,:,:,:,:,i)
+        drygridunc_omp(:,:,:,:,:,:,i)=0.
+      end do
+      if (nested_output.eq.1) then
+        do i=1,numthreads
+          drygriduncn(:,:,:,:,:,:)=drygriduncn(:,:,:,:,:,:)+drygriduncn_omp(:,:,:,:,:,:,i)
+          drygriduncn_omp(:,:,:,:,:,:,i)=0.
+        end do
+      endif
+    endif
+#endif
   ! Counter of "unstable" particle velocity during a time scale of
   ! maximumtl=20 minutes (defined in com_mod)
   !***************************************************************

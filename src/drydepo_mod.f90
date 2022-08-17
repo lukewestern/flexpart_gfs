@@ -301,7 +301,7 @@ subroutine drydepo_massloss(ipart,ks,ldeltat,drydepopart)
     ipart,               & ! particle index
     ks,                  & ! species index
     ldeltat                ! radioactive decay time
-  real,intent(inout) ::  &
+  real,intent(out) ::  &
     drydepopart            ! drydeposit for particle ipart
   real               ::  &
     decfact                ! radioactive decay factor
@@ -322,7 +322,7 @@ subroutine drydepo_massloss(ipart,ks,ldeltat,drydepopart)
   endif
 end subroutine drydepo_massloss
 
-subroutine drydepokernel(nunc,deposit,x,y,nage,kp)
+subroutine drydepokernel(nunc,deposit,x,y,nage,kp,thread)
   !                          i      i    i i  i
   !*****************************************************************************
   !                                                                            *
@@ -354,6 +354,7 @@ subroutine drydepokernel(nunc,deposit,x,y,nage,kp)
 
   implicit none
 
+  integer,intent(in) :: thread
   real(dep_prec), dimension(maxspec) :: deposit
   real :: x,y,ddx,ddy,xl,yl,wx,wy,w
   integer :: ix,jy,ixp,jyp,ks,nunc,nage,kp
@@ -390,8 +391,13 @@ subroutine drydepokernel(nunc,deposit,x,y,nage,kp)
       if ((abs(deposit(ks)).gt.0).and.DRYDEPSPEC(ks)) then
         if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgrid-1).and. &
              (jy.le.numygrid-1)) then
+#ifdef _OPENMP
+          drygridunc_omp(ix,jy,ks,kp,nunc,nage,thread)= &
+               drygridunc_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)
+#else
           drygridunc(ix,jy,ks,kp,nunc,nage)= &
                drygridunc(ix,jy,ks,kp,nunc,nage)+deposit(ks)
+#endif
         end if
       end if
     end do
@@ -400,44 +406,64 @@ subroutine drydepokernel(nunc,deposit,x,y,nage,kp)
 
   ! Determine mass fractions for four grid points
   !**********************************************
-	  do ks=1,nspec
+    do ks=1,nspec
 
-	   if ((abs(deposit(ks)).gt.0).and.DRYDEPSPEC(ks)) then
+     if ((abs(deposit(ks)).gt.0).and.DRYDEPSPEC(ks)) then
 
-	      if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgrid-1).and. &
-	        (jy.le.numygrid-1)) then
-	        w=wx*wy
-	        drygridunc(ix,jy,ks,kp,nunc,nage)= &
-	           drygridunc(ix,jy,ks,kp,nunc,nage)+deposit(ks)*w
-	     endif
+        if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgrid-1).and. &
+          (jy.le.numygrid-1)) then
+          w=wx*wy
+#ifdef _OPENMP
+          drygridunc_omp(ix,jy,ks,kp,nunc,nage,thread)= &
+             drygridunc_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
+          drygridunc(ix,jy,ks,kp,nunc,nage)= &
+             drygridunc(ix,jy,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
+       endif
 
-	    if ((ixp.ge.0).and.(jyp.ge.0).and.(ixp.le.numxgrid-1).and. &
-	       (jyp.le.numygrid-1)) then
-	    w=(1.-wx)*(1.-wy)
-	      drygridunc(ixp,jyp,ks,kp,nunc,nage)= &
-	           drygridunc(ixp,jyp,ks,kp,nunc,nage)+deposit(ks)*w
-	    endif
+      if ((ixp.ge.0).and.(jyp.ge.0).and.(ixp.le.numxgrid-1).and. &
+         (jyp.le.numygrid-1)) then
+        w=(1.-wx)*(1.-wy)
+#ifdef _OPENMP
+        drygridunc_omp(ixp,jyp,ks,kp,nunc,nage,thread)= &
+             drygridunc_omp(ixp,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
+        drygridunc(ixp,jyp,ks,kp,nunc,nage)= &
+             drygridunc(ixp,jyp,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
+      endif
 
-	    if ((ixp.ge.0).and.(jy.ge.0).and.(ixp.le.numxgrid-1).and. &
-	       (jy.le.numygrid-1)) then
-	      w=(1.-wx)*wy
-	      drygridunc(ixp,jy,ks,kp,nunc,nage)= &
-	           drygridunc(ixp,jy,ks,kp,nunc,nage)+deposit(ks)*w
-	    endif
+      if ((ixp.ge.0).and.(jy.ge.0).and.(ixp.le.numxgrid-1).and. &
+         (jy.le.numygrid-1)) then
+        w=(1.-wx)*wy
+#ifdef _OPENMP
+        drygridunc_omp(ixp,jy,ks,kp,nunc,nage,thread)= &
+             drygridunc_omp(ixp,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
+        drygridunc(ixp,jy,ks,kp,nunc,nage)= &
+             drygridunc(ixp,jy,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
+      endif
 
-	    if ((ix.ge.0).and.(jyp.ge.0).and.(ix.le.numxgrid-1).and. &
-	       (jyp.le.numygrid-1)) then
-	      w=wx*(1.-wy)
-	      drygridunc(ix,jyp,ks,kp,nunc,nage)= &
-	           drygridunc(ix,jyp,ks,kp,nunc,nage)+deposit(ks)*w
-	    endif
+      if ((ix.ge.0).and.(jyp.ge.0).and.(ix.le.numxgrid-1).and. &
+         (jyp.le.numygrid-1)) then
+        w=wx*(1.-wy)
+#ifdef _OPENMP
+        drygridunc_omp(ix,jyp,ks,kp,nunc,nage,thread)= &
+             drygridunc_omp(ix,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
+        drygridunc(ix,jyp,ks,kp,nunc,nage)= &
+             drygridunc(ix,jyp,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
+      endif
 
-	    endif ! deposit>0
-	  end do
-	end if
+      endif ! deposit>0
+    end do
+  end if
 end subroutine drydepokernel
 
-subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp)
+subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp,thread)
   !                               i      i    i i  i
   !*****************************************************************************
   !                                                                            *
@@ -463,6 +489,7 @@ subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp)
 
   implicit none
 
+  integer,intent(in) :: thread
   real(dep_prec), dimension(maxspec) :: deposit
   real :: x,y,ddx,ddy,xl,yl,wx,wy,w
   integer :: ix,jy,ixp,jyp,ks,kp,nunc,nage
@@ -495,41 +522,61 @@ subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp)
 
   ! Determine mass fractions for four grid points
   !**********************************************
-    do ks=1,nspec
+  do ks=1,nspec
 
-  if (DRYDEPSPEC(ks).and.(abs(deposit(ks)).gt.0)) then
+    if (DRYDEPSPEC(ks).and.(abs(deposit(ks)).gt.0)) then
 
-  if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgridn-1).and. &
-       (jy.le.numygridn-1)) then
-    w=wx*wy
-      drygriduncn(ix,jy,ks,kp,nunc,nage)= &
-           drygriduncn(ix,jy,ks,kp,nunc,nage)+deposit(ks)*w
-  endif
+      if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgridn-1).and. &
+           (jy.le.numygridn-1)) then
+        w=wx*wy
+#ifdef _OPENMP
+        drygriduncn_omp(ix,jy,ks,kp,nunc,nage,thread)= &
+             drygriduncn_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
+        drygriduncn(ix,jy,ks,kp,nunc,nage)= &
+             drygriduncn(ix,jy,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
+      endif
 
-  if ((ixp.ge.0).and.(jyp.ge.0).and.(ixp.le.numxgridn-1).and. &
-       (jyp.le.numygridn-1)) then
-    w=(1.-wx)*(1.-wy)
-      drygriduncn(ixp,jyp,ks,kp,nunc,nage)= &
-           drygriduncn(ixp,jyp,ks,kp,nunc,nage)+deposit(ks)*w
-  endif
+      if ((ixp.ge.0).and.(jyp.ge.0).and.(ixp.le.numxgridn-1).and. &
+           (jyp.le.numygridn-1)) then
+        w=(1.-wx)*(1.-wy)
+#ifdef _OPENMP
+        drygriduncn_omp(ixp,jyp,ks,kp,nunc,nage,thread)= &
+             drygriduncn_omp(ixp,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
+        drygriduncn(ixp,jyp,ks,kp,nunc,nage)= &
+             drygriduncn(ixp,jyp,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
+      endif
 
-  if ((ixp.ge.0).and.(jy.ge.0).and.(ixp.le.numxgridn-1).and. &
-       (jy.le.numygridn-1)) then
-    w=(1.-wx)*wy
-      drygriduncn(ixp,jy,ks,kp,nunc,nage)= &
-           drygriduncn(ixp,jy,ks,kp,nunc,nage)+deposit(ks)*w
-  endif
+      if ((ixp.ge.0).and.(jy.ge.0).and.(ixp.le.numxgridn-1).and. &
+           (jy.le.numygridn-1)) then
+        w=(1.-wx)*wy
+#ifdef _OPENMP
+        drygriduncn_omp(ixp,jy,ks,kp,nunc,nage,thread)= &
+             drygriduncn_omp(ixp,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
+        drygriduncn(ixp,jy,ks,kp,nunc,nage)= &
+             drygriduncn(ixp,jy,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
+      endif
 
-  if ((ix.ge.0).and.(jyp.ge.0).and.(ix.le.numxgridn-1).and. &
-       (jyp.le.numygridn-1)) then
-    w=wx*(1.-wy)
-      drygriduncn(ix,jyp,ks,kp,nunc,nage)= &
-           drygriduncn(ix,jyp,ks,kp,nunc,nage)+deposit(ks)*w
-  endif
+      if ((ix.ge.0).and.(jyp.ge.0).and.(ix.le.numxgridn-1).and. &
+           (jyp.le.numygridn-1)) then
+        w=wx*(1.-wy)
+#ifdef _OPENMP
+        drygriduncn_omp(ix,jyp,ks,kp,nunc,nage,thread)= &
+             drygriduncn_omp(ix,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
+        drygriduncn(ix,jyp,ks,kp,nunc,nage)= &
+             drygriduncn(ix,jyp,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
+      endif
 
-  endif
+    endif
 
-    end do
+  end do
 end subroutine drydepokernel_nest
 
 subroutine part0(dquer,dsigma,density,ni,fract,schmi,cun,vsh)

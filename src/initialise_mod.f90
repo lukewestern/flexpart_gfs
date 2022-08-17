@@ -1026,6 +1026,7 @@ subroutine init_domainfill
   !*****************************************************************************
 
   use point_mod
+  use particle_mod
 
   implicit none
 
@@ -1036,6 +1037,7 @@ subroutine init_domainfill
   real :: colmasstotal,zposition
 
   integer :: ixm,ixp,jym,jyp,indzm,indzh,indzp,i,jj,ii
+  integer :: alive_tmp,allocated_tmp,spawned_tmp,terminated_tmp
   real :: pvpart,ddx,ddy,rddx,rddy,p1,p2,p3,p4,y1(2)
   integer :: idummy = -11
 
@@ -1087,29 +1089,8 @@ subroutine init_domainfill
   ! Calculate area of grid cell with formula M=2*pi*R*h*dx/360,
   ! see Netz, Formeln der Mathematik, 5. Auflage (1983), p.90
   !************************************************************
-
-  do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
-    ylat=ylat0+real(ljy)*dy
-    ylatp=ylat+0.5*dy
-    ylatm=ylat-0.5*dy
-    if ((ylatm.lt.0).and.(ylatp.gt.0.)) then
-      hzone=1./dyconst
-    else
-      cosfactp=cos(ylatp*pih)*r_earth
-      cosfactm=cos(ylatm*pih)*r_earth
-      if (cosfactp.lt.cosfactm) then
-        hzone=sqrt(r_earth**2-cosfactp**2)- &
-             sqrt(r_earth**2-cosfactm**2)
-      else
-        hzone=sqrt(r_earth**2-cosfactm**2)- &
-             sqrt(r_earth**2-cosfactp**2)
-      endif
-    endif
-    gridarea(ljy)=2.*pi*r_earth*hzone*dx/360.
-  end do
-
-  ! Do the same for the south pole
-
+  ! First for the south pole
+  
   if (sglobal) then
     ylat=ylat0
     ylatp=ylat+0.5*dy
@@ -1134,11 +1115,48 @@ subroutine init_domainfill
     gridarea(nymin1)=2.*pi*r_earth*hzone*dx/360.
   endif
 
+  ! Initialise the sum over the total mass of the atmosphere
+  colmasstotal=0.
+  ! Initialise total particle number
+  numparttot=0
+  ! Initialise max column number
+  numcolumn=0
+
+  alive_tmp=count%alive
+  spawned_tmp=count%spawned
+  allocated_tmp=count%allocated
+  terminated_tmp=count%terminated
+!$OMP PARALLEL PRIVATE(ljy,ylat,ylatp,ylatm,hzone,cosfactp,cosfactm,pp, &
+!$OMP lix,ncolumn,deltacol,pnew,jj,j,pnew_temp,kz,ixm,jym,ixp,jyp,height_tmp, &
+!$OMP ddx,ddy,rddx,rddy,p1,p2,p3,p4,indzm,indzp,i,dz1,dz2,dz,pvpart,indzh,ii,y1) &
+!$OMP REDUCTION(+:colmasstotal,numparttot,numparticlecount) REDUCTION(max:numcolumn) &
+!$OMP REDUCTION(+:alive_tmp,spawned_tmp,allocated_tmp,terminated_tmp)
+!$OMP DO
+  do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
+    ylat=ylat0+real(ljy)*dy
+    ylatp=ylat+0.5*dy
+    ylatm=ylat-0.5*dy
+    if ((ylatm.lt.0).and.(ylatp.gt.0.)) then
+      hzone=1./dyconst
+    else
+      cosfactp=cos(ylatp*pih)*r_earth
+      cosfactm=cos(ylatm*pih)*r_earth
+      if (cosfactp.lt.cosfactm) then
+        hzone=sqrt(r_earth**2-cosfactp**2)- &
+             sqrt(r_earth**2-cosfactm**2)
+      else
+        hzone=sqrt(r_earth**2-cosfactm**2)- &
+             sqrt(r_earth**2-cosfactp**2)
+      endif
+    endif
+    gridarea(ljy)=2.*pi*r_earth*hzone*dx/360.
+  end do
+!$OMP END DO
+
 
   ! Calculate total mass of each grid column and of the whole atmosphere
   !*********************************************************************
-
-  colmasstotal=0.
+!$OMP DO
   do ljy=ny_sn(1),ny_sn(2)          ! loop about latitudes
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
       pp(1)=rho(lix,ljy,1,1)*r_air*tt(lix,ljy,1,1)
@@ -1147,7 +1165,9 @@ subroutine init_domainfill
       colmasstotal=colmasstotal+colmass(lix,ljy)
     end do
   end do
+!$OMP END DO
 
+!$OMP CRITICAL
   write(*,*) 'Atm. mass: ',colmasstotal
 
   ! Allocate memory for storing the particles
@@ -1155,12 +1175,11 @@ subroutine init_domainfill
   call allocate_particles(npart(1))
 
   if (ipin.eq.0) numpart=0
-
+!$OMP END CRITICAL
   ! Determine the particle positions
   !*********************************
 
-  numparttot=0
-  numcolumn=0
+!$OMP DO
   do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
     ylat=ylat0+real(ljy)*dy
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
@@ -1212,7 +1231,11 @@ subroutine init_domainfill
               ! First spawn the particle into existence
               !****************************************
               jj=jj+1
+              !THIS WILL CAUSE PROBLEMS WITH OMP! because of dynamical allocation
               call spawn_particle(0,numpart+jj)
+              alive_tmp=alive_tmp+1
+              spawned_tmp=spawned_tmp+1
+              if (allocated_tmp.lt.numpart+jj) allocated_tmp=numpart+jj
               call set_xlon(numpart+jj,real(real(lix)-0.5+ran1(idummy),kind=dp))
               if (lix.eq.0) call set_xlon(numpart+jj,real(ran1(idummy),kind=dp))
               if (lix.eq.nxmin1) &
@@ -1284,6 +1307,8 @@ subroutine init_domainfill
                      part(numpart+jj)%mass(1)*pvpart*48./29.*ozonescale/10.**9
               else
                 call terminate_particle(numpart+jj)
+                alive_tmp=alive_tmp-1
+                terminated_tmp=terminated_tmp+1
                 jj=jj-1
               endif
             endif
@@ -1294,8 +1319,26 @@ subroutine init_domainfill
       if (ipin.eq.0) numpart=numpart+jj
     end do
   end do
+!$OMP END DO
 
+  ! Make sure that all particles are within domain
+  !***********************************************
+!$OMP DO
+  do j=1,numpart
+    if ((part(j)%xlon.lt.0.).or.(part(j)%xlon.ge.real(nxmin1,kind=dp)).or. &
+         (part(j)%ylat.lt.0.).or.(part(j)%ylat.ge.real(nymin1,kind=dp))) then
+      call terminate_particle(j)
+      alive_tmp=alive_tmp-1
+      terminated_tmp=terminated_tmp+1
+    endif
+  end do
+!$OMP END DO
+!$OMP END PARALLEL
 
+  count%alive=alive_tmp
+  count%spawned=spawned_tmp
+  count%allocated=allocated_tmp
+  count%terminated=terminated_tmp
   ! Check whether numpart is really smaller than maxpart
   !*****************************************************
 
@@ -1308,16 +1351,6 @@ subroutine init_domainfill
 
   xmassperparticle=colmasstotal/real(numparttot)
 
-
-  ! Make sure that all particles are within domain
-  !***********************************************
-
-  do j=1,numpart
-    if ((part(j)%xlon.lt.0.).or.(part(j)%xlon.ge.real(nxmin1,kind=dp)).or. &
-         (part(j)%ylat.lt.0.).or.(part(j)%ylat.ge.real(nymin1,kind=dp))) then
-      call terminate_particle(j)
-    endif
-  end do
 
   ! For boundary conditions, we need fewer particle release heights per column,
   ! because otherwise it takes too long until enough mass has accumulated to
@@ -1482,10 +1515,21 @@ subroutine boundcond_domainfill(itime,loutend)
   accmasst=0.
   numactiveparticles=0
 
+  ! Determine auxiliary variables for time interpolation
+  !*****************************************************
+
+  dt1=real(itime-memtime(1))
+  dt2=real(memtime(2)-itime)
+  dtt=1./(dt1+dt2)
+
   ! Terminate trajectories that have left the domain, if domain-filling
   ! trajectory calculation domain is not global
   !********************************************************************
-
+!$OMP PARALLEL PRIVATE(i,jy,k,j,deltaz,boundarea,indz,indzp,indexh,windl,rhol, &
+!$OMP windhl,rhohl,windx,rhox,fluxofmass,mmass,ixm,jym,ixp,jyp,ddx,ddy,rddx, &
+!$OMP rddy,p1,p2,p3,p4,indzm,mm,indzh,pvpart,ylat,ix,cosfact,ipart) &
+!$OMP REDUCTION(+:numactiveparticles,numparticlecount,accmasst)
+!$OMP DO
   do i=1,numpart
     if (.not. part(i)%alive) cycle
 
@@ -1496,14 +1540,8 @@ subroutine boundcond_domainfill(itime,loutend)
          (part(i)%xlon.gt.real(nx_we(2))))) call terminate_particle(i)
     if (part(i)%alive) numactiveparticles = numactiveparticles+1
   end do
+!$OMP END DO
 
-
-  ! Determine auxiliary variables for time interpolation
-  !*****************************************************
-
-  dt1=real(itime-memtime(1))
-  dt2=real(memtime(2)-itime)
-  dtt=1./(dt1+dt2)
 
   !***************************************
   ! Western and eastern boundary condition
@@ -1511,7 +1549,7 @@ subroutine boundcond_domainfill(itime,loutend)
 
   ! Loop from south to north
   !*************************
-
+!$OMP DO
   do jy=ny_sn(1),ny_sn(2)
 
   ! Loop over western (index 1) and eastern (index 2) boundary
@@ -1714,7 +1752,7 @@ subroutine boundcond_domainfill(itime,loutend)
       end do ! release locations in column
     end do ! western and eastern boundary
   end do ! south to north
-
+!$OMP END DO
 
   !*****************************************
   ! Southern and northern boundary condition
@@ -1722,7 +1760,7 @@ subroutine boundcond_domainfill(itime,loutend)
 
   ! Loop from west to east
   !***********************
-
+!$OMP DO
   do ix=nx_we(1),nx_we(2)
 
   ! Loop over southern (index 1) and northern (index 2) boundary
@@ -1925,7 +1963,7 @@ subroutine boundcond_domainfill(itime,loutend)
       end do ! releases per column
     end do ! east west
   end do ! north south
-
+!$OMP END PARALLEL
   ! If particles shall be dumped, then accumulated masses at the domain boundaries
   ! must be dumped, too, to be used for later runs
   !*****************************************************************************

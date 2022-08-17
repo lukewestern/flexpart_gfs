@@ -108,7 +108,8 @@ module particle_mod
     is_particle_allocated,        &
     update_xlon,                  &
     update_ylat,                  &
-    update_z
+    update_z,                     &
+    count
 
   interface update_xlon
     procedure update_xlon_dp, update_xlon_float, update_xlon_int
@@ -365,7 +366,7 @@ contains
     ! there is a reason for deallocating some of it
     !**********************************************
     if (ipart.gt.count%allocated) then 
-      call allocate_particles(1)
+      call allocate_particles(ipart-count%allocated)
     else
       stop 'Error: You are trying to allocate an already existing particle'
     endif

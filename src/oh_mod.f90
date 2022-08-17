@@ -209,11 +209,11 @@ subroutine ohreaction(itime,ltsample,loutnext)
 
   ! Loop over particles
   !*****************************************
-  ! !$OMP PARALLEL PRIVATE(jpart,xtn,ytn,j,k,ix,jy,interp_time, &
-  ! !$OMP n,indz,i,xlon,ylat,OHx,OHy,OHz,oh_average,temp,ohrate, &
-  ! !$OMP restmass,ohreacted,altOHtop,ngrid)
+!$OMP PARALLEL PRIVATE(jpart,xtn,ytn,j,k,ix,jy,interp_time, &
+!$OMP n,indz,i,xlon,ylat,OHx,OHy,OHz,oh_average,temp,ohrate, &
+!$OMP restmass,ohreacted,altOHtop,ngrid)
 
-  
+!$OMP DO
   do jpart=1,numpart
 
     ! Determine which nesting level to be used
@@ -270,15 +270,15 @@ subroutine ohreaction(itime,ltsample,loutnext)
       altOHtop(i-1)=altOH(i)+0.5*(altOH(i)-altOH(i-1))
     end do
     altOHtop(nzOH)=altOH(nzOH)+0.5*(altOH(nzOH)-altOH(nzOH-1))
-    OHz=minloc(abs(altOHtop-part(jpart)%z),dim=1,mask=abs(altOHtop-part(jpart)%z)&
-            &.eq.minval(abs(altOHtop-part(jpart)%z)))
+    OHz=minloc(abs(altOHtop-part(jpart)%z),dim=1,mask=abs(altOHtop-part(jpart)%z) &
+          .eq.minval(abs(altOHtop-part(jpart)%z)))
 
     ! Interpolate between hourly OH fields to current time
     !*****************************************************
 
-    oh_average=OH_hourly(OHx,OHy,OHz,1)+&
-               &(OH_hourly(OHx,OHy,OHz,2)-OH_hourly(OHx,OHy,OHz,1))*&
-               &(itime-memOHtime(1))/(memOHtime(2)-memOHtime(1))
+    oh_average=OH_hourly(OHx,OHy,OHz,1)+ &
+               (OH_hourly(OHx,OHy,OHz,2)-OH_hourly(OHx,OHy,OHz,1))* &
+               (itime-memOHtime(1))/(memOHtime(2)-memOHtime(1))
 
     if (oh_average.gt.smallnum) then
 
@@ -298,7 +298,7 @@ subroutine ohreaction(itime,ltsample,loutnext)
             part(jpart)%mass(k)=0.
           endif
           ohreacted=part(jpart)%mass(k)*(1-exp(-1*ohrate*abs(ltsample)))
-          if (jpart.eq.535) write(*,*) 'ohreaction', part(jpart)%mass(k),k
+          if (jpart.eq.1) write(*,*) 'ohreaction', part(jpart)%mass(k),k
         else
           ohreacted=0.
         endif
@@ -307,8 +307,8 @@ subroutine ohreaction(itime,ltsample,loutnext)
 
   end do  !continue loop over all particles
 
-  ! !$OMP END DO
-  ! !$OMP END PARALLEL
+!$OMP END DO
+!$OMP END PARALLEL
 end subroutine ohreaction
 
 subroutine gethourlyOH(itime)
@@ -347,7 +347,7 @@ subroutine gethourlyOH(itime)
   ! The right OH fields are already in memory -> don't do anything
   !****************************************************************
 
-    continue
+    return
 
   else if ((ldirect*memOHtime(2).le.ldirect*itime).and. &
        (memOHtime(2).ne.0.)) then
@@ -366,7 +366,8 @@ subroutine gethourlyOH(itime)
     call caldate(jul2,jjjjmmdd,hhmmss)
     m2=(jjjjmmdd-(jjjjmmdd/10000)*10000)/100
 
-
+!$OMP PARALLEL PRIVATE(kz,jy,ix,ijx,jjy,sza,jrate) 
+!$OMP DO COLLAPSE(3)
     do kz=1,nzOH
       do jy=1,nyOH
         do ix=1,nxOH
@@ -392,6 +393,8 @@ subroutine gethourlyOH(itime)
         end do
       end do
     end do
+!$OMP END DO
+!$OMP END PARALLEL
 
   else
 
@@ -408,7 +411,8 @@ subroutine gethourlyOH(itime)
     m2=(jjjjmmdd-(jjjjmmdd/10000)*10000)/100
     memOHtime(2)=ldirect*3600.
 
-
+!$OMP PARALLEL PRIVATE(kz,jy,ix,ijx,jjy,sza,jrate) 
+!$OMP DO COLLAPSE(3)
     do kz=1,nzOH
       do jy=1,nyOH
         do ix=1,nxOH
@@ -437,6 +441,8 @@ subroutine gethourlyOH(itime)
         end do
       end do
     end do
+!$OMP END DO
+!$OMP END PARALLEL
 
   endif
 end subroutine gethourlyOH

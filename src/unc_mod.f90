@@ -26,7 +26,12 @@ module unc_mod
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: drygriduncn
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: wetgridunc
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: wetgriduncn
-
+#ifdef _OPENMP
+  real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: drygridunc_omp
+  real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: drygriduncn_omp
+  real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: wetgridunc_omp
+  real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: wetgriduncn_omp
+#endif
 ! For sum of individual contributions, used for the MPI version
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: drygridunc0
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: drygriduncn0
@@ -49,6 +54,8 @@ subroutine radioactive_decay()
     nage,                   & ! loop variable over age classes
     n                         ! loop variable over particles
 
+!$OMP PARALLEL PRIVATE(ks,kp,nage,l,j,i)
+!$OMP DO COLLAPSE(2)
   do ks=1,nspec
   do kp=1,maxpointspec_act
     if (decay(ks).gt.0.) then
@@ -83,6 +90,8 @@ subroutine radioactive_decay()
     endif
   end do
   end do
+!$OMP END DO
+!$OMP END PARALLEL
 end subroutine radioactive_decay
 
 end module unc_mod

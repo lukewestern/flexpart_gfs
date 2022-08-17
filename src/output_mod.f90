@@ -125,11 +125,17 @@ subroutine finalise_output(itime)
   implicit none 
 
   integer, intent(in) :: itime
-  integer :: j
+  integer :: j,ithread
 
-  do j=1,numpart
-    if (linit_cond.ge.1) call initial_cond_calc(itime,j)
-  end do
+  if (linit_cond.ge.1) then
+    do j=1,numpart
+      call initial_cond_calc(itime,j,1)
+    end do
+    do ithread=1,numthreads
+      init_cond(:,:,:,:,:)=init_cond(:,:,:,:,:)+init_cond_omp(:,:,:,:,:,ithread)
+    end do
+  endif
+
 
   if (ipout.eq.2) call output_particles(itime)!,active_per_rel)     ! dump particle positions
 
@@ -180,8 +186,10 @@ subroutine output_restart(itime,loutnext,outnum)
   write(unitrestart) outnum
 
   do i=1,count%allocated
-    call update_zeta_to_z(itime,i)
-    call update_z_to_zeta(itime,i)
+    if (part(i)%alive) then
+      call update_zeta_to_z(itime,i)
+      call update_z_to_zeta(itime,i)
+    endif
     write(unitrestart) part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta, &
       part(i)%npoint,part(i)%nclass,part(i)%idt,part(i)%tend, &
       part(i)%tstart,part(i)%alive,part(i)%turbvel%u, &
@@ -498,6 +506,8 @@ subroutine output_particles(itime,initial_output)
 
     ! Fill the fields in parallel
     if (numpart.gt.0) then
+!$OMP PARALLEL PRIVATE(np,ns)
+!$OMP DO SCHEDULE(dynamic)
       do np=1,num_partopt
         !write(*,*) partopt(np)%name, output(np,1)
         if (.not. partopt(np)%print) cycle
@@ -531,6 +541,8 @@ subroutine output_particles(itime,initial_output)
           endif
         endif
       end do
+!$OMP END DO
+!$OMP END PARALLEL
     endif
     call close_partoutput_file(ncid)
     if (.not. init_out) then

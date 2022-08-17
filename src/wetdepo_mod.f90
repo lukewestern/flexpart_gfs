@@ -45,12 +45,13 @@ subroutine wetdepo(itime,ltsample,loutnext)
   !                                                                            *
   !*****************************************************************************
 
-  use unc_mod, only:wetgridunc
+  use unc_mod, only:wetgridunc,wetgridunc_omp,wetgriduncn,wetgriduncn_omp
+  use omp_lib
 
   implicit none
 
   integer :: jpart,itime,ltsample,loutnext,ldeltat
-  integer :: itage,nage
+  integer :: itage,nage,ithread,thread
   integer :: ks, kp
   integer(selected_int_kind(16)), dimension(nspec) :: blc_count, inc_count
   real :: grfraction(3),wetscav
@@ -73,6 +74,16 @@ subroutine wetdepo(itime,ltsample,loutnext)
   inc_count(:)=0
 
   ! OMP doesn't work yet, a reduction is necessary for the kernel function
+!$OMP PARALLEL PRIVATE(jpart,itage,nage,ks,kp,thread,wetscav,wetdeposit, &
+!$OMP restmass, grfraction) REDUCTION(+:blc_count,inc_count)
+
+#if (defined _OPENMP)
+    thread = OMP_GET_THREAD_NUM() ! Starts with 0
+#else
+    thread = 1
+#endif
+
+!$OMP DO 
   do jpart=1,numpart
 
     ! Check if memory has been deallocated
@@ -146,12 +157,30 @@ subroutine wetdepo(itime,ltsample,loutnext)
 
     if ((ldirect.eq.1).and.(iout.ne.0)) then !OMP reduction necessary for wetgridunc
       call wetdepokernel(part(jpart)%nclass,wetdeposit,real(part(jpart)%xlon), &
-           real(part(jpart)%ylat),nage,kp)
+           real(part(jpart)%ylat),nage,kp,thread+1)
       if (nested_output.eq.1) call wetdepokernel_nest(part(jpart)%nclass, &
-           wetdeposit,real(part(jpart)%xlon),real(part(jpart)%ylat),nage,kp)
+           wetdeposit,real(part(jpart)%xlon),real(part(jpart)%ylat),nage,kp,thread+1)
     endif
 
   end do ! all particles
+
+!$OMP END DO
+!$OMP END PARALLEL
+
+#ifdef _OPENMP
+    if ((ldirect.eq.1).and.(iout.ne.0)) then
+      do ithread=1,numthreads
+        wetgridunc=wetgridunc+wetgridunc_omp(:,:,:,:,:,:,ithread)
+        wetgridunc_omp(:,:,:,:,:,:,ithread)=0.
+      end do
+      if (nested_output.eq.1) then
+        do ithread=1,numthreads
+          wetgriduncn=wetgriduncn+wetgriduncn_omp(:,:,:,:,:,:,ithread)
+          wetgriduncn_omp(:,:,:,:,:,:,ithread)=0.
+        end do
+      endif
+    endif
+#endif
 
   ! count the total number of below-cloud and in-cloud occurences:
   tot_blc_count(1:nspec)=tot_blc_count(1:nspec)+blc_count(1:nspec)
@@ -467,7 +496,7 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   endif !incloud
 end subroutine get_wetscav
 
-subroutine wetdepokernel(nunc,deposit,x,y,nage,kp)
+subroutine wetdepokernel(nunc,deposit,x,y,nage,kp,thread)
   !                          i      i    i i  i
   !*****************************************************************************
   !                                                                            *
@@ -496,6 +525,7 @@ subroutine wetdepokernel(nunc,deposit,x,y,nage,kp)
 
   implicit none
 
+  integer,intent(in) :: thread
   real :: x,y,deposit(maxspec),ddx,ddy,xl,yl,wx,wy,w
   integer :: ix,jy,ixp,jyp,nunc,nage,ks,kp
 
@@ -529,8 +559,13 @@ subroutine wetdepokernel(nunc,deposit,x,y,nage,kp)
     do ks=1,nspec
       if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgrid-1).and. &
            (jy.le.numygrid-1)) then
+#ifdef _OPENMP
+        wetgridunc_omp(ix,jy,ks,kp,nunc,nage,thread)= &
+             wetgridunc_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)
+#else
         wetgridunc(ix,jy,ks,kp,nunc,nage)= &
              wetgridunc(ix,jy,ks,kp,nunc,nage)+deposit(ks)
+#endif
       end if
     end do
   else ! use kernel 
@@ -543,36 +578,56 @@ subroutine wetdepokernel(nunc,deposit,x,y,nage,kp)
     if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgrid-1).and. &
        (jy.le.numygrid-1)) then
       w=wx*wy
+#ifdef _OPENMP
+      wetgridunc_omp(ix,jy,ks,kp,nunc,nage,thread)= &
+           wetgridunc_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
       wetgridunc(ix,jy,ks,kp,nunc,nage)= &
            wetgridunc(ix,jy,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
     endif
 
     if ((ixp.ge.0).and.(jyp.ge.0).and.(ixp.le.numxgrid-1).and. &
        (jyp.le.numygrid-1)) then
       w=(1.-wx)*(1.-wy)
+#ifdef _OPENMP
+      wetgridunc_omp(ixp,jyp,ks,kp,nunc,nage,thread)= &
+           wetgridunc_omp(ixp,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
       wetgridunc(ixp,jyp,ks,kp,nunc,nage)= &
            wetgridunc(ixp,jyp,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
     endif
 
     if ((ixp.ge.0).and.(jy.ge.0).and.(ixp.le.numxgrid-1).and. &
        (jy.le.numygrid-1)) then
       w=(1.-wx)*wy
+#ifdef _OPENMP
+      wetgridunc_omp(ixp,jy,ks,kp,nunc,nage,thread)= &
+           wetgridunc_omp(ixp,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
       wetgridunc(ixp,jy,ks,kp,nunc,nage)= &
            wetgridunc(ixp,jy,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
     endif
 
     if ((ix.ge.0).and.(jyp.ge.0).and.(ix.le.numxgrid-1).and. &
        (jyp.le.numygrid-1)) then
       w=wx*(1.-wy)
+#ifdef _OPENMP
+      wetgridunc_omp(ix,jyp,ks,kp,nunc,nage,thread)= &
+           wetgridunc_omp(ix,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
       wetgridunc(ix,jyp,ks,kp,nunc,nage)= &
            wetgridunc(ix,jyp,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
     endif
 
   end do
   end if
 end subroutine wetdepokernel
 
-subroutine wetdepokernel_nest(nunc,deposit,x,y,nage,kp)
+subroutine wetdepokernel_nest(nunc,deposit,x,y,nage,kp,thread)
   !                           i    i       i i i    i
   !*****************************************************************************
   !                                                                            *
@@ -601,6 +656,7 @@ subroutine wetdepokernel_nest(nunc,deposit,x,y,nage,kp)
 
   implicit none
 
+  integer,intent(in) :: thread
   real :: x,y,deposit(maxspec),ddx,ddy,xl,yl,wx,wy,w
   integer :: ix,jy,ixp,jyp,ks,kp,nunc,nage
 
@@ -647,29 +703,49 @@ subroutine wetdepokernel_nest(nunc,deposit,x,y,nage,kp)
     if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgridn-1).and. &
          (jy.le.numygridn-1)) then
       w=wx*wy
+#ifdef _OPENMP
+      wetgriduncn_omp(ix,jy,ks,kp,nunc,nage,thread)= &
+           wetgriduncn_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
       wetgriduncn(ix,jy,ks,kp,nunc,nage)= &
            wetgriduncn(ix,jy,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
     endif
 
     if ((ixp.ge.0).and.(jyp.ge.0).and.(ixp.le.numxgridn-1).and. &
          (jyp.le.numygridn-1)) then
       w=(1.-wx)*(1.-wy)
+#ifdef _OPENMP
+      wetgriduncn_omp(ixp,jyp,ks,kp,nunc,nage,thread)= &
+           wetgriduncn_omp(ixp,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
       wetgriduncn(ixp,jyp,ks,kp,nunc,nage)= &
            wetgriduncn(ixp,jyp,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
     endif
 
     if ((ixp.ge.0).and.(jy.ge.0).and.(ixp.le.numxgridn-1).and. &
          (jy.le.numygridn-1)) then
       w=(1.-wx)*wy
+#ifdef _OPENMP
+      wetgriduncn_omp(ixp,jy,ks,kp,nunc,nage,thread)= &
+           wetgriduncn_omp(ixp,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
       wetgriduncn(ixp,jy,ks,kp,nunc,nage)= &
            wetgriduncn(ixp,jy,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
     endif
 
     if ((ix.ge.0).and.(jyp.ge.0).and.(ix.le.numxgridn-1).and. &
          (jyp.le.numygridn-1)) then
       w=wx*(1.-wy)
+#ifdef _OPENMP
+      wetgriduncn_omp(ix,jyp,ks,kp,nunc,nage,thread)= &
+           wetgriduncn_omp(ix,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+#else
       wetgriduncn(ix,jyp,ks,kp,nunc,nage)= &
            wetgriduncn(ix,jyp,ks,kp,nunc,nage)+deposit(ks)*w
+#endif
     endif
 
   end do
