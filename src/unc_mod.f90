@@ -27,6 +27,8 @@ module unc_mod
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: wetgridunc
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: wetgriduncn
 #ifdef _OPENMP
+  real,allocatable, dimension (:,:,:,:,:,:,:,:) :: gridunc_omp
+  real,allocatable, dimension (:,:,:,:,:,:,:,:) :: griduncn_omp
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: drygridunc_omp
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: drygriduncn_omp
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: wetgridunc_omp

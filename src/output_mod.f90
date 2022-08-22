@@ -719,7 +719,7 @@ subroutine conccalc(itime,weight)
 
   integer,intent(in) :: itime
   real,intent(in) :: weight
-  integer :: itage,i,kz,ks,n,nage
+  integer :: itage,i,kz,ks,n,nage,thread,ithread
   integer :: il,ind,indz,indzp,nrelpointer
   real :: hx,hy,hz,h,xd,yd,zd,xkern,r2,c(maxspec)
   real :: rhoi
@@ -732,6 +732,13 @@ subroutine conccalc(itime,weight)
   ! releasepoints
   !***************************************************************************
   !  xscav_count=0
+!$OMP PARALLEL PRIVATE(i,itage,nage,rhoi,nrelpointer,kz,xl,yl,ks,wx,wy,w,thread)
+#if (defined _OPENMP)
+    thread = OMP_GET_THREAD_NUM()+1 ! Starts with 1
+#else
+    thread = 1
+#endif
+!$OMP DO
   do i=1,numpart
     if (.not.part(i)%alive) cycle
 
@@ -819,21 +826,38 @@ subroutine conccalc(itime,weight)
              (jy.le.numygrid-1)) then
           if (DRYBKDEP.or.WETBKDEP) then
             do ks=1,nspec
+#ifdef _OPENMP
+              gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
+#else
               gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
+#endif
             end do
           else
             if (lparticlecountoutput) then
               do ks=1,nspec
+#ifdef _OPENMP
+                gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+1
+#else
                 gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+1
+#endif
               end do
             else
               do ks=1,nspec
+#ifdef _OPENMP
+                gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight
+#else
                 gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight
+#endif
               end do
             end if
           endif
@@ -868,15 +892,27 @@ subroutine conccalc(itime,weight)
             w=wx*wy
             if (DRYBKDEP.or.WETBKDEP) then
                do ks=1,nspec
+#ifdef _OPENMP
+                 gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
+#else
                  gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
+#endif
                end do
             else
                do ks=1,nspec
+#ifdef _OPENMP
+                 gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*weight*w
+#else
                  gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*weight*w
+#endif
                end do
             endif
           endif
@@ -885,15 +921,27 @@ subroutine conccalc(itime,weight)
             w=wx*(1.-wy)
             if (DRYBKDEP.or.WETBKDEP) then
               do ks=1,nspec
+#ifdef _OPENMP
+                 gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#else
                  gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#endif
                end do
              else
               do ks=1,nspec
+#ifdef _OPENMP
+                 gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*weight*w
+#else
                  gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*weight*w
+#endif
                end do
              endif
           endif
@@ -905,15 +953,27 @@ subroutine conccalc(itime,weight)
             w=(1.-wx)*(1.-wy)
             if (DRYBKDEP.or.WETBKDEP) then
                do ks=1,nspec
+#ifdef _OPENMP
+                 gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
+#else
                  gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
+#endif
                end do
             else
                do ks=1,nspec
+#ifdef _OPENMP
+                 gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*weight*w
+#else
                  gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*weight*w
+#endif
                end do
             endif
           endif
@@ -922,15 +982,27 @@ subroutine conccalc(itime,weight)
             w=(1.-wx)*wy
             if (DRYBKDEP.or.WETBKDEP) then
                do ks=1,nspec
+#ifdef _OPENMP
+                 gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#else
                  gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#endif
                end do
             else
                do ks=1,nspec
+#ifdef _OPENMP
+                 gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*weight*w
+#else
                  gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*weight*w
+#endif
                end do
             endif
           endif
@@ -964,21 +1036,38 @@ subroutine conccalc(itime,weight)
                (jy.le.numygridn-1)) then
             if (DRYBKDEP.or.WETBKDEP) then
                do ks=1,nspec
+#ifdef _OPENMP
+                 griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                   griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                   part(i)%mass(ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
+#else            
                  griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                    part(i)%mass(ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
+#endif
                end do
             else
               if (lparticlecountoutput) then
                 do ks=1,nspec
+#ifdef _OPENMP
+                  griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                       griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+1
+#else  
                   griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                        griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+1
+#endif
                 end do
               else
                 do ks=1,nspec
+#ifdef _OPENMP
+                  griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                       griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                       part(i)%mass(ks)/rhoi*weight
+#else            
                   griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                        griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                        part(i)%mass(ks)/rhoi*weight
+#endif
                 end do
               endif
             endif
@@ -1013,15 +1102,27 @@ subroutine conccalc(itime,weight)
               w=wx*wy
               if (DRYBKDEP.or.WETBKDEP) then
                  do ks=1,nspec
+#ifdef _OPENMP
+                   griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#else              
                    griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#endif
                  end do
               else
                 do ks=1,nspec
+#ifdef _OPENMP
+                   griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight*w
+#else            
                    griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight*w
+#endif
                  end do
               endif
             endif
@@ -1030,15 +1131,27 @@ subroutine conccalc(itime,weight)
               w=wx*(1.-wy)
               if (DRYBKDEP.or.WETBKDEP) then
                  do ks=1,nspec
+#ifdef _OPENMP
+                   griduncn_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     griduncn_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#else              
                    griduncn(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#endif
                  end do
               else
                  do ks=1,nspec
+#ifdef _OPENMP
+                   griduncn_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     griduncn_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight*w
+#else              
                    griduncn(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight*w
+#endif
                  end do
               endif
             endif
@@ -1050,15 +1163,27 @@ subroutine conccalc(itime,weight)
               w=(1.-wx)*(1.-wy)
               if (DRYBKDEP.or.WETBKDEP) then
                  do ks=1,nspec
+#ifdef _OPENMP
+                   griduncn_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     griduncn_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#else              
                    griduncn(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#endif
                  end do
               else
                  do ks=1,nspec
+#ifdef _OPENMP
+                   griduncn_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     griduncn_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight*w
+#else              
                    griduncn(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight*w
+#endif
                  end do
               endif
             endif
@@ -1067,15 +1192,27 @@ subroutine conccalc(itime,weight)
               w=(1.-wx)*wy
               if (DRYBKDEP.or.WETBKDEP) then
                  do ks=1,nspec
+#ifdef _OPENMP
+                   griduncn_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     griduncn_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#else              
                    griduncn(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+#endif
                  end do
               else
                  do ks=1,nspec
+#ifdef _OPENMP
+                    griduncn_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     griduncn_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     part(i)%mass(ks)/rhoi*weight*w
+#else              
                     griduncn(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
                      part(i)%mass(ks)/rhoi*weight*w
+#endif
                  end do
               endif
             endif
@@ -1084,6 +1221,22 @@ subroutine conccalc(itime,weight)
       endif
     endif
   end do
+!$OMP END DO
+!$OMP END PARALLEL
+
+  ! Reduction of gridunc and griduncn
+#ifdef _OPENMP
+  do ithread=1,numthreads
+    gridunc(:,:,:,:,:,:,:)=gridunc(:,:,:,:,:,:,:)+gridunc_omp(:,:,:,:,:,:,:,ithread)
+    gridunc_omp(:,:,:,:,:,:,:,ithread)=0.
+  end do
+  if (nested_output.eq.1) then 
+    do ithread=1,numthreads
+      griduncn(:,:,:,:,:,:,:)=griduncn(:,:,:,:,:,:,:)+griduncn_omp(:,:,:,:,:,:,:,ithread)
+      griduncn_omp(:,:,:,:,:,:,:,ithread)=0.
+    end do
+  endif
+#endif
   !  write(*,*) 'xscav count:',xscav_count
 
   !***********************************************************************
