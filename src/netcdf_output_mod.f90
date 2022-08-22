@@ -891,7 +891,9 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   ! Determine center altitude of output layer, and interpolate density
   ! data to that altitude
   !*******************************************************************
-
+!$OMP PARALLEL PRIVATE(halfheight,kzz,dz1,dz2,dz,xl,yl,ngrid,iix,jjy, &
+!$OMP kz,ix,jy,l,ks,kp,nage,auxgrid)
+!$OMP DO
   do kz=1,numzgrid
     if (kz.eq.1) then
       halfheight=outheight(1)/2.
@@ -942,10 +944,12 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
       end do
     end do
   end do
+!$OMP END DO NOWAIT
 
   ! brd134: for receptor points no option for nests yet to specify density
   !    and also altitude zreceptor not considered yet (needs revision)
-  if (numreceptor.gt.0) then 
+  if (numreceptor.gt.0) then
+!$OMP DO
     do i=1,numreceptor
       xl=xreceptor(i)
       yl=yreceptor(i)
@@ -953,10 +957,12 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
       jjy=max(min(nint(yl),nymin1),0)
       densityoutrecept(i)=rho(iix,jjy,1,memind(2))
     end do
+!$OMP END DO NOWAIT
   endif
 
   ! Output is different for forward and backward simulations
   if (ldirect.eq.1) then
+!$OMP DO
      do kz=1,numzgrid
         do jy=0,numygrid-1
            do ix=0,numxgrid-1
@@ -964,7 +970,9 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
            end do
         end do
      end do
+!$OMP END DO NOWAIT
   else
+!$OMP DO
      do kz=1,numzgrid
         do jy=0,numygrid-1
            do ix=0,numxgrid-1
@@ -972,6 +980,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
            end do
         end do
      end do
+!$OMP END DO
   endif
 
   !*********************************************************************
@@ -993,7 +1002,8 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
 
     do kp=1,maxpointspec_act
       do nage=1,nageclass
-
+!$OMP DO REDUCTION(+:wetgridtotal,wetgridsigmatotal,drygridtotal,drygridsigmatotal, &
+!$OMP gridtotal,gridsigmatotal)
         do jy=0,numygrid-1
           do ix=0,numxgrid-1
 
@@ -1065,7 +1075,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
             end do
           end do
         end do
-
+!$OMP END DO
   !       print*,gridtotal,maxpointspec_act
 
         !*******************************************************************
@@ -1078,6 +1088,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
 
         ! Concentration output
         !*********************
+!$OMP SINGLE
         if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
 
           ! Wet deposition
@@ -1129,12 +1140,13 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
                (/ 1,1,1,tpointer,kp,nage /), (/ numxgrid,numygrid,numzgrid,1,1,1 /)))
 
         endif ! output for ppt
-
+!$OMP END SINGLE
+!$OMP BARRIER
       end do
     end do
 
   end do
-
+!$OMP END PARALLEL
   ! Close netCDF file
   !**************************
   call nf90_err(nf90_close(ncid))
