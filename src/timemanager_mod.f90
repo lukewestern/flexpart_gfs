@@ -181,6 +181,11 @@ subroutine timemanager
     
     write(*,*) 'Time: ', itime, 'seconds.'
 
+    if (itime.eq.itime_init) then
+      call SYSTEM_CLOCK(count_clock, count_rate, count_max)
+      s_firstt = (count_clock - count_clock0)/real(count_rate)
+    endif
+
   ! Writing restart file
   !*********************
     if ((itime.ne.itime_init).and.(mod(itime,loutrestart).eq.0)) call output_restart(itime,loutnext,outnum)
@@ -503,7 +508,12 @@ subroutine timemanager
   ! Output to keep track of the numerical instabilities in CBL simulation and if
   ! they are compromising the final result (or not)
     if (cblflag.eq.1) print *,j,itime,'nan_synctime',nan_count,'nan_tl',total_nan_intl  
-          
+
+    if (itime.eq.itime_init) then
+      call SYSTEM_CLOCK(count_clock, count_rate, count_max)
+      s_firstt = (count_clock - count_clock0)/real(count_rate) - s_firstt
+    endif
+
   end do
 
   ! Complete the calculation of initial conditions for particles not yet terminated

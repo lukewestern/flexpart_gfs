@@ -513,7 +513,7 @@ module com_mod
   !*********************************************************
   !LB 04.05.2021, simple timing of IO and total running time
   !*********************************************************
-  real :: s_readwind=0, s_writepartav=0, s_writepart=0, s_temp=0, s_total=0
+  real :: s_readwind=0, s_writepartav=0, s_writepart=0, s_temp=0, s_total=0, s_firstt=0
 
 
 

@@ -40,6 +40,7 @@ program flexpart
   integer ::              &
     i,                    & ! loop variable for random numbers
     idummy=-320             ! dummy value used by the random routine
+  real :: s_timemanager
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
 
@@ -129,13 +130,19 @@ program flexpart
 
   ! Calculate particle trajectories
   !********************************
+  CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
+  s_timemanager = (count_clock - count_clock0)/real(count_rate)
+
   call timemanager
+
+  CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
+  s_timemanager = (count_clock - count_clock0)/real(count_rate) - s_timemanager
 
   CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
   s_total = (count_clock - count_clock0)/real(count_rate) - s_total
   
   write(*,*) 'Read wind fields: ', s_readwind, ' seconds'
-  write(*,*) 'Write particle average files: ', s_writepartav, ' seconds'
+  write(*,*) 'Timemanager: ', s_timemanager, ' seconds,', 'first timestep: ',s_firstt, 'seconds'
   write(*,*) 'Write particle files: ', s_writepart, ' seconds'
   write(*,*) 'Total running time: ', s_total, ' seconds'
   write(*,*) 'CONGRATULATIONS: YOU HAVE SUCCESSFULLY COMPLETED A FLE&
