@@ -884,6 +884,16 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   endif
 
 
+  gridtotal=0.
+  gridsigmatotal=0.
+  gridtotalunc=0.
+  wetgridtotal=0._dep_prec
+  wetgridsigmatotal=0._dep_prec
+  wetgridtotalunc=0._dep_prec
+  drygridtotal=0._dep_prec
+  drygridsigmatotal=0._dep_prec
+  drygridtotalunc=0._dep_prec
+
   !*******************************************************************
   ! Compute air density:
   ! brd134: we now take into account whether we are in the mother or in
@@ -892,7 +902,8 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   ! data to that altitude
   !*******************************************************************
 !$OMP PARALLEL PRIVATE(halfheight,kzz,dz1,dz2,dz,xl,yl,ngrid,iix,jjy, &
-!$OMP kz,ix,jy,l,ks,kp,nage,auxgrid)
+!$OMP kz,ix,jy,l,ks,kp,nage,auxgrid) REDUCTION(+:wetgridtotal,wetgridsigmatotal, &
+!$OMP drygridtotal,drygridsigmatotal,gridtotal,gridsigmatotal)
 !$OMP DO
   do kz=1,numzgrid
     if (kz.eq.1) then
@@ -988,22 +999,12 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   ! ratio (uncertainty of the output) and the dry and wet deposition
   !*********************************************************************
 
-  gridtotal=0.
-  gridsigmatotal=0.
-  gridtotalunc=0.
-  wetgridtotal=0._dep_prec
-  wetgridsigmatotal=0._dep_prec
-  wetgridtotalunc=0._dep_prec
-  drygridtotal=0._dep_prec
-  drygridsigmatotal=0._dep_prec
-  drygridtotalunc=0._dep_prec
 
   do ks=1,nspec
 
     do kp=1,maxpointspec_act
       do nage=1,nageclass
-!$OMP DO REDUCTION(+:wetgridtotal,wetgridsigmatotal,drygridtotal,drygridsigmatotal, &
-!$OMP gridtotal,gridsigmatotal)
+!$OMP DO
         do jy=0,numygrid-1
           do ix=0,numxgrid-1
 

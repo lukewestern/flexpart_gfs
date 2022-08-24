@@ -70,11 +70,12 @@ subroutine wetdepo(itime,ltsample,loutnext)
 
   ! Loop over all particles
   !************************
-
+  blc_count(:)=0
+  inc_count(:)=0
 
   ! OMP doesn't work yet, a reduction is necessary for the kernel function
 !$OMP PARALLEL PRIVATE(jpart,itage,nage,ks,kp,thread,wetscav,wetdeposit, &
-!$OMP restmass, grfraction)
+!$OMP restmass, grfraction) REDUCTION(+:blc_count,inc_count)
 
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM() ! Starts with 0
@@ -82,10 +83,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
     thread = 1
 #endif
 
-  blc_count(:)=0
-  inc_count(:)=0
-
-!$OMP DO REDUCTION(+:blc_count,inc_count)
+!$OMP DO 
   do jpart=1,numpart
 
     ! Check if memory has been deallocated
@@ -183,7 +181,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
       endif
     endif
 #endif
-
+  !write(*,*) 'WETGRIDUNC:',sum(wetgridunc),wetgridunc(20,270,1,1,1,1),wetgridunc(19,269,1,1,1,1)
   ! count the total number of below-cloud and in-cloud occurences:
   tot_blc_count(1:nspec)=tot_blc_count(1:nspec)+blc_count(1:nspec)
   tot_inc_count(1:nspec)=tot_inc_count(1:nspec)+inc_count(1:nspec)

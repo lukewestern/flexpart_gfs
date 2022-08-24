@@ -9,7 +9,7 @@
 
 module unc_mod
 
-  use par_mod, only:dep_prec,nclassunc
+  use par_mod, only:dp,dep_prec,nclassunc
 
   implicit none
 
@@ -18,17 +18,17 @@ module unc_mod
 #else
   ! If MPI_IN_PLACE option is not used in mpi_mod.f90::mpif_tm_reduce_grid(),
   ! then an aux array is needed for parallel grid reduction
-  real,allocatable, dimension (:,:,:,:,:,:,:) :: gridunc0
-  real,allocatable, dimension (:,:,:,:,:,:,:) :: griduncn0
+  real(kind=dp),allocatable, dimension (:,:,:,:,:,:,:) :: gridunc0
+  real(kind=dp),allocatable, dimension (:,:,:,:,:,:,:) :: griduncn0
 #endif
-  real,allocatable, dimension (:,:,:,:,:,:,:) :: griduncn
+  real(kind=dp),allocatable, dimension (:,:,:,:,:,:,:) :: griduncn
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: drygridunc
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: drygriduncn
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: wetgridunc
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: wetgriduncn
 #ifdef _OPENMP
-  real,allocatable, dimension (:,:,:,:,:,:,:,:) :: gridunc_omp
-  real,allocatable, dimension (:,:,:,:,:,:,:,:) :: griduncn_omp
+  real(kind=dp),allocatable, dimension (:,:,:,:,:,:,:,:) :: gridunc_omp
+  real(kind=dp),allocatable, dimension (:,:,:,:,:,:,:,:) :: griduncn_omp
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: drygridunc_omp
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: drygriduncn_omp
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: wetgridunc_omp

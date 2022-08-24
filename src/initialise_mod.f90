@@ -1126,7 +1126,11 @@ subroutine init_domainfill
   ! Initialise max column number
   numcolumn=0
 
-!$OMP PARALLEL PRIVATE(ljy,ylat,ylatp,ylatm,hzone,cosfactp,cosfactm,pp,lix)
+  ! Initialise the sum over the total mass of the atmosphere
+  colmasstotal=0.
+
+!$OMP PARALLEL PRIVATE(ljy,ylat,ylatp,ylatm,hzone,cosfactp,cosfactm,pp,lix) &
+!$OMP REDUCTION(+:colmasstotal)
 !$OMP DO
   do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
     ylat=ylat0+real(ljy)*dy
@@ -1150,12 +1154,9 @@ subroutine init_domainfill
 !$OMP END DO
 !$OMP BARRIER
 
-  ! Initialise the sum over the total mass of the atmosphere
-  colmasstotal=0.
-
   ! Calculate total mass of each grid column and of the whole atmosphere
   !*********************************************************************
-!$OMP DO REDUCTION(+:colmasstotal)
+!$OMP DO 
   do ljy=ny_sn(1),ny_sn(2)          ! loop about latitudes
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
       pp(1)=rho(lix,ljy,1,1)*r_air*tt(lix,ljy,1,1)
@@ -1309,16 +1310,17 @@ subroutine init_domainfill
     end do
   end do
 
-!$OMP PARALLEL PRIVATE(j)
 
   alive_tmp=count%alive
   spawned_tmp=count%spawned
   allocated_tmp=count%allocated
   terminated_tmp=count%terminated
+
+!$OMP PARALLEL PRIVATE(j) REDUCTION(+:alive_tmp,spawned_tmp,allocated_tmp,terminated_tmp)
  
   ! Make sure that all particles are within domain
   !***********************************************
-!$OMP DO REDUCTION(+:alive_tmp,spawned_tmp,allocated_tmp,terminated_tmp)
+!$OMP DO
   do j=1,numpart
     if ((part(j)%xlon.lt.0.).or.(part(j)%xlon.ge.real(nxmin1,kind=dp)).or. &
          (part(j)%ylat.lt.0.).or.(part(j)%ylat.ge.real(nymin1,kind=dp))) then
@@ -1514,15 +1516,13 @@ subroutine boundcond_domainfill(itime,loutend)
   dt2=real(memtime(2)-itime)
   dtt=1./(dt1+dt2)
 
+  numactiveparticles=0
+  numparticlecount_tmp=numparticlecount
+  accmasst=0.
   ! Terminate trajectories that have left the domain, if domain-filling
   ! trajectory calculation domain is not global
   !********************************************************************
-!$OMP PARALLEL PRIVATE(i,jy,k,j,deltaz,boundarea,indz,indzp,indexh,windl,rhol, &
-!$OMP windhl,rhohl,windx,rhox,fluxofmass,mmass,ixm,jym,ixp,jyp,ddx,ddy,rddx, &
-!$OMP rddy,p1,p2,p3,p4,indzm,mm,indzh,pvpart,ylat,ix,cosfact,ipart)
 
-  numactiveparticles=0
-!$OMP DO REDUCTION(+:numactiveparticles)
   do i=1,numpart
     if (.not. part(i)%alive) cycle
 
@@ -1533,8 +1533,6 @@ subroutine boundcond_domainfill(itime,loutend)
          (part(i)%xlon.gt.real(nx_we(2))))) call terminate_particle(i)
     if (part(i)%alive) numactiveparticles = numactiveparticles+1
   end do
-!$OMP END DO
-
 
   !***************************************
   ! Western and eastern boundary condition
@@ -1542,9 +1540,11 @@ subroutine boundcond_domainfill(itime,loutend)
 
   ! Loop from south to north
   !*************************
-  numparticlecount_tmp=numparticlecount
-  accmasst=0.
-!$OMP DO REDUCTION(+:numparticlecount_tmp,accmasst)
+!$OMP PARALLEL PRIVATE(i,jy,k,j,deltaz,boundarea,indz,indzp,indexh,windl,rhol, &
+!$OMP windhl,rhohl,windx,rhox,fluxofmass,mmass,ixm,jym,ixp,jyp,ddx,ddy,rddx, &
+!$OMP rddy,p1,p2,p3,p4,indzm,mm,indzh,pvpart,ylat,ix,cosfact,ipart) &
+!$OMP REDUCTION(+:numactiveparticles,numparticlecount_tmp,accmasst)
+!$OMP DO
   do jy=ny_sn(1),ny_sn(2)
 
   ! Loop over western (index 1) and eastern (index 2) boundary
@@ -1748,14 +1748,14 @@ subroutine boundcond_domainfill(itime,loutend)
     end do ! western and eastern boundary
   end do ! south to north
 !$OMP END DO
-  numparticlecount = numparticlecount_tmp
+
   !*****************************************
   ! Southern and northern boundary condition
   !*****************************************
 
   ! Loop from west to east
   !***********************
-!$OMP DO REDUCTION(+:numparticlecount_tmp,accmasst)
+!$OMP DO
   do ix=nx_we(1),nx_we(2)
 
   ! Loop over southern (index 1) and northern (index 2) boundary

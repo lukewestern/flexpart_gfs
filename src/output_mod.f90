@@ -711,7 +711,7 @@ subroutine conccalc(itime,weight)
   use par_mod
   use com_mod
   use omp_lib, only: OMP_GET_THREAD_NUM
-  use interpol_mod, only: interpol_density,ix,jy,ixp,jyp,ddx,ddy
+  use interpol_mod, only: interpol_density
   use coordinates_ecmwf
   use particle_mod
 
@@ -721,6 +721,9 @@ subroutine conccalc(itime,weight)
   real,intent(in) :: weight
   integer :: itage,i,kz,ks,n,nage,thread,ithread
   integer :: il,ind,indz,indzp,nrelpointer
+  integer :: ix,jy,ixp,jyp
+  real :: ddx,ddy
+  real(kind=dp) :: mm3
   real :: hx,hy,hz,h,xd,yd,zd,xkern,r2,c(maxspec)
   real :: rhoi
   real :: xl,yl,wx,wy,w
@@ -732,12 +735,15 @@ subroutine conccalc(itime,weight)
   ! releasepoints
   !***************************************************************************
   !  xscav_count=0
-!$OMP PARALLEL PRIVATE(i,itage,nage,rhoi,nrelpointer,kz,xl,yl,ks,wx,wy,w,thread)
+
+!$OMP PARALLEL PRIVATE(i,itage,nage,rhoi,nrelpointer,kz,xl,yl,ks,wx,wy,w,thread,ddx,ddy, &
+!$OMP ix,jy,ixp,jyp)
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM()+1 ! Starts with 1
 #else
     thread = 1
 #endif
+
 !$OMP DO
   do i=1,numpart
     if (.not.part(i)%alive) cycle
@@ -822,6 +828,7 @@ subroutine conccalc(itime,weight)
            (xl.lt.0.5).or.(yl.lt.0.5).or. &
            (xl.gt.real(numxgrid-1)-0.5).or. &
            (yl.gt.real(numygrid-1)-0.5)) then             ! no kernel, direct attribution to grid cell
+
         if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgrid-1).and. &
              (jy.le.numygrid-1)) then
           if (DRYBKDEP.or.WETBKDEP) then
@@ -882,7 +889,6 @@ subroutine conccalc(itime,weight)
           jyp=jy-1
           wy=0.5+ddy
         endif
-
 
   ! Determine mass fractions for four grid points
   !**********************************************
@@ -1007,7 +1013,7 @@ subroutine conccalc(itime,weight)
             endif
           endif
         endif !ixp ge 0
-     endif
+      endif
 
   !************************************
   ! Do everything for the nested domain
@@ -1237,7 +1243,6 @@ subroutine conccalc(itime,weight)
     end do
   endif
 #endif
-  !  write(*,*) 'xscav count:',xscav_count
 
   !***********************************************************************
   ! 2. Evaluate concentrations at receptor points, using the kernel method
