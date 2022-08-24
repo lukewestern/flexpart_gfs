@@ -242,6 +242,7 @@ subroutine outgrid_init
     write(*,*)'ERROR: could not allocate gridunc_omp'
     write(*,*)'increase the memory or reduce max_numthreads_grid in par_mod.f90.'
     stop
+  endif
 #endif
   if (ldirect.gt.0) then
     allocate(wetgridunc(0:numxgrid-1,0:numygrid-1,maxspec, &
