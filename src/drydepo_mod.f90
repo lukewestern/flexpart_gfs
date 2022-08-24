@@ -392,8 +392,8 @@ subroutine drydepokernel(nunc,deposit,x,y,nage,kp,thread)
         if ((ix.ge.0).and.(jy.ge.0).and.(ix.le.numxgrid-1).and. &
              (jy.le.numygrid-1)) then
 #ifdef _OPENMP
-          drygridunc_omp(ix,jy,ks,kp,nunc,nage,thread)= &
-               drygridunc_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)
+          gridunc_omp(ix,jy,1,ks,kp,nunc,nage,thread)= &
+               gridunc_omp(ix,jy,1,ks,kp,nunc,nage,thread)+deposit(ks)
 #else
           drygridunc(ix,jy,ks,kp,nunc,nage)= &
                drygridunc(ix,jy,ks,kp,nunc,nage)+deposit(ks)
@@ -414,8 +414,8 @@ subroutine drydepokernel(nunc,deposit,x,y,nage,kp,thread)
           (jy.le.numygrid-1)) then
           w=wx*wy
 #ifdef _OPENMP
-          drygridunc_omp(ix,jy,ks,kp,nunc,nage,thread)= &
-             drygridunc_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+          gridunc_omp(ix,jy,1,ks,kp,nunc,nage,thread)= &
+             gridunc_omp(ix,jy,1,ks,kp,nunc,nage,thread)+deposit(ks)*w
 #else
           drygridunc(ix,jy,ks,kp,nunc,nage)= &
              drygridunc(ix,jy,ks,kp,nunc,nage)+deposit(ks)*w
@@ -426,8 +426,8 @@ subroutine drydepokernel(nunc,deposit,x,y,nage,kp,thread)
          (jyp.le.numygrid-1)) then
         w=(1.-wx)*(1.-wy)
 #ifdef _OPENMP
-        drygridunc_omp(ixp,jyp,ks,kp,nunc,nage,thread)= &
-             drygridunc_omp(ixp,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+        gridunc_omp(ixp,jyp,1,ks,kp,nunc,nage,thread)= &
+             gridunc_omp(ixp,jyp,1,ks,kp,nunc,nage,thread)+deposit(ks)*w
 #else
         drygridunc(ixp,jyp,ks,kp,nunc,nage)= &
              drygridunc(ixp,jyp,ks,kp,nunc,nage)+deposit(ks)*w
@@ -438,8 +438,8 @@ subroutine drydepokernel(nunc,deposit,x,y,nage,kp,thread)
          (jy.le.numygrid-1)) then
         w=(1.-wx)*wy
 #ifdef _OPENMP
-        drygridunc_omp(ixp,jy,ks,kp,nunc,nage,thread)= &
-             drygridunc_omp(ixp,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+        gridunc_omp(ixp,jy,1,ks,kp,nunc,nage,thread)= &
+             gridunc_omp(ixp,jy,1,ks,kp,nunc,nage,thread)+deposit(ks)*w
 #else
         drygridunc(ixp,jy,ks,kp,nunc,nage)= &
              drygridunc(ixp,jy,ks,kp,nunc,nage)+deposit(ks)*w
@@ -450,8 +450,8 @@ subroutine drydepokernel(nunc,deposit,x,y,nage,kp,thread)
          (jyp.le.numygrid-1)) then
         w=wx*(1.-wy)
 #ifdef _OPENMP
-        drygridunc_omp(ix,jyp,ks,kp,nunc,nage,thread)= &
-             drygridunc_omp(ix,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+        gridunc_omp(ix,jyp,1,ks,kp,nunc,nage,thread)= &
+             gridunc_omp(ix,jyp,1,ks,kp,nunc,nage,thread)+deposit(ks)*w
 #else
         drygridunc(ix,jyp,ks,kp,nunc,nage)= &
              drygridunc(ix,jyp,ks,kp,nunc,nage)+deposit(ks)*w
@@ -530,8 +530,8 @@ subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp,thread)
            (jy.le.numygridn-1)) then
         w=wx*wy
 #ifdef _OPENMP
-        drygriduncn_omp(ix,jy,ks,kp,nunc,nage,thread)= &
-             drygriduncn_omp(ix,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+        griduncn_omp(ix,jy,1,ks,kp,nunc,nage,thread)= &
+             griduncn_omp(ix,jy,1,ks,kp,nunc,nage,thread)+deposit(ks)*w
 #else
         drygriduncn(ix,jy,ks,kp,nunc,nage)= &
              drygriduncn(ix,jy,ks,kp,nunc,nage)+deposit(ks)*w
@@ -542,8 +542,8 @@ subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp,thread)
            (jyp.le.numygridn-1)) then
         w=(1.-wx)*(1.-wy)
 #ifdef _OPENMP
-        drygriduncn_omp(ixp,jyp,ks,kp,nunc,nage,thread)= &
-             drygriduncn_omp(ixp,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+        griduncn_omp(ixp,jyp,1,ks,kp,nunc,nage,thread)= &
+             griduncn_omp(ixp,jyp,1,ks,kp,nunc,nage,thread)+deposit(ks)*w
 #else
         drygriduncn(ixp,jyp,ks,kp,nunc,nage)= &
              drygriduncn(ixp,jyp,ks,kp,nunc,nage)+deposit(ks)*w
@@ -554,8 +554,8 @@ subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp,thread)
            (jy.le.numygridn-1)) then
         w=(1.-wx)*wy
 #ifdef _OPENMP
-        drygriduncn_omp(ixp,jy,ks,kp,nunc,nage,thread)= &
-             drygriduncn_omp(ixp,jy,ks,kp,nunc,nage,thread)+deposit(ks)*w
+        griduncn_omp(ixp,jy,1,ks,kp,nunc,nage,thread)= &
+             griduncn_omp(ixp,jy,1,ks,kp,nunc,nage,thread)+deposit(ks)*w
 #else
         drygriduncn(ixp,jy,ks,kp,nunc,nage)= &
              drygriduncn(ixp,jy,ks,kp,nunc,nage)+deposit(ks)*w
@@ -566,8 +566,8 @@ subroutine drydepokernel_nest(nunc,deposit,x,y,nage,kp,thread)
            (jyp.le.numygridn-1)) then
         w=wx*(1.-wy)
 #ifdef _OPENMP
-        drygriduncn_omp(ix,jyp,ks,kp,nunc,nage,thread)= &
-             drygriduncn_omp(ix,jyp,ks,kp,nunc,nage,thread)+deposit(ks)*w
+        griduncn_omp(ix,jyp,1,ks,kp,nunc,nage,thread)= &
+             griduncn_omp(ix,jyp,1,ks,kp,nunc,nage,thread)+deposit(ks)*w
 #else
         drygriduncn(ix,jyp,ks,kp,nunc,nage)= &
              drygriduncn(ix,jyp,ks,kp,nunc,nage)+deposit(ks)*w

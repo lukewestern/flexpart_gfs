@@ -276,6 +276,8 @@ subroutine timemanager
   ! Is the time within the computation interval, if not, skip
   !************************************************************
     if ((ldirect*itime.ge.ldirect*loutstart).and.(ldirect*itime.le.ldirect*loutend)) then
+      call SYSTEM_CLOCK(count_clock, count_rate, count_max)
+      s_temp = (count_clock - count_clock0)/real(count_rate)
       ! If it is not time yet to write outputs, skip
       !***********************************************
       if ((itime.eq.loutend).and.(outnum.gt.0).and.(itime.ne.0)) then
@@ -284,17 +286,16 @@ subroutine timemanager
         if (iflux.eq.1) call fluxoutput(itime)
         if (ipout.ge.1) then
           if (mod(itime,ipoutfac*loutstep).eq.0) then
-            call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-            s_temp = (count_clock - count_clock0)/real(count_rate)
+
             call output_particles(itime)!,active_per_rel) ! dump particle positions
-            call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-            s_writepart = s_writepart + ((count_clock - count_clock0)/real(count_rate)-s_temp)
           endif
         endif
       endif
       ! Check whether concentrations are to be calculated and outputted
       !****************************************************************
       call output_concentrations(itime,loutstart,loutend,loutnext,outnum)
+      call SYSTEM_CLOCK(count_clock, count_rate, count_max)
+      s_writepart = s_writepart + ((count_clock - count_clock0)/real(count_rate)-s_temp)
     endif
 
     if (itime.eq.ideltas) exit         ! almost finished
@@ -392,16 +393,41 @@ subroutine timemanager
 
   ! Calculate the gross fluxes across layer interfaces
   !***************************************************
-
       if (iflux.eq.1) call calcfluxes(itime,nage,j,real(part(j)%xlon_prev), &
-        real(part(j)%ylat_prev),real(part(j)%z_prev),thread+1) !OMP reduction necessary for flux array
+        real(part(j)%ylat_prev),real(part(j)%z_prev),thread+1)
+    end do
+!$OMP END DO
+!$OMP END PARALLEL
 
+!$OMP PARALLEL PRIVATE(prob_rec,ks,kp,thread,j,xmassfract,drydeposit) num_threads(numthreads_grid)
+
+#if (defined _OPENMP)
+    thread = OMP_GET_THREAD_NUM() ! Starts with 0
+#else
+    thread = 1
+#endif
+
+!$OMP DO 
+! SCHEDULE(dynamic, max(1,numpart/1000))
+!max(1,int(real(numpart)/numthreads/20.)))
+    do j=1,numpart
+
+  ! If integration step is due, do it
+  !**********************************
+      if (.not. part(j)%alive) cycle
+
+  ! Determine age class of the particle
+  !************************************
+      itage=abs(itime-part(j)%tstart)
+      do nage=1,nageclass
+        if (itage.lt.lage(nage)) exit
+      end do
 
   ! Determine, when next time step is due
   ! If trajectory is terminated, mark it
   !**************************************
       if (part(j)%nstop) then
-        if (linit_cond.ge.1) call initial_cond_calc(itime,j,thread+1) !OMP reduction necessary for init_cond
+        if (linit_cond.ge.1) call initial_cond_calc(itime,j,thread+1)
         call terminate_particle(j)
       else
 
@@ -474,24 +500,25 @@ subroutine timemanager
       end do
     endif
     if (linit_cond.ge.1) then
-      do i=1,numthreads
+      do i=1,numthreads_grid
         init_cond(:,:,:,:,:)=init_cond(:,:,:,:,:)+init_cond_omp(:,:,:,:,:,i)
         init_cond_omp(:,:,:,:,:,i)=0.
       end do
     endif
     if (DRYDEP.AND.(ldirect.eq.1).and.(iout.ne.0)) then
-      do i=1,numthreads
-        drygridunc(:,:,:,:,:,:)=drygridunc(:,:,:,:,:,:)+drygridunc_omp(:,:,:,:,:,:,i)
-        drygridunc_omp(:,:,:,:,:,:,i)=0.
+      do i=1,numthreads_grid
+        drygridunc(:,:,:,:,:,:)=drygridunc(:,:,:,:,:,:)+gridunc_omp(:,:,1,:,:,:,:,i)
+        gridunc_omp(:,:,1,:,:,:,:,i)=0.
       end do
       if (nested_output.eq.1) then
-        do i=1,numthreads
-          drygriduncn(:,:,:,:,:,:)=drygriduncn(:,:,:,:,:,:)+drygriduncn_omp(:,:,:,:,:,:,i)
-          drygriduncn_omp(:,:,:,:,:,:,i)=0.
+        do i=1,numthreads_grid
+          drygriduncn(:,:,:,:,:,:)=drygriduncn(:,:,:,:,:,:)+griduncn_omp(:,:,1,:,:,:,:,i)
+          griduncn_omp(:,:,1,:,:,:,:,i)=0.
         end do
       endif
     endif
 #endif
+  ! write(*,*) 'DRYGRIDUNC:',sum(drygridunc),drygridunc(20,270,1,1,1,1),drygridunc(19,269,1,1,1,1)
   ! Counter of "unstable" particle velocity during a time scale of
   ! maximumtl=20 minutes (defined in com_mod)
   !***************************************************************
