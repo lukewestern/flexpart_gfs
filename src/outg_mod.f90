@@ -239,7 +239,7 @@ subroutine outgrid_init
   allocate(gridunc_omp(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
        maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
   if (stat.ne.0) then
-    write(*,*)'ERROR: could not allocate gridunc_omp',
+    write(*,*)'ERROR: could not allocate gridunc_omp'
     write(*,*)'increase the memory or reduce max_numthreads_grid in par_mod.f90.'
     stop
 #endif
