@@ -119,12 +119,15 @@ subroutine releaseparticles(itime)
 
   ! For every release point, check whether we are in the release time interval
   !***************************************************************************
-  ! First allocate all particles that are going to be in the simulation (this could be done differently...)
+  ! First allocate all particles that are going to be in the simulation
+
   if (itime.eq.0) then
-    do i=1,numpoint 
-      call allocate_particles(npart(i))
+    totpart=0
+    do i=1,numpoint
+      totpart = totpart+npart(i)
     end do
-  else if (itime.eq.itime_init) then
+    call allocate_particles(totpart)
+  else if (itime.eq.itime_init) then !From restart point only allocate particles that are yet to be born
     totpart=0
     do i=1,numpoint
       totpart = totpart+npart(i)
