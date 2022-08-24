@@ -183,7 +183,7 @@ subroutine timemanager
 
     if (itime.eq.itime_init) then
       call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-      s_firstt = (count_clock - count_clock0)/real(count_rate)
+      s_firstt = real(count_clock)/real(count_rate)
     endif
 
   ! Writing restart file
@@ -511,7 +511,7 @@ subroutine timemanager
 
     if (itime.eq.itime_init) then
       call SYSTEM_CLOCK(count_clock, count_rate, count_max)
-      s_firstt = (count_clock - count_clock0)/real(count_rate) - s_firstt
+      s_firstt = real(count_clock)/real(count_rate) - s_firstt
     endif
 
   end do
