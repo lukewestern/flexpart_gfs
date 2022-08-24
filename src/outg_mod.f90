@@ -238,8 +238,10 @@ subroutine outgrid_init
 #ifdef _OPENMP
   allocate(gridunc_omp(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
        maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
-  if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc_omp', &
-    numxgrid*numygrid*numzgrid*maxspec*nclassunc*maxageclass*numthreads_grid
+  if (stat.ne.0) then
+    write(*,*)'ERROR: could not allocate gridunc_omp',
+    write(*,*)'increase the memory or reduce max_numthreads_grid in par_mod.f90.'
+    stop
 #endif
   if (ldirect.gt.0) then
     allocate(wetgridunc(0:numxgrid-1,0:numygrid-1,maxspec, &
@@ -250,10 +252,10 @@ subroutine outgrid_init
     if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc'
 #ifdef _OPENMP
     allocate(wetgridunc_omp(0:numxgrid-1,0:numygrid-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads),stat=stat)
+         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc_omp'
     allocate(drygridunc_omp(0:numxgrid-1,0:numygrid-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads),stat=stat)
+         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc_omp'
 #endif
   endif
@@ -470,10 +472,10 @@ subroutine outgrid_init_nest
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
 #ifdef _OPENMP
     allocate(wetgriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads),stat=stat)
+         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested wetgridunc_omp'
     allocate(drygriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads),stat=stat)
+         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested drygriduncn_omp'
 #endif
   endif

@@ -92,7 +92,7 @@ program flexpart
   !****************************************************************
 #ifdef _OPENMP
     numthreads = OMP_GET_MAX_THREADS()
-    numthreads_grid = min(numthreads,10)
+    numthreads_grid = min(numthreads,max_numthreads_grid)
     !numthreads = min(40,numthreads)
 #else
     numthreads = 1
@@ -146,6 +146,7 @@ program flexpart
   write(*,*) 'Timemanager: ', s_timemanager, ' seconds,', 'first timestep: ',s_firstt, 'seconds'
   write(*,*) 'Write particle files: ', s_writepart, ' seconds'
   write(*,*) 'Total running time: ', s_total, ' seconds'
+  write(*,*) 'tps,io,tot: ', (s_timemanager-s_firstt)/4.,(s_readwind+s_writepart)/5.,s_total
   write(*,*) 'CONGRATULATIONS: YOU HAVE SUCCESSFULLY COMPLETED A FLE&
        &XPART MODEL RUN!'
 
