@@ -144,7 +144,8 @@ subroutine timemanager
 
   ! Initialise the nan count for CBL option
   !****************************************
-  sum_nan_count = 0
+  sum_nan_count(:) = 0
+  nan_count(:) = 0
 
   !**********************************************************************
   ! Loop over the whole modelling period in time steps of mintime seconds
