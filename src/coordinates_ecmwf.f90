@@ -17,7 +17,7 @@ subroutine update_zeta_to_z(itime, ipart)
     ipart                           ! particle index
 
   if (.not. wind_coord_type.eq.'ETA') return
-
+  if (.not. part(ipart)%alive) return  
   if (part(ipart)%etaupdate) return
 
   call zeta_to_z(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%zeta,part(ipart)%z)
@@ -33,9 +33,8 @@ subroutine update_z_to_zeta(itime, ipart)
     itime,                        & ! time index
     ipart                           ! particle index
 
-  if (.not. part(ipart)%alive) return
   if (.not. wind_coord_type.eq.'ETA') return
-
+  if (.not. part(ipart)%alive) return
   if (part(ipart)%meterupdate) return
 
   call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)
@@ -65,7 +64,7 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
   integer, intent(in) ::          &
     itime                           ! time index
   integer ::                      &
-    i,m,indexh                  ! loop indices
+    i,m,k                           ! loop indices
   real(kind=dp), intent(in) ::    &
     xt,yt                           ! particle position
   real(kind=dp), intent(in) ::    &
@@ -75,10 +74,15 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
   real ::                         &
     frac,                         & ! fraction between z levels
     ztemp1,ztemp2,                & ! z positions of the two encompassing levels
-    ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
+    ttemp1(2),                    & ! storing virtual temperature
     psint1(2),psint                 ! pressure of encompassing levels
   real ::                         &
     prx,pr1,pr2     ! pressure of encompassing levels
+
+  if (.not. logarithmic_interpolation) then
+    call z_to_zeta_lin(itime,xt,yt,zold,zteta)
+    return
+  endif
 
   call determine_grid_coordinates(real(xt),real(yt))
   call find_grid_distances(real(xt),real(yt))
@@ -86,10 +90,19 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
 
   ! Integration method as used in the original verttransform_ecmwf.f90
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  ! First estimate the level it is at, to reduce computation time
+  m=nz-1
+  do i=2,nz-1
+    if (etauvheight(ix,jy,i,memind(1)).gt.real(zold)) then
+      m=i-2
+      exit
+    endif
+  end do
+  m=max(m,2)
 
   ztemp1 = 0.
-  do i=2,nz-1
-
+  do i=m,nz-1
+    k=i
     call bilinear_horizontal_interpolation(etauvheight,ttemp1,i,nzmax)
     call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
 
@@ -100,21 +113,20 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
       frac = 1.
       exit
     endif
-    ttemp_old=ttemp_new
     ztemp1=ztemp2
   end do
 
-  if (i.lt.nz-1) then 
+  if (k.lt.nz-1) then 
     call bilinear_horizontal_interpolation(ps,psint1,1,1)
     call temporal_interpolation(psint1(1),psint1(2),psint)  
-    pr1=akz(i-1) + bkz(i-1)*psint
-    pr2=akz(i) + bkz(i)*psint
+    pr1=akz(k-1) + bkz(k-1)*psint
+    pr2=akz(k) + bkz(k)*psint
 
     prx=pr1/exp(log(pr2/pr1)/(ztemp2-ztemp1)*ztemp1) * exp(log(pr2/pr1)/(ztemp2-ztemp1)*real(zold))
     frac=(prx-pr1)/(pr2 - pr1)
   endif
 
-  zteta=real(uvheight(i-1)*(1.-frac)+uvheight(i)*frac,kind=dp)
+  zteta=real(uvheight(k-1)*(1.-frac)+uvheight(k)*frac,kind=dp)
 end subroutine z_to_zeta
 
 subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
@@ -149,9 +161,13 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
     frac                            ! fraction between z levels
   real ::                         &
     ztemp1,ztemp2,                & ! z positions of the two encompassing levels
-    ttemp_old,ttemp1(2),ttemp_new,& ! storing virtual temperature
+    ttemp1(2),                    & ! storing virtual temperature
     psint1(2),psint,prx,pr1,pr2     ! pressure of encompassing levels
  
+  if (.not. logarithmic_interpolation) then
+    call zeta_to_z_lin(itime,xt,yt,zteta,ztout)
+    return
+  endif
 
   ! Convert eta z coordinate to meters
   !***********************************
@@ -161,7 +177,8 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
 
   k=nz-1
   frac=1.
-  do k=2,nz-1
+  do i=2,nz-1
+    k=i
     if (zteta.ge.real(uvheight(k),kind=dp)) then
       frac=(zteta-real(uvheight(k-1),kind=dp))/(real(uvheight(k)-uvheight(k-1),kind=dp))
       exit
@@ -187,5 +204,138 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
   
   ztout = ztemp1 + (ztemp2-ztemp1)/log(pr2/pr1)*log(prx/pr1)
 end subroutine zeta_to_z
+
+subroutine z_to_zeta_lin(itime,xt,yt,zold,zteta)
+  !                        i    i   o  o  o
+  !        o       o       o    i  i  i   o
+  !*****************************************************************************
+  ! Converting z from eta coordinates to meters                                *
+  !                                                                            *
+  !*****************************************************************************
+  !                                                                            *
+  ! Variables:                                                                 *
+  ! itime [s]          current temporal position                               *
+  ! xteta,yteta,zteta                   spatial position of trajectory         *
+  !                                                                            *
+  ! etauvheight defined in windfields: half model heights for ETA coordinates  *
+  ! Constants:                                                                 *
+  !                                                                            *
+  !*****************************************************************************
+  use interpol_mod
+
+  implicit none
+  integer, intent(in) ::          &
+    itime                           ! time index
+  integer ::                      &
+    i,m,k                           ! loop indices
+  real(kind=dp), intent(in) ::    &
+    xt,yt                           ! particle position
+  real(kind=dp), intent(in) ::    &
+    zold                            ! particle verticle position in eta coordinates
+  real(kind=dp), intent(inout) :: &
+    zteta                           ! converted output z in meters
+  real ::                         &
+    frac,                         & ! fraction between z levels
+    ztemp1,ztemp2,                & ! z positions of the two encompassing levels
+    ttemp1(2),                    & ! storing virtual temperature
+    psint1(2),psint                 ! pressure of encompassing levels
+  real ::                         &
+    prx,pr1,pr2     ! pressure of encompassing levels
+
+  call determine_grid_coordinates(real(xt),real(yt))
+  call find_grid_distances(real(xt),real(yt))
+  call find_time_variables(itime)
+
+  ! Integration method as used in the original verttransform_ecmwf.f90
+  !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  ! First estimate the level it is at, to reduce computation time
+  m=nz-1
+  do i=2,nz-1
+    if (etauvheight(ix,jy,i,memind(1)).gt.real(zold)) then
+      m=i-2
+      exit
+    endif
+  end do
+  m=max(m,2)
+
+  ztemp1 = 0.
+  do i=m,nz-1
+    k=i
+    call bilinear_horizontal_interpolation(etauvheight,ttemp1,i,nzmax)
+    call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
+
+    if (ztemp2.gt.real(zold)) then
+      frac = (real(zold)-ztemp1)/(ztemp2-ztemp1)
+      exit
+    else if (i.eq.nz-1) then
+      frac = 1.
+      exit
+    endif
+    ztemp1=ztemp2
+  end do
+
+  zteta=real(uvheight(k-1)*(1.-frac)+uvheight(k)*frac,kind=dp)
+end subroutine z_to_zeta_lin
+
+subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
+  !                        i    i   o  o  o
+  !        o       o       o    i  i  i   o
+  !*****************************************************************************
+  ! Converting z from eta coordinates to meters                                *
+  !                                                                            *
+  !*****************************************************************************
+  !                                                                            *
+  ! Variables:                                                                 *
+  ! itime [s]          current temporal position                               *
+  ! xt,yt,zteta                   spatial position of trajectory               *
+  !                                                                            *
+  !                                                                            *
+  !                                                                            *
+  !*****************************************************************************
+  use interpol_mod
+
+  implicit none
+  integer, intent(in) ::          &
+    itime                           ! time index
+  integer ::                      &
+    i,j,k,m,indexh                  ! loop indices
+  real(kind=dp), intent(in) ::    &
+    xt,yt                           ! particle position
+  real(kind=dp), intent(in) ::    &
+    zteta                           ! particle verticle position in eta coordinates
+  real(kind=dp), intent(inout) :: &
+    ztout                           ! converted output z in meters
+  real(kind=dp) ::                &
+    frac                            ! fraction between z levels
+  real ::                         &
+    ztemp1,ztemp2,                & ! z positions of the two encompassing levels
+    ttemp1(2),                    & ! storing virtual temperature
+    psint1(2),psint                 ! pressure of encompassing levels
+ 
+
+  ! Convert eta z coordinate to meters
+  !***********************************
+  call determine_grid_coordinates(real(xt),real(yt))
+  call find_grid_distances(real(xt),real(yt))
+  call find_time_variables(itime)
+
+  k=nz-1
+  frac=1.
+  do i=2,nz-1
+    k=i
+    if (zteta.ge.real(uvheight(k),kind=dp)) then
+      frac=(zteta-real(uvheight(k-1),kind=dp))/(real(uvheight(k)-uvheight(k-1),kind=dp))
+      exit
+    endif
+  end do
+  
+  call bilinear_horizontal_interpolation(etauvheight,ttemp1,k-1,nzmax)
+  call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1)
+
+  call bilinear_horizontal_interpolation(etauvheight,ttemp1,k,nzmax)
+  call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
+  
+  ztout = real(ztemp1,kind=dp)*(1.-frac)+real(ztemp2,kind=dp)*frac
+end subroutine zeta_to_z_lin
 
 end module coordinates_ecmwf
