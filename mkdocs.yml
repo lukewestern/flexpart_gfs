@@ -8,11 +8,14 @@ repo_url: https://gitlab.phaidra.org/flexpart/flexpart
 repo_name: IMGW/Flexpart
 # this makes relative links  valid
 use_directory_urls: false
+theme:
+  name: readthedocs
 plugins:
   - tags
   - search
-extra_css:
-  - mkdocs/stylesheets/extra.css
+extra_javascript: 
+    - https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+
 markdown_extensions:
   - pymdownx.highlight:
       linenums: true
@@ -23,3 +26,4 @@ markdown_extensions:
   - pymdownx.tasklist
   - pymdownx.details
   - pymdownx.emoji
+  - mdx_math
