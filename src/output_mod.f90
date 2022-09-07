@@ -303,7 +303,7 @@ subroutine output_particles(itime,initial_output)
   integer,intent(in) :: itime
   logical,optional,intent(in) :: initial_output
   logical :: init_out
-  integer :: i,j,jjjjmmdd,ihmmss,np,ns,i_av
+  integer :: i,j,m,jjjjmmdd,ihmmss,np,ns,i_av
   real(kind=dp) :: jul
   real :: tmp(2)
   character :: adate*8,atime*6
@@ -335,7 +335,7 @@ subroutine output_particles(itime,initial_output)
     init_out=.false.
   endif
 
-!$OMP PARALLEL PRIVATE(i,j,tmp,ns,i_av,cartxyz_comp,cartxyz,np)
+!$OMP PARALLEL PRIVATE(i,j,m,tmp,ns,i_av,cartxyz_comp,cartxyz,np)
   ! Some variables needed for temporal interpolation
   !*************************************************
   call find_time_variables(itime)
@@ -380,14 +380,18 @@ subroutine output_particles(itime,initial_output)
           output(np,i)=ylat0+part(i)%ylat*dy
           cycle
         case ('TO') ! Topography
-          call bilinear_horizontal_interpolation_2dim(oro,output(np,i))
+          call horizontal_interpolation(oro,output(np,i))
           cycle
         case ('TR') ! Tropopause
-          call bilinear_horizontal_interpolation(tropopause,tmp,1,1)
+          do m=1,2
+            call horizontal_interpolation(tropopause,tmp(m),1,memind(m),1)
+          end do
           call temporal_interpolation(tmp(1),tmp(2),output(np,i))
           cycle
         case ('HM') ! PBL height
-          call bilinear_horizontal_interpolation(hmix,tmp,1,1)
+          do m=1,2
+            call horizontal_interpolation(hmix,tmp(m),1,memind(m),1)
+          end do
           call temporal_interpolation(tmp(1),tmp(2),output(np,i))
           cycle
         case ('ZZ') ! Height
@@ -1313,7 +1317,7 @@ subroutine partpos_average(itime,j)
   implicit none
 
   integer,intent(in) :: itime,j
-  integer :: np,i_av,ns
+  integer :: np,i_av,ns,m
   real :: xlon,ylat,x,y,z
   real :: topo,hm(2),hmixi,pvi,qvi
   real :: tti,rhoi,ttemp
@@ -1352,14 +1356,18 @@ subroutine partpos_average(itime,j)
     i_av = partopt(np)%i_average
     select case (partopt(np)%name)
       case ('to')
-        call bilinear_horizontal_interpolation_2dim(oro,output)
+        call horizontal_interpolation(oro,output)
         part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
       case ('tr')
-        call bilinear_horizontal_interpolation(tropopause,tr,1,1)
+        do m=1,2
+          call horizontal_interpolation(tropopause,tr(m),1,memind(m),1)
+        end do
         call temporal_interpolation(tr(1),tr(2),output)
         part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
       case ('hm')
-        call bilinear_horizontal_interpolation(hmix,hm,1,1)
+        do m=1,2
+          call horizontal_interpolation(hmix,hm(m),1,memind(m),1)
+        end do
         call temporal_interpolation(hm(1),hm(2),output)
         part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
       case ('lo')

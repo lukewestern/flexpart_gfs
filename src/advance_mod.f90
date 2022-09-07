@@ -239,7 +239,11 @@ subroutine advance(itime,ipart,thread)
   ! time interval between wind fields
   !****************************************************************
   if (.not. turboff) then ! mesoscale turbulence is found to give issues, so turned off
-    ! call turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta,eps_eta)
+    if (mesoscale_turbulence) then
+      call interpol_mesoscale(itime,real(part(ipart)%xlon),real(part(ipart)%ylat), &
+        real(part(ipart)%z),real(part(ipart)%zeta))
+      call turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta,eps_eta)
+    endif
 
     !*************************************************************
     ! Transform along and cross wind components to xy coordinates,
@@ -438,6 +442,12 @@ subroutine advance_PBL(itime,itimec,&
 
   ! BEGIN TIME LOOP
   !================
+  ! For wind_coord_type=ETA:
+  ! Within this loop, only METER coordinates are used, and the new z value will be updated
+  ! to ETA coordinates at the end
+  !***************************************************************************************
+  call update_zeta_to_z(itime,ipart)
+
   loop=0
   pbl_loop : do
     loop=loop+1
@@ -449,31 +459,29 @@ subroutine advance_PBL(itime,itimec,&
       itimec=itime+lsynctime
     endif
     dt=real(part(ipart)%idt)
-    call update_zeta_to_z(itime,ipart)
     xts=real(part(ipart)%xlon)
     yts=real(part(ipart)%ylat)
     zts=real(part(ipart)%z)
-    ztseta=real(part(ipart)%zeta)
 
     zeta=real(part(ipart)%z)/h
     if (loop.eq.1) then ! Temporal interpolation only done for the first iteration
       if (ngrid.le.0) then
         xts=real(part(ipart)%xlon)
         yts=real(part(ipart)%ylat)
-        call interpol_all(itime,xts,yts,zts,ztseta)
+        call interpol_PBL(itime,xts,yts,zts)
       else
-        call interpol_all(itime,xtn,ytn,zts,ztseta)
+        call interpol_PBL(itime,xtn,ytn,zts)
       endif
 
     else
       ! Determine the level below the current position for u,v,rho
       !***********************************************************
-      call find_z_level(zts,ztseta) ! Not sure if zteta levels are necessary here
+      call find_z_level_meters(zts)
 
       ! If one of the levels necessary is not yet available,
       ! calculate it
       !*****************************************************
-      call interpol_misslev()
+      call interpol_PBL_misslev()
     endif
 
 
@@ -483,15 +491,15 @@ subroutine advance_PBL(itime,itimec,&
   ! Vertical distance to the level below and above current position
   ! both in terms of (u,v) and (w) fields
   !****************************************************************
-    call interpol_mixinglayer(zts,ztseta,rhoa,rhograd) ! Vertical interpolation
+    call interpol_PBL_short(zts,rhoa,rhograd) ! Vertical interpolation
 
   ! Compute the turbulent disturbances
   ! Determine the sigmas and the timescales 
   !****************************************
     if (.not.turboff) then
       call turbulence_boundarylayer(ipart,nrand,dt,zts,rhoa,rhograd,thread) ! Note: zts and nrand get updated
-    ! Determine time step for next integration
-    !*****************************************
+      ! Determine time step for next integration
+      !*****************************************
       if (turbswitch) then
         part(ipart)%idt=int(min(tlw,h/max(2.*abs(part(ipart)%turbvel%w*sigw),1.e-5), &
              0.5/abs(dsigwdz))*ctl)
@@ -565,7 +573,6 @@ subroutine advance_PBL(itime,itimec,&
 
 
     if (itimec.eq.(itime+lsynctime)) then
-      call interpol_average()
       ! Converting the z position that changed through turbulence motions to eta coords
       call update_z_to_zeta(itime,ipart)
       return  ! finished

@@ -883,7 +883,7 @@ subroutine initialize_particle(itime,ipart)
 
   if (zeta.le.1.) then
 
-    call interpol_all(itime,xt,yt,zt,zteta)
+    call interpol_PBL(itime,xt,yt,zt)
 
   ! Vertical interpolation of u,v,w,rho and drhodz
   !***********************************************
@@ -891,7 +891,7 @@ subroutine initialize_particle(itime,ipart)
   ! Vertical distance to the level below and above current position
   ! both in terms of (u,v) and (w) fields
   !****************************************************************
-    call interpol_mixinglayer(zt,zteta,dummy1,dummy2)
+    call interpol_PBL_short(zt,dummy1,dummy2)
 
   ! Compute the turbulent disturbances
 
@@ -936,7 +936,7 @@ subroutine initialize_particle(itime,ipart)
     endif
     part(ipart)%idt=max(part(ipart)%idt,mintime)
 
-    call interpol_average()
+    ! call interpol_average()
     ! usig=(usigprof(indzp)+usigprof(indz))/2.
     ! vsig=(vsigprof(indzp)+vsigprof(indz))/2.
     ! wsig=(wsigprof(indzp)+wsigprof(indz))/2.
@@ -987,19 +987,20 @@ subroutine initialize_particle(itime,ipart)
   ! of the surrounding points, autocorrelation time constant is
   ! 1/2 of time interval between wind fields
   !****************************************************************
-
-  if (nrand+2.gt.maxrand) nrand=1
-  part(ipart)%mesovel%u=rannumb(nrand)*usig
-  part(ipart)%mesovel%v=rannumb(nrand+1)*vsig
-  select case (wind_coord_type)
-    case ('ETA')
-      part(ipart)%mesovel%w=rannumb(nrand+2)*wsigeta
-    case ('METER')
-      part(ipart)%mesovel%w=rannumb(nrand+2)*wsig
-    case default
-      part(ipart)%mesovel%w=rannumb(nrand+2)*wsig
-  end select  
-
+  if (mesoscale_turbulence) then
+    call interpol_mesoscale(itime,xt,yt,zt,zteta)
+    if (nrand+2.gt.maxrand) nrand=1
+    part(ipart)%mesovel%u=rannumb(nrand)*usig
+    part(ipart)%mesovel%v=rannumb(nrand+1)*vsig
+    select case (wind_coord_type)
+      case ('ETA')
+        part(ipart)%mesovel%w=rannumb(nrand+2)*wsigeta
+      case ('METER')
+        part(ipart)%mesovel%w=rannumb(nrand+2)*wsig
+      case default
+        part(ipart)%mesovel%w=rannumb(nrand+2)*wsig
+    end select  
+  endif
 end subroutine initialize_particle
 
 subroutine init_domainfill
@@ -1162,8 +1163,8 @@ subroutine init_domainfill
 !$OMP DO 
   do ljy=ny_sn(1),ny_sn(2)          ! loop about latitudes
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
-      pp(1)=rho(lix,ljy,1,1)*r_air*tt(lix,ljy,1,1)
-      pp(nz)=rho(lix,ljy,nz,1)*r_air*tt(lix,ljy,nz,1)
+      pp(1)=prs(lix,ljy,1,1) !rho(lix,ljy,1,1)*r_air*tt(lix,ljy,1,1)
+      pp(nz)=prs(lix,ljy,nz,1) !rho(lix,ljy,nz,1)*r_air*tt(lix,ljy,nz,1)
       colmass(lix,ljy)=(pp(1)-pp(nz))/ga*gridarea(ljy)
       colmasstotal=colmasstotal+colmass(lix,ljy)
     end do
@@ -1391,7 +1392,7 @@ subroutine init_domainfill
   !*****************************************************************************
 
       do kz=1,nz
-        pp(kz)=rho(lix,ljy,kz,1)*r_air*tt(lix,ljy,kz,1)
+        pp(kz)=prs(lix,ljy,kz,1) !rho(lix,ljy,kz,1)*r_air*tt(lix,ljy,kz,1)
       end do
 
   ! Determine the reference starting altitudes

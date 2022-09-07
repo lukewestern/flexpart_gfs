@@ -347,6 +347,7 @@ subroutine verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,
           vv(ix,jy,iz,n)=vv(ix,jy,nz,n)
           tt(ix,jy,iz,n)=tt(ix,jy,nz,n)
           qv(ix,jy,iz,n)=qv(ix,jy,nz,n)
+
   !hg adding the cloud water
           if (readclouds) then
             clwc(ix,jy,iz,n)=clwc(ix,jy,nz,n)
@@ -379,7 +380,7 @@ subroutine verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,
           qv(ix,jy,iz,n)=(qvh(ix,jy,kz-1,n)*dz2 &
                +qvh(ix,jy,kz,n)*dz1)/dz
   !hg adding the cloud water
-          if (readclouds) then
+          if  ((wind_coord_type.ne.'ETA').and.(readclouds)) then
             clwc(ix,jy,iz,n)=(clwch(ix,jy,kz-1,n)*dz2+clwch(ix,jy,kz,n)*dz1)/dz
             if (.not.sumclouds) &
                  &ciwc(ix,jy,iz,n)=(ciwch(ix,jy,kz-1,n)*dz2+ciwch(ix,jy,kz,n)*dz1)/dz
@@ -499,7 +500,6 @@ subroutine verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,
   end do
 
   ! Keep original fields if wind_coord_type==ETA
-
   if (wind_coord_type.eq.'ETA') then
 !$OMP DO
 
@@ -517,6 +517,10 @@ subroutine verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,
             ((qveta(ix,jy,kz,n)+0.622)/(0.622*qveta(ix,jy,kz,n)+0.622))
           if ((kz.gt.1).and.(kz.lt.nz)) drhodzeta(ix,jy,kz,n)=(rhoh(ix,jy,kz+1)-rhoh(ix,jy,kz-1))/ &
                (height(kz+1)-height(kz-1)) ! Note that this is still in SI units and not in eta
+          if (readclouds) then
+            clwc(ix,jy,kz,n)=clwch(ix,jy,kz,n)
+            if (.not. sumclouds) ciwc(ix,jy,kz,n)=ciwch(ix,jy,kz,n)
+          endif
         end do
       end do
     end do
@@ -881,14 +885,21 @@ subroutine verttransform_ecmwf_clouds(n,lreadclouds,lsumclouds,nxlim,nylim,cloud
   ! Find clouds in the vertical
         do kz=1, nz-1 !go from top to bottom
           if (clwc_tmp(ix,jy,kz).gt.0) then      
-  ! assuming rho is in kg/m3 and hz in m gives: kg/kg * kg/m3 *m3/kg /m = m2/m3 
-            clw_tmp(ix,jy,kz)=(clwc_tmp(ix,jy,kz)*rho_tmp(ix,jy,kz))*(height(kz+1)-height(kz))
+  ! assuming rho is in kg/m3 and hz in m gives: kg/kg * kg/m3 *m3/kg /m = m2/m3
+            if (wind_coord_type.eq.'ETA') then
+              clw_tmp(ix,jy,kz)=(clwc_tmp(ix,jy,kz)*rho_tmp(ix,jy,kz))* &
+                (etauvheight(ix,jy,kz+1)-etauvheight(ix,jy,kz))
+              cloudh_min=min(etauvheight(ix,jy,kz+1),etauvheight(ix,jy,kz))
+            else
+              clw_tmp(ix,jy,kz)=(clwc_tmp(ix,jy,kz)*rho_tmp(ix,jy,kz))*(height(kz+1)-height(kz))
+  !           icloud_stats(ix,jy,3,n)= min(height(kz+1),height(kz))                     ! Cloud BOT height stats      [m]
+              cloudh_min=min(height(kz+1),height(kz))
+            endif
   !            tot_cloud_h=tot_cloud_h+(height(kz+1)-height(kz)) 
             
   !            icloud_stats(ix,jy,4,n)= icloud_stats(ix,jy,4,n)+clw(ix,jy,kz,n)          ! Column cloud water [m3/m3]
             ctwc_tmp(ix,jy) = ctwc_tmp(ix,jy)+clw_tmp(ix,jy,kz)
-  !            icloud_stats(ix,jy,3,n)= min(height(kz+1),height(kz))                     ! Cloud BOT height stats      [m]
-            cloudh_min=min(height(kz+1),height(kz))
+
           endif
         end do
 
@@ -897,7 +908,11 @@ subroutine verttransform_ecmwf_clouds(n,lreadclouds,lsumclouds,nxlim,nylim,cloud
 
           do kz=nz,2,-1 !go Bottom up!
             if (clw_tmp(ix,jy,kz).gt. 0) then ! is in cloud
-              cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+height(kz)-height(kz-1) 
+              if (wind_coord_type.eq.'ETA') then
+                cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+etauvheight(ix,jy,kz)-etauvheight(ix,jy,kz-1) 
+              else
+                cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+height(kz)-height(kz-1) 
+              endif
               clouds_tmp(ix,jy,kz)=1                               ! is a cloud
               if (lsp.ge.convp) then
                 clouds_tmp(ix,jy,kz)=3                            ! lsp in-cloud
@@ -944,8 +959,13 @@ subroutine verttransform_ecmwf_clouds(n,lreadclouds,lsumclouds,nxlim,nylim,cloud
           if (rh.gt.0.8) then ! in cloud
             if ((lsp.gt.0.01).or.(convp.gt.0.01)) then ! cloud and precipitation
               rain_cloud_above(ix,jy)=1
-              cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+ &
-                   height(kz)-height(kz-1)
+              if (wind_coord_type.eq.'ETA') then
+                cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+ &
+                     etauvheight(ix,jy,kz)-etauvheight(ix,jy,kz-1)              
+              else
+                cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+ &
+                     height(kz)-height(kz-1)
+              endif
               if (lsp.ge.convp) then
                 clouds_tmp(ix,jy,kz)=3 ! lsp dominated rainout
               else

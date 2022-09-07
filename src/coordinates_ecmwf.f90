@@ -64,7 +64,7 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
   integer, intent(in) ::          &
     itime                           ! time index
   integer ::                      &
-    i,m,k                           ! loop indices
+    i,m,k,n                         ! loop indices
   real(kind=dp), intent(in) ::    &
     xt,yt                           ! particle position
   real(kind=dp), intent(in) ::    &
@@ -91,19 +91,21 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
   ! Integration method as used in the original verttransform_ecmwf.f90
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! First estimate the level it is at, to reduce computation time
-  m=nz-1
+  n=nz-1
   do i=2,nz-1
     if (etauvheight(ix,jy,i,memind(1)).gt.real(zold)) then
-      m=i-2
+      n=i-2
       exit
     endif
   end do
-  m=max(m,2)
+  n=max(n,2)
 
   ztemp1 = 0.
-  do i=m,nz-1
+  do i=n,nz-1
     k=i
-    call bilinear_horizontal_interpolation(etauvheight,ttemp1,i,nzmax)
+    do m=1,2
+      call horizontal_interpolation(etauvheight,ttemp1(m),i,memind(m),nzmax)
+    end do
     call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
 
     if (ztemp2.gt.real(zold)) then
@@ -117,7 +119,9 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
   end do
 
   if (k.lt.nz-1) then 
-    call bilinear_horizontal_interpolation(ps,psint1,1,1)
+    do m=1,2
+      call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
+    end do
     call temporal_interpolation(psint1(1),psint1(2),psint)  
     pr1=akz(k-1) + bkz(k-1)*psint
     pr2=akz(k) + bkz(k)*psint
@@ -185,16 +189,22 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
     endif
   end do
 
-  call bilinear_horizontal_interpolation(ps,psint1,1,1)
+  do m=1,2
+    call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
+  end do
   call temporal_interpolation(psint1(1),psint1(2),psint)  
   pr1=akz(k-1) + bkz(k-1)*psint
   pr2=akz(k) + bkz(k)*psint
   prx=pr1*(1.-frac) + pr2*frac
   
-  call bilinear_horizontal_interpolation(etauvheight,ttemp1,k-1,nzmax)
+  do m=1,2
+    call horizontal_interpolation(etauvheight,ttemp1(m),k-1,memind(m),nzmax)
+  end do
   call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1)
 
-  call bilinear_horizontal_interpolation(etauvheight,ttemp1,k,nzmax)
+  do m=1,2
+    call horizontal_interpolation(etauvheight,ttemp1(m),k,memind(m),nzmax)
+  end do
   call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
   
   if ((pr2.eq.0).or.(pr1.eq.0)) then
@@ -227,7 +237,7 @@ subroutine z_to_zeta_lin(itime,xt,yt,zold,zteta)
   integer, intent(in) ::          &
     itime                           ! time index
   integer ::                      &
-    i,m,k                           ! loop indices
+    i,m,k,n                         ! loop indices
   real(kind=dp), intent(in) ::    &
     xt,yt                           ! particle position
   real(kind=dp), intent(in) ::    &
@@ -249,19 +259,21 @@ subroutine z_to_zeta_lin(itime,xt,yt,zold,zteta)
   ! Integration method as used in the original verttransform_ecmwf.f90
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! First estimate the level it is at, to reduce computation time
-  m=nz-1
+  n=nz-1
   do i=2,nz-1
     if (etauvheight(ix,jy,i,memind(1)).gt.real(zold)) then
-      m=i-2
+      n=i-2
       exit
     endif
   end do
-  m=max(m,2)
+  n=max(n,2)
 
   ztemp1 = 0.
-  do i=m,nz-1
+  do i=n,nz-1
     k=i
-    call bilinear_horizontal_interpolation(etauvheight,ttemp1,i,nzmax)
+    do m=1,2
+      call horizontal_interpolation(etauvheight,ttemp1(m),i,memind(m),nzmax)
+    end do
     call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
 
     if (ztemp2.gt.real(zold)) then
@@ -329,10 +341,14 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
     endif
   end do
   
-  call bilinear_horizontal_interpolation(etauvheight,ttemp1,k-1,nzmax)
+  do m=1,2
+    call horizontal_interpolation(etauvheight,ttemp1(m),k-1,memind(m),nzmax)
+  end do
   call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1)
 
-  call bilinear_horizontal_interpolation(etauvheight,ttemp1,k,nzmax)
+  do m=1,2
+    call horizontal_interpolation(etauvheight,ttemp1(m),k,memind(m),nzmax)
+  end do
   call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
   
   ztout = real(ztemp1,kind=dp)*(1.-frac)+real(ztemp2,kind=dp)*frac

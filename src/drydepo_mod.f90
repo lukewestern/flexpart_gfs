@@ -735,8 +735,8 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob)
 
   real(kind=dp) :: xt,yt,zt
   integer :: itime,i,j,k,memindnext
-  integer :: ks!nix,njy,
-  real :: prob(maxspec),vdepo(maxspec)
+  integer :: ks,m!nix,njy,
+  real :: prob(maxspec),vdepo(maxspec),vdeptemp(2)
   real :: eps
 
   eps=nxmax/3.e5
@@ -792,10 +792,15 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob)
       if (DRYDEPSPEC(ks)) then
         if (depoindicator(ks)) then
           if (ngrid.le.0) then
-            call interpol_vdep(vdep,ks,vdepo(ks))
+            do m=1,2
+              call horizontal_interpolation(vdep,vdeptemp(m),ks,memind(m),maxspec)
+            end do
           else
-            call interpol_vdep_nests(vdepn,ks,vdepo(ks))
+            do m=1,2
+              call horizontal_interpolation(vdepn,vdeptemp(m),ks,memind(m),maxspec)
+            end do
           endif
+          call temporal_interpolation(vdeptemp(1),vdeptemp(2),vdepo(ks))
         endif
   ! correction by Petra Seibert, 10 April 2001
   !   this formulation means that prob(n) = 1 - f(0)*...*f(n)
@@ -818,17 +823,23 @@ subroutine drydepo_probability(prob,dt,zts,vdepo)
   real,intent(inout) :: prob(maxspec)
   real,intent(inout) :: vdepo(maxspec)  ! deposition velocities for all species
   real,intent(in) :: dt,zts             ! real(ldt), real(zt)
-  integer :: ns                      ! loop variable over species
+  integer :: ns,m                      ! loop variable over species
+  real :: vdeptemp(2)
 
   if ((DRYDEP).and.(zts.lt.2.*href)) then
     do ns=1,nspec
       if (DRYDEPSPEC(ns)) then
         if (depoindicator(ns)) then
           if (ngrid.le.0) then
-            call interpol_vdep(vdep,ns,vdepo(ns))
+            do m=1,2
+              call horizontal_interpolation(vdep,vdeptemp(m),ns,memind(m),maxspec)
+            end do
           else
-            call interpol_vdep_nests(vdepn,ns,vdepo(ns))
+            do m=1,2
+              call horizontal_interpolation(vdepn,vdeptemp(m),ns,memind(m),maxspec)
+            end do
           endif
+          call temporal_interpolation(vdeptemp(1),vdeptemp(2),vdepo(ns))
         endif
   ! correction by Petra Seibert, 10 April 2001
   !   this formulation means that prob(n) = 1 - f(0)*...*f(n)

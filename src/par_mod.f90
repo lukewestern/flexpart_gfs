@@ -302,6 +302,10 @@ module par_mod
   !***************************************************************************
   logical,parameter :: logarithmic_interpolation=.false.
 
+  ! mesoscale turbulence is found to give issues, so turned off by default
+  !***********************************************************************
+  logical,parameter :: mesoscale_turbulence=.false.
+
   ! Threshold equivalent diameter for interaction with surface sublayer 
   ! resistance (below 10 meters) in micrometer. Above this diameter there
   ! is no interaction

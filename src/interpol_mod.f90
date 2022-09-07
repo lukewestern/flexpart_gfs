@@ -24,14 +24,13 @@ module interpol_mod
   logical :: depoindicator(maxspec)
   logical :: lbounds(2),lbounds_w(2),lbounds_uv(2) ! marking particles below or above bounds
 
-  private :: interpol_all_eta,interpol_all_meter
   private :: interpol_wind_meter,interpol_wind_eta
-  private :: interpol_misslev_eta,interpol_misslev_meter
-  private :: standard_deviation_all_meter,standard_deviation_all_eta
-  private :: standard_deviation_wind_meter,standard_deviation_wind_eta
-  private :: standard_deviation_misslev_meter,standard_deviation_misslev_eta
+  private :: standard_deviation_meter,standard_deviation_eta
   private :: interpol_partoutput_value_eta,interpol_partoutput_value_meter
-  private :: interpol_mixinglayer_eta,interpol_mixinglayer_meter
+
+  interface horizontal_interpolation
+    procedure horizontal_interpolation_4d,horizontal_interpolation_2d,horizontal_interpolation_nests
+  end interface horizontal_interpolation
 
 !$OMP THREADPRIVATE(uprof,vprof,wprof,usigprof,vsigprof,wsigprof, &
 !$OMP rhoprof,rhogradprof,u,v,w,usig,vsig,wsig, &
@@ -184,6 +183,16 @@ subroutine find_z_level_eta(zteta)
   real, intent(in)       :: zteta    ! height in eta coordinates
   integer                :: i        ! loop variable
 
+  call find_z_level_eta_w(zteta)
+
+  call find_z_level_eta_uv(zteta)
+end subroutine find_z_level_eta
+
+subroutine find_z_level_eta_w(zteta)
+  implicit none
+  real, intent(in)       :: zteta    ! height in eta coordinates
+  integer                :: i        ! loop variable
+
   indzeta=nz-1
   indzpeta=nz
   ! Flag particles that are above or below bounds
@@ -206,6 +215,12 @@ subroutine find_z_level_eta(zteta)
       endif
     end do
   endif
+end subroutine find_z_level_eta_w
+
+subroutine find_z_level_eta_uv(zteta)
+  implicit none
+  real, intent(in)       :: zteta    ! height in eta coordinates
+  integer                :: i        ! loop variable
 
   induv=nz-1
   indpuv=nz
@@ -228,7 +243,7 @@ subroutine find_z_level_eta(zteta)
       endif
     end do
   endif
-end subroutine find_z_level_eta
+end subroutine find_z_level_eta_uv
 
 subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
   implicit none
@@ -239,6 +254,7 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
   real, intent(inout) :: dz1,dz2           ! fractional distance to point 1 (closer to ground) and 2
   real                :: dz,dh1,dh,pfact
   real                :: psint1(2),psint,pr1,pr2,pr_test       ! pressure of encompassing levels
+  integer             :: m
 
   ! Only do logarithmic interpolation when using ETA coordinates, since the
   ! levels are following pressure, while METER levels are linear.
@@ -272,7 +288,9 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
     dz1=(zpos-vertlevels(zlevel))*dz
     dz2=(vertlevels(zlevel+1)-zpos)*dz
   else
-    call bilinear_horizontal_interpolation(ps,psint1,1,1)
+    do m=1,2
+      call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
+    end do
     call temporal_interpolation(psint1(1),psint1(2),psint)
     dh = vertlevels(zlevel+1)-vertlevels(zlevel)
     dh1 = zpos - vertlevels(zlevel)
@@ -353,6 +371,46 @@ subroutine find_ngrid(xt,yt)
   endif
 end subroutine find_ngrid
 
+subroutine horizontal_interpolation_4d(field,output,zlevel,indexh,ztot)
+
+  implicit none
+
+  integer, intent(in) :: zlevel,ztot,indexh                       ! interpolation z level, z
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem) ! input field to interpolate over
+  real, intent(inout) :: output                                   ! interpolated values
+
+  output=p1*field(ix ,jy ,zlevel,indexh) &
+       + p2*field(ixp,jy ,zlevel,indexh) &
+       + p3*field(ix ,jyp,zlevel,indexh) &
+       + p4*field(ixp,jyp,zlevel,indexh)
+end subroutine horizontal_interpolation_4d
+
+subroutine horizontal_interpolation_2d(field,output)
+  implicit none 
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1)       ! 2D imput field
+  real, intent(inout) :: output                           ! Interpolated value
+
+  output=p1*field(ix ,jy) &
+         + p2*field(ixp,jy) &
+         + p3*field(ix ,jyp) &
+         + p4*field(ixp,jyp)
+end subroutine horizontal_interpolation_2d
+
+subroutine horizontal_interpolation_nests(field,output,zlevel,indexh,ztot)
+
+  implicit none
+
+  integer, intent(in) :: zlevel,ztot,indexh                       ! interpolation z level, z
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,numbnests) ! input field to interpolate over
+  real, intent(inout) :: output                                   ! interpolated values
+  integer             :: m
+
+  output=p1*field(ix ,jy ,zlevel,indexh,ngrid) &
+       + p2*field(ixp,jy ,zlevel,indexh,ngrid) &
+       + p3*field(ix ,jyp,zlevel,indexh,ngrid) &
+       + p4*field(ixp,jyp,zlevel,indexh,ngrid)
+end subroutine horizontal_interpolation_nests
+
 subroutine temporal_interpolation(time1,time2,output)
 
   implicit none
@@ -374,189 +432,28 @@ subroutine vertical_interpolation(input1,input2,dz1,dz2,output)
   output = input1*dz2 + input2*dz1!input1**dz2 * input2**dz1
 end subroutine vertical_interpolation
 
-subroutine linear_horizontal_interpolation(field,output,zlevel,ztot,m)
-  implicit none 
-  integer, intent(in) :: zlevel,ztot,m                              ! interpolation z level, z
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem)   ! input field to interpolate over
-  real, intent(inout) :: output                                     ! interpolated values
-  integer             :: indexh
-
-  indexh=memind(m)
-
-  output=p1*field(ix ,jy ,zlevel,indexh) &
-       + p2*field(ixp,jy ,zlevel,indexh) &
-       + p3*field(ix ,jyp,zlevel,indexh) &
-       + p4*field(ixp,jyp,zlevel,indexh)
-end subroutine linear_horizontal_interpolation
-
-subroutine bilinear_horizontal_interpolation_2dim(field,output)
-  implicit none 
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1)       ! 2D imput field
-  real, intent(inout) :: output                           ! Interpolated value
-
-  output=p1*field(ix ,jy) &
-         + p2*field(ixp,jy) &
-         + p3*field(ix ,jyp) &
-         + p4*field(ixp,jyp)
-end subroutine bilinear_horizontal_interpolation_2dim
-
-subroutine bilinear_horizontal_interpolation(field,output,zlevel,ztot)
-
-  implicit none
-
-  integer, intent(in) :: zlevel,ztot                              ! interpolation z level, z
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem) ! input field to interpolate over
-  real, intent(inout) :: output(2)                                ! interpolated values
-  integer             :: m, indexh
-
-  do m=1,2
-    indexh=memind(m)
-
-    output(m)=p1*field(ix ,jy ,zlevel,indexh) &
-         + p2*field(ixp,jy ,zlevel,indexh) &
-         + p3*field(ix ,jyp,zlevel,indexh) &
-         + p4*field(ixp,jyp,zlevel,indexh)
-  end do
-end subroutine bilinear_horizontal_interpolation
-
-subroutine horizontal_interpolation(field,output,zlevel,indexh,ztot)
-
-  implicit none
-
-  integer, intent(in) :: zlevel,ztot,indexh                       ! interpolation z level, z
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem) ! input field to interpolate over
-  real, intent(inout) :: output                                   ! interpolated values
-  integer             :: m
-
-  output=p1*field(ix ,jy ,zlevel,indexh) &
-       + p2*field(ixp,jy ,zlevel,indexh) &
-       + p3*field(ix ,jyp,zlevel,indexh) &
-       + p4*field(ixp,jyp,zlevel,indexh)
-end subroutine horizontal_interpolation
-
-subroutine horizontal_interpolation_nests(field,output,zlevel,indexh,ztot)
-
-  implicit none
-
-  integer, intent(in) :: zlevel,ztot,indexh                       ! interpolation z level, z
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,numbnests) ! input field to interpolate over
-  real, intent(inout) :: output                                   ! interpolated values
-  integer             :: m
-
-  output=p1*field(ix ,jy ,zlevel,indexh,ngrid) &
-       + p2*field(ixp,jy ,zlevel,indexh,ngrid) &
-       + p3*field(ix ,jyp,zlevel,indexh,ngrid) &
-       + p4*field(ixp,jyp,zlevel,indexh,ngrid)
-end subroutine horizontal_interpolation_nests
-
-subroutine bilinear_horizontal_interpolation_nests(field,output,zlevel,ztot)
-
-  implicit none
-
-  integer, intent(in) :: zlevel,ztot                                       ! interpolation z level, z
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,numbnests) ! input field to interpolate over
-  real, intent(inout) :: output(2)                                         ! interpolated values
-  integer             :: m, indexh
-
-  do m=1,2
-    indexh=memind(m)
-
-    output(m)=p1*field(ix ,jy ,zlevel,indexh,ngrid) &
-         + p2*field(ixp,jy ,zlevel,indexh,ngrid) &
-         + p3*field(ix ,jyp,zlevel,indexh,ngrid) &
-         + p4*field(ixp,jyp,zlevel,indexh,ngrid)
-  end do
-end subroutine bilinear_horizontal_interpolation_nests
-
 subroutine bilinear_spatial_interpolation(field,output,zlevel,dz1,dz2,ztot)
   implicit none
   integer, intent(in) :: zlevel,ztot                               ! interpolation z level
   real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem)  ! input field to interpolate over
   real, intent(in)    :: dz1,dz2
   real, intent(inout) :: output(2)                                 ! interpolated values
-  integer             :: m,n,indexh,indzh
+  integer             :: m,n,indzh
   real                :: output1(2)
 
   do m=1,2
-    indexh=memind(m)
     do n=1,2
       indzh=zlevel+n-1
-      output1(n)=p1*field(ix ,jy ,indzh,indexh) &
-           + p2*field(ixp,jy ,indzh,indexh) &
-           + p3*field(ix ,jyp,indzh,indexh) &
-           + p4*field(ixp,jyp,indzh,indexh)
+      call horizontal_interpolation_4d(field,output1(n),zlevel,memind(m),ztot)
     end do
-  !**********************************
-  ! 2.) Linear vertical interpolation on logarithmic scale
-  !**********************************
-    output(m)=(output1(1)*dz2 + output1(2)*dz1)!(output1(1)**dz2) * (output1(2)**dz1)
+    !**********************************
+    ! 2.) Linear vertical interpolation on logarithmic scale
+    !**********************************
+    call vertical_interpolation(output1(1),output1(2),dz1,dz2,output(m))
   end do
 end subroutine bilinear_spatial_interpolation
-  
-subroutine bilinear_spatial_interpolation_nests(field,output,zlevel,dz1,dz2,ztot)
-  implicit none
-  integer, intent(in) :: zlevel,ztot                                        ! interpolation z level
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,numbnests)  ! input field to interpolate over
-  real, intent(in)    :: dz1,dz2
-  real, intent(inout) :: output(2)                                          ! interpolated values
-  integer             :: m,n,indexh,indzh
-  real                :: output1(2)
-  
-  do m=1,2
-    indexh=memind(m)
-    do n=1,2
-      indzh=zlevel+n-1
-      output1(n)=p1*field(ix ,jy ,indzh,indexh,ngrid) &
-           + p2*field(ixp,jy ,indzh,indexh,ngrid) &
-           + p3*field(ix ,jyp,indzh,indexh,ngrid) &
-           + p4*field(ixp,jyp,indzh,indexh,ngrid)
-    end do
-  !**********************************
-  ! 2.) Linear vertical interpolation on logarithmic scale
-  !**********************************
-    output(m)=(output1(1)*dz2 + output1(2)*dz1)!(output1(1)**dz2) * (output1(2)**dz1)
-  end do
-end subroutine bilinear_spatial_interpolation_nests
 
-subroutine compute_standard_deviation(field,output,zlevel1,zlevel2,ztot)
-  implicit none
-  real,parameter      :: eps=1.0e-30
-  integer, intent(in) :: zlevel1,zlevel2,ztot                     ! interpolation z levels
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem) ! input field to interpolate over
-  real, intent(inout) :: output                                   ! standard deviation
-  real                :: xaux,ndivide
-  real                :: sl, sq
-  integer             :: m, indexh,zlevel
-
-  sl=0.
-  sq=0.
-  do m=1,2
-    indexh=memind(m)
-    do zlevel=zlevel1,zlevel2
-      sl=sl+field(ix ,jy ,zlevel,indexh)+field(ixp,jy ,zlevel,indexh) &
-           +field(ix ,jyp,zlevel,indexh)+field(ixp,jyp,zlevel,indexh)
-      sq=sq+field(ix ,jy ,zlevel,indexh)*field(ix ,jy ,zlevel,indexh)+ &
-           field(ixp,jy ,zlevel,indexh)*field(ixp,jy ,zlevel,indexh)+ &
-           field(ix ,jyp,zlevel,indexh)*field(ix ,jyp,zlevel,indexh)+ &
-           field(ixp,jyp,zlevel,indexh)*field(ixp,jyp,zlevel,indexh)
-    end do
-  end do
-
-  if (zlevel1.eq.zlevel2) then
-    ndivide=8.
-  else
-    ndivide=16.
-  endif
-
-  xaux=sq-sl*sl/ndivide
-  if (xaux.lt.eps) then
-    output=0.
-  else
-    output=sqrt(xaux/(ndivide-1.))
-  endif  
-end subroutine compute_standard_deviation
-
-subroutine standard_deviation(field,sl,sq,zlevel,indexh,ztot)
+subroutine compute_sl_sq(field,sl,sq,zlevel,indexh,ztot)
   implicit none
 
   integer, intent(in) :: zlevel,ztot,indexh                       ! interpolation z levels
@@ -567,52 +464,47 @@ subroutine standard_deviation(field,sl,sq,zlevel,indexh,ztot)
   sl=sl+field(ix ,jy ,zlevel,indexh)+field(ixp,jy ,zlevel,indexh) &
        +field(ix ,jyp,zlevel,indexh)+field(ixp,jyp,zlevel,indexh)
   sq=sq+field(ix ,jy ,zlevel,indexh)*field(ix ,jy ,zlevel,indexh)+ &
-       field(ixp,jy ,zlevel,indexh)*field(ixp,jy ,zlevel,indexh)+ &
-       field(ix ,jyp,zlevel,indexh)*field(ix ,jyp,zlevel,indexh)+ &
-       field(ixp,jyp,zlevel,indexh)*field(ixp,jyp,zlevel,indexh)
-end subroutine standard_deviation
+        field(ixp,jy ,zlevel,indexh)*field(ixp,jy ,zlevel,indexh)+ &
+        field(ix ,jyp,zlevel,indexh)*field(ix ,jyp,zlevel,indexh)+ &
+        field(ixp,jyp,zlevel,indexh)*field(ixp,jyp,zlevel,indexh)
+end subroutine compute_sl_sq
 
-subroutine compute_standard_deviation_nests(field,output,zlevel1,zlevel2,ztot)
+subroutine compute_sl_sq_nests(field,sl,sq,zlevel,indexh,ztot)
   implicit none
+
+  integer, intent(in) :: zlevel,ztot,indexh                       ! interpolation z levels
+  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,numbnests) ! input field to interpolate over
+  real, intent(inout) :: sl,sq                                   ! standard deviation
+
+
+  sl=sl+field(ix ,jy ,zlevel,indexh,ngrid)+field(ixp,jy ,zlevel,indexh,ngrid) &
+       +field(ix ,jyp,zlevel,indexh,ngrid)+field(ixp,jyp,zlevel,indexh,ngrid)
+  sq=sq+field(ix ,jy ,zlevel,indexh,ngrid)*field(ix ,jy ,zlevel,indexh,ngrid)+ &
+        field(ixp,jy ,zlevel,indexh,ngrid)*field(ixp,jy ,zlevel,indexh,ngrid)+ &
+        field(ix ,jyp,zlevel,indexh,ngrid)*field(ix ,jyp,zlevel,indexh,ngrid)+ &
+        field(ixp,jyp,zlevel,indexh,ngrid)*field(ixp,jyp,zlevel,indexh,ngrid)
+end subroutine compute_sl_sq_nests
+
+subroutine standard_deviation(sl,sq,ndivide,output)
+  implicit none
+
+  real, intent(in) :: sl,sq,ndivide
+  real, intent(out) :: output
+  real :: xaux
   real,parameter      :: eps=1.0e-30
-  integer, intent(in) :: zlevel1,zlevel2,ztot                     ! interpolation z levels
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,maxnests) ! input field to interpolate over
-  real, intent(inout) :: output                                   ! standard deviation
-  real                :: xaux,ndivide
-  real                :: sl, sq
-  integer             :: m, indexh,zlevel
-
-  sl=0.
-  sq=0.
-  do m=1,2
-    indexh=memind(m)
-    do zlevel=zlevel1,zlevel2
-      sl=sl+field(ix ,jy ,zlevel,indexh,ngrid)+field(ixp,jy ,zlevel,indexh,ngrid) &
-           +field(ix ,jyp,zlevel,indexh,ngrid)+field(ixp,jyp,zlevel,indexh,ngrid)
-      sq=sq+field(ix ,jy ,zlevel,indexh,ngrid)*field(ix ,jy ,zlevel,indexh,ngrid)+ &
-           field(ixp,jy ,zlevel,indexh,ngrid)*field(ixp,jy ,zlevel,indexh,ngrid)+ &
-           field(ix ,jyp,zlevel,indexh,ngrid)*field(ix ,jyp,zlevel,indexh,ngrid)+ &
-           field(ixp,jyp,zlevel,indexh,ngrid)*field(ixp,jyp,zlevel,indexh,ngrid)
-    end do
-  end do
-
-  if (zlevel1.eq.zlevel2) then
-    ndivide=8.
-  else
-    ndivide=16.
-  endif
 
   xaux=sq-sl*sl/ndivide
+
   if (xaux.lt.eps) then
     output=0.
   else
     output=sqrt(xaux/(ndivide-1.))
-  endif  
-end subroutine compute_standard_deviation_nests
+  endif
+end subroutine standard_deviation
 
 ! Interpolation functions
 !************************
-subroutine interpol_all(itime,xt,yt,zt,zteta)
+subroutine interpol_PBL(itime,xt,yt,zt)
   !                          i   i  i  i
   !*****************************************************************************
   !                                                                            *
@@ -645,9 +537,11 @@ subroutine interpol_all(itime,xt,yt,zt,zteta)
   implicit none
 
   integer, intent(in) :: itime
-  real, intent(in)    :: xt,yt,zt,zteta
-  integer             :: m,indexh
+  real, intent(in)    :: xt,yt,zt
+  integer             :: m,n,indexh
   integer             :: iw(2),iuv(2),iweta(2)
+  real                :: uh1(2),vh1(2),wh1(2),rho1(2),rhograd1(2)
+  real,parameter      :: eps=1.0e-30
 
   ! Auxiliary variables needed for interpolation
   real :: ust1(2),wst1(2),oli1(2),oliaux
@@ -663,9 +557,9 @@ subroutine interpol_all(itime,xt,yt,zt,zteta)
   !*******************************************
   call find_time_variables(itime)
 
-  !*****************************************
-  ! 1. Interpolate u*, w* and Obukhov length
-  !*****************************************
+  !********************************************************
+  ! 1. Interpolate u*, w* and Obukhov length for turbulence
+  !********************************************************
 
   ! a) Bilinear horizontal interpolation
   if (ngrid.le.0) then ! No nest
@@ -694,37 +588,65 @@ subroutine interpol_all(itime,xt,yt,zt,zteta)
     ol=99999.
   endif
 
+  ! Within the PBL, only METER coordinates are used
+  ! with the exception of mesoscale turbulence,
+  ! which uses wsigeta computed in interpol_mesoscale
+  !**************************************************
+
   ! Determine the level below the current position
   !***********************************************
   call find_z_level_meters(zt)
 
-  ! Interpolate over the windfields depending on the prefered
-  ! coordinate system
-  !**********************************************************
-  select case (wind_coord_type)
-    case ('ETA')
-      ! Determine the level below the current position in eta coordinates
-      !******************************************************************
-      call find_z_level_eta(zteta)
+  iw(:)=(/ indz, indzp /)
 
-      iw(:)=(/ indz, indzp /)
-      iuv(:)=(/ induv, indpuv /)
-      iweta(:)=(/ indzeta, indzpeta /)
+  !**************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! 2.) Temporal interpolation (linear)
+  !**************************************
+  
+  ! Loop over 2 time steps and indz levels
+  !***************************************
+  if (ngrid.le.0) then ! No nest
+    do n=1,2
+      do m=1,2
+        call horizontal_interpolation(ww,wh1(m),iw(n),memind(m),nzmax)
+        call horizontal_interpolation(rho,rho1(m),iw(n),memind(m),nzmax)
+        call horizontal_interpolation(drhodz,rhograd1(m),iw(n),memind(m),nzmax)
+        if (ngrid.lt.0) then
+          call horizontal_interpolation(uupol,uh1(m),iw(n),memind(m),nzmax)
+          call horizontal_interpolation(vvpol,vh1(m),iw(n),memind(m),nzmax)
+        else
+          call horizontal_interpolation(uu,uh1(m),iw(n),memind(m),nzmax)
+          call horizontal_interpolation(vv,vh1(m),iw(n),memind(m),nzmax)
+        endif
+      end do
+      call temporal_interpolation(wh1(1),wh1(2),wprof(iw(n)))
+      call temporal_interpolation(uh1(1),uh1(2),uprof(iw(n)))
+      call temporal_interpolation(vh1(1),vh1(2),vprof(iw(n)))
+      call temporal_interpolation(rho1(1),rho1(2),rhoprof(iw(n)))
+      call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(iw(n)))
+    end do
+  else ! Nest
+    do n=1,2
+      do m=1,2
+        call horizontal_interpolation_nests(wwn,wh1(m),iw(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(uun,uh1(m),iw(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(vvn,vh1(m),iw(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(rhon,rho1(m),iw(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(drhodzn,rhograd1(m),iw(n),memind(m),nzmax)
+      end do
+      call temporal_interpolation(wh1(1),wh1(2),wprof(iw(n)))
+      call temporal_interpolation(uh1(1),uh1(2),uprof(iw(n)))
+      call temporal_interpolation(vh1(1),vh1(2),vprof(iw(n)))
+      call temporal_interpolation(rho1(1),rho1(2),rhoprof(iw(n)))
+      call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(iw(n)))
 
-      call interpol_all_eta(iw,iuv,iweta)
-      call standard_deviation_all_eta(iw,iuv,iweta)
-    case ('METER')
-      iw(:)=(/ indz, indzp /)
-      call interpol_all_meter(iw)
-      call standard_deviation_all_meter(iw)
-    case default
-      write(*,*) 'ERROR: wind_coord_type is not allowed ', wind_coord_type
-      write(*,*) 'Choose ETA or METER.'
-      stop
-  end select
-end subroutine interpol_all
+      indzindicator(iw(n))=.false.
+    end do
+  endif
+end subroutine interpol_PBL
 
-subroutine interpol_misslev()
+subroutine interpol_PBL_misslev()
   !                            
   !*****************************************************************************
   !                                                                            *
@@ -750,44 +672,102 @@ subroutine interpol_misslev()
   !*****************************************************************************
   implicit none
 
-  integer :: n
-  integer :: iw(2),iuv(2),iweta(2)
+  integer             :: n,iw(2)
+  real                :: uh1(2),vh1(2),wetah1(2),wh1(2),rho1(2),rhograd1(2)
+  integer             :: m
 
+
+  ! Within the PBL, only METER coordinates are used
+  ! with the exception of mesoscale turbulence,
+  ! which uses wsigeta computed in interpol_mesoscale
+  !**************************************************
 
   !********************************************
   ! Multilinear interpolation in time and space
   !********************************************
+  iw(:)=(/ indz, indzp /)
+  do n=1,2
+    if (indzindicator(iw(n))) then
+      if (ngrid.le.0) then ! No nest
+        do m=1,2
+          call horizontal_interpolation(ww,wh1(m),iw(n),memind(m),nzmax)
+          call horizontal_interpolation(rho,rho1(m),iw(n),memind(m),nzmax)
+          call horizontal_interpolation(drhodz,rhograd1(m),iw(n),memind(m),nzmax)
+          if (ngrid.lt.0) then
+            call horizontal_interpolation(uupol,uh1(m),iw(n),memind(m),nzmax)
+            call horizontal_interpolation(vvpol,vh1(m),iw(n),memind(m),nzmax)
+          else
+            call horizontal_interpolation(uu,uh1(m),iw(n),memind(m),nzmax)
+            call horizontal_interpolation(vv,vh1(m),iw(n),memind(m),nzmax)
+          endif
+        end do
+      else ! Nest
+        do m=1,2
+          call horizontal_interpolation_nests(wwn,wh1(m),iw(n),memind(m),nzmax)
+          call horizontal_interpolation_nests(uun,uh1(m),iw(n),memind(m),nzmax)
+          call horizontal_interpolation_nests(vvn,vh1(m),iw(n),memind(m),nzmax)
+          call horizontal_interpolation_nests(rhon,rho1(m),iw(n),memind(m),nzmax)
+          call horizontal_interpolation_nests(drhodzn,rhograd1(m),iw(n),memind(m),nzmax)
+        end do
+      endif
+      call temporal_interpolation(wh1(1),wh1(2),wprof(iw(n)))
+      call temporal_interpolation(uh1(1),uh1(2),uprof(iw(n)))
+      call temporal_interpolation(vh1(1),vh1(2),vprof(iw(n)))
+      call temporal_interpolation(rho1(1),rho1(2),rhoprof(iw(n)))
+      call temporal_interpolation(rhograd1(1),rhograd1(2),rhogradprof(iw(n)))
 
+      indzindicator(iw(n))=.false.
+    endif
+  end do
+end subroutine interpol_PBL_misslev
+
+subroutine interpol_PBL_short(zt,rhoa,rhograd)
+  implicit none 
+  real, intent(in)    :: zt
+  real, intent(inout) :: rhoa,rhograd
+  real                :: dz1,dz2  
+
+  call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds,.false.)
+
+  call vertical_interpolation(wprof(indz),wprof(indzp),dz1,dz2,w)
+  call vertical_interpolation(uprof(indz),uprof(indzp),dz1,dz2,u)
+  call vertical_interpolation(vprof(indz),vprof(indzp),dz1,dz2,v)
+  call vertical_interpolation(rhoprof(indz),rhoprof(indzp),dz1,dz2,rhoa)
+  call vertical_interpolation(rhogradprof(indz),rhogradprof(indzp),dz1,dz2,rhograd)
+end subroutine interpol_PBL_short
+
+subroutine interpol_mesoscale(itime,xt,yt,zt,zteta)
+  use turbulence_mod
+
+  implicit none
+
+  integer, intent(in) :: itime
+  real, intent(in)    :: xt,yt,zt,zteta
+  integer             :: m,indexh
+  integer             :: iw(2),iuv(2),iweta(2)
+
+  call determine_grid_coordinates(xt,yt)
+
+  ! Determine the level below the current position
+  !***********************************************
+  call find_z_level_meters(zt)
+  iw(:)=(/ indz, indzp /)
+  
   select case (wind_coord_type)
-
-    case ('ETA')
-
-      iw(:)=(/ indz, indzp /)
+    case ('ETA')  
+      call find_z_level_eta(zteta)
       iuv(:)=(/ induv, indpuv /)
       iweta(:)=(/ indzeta, indzpeta /)
-      do n=1,2
-        if (indzindicator(iweta(n))) then
-          call interpol_misslev_eta(n,iw,iuv,iweta)
-          call standard_deviation_misslev_eta(n,iw,iuv,iweta)
-        endif
-      end do
-
+      call standard_deviation_eta(iw,iuv,iweta)
     case ('METER')
-      
       iw(:)=(/ indz, indzp /)
-      do n=1,2
-        if (indzindicator(iw(n))) then
-          call interpol_misslev_eta(n,iw,iuv,iweta)
-          call standard_deviation_misslev_eta(n,iw,iuv,iweta)
-        endif
-      end do
-
+      call standard_deviation_meter(iw)
     case default
       write(*,*) 'ERROR: wind_coord_type is not allowed ', wind_coord_type
       write(*,*) 'Choose ETA or METER.'
       stop
   end select
-end subroutine interpol_misslev
+end subroutine interpol_mesoscale
 
 subroutine interpol_wind(itime,xt,yt,zt,zteta,pp)
   !                           i   i  i  i
@@ -854,7 +834,7 @@ subroutine interpol_wind(itime,xt,yt,zt,zteta,pp)
       iuv(:)  = (/ induv, indpuv /)
       iweta(:)= (/ indzeta, indzpeta /)
       call interpol_wind_eta(zt,zteta,iw,iuv,iweta)
-      call standard_deviation_wind_eta(iw,iuv,iweta)
+      !call standard_deviation_wind_eta(iw,iuv,iweta)
     case ('METER')
       ! Determine the level below the current position for u,v
       !*******************************************************
@@ -862,7 +842,7 @@ subroutine interpol_wind(itime,xt,yt,zt,zteta,pp)
 
       iw(:)=(/ indz, indzp /)
       call interpol_wind_meter(zt,iw)
-      call standard_deviation_wind_meter(iw)
+      !call standard_deviation_wind_meter(iw)
 
     case default
       write(*,*) 'ERROR: wind_coord_type is not allowed ', wind_coord_type
@@ -961,41 +941,6 @@ subroutine interpol_partoutput_value(fieldname,output,j)
   end select
 end subroutine interpol_partoutput_value
 
-subroutine interpol_mixinglayer(zt,zteta,rhoa,rhograd)
-  implicit none 
-  real, intent(in)    :: zt,zteta
-  real, intent(inout) :: rhoa,rhograd
-
-  select case (wind_coord_type)
-    case ('ETA')
-      call interpol_mixinglayer_eta(zt,zteta,rhoa,rhograd)
-    case ('METER')
-      call interpol_mixinglayer_meter(zt,rhoa,rhograd)
-    case default
-      call interpol_mixinglayer_meter(zt,rhoa,rhograd)
-  end select
-end subroutine interpol_mixinglayer
-
-subroutine interpol_average()
-  implicit none 
-
-  select case(wind_coord_type)
-    case ('ETA')
-      usig=0.5*(usigprof(indpuv)+usigprof(induv))
-      vsig=0.5*(vsigprof(indpuv)+vsigprof(induv))
-      wsig=0.5*(wsigprof(indzp)+wsigprof(indz))
-      wsigeta=0.5*(wsigprofeta(indzpeta)+wsigprofeta(indzeta))
-    case ('METER')
-      usig=0.5*(usigprof(indzp)+usigprof(indz))
-      vsig=0.5*(vsigprof(indzp)+vsigprof(indz))
-      wsig=0.5*(wsigprof(indzp)+wsigprof(indz)) 
-    case default 
-      usig=0.5*(usigprof(indzp)+usigprof(indz))
-      vsig=0.5*(vsigprof(indzp)+vsigprof(indz))
-      wsig=0.5*(wsigprof(indzp)+wsigprof(indz))
-  end select
-end subroutine interpol_average
-
 subroutine interpol_htropo_hmix(tropop,h)
   implicit none 
   real, intent(inout) :: &
@@ -1005,12 +950,14 @@ subroutine interpol_htropo_hmix(tropop,h)
     h1(2)                   ! mixing height of 2 timesteps
   integer             :: &
     mind,                &  ! windfield index
-    i,j,k                   ! loop variables
+    i,j,k,m                 ! loop variables
 
   h=0.
   if (ngrid.le.0) then
     if (interpolhmix) then
-      call bilinear_horizontal_interpolation(hmix,h1,1,1)
+      do m=1,2
+        call horizontal_interpolation(hmix,h1(m),1,memind(m),1)
+      end do
     else
       do k=1,2
         mind=memind(k) ! eso: compatibility with 3-field version
@@ -1037,196 +984,6 @@ subroutine interpol_htropo_hmix(tropop,h)
   if (interpolhmix) h=(h1(1)*dt2+h1(2)*dt1)*dtt 
 end subroutine interpol_htropo_hmix
 
-subroutine interpol_rain(yy1,yy2,yy3,nxmax,nymax,nzmax,nx, &
-     ny,iwftouse,xt,yt,level,itime1,itime2,itime,yint1,yint2,yint3)
-  !                          i   i   i    i    i     i   i
-  !i    i    i  i    i     i      i      i     o     o     o
-  !****************************************************************************
-  !                                                                           *
-  !  Interpolation of meteorological fields on 2-d model layers.              *
-  !  In horizontal direction bilinear interpolation interpolation is used.    *
-  !  Temporally a linear interpolation is used.                               *
-  !  Three fields are interpolated at the same time.                          *
-  !                                                                           *
-  !  This is a special version of levlininterpol to save CPU time.            *
-  !                                                                           *
-  !  1 first time                                                             *
-  !  2 second time                                                            *
-  !                                                                           *
-  !                                                                           *
-  !     Author: A. Stohl                                                      *
-  !                                                                           *
-  !     30 August 1996                                                        *
-  !                                                                           *
-  !****************************************************************************
-  !                                                                           *
-  ! Variables:                                                                *
-  !                                                                           *
-  ! dt1,dt2              time differences between fields and current position *
-  ! dz1,dz2              z distance between levels and current position       *
-  ! height(nzmax)        heights of the model levels                          *
-  ! indexh               help variable                                        *
-  ! indz                 the level closest to the current trajectory position *
-  ! indzh                help variable                                        *
-  ! itime                current time                                         *
-  ! itime1               time of the first wind field                         *
-  ! itime2               time of the second wind field                        *
-  ! ix,jy                x,y coordinates of lower left subgrid point          *
-  ! level                level at which interpolation shall be done           *
-  ! iwftouse             points to the place of the wind field                *
-  ! nx,ny                actual field dimensions in x,y and z direction       *
-  ! nxmax,nymax,nzmax    maximum field dimensions in x,y and z direction      *
-  ! xt                   current x coordinate                                 *
-  ! yint                 the final interpolated value                         *
-  ! yt                   current y coordinate                                 *
-  ! yy(0:nxmax,0:nymax,nzmax,3) meteorological field used for interpolation   *
-  ! zt                   current z coordinate                                 *
-  !                                                                           *
-  !****************************************************************************
-  use par_mod, only: numwfmem
-
-  implicit none
-
-  integer :: nx,ny,nxmax,nymax,nzmax,memind(numwfmem),m,ix,jy,ixp,jyp
-  integer :: itime,itime1,itime2,level,indexh
-  real :: yy1(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: yy2(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: yy3(0:nxmax-1,0:nymax-1,nzmax,numwfmem)
-  real :: ddx,ddy,rddx,rddy,dt1,dt2,dt,y1(2),y2(2),y3(2)
-  real :: xt,yt,yint1,yint2,yint3,p1,p2,p3,p4
-  integer :: iwftouse
-
-
-
-  ! If point at border of grid -> small displacement into grid
-  !***********************************************************
-
-  if (xt.ge.real(nx-1)) xt=real(nx-1)-0.00001
-  if (yt.ge.real(ny-1)) yt=real(ny-1)-0.00001
-
-
-
-  !**********************************************************************
-  ! 1.) Bilinear horizontal interpolation
-  ! This has to be done separately for 2 fields (Temporal)
-  !*******************************************************
-
-  ! Determine the lower left corner and its distance to the current position
-  !*************************************************************************
-
-  ix=int(xt)
-  jy=int(yt)
-  ixp=ix+1
-  jyp=jy+1
-  ddx=xt-real(ix)
-  ddy=yt-real(jy)
-  rddx=1.-ddx
-  rddy=1.-ddy
-  p1=rddx*rddy
-  p2=ddx*rddy
-  p3=rddx*ddy
-  p4=ddx*ddy
-
-  ! eso: Temporary fix for particle exactly at north pole
-  if (jyp >= nymax) then
-    write(*,*) 'WARNING: interpol_mod.f90 jyp >= nymax. xt,yt:',xt,yt
-    jyp=jyp-1
-  end if
-
-  if (ixp >= nxmax) then
-    write(*,*) 'WARNING: interpol_mod.f90 ixp >= nxmax. xt,yt:',xt,yt
-    ixp=ixp-1
-  end if
-  
-  ! Loop over 2 time steps
-  !***********************
-
-  !  do m=1,2
-  indexh=iwftouse
-
-  y1(1)=p1*yy1(ix ,jy ,level,indexh) &
-     + p2*yy1(ixp,jy ,level,indexh) &
-     + p3*yy1(ix ,jyp,level,indexh) &
-     + p4*yy1(ixp,jyp,level,indexh)
-  y2(1)=p1*yy2(ix ,jy ,level,indexh) &
-     + p2*yy2(ixp,jy ,level,indexh) &
-     + p3*yy2(ix ,jyp,level,indexh) &
-     + p4*yy2(ixp,jyp,level,indexh)
-  y3(1)=p1*yy3(ix ,jy ,level,indexh) &
-     + p2*yy3(ixp,jy ,level,indexh) &
-     + p3*yy3(ix ,jyp,level,indexh) &
-     + p4*yy3(ixp,jyp,level,indexh)
-  !  end do
-
-
-  !************************************
-  ! 2.) Temporal interpolation (linear) - skip to be consistent with clouds
-  !************************************
-
-  !  dt1=real(itime-itime1)
-  !  dt2=real(itime2-itime)
-  !  dt=dt1+dt2
-
-  !  yint1=(y1(1)*dt2+y1(2)*dt1)/dt
-  !  yint2=(y2(1)*dt2+y2(2)*dt1)/dt
-  !  yint3=(y3(1)*dt2+y3(2)*dt1)/dt
-
-   yint1=y1(1)
-   yint2=y2(1)
-   yint3=y3(1)
-end subroutine interpol_rain
-
-subroutine interpol_vdep(field,ns,output)
-  !                           i     o
-  !****************************************************************************
-  !                                                                           *
-  !  Interpolation of the deposition velocity on 2-d model layer.             *
-  !  In horizontal direction bilinear interpolation interpolation is used.    *
-  !  Temporally a linear interpolation is used.                               *
-  !                                                                           *
-  !  1 first time                                                             *
-  !  2 second time                                                            *
-  !                                                                           *
-  !                                                                           *
-  !     Author: A. Stohl                                                      *
-  !                                                                           *
-  !     30 May 1994                                                           *
-  !                                                                           *
-  !****************************************************************************
-  !                                                                           *
-  ! Variables:                                                                *
-  !                                                                           *
-  ! nspec                number of the species for which interpolation is done*
-  !                                                                           *
-  !****************************************************************************
-  implicit none
-
-  integer, intent(in) ::  &
-    ns                    ! number of species for which interpolation is done
-  real, intent(in) ::     &
-    field(0:nxmax-1,0:nymax-1,maxspec,numwfmem)           ! vdep
-  real, intent(inout) ::  &
-    output                   ! interpolated value
-  integer :: indexh,m
-  real :: y(2)
-
-  ! a) Bilinear horizontal interpolation
-  do m=1,2
-    indexh=memind(m)
-
-    y(m)=p1*field(ix ,jy ,ns,indexh) &
-         +p2*field(ixp,jy ,ns,indexh) &
-         +p3*field(ix ,jyp,ns,indexh) &
-         +p4*field(ixp,jyp,ns,indexh)
-  end do
-
-  ! b) Temporal interpolation
-
-  output=(y(1)*dt2+y(2)*dt1)*dtt
-
-  depoindicator(ns)=.false. ! Only doing this once per pbl_loop
-end subroutine interpol_vdep
-
 subroutine interpol_density(itime,ipart,output)
 
   implicit none
@@ -1248,13 +1005,13 @@ subroutine interpol_density(itime,ipart,output)
       call find_z_level_eta(real(part(ipart)%zeta))
       call find_vertical_variables(uvheight,real(part(ipart)%zeta),induv,dz1,dz2,lbounds_uv,.false.)
       do ind=induv,indpuv
-        call linear_horizontal_interpolation(rhoeta,rhoprof(ind-induv+1),ind,nzmax,2)
+        call horizontal_interpolation(rhoeta,rhoprof(ind-induv+1),ind,memind(2),nzmax)
       end do
     case ('METER')
       call find_z_level_meters(real(part(ipart)%z))
       call find_vertical_variables(height,real(part(ipart)%z),indz,dz1,dz2,lbounds,.false.)
       do ind=indz,indzp
-        call linear_horizontal_interpolation(rho,rhoprof(ind-indz+1),ind,nzmax,2)
+        call horizontal_interpolation(rho,rhoprof(ind-indz+1),ind,memind(2),nzmax)
       end do
     case default
       stop 'wind_coord_type not defined in conccalc.f90'
@@ -1262,1048 +1019,11 @@ subroutine interpol_density(itime,ipart,output)
   call vertical_interpolation(rhoprof(1),rhoprof(2),dz1,dz2,output)
 end subroutine interpol_density
 
-! Nested interpolation functions
-!*******************************
-subroutine interpol_rain_nests(yy1,yy2,yy3,nxmaxn,nymaxn,nzmax, &
-       maxnests,ngrid,nxn,nyn,iwftouse,xt,yt,level,itime1,itime2,itime, &
-       yint1,yint2,yint3)
-  !                                i   i   i    i      i      i
-  !   i       i    i   i    i    i  i    i     i      i      i
-  !  o     o     o
-  !****************************************************************************
-  !                                                                           *
-  !  Interpolation of meteorological fields on 2-d model layers for nested    *
-  !  grids. This routine is related to levlin3interpol.f for the mother domain*
-  !                                                                           *
-  !  In horizontal direction bilinear interpolation interpolation is used.    *
-  !  Temporally a linear interpolation is used.                               *
-  !  Three fields are interpolated at the same time.                          *
-  !                                                                           *
-  !  This is a special version of levlininterpol to save CPU time.            *
-  !                                                                           *
-  !  1 first time                                                             *
-  !  2 second time                                                            *
-  !                                                                           *
-  !                                                                           *
-  !     Author: A. Stohl                                                      *
-  !                                                                           *
-  !     15 March 2000                                                         *
-  !                                                                           *
-  !****************************************************************************
-  !                                                                           *
-  ! Variables:                                                                *
-  !                                                                           *
-  ! dt1,dt2              time differences between fields and current position *
-  ! dz1,dz2              z distance between levels and current position       *
-  ! height(nzmax)        heights of the model levels                          *
-  ! indexh               help variable                                        *
-  ! indz                 the level closest to the current trajectory position *
-  ! indzh                help variable                                        *
-  ! itime                current time                                         *
-  ! itime1               time of the first wind field                         *
-  ! itime2               time of the second wind field                        *
-  ! ix,jy                x,y coordinates of lower left subgrid point          *
-  ! level                level at which interpolation shall be done           *
-  ! iwftouse             points to the place of the wind field                *
-  ! nx,ny                actual field dimensions in x,y and z direction       *
-  ! nxmax,nymax,nzmax    maximum field dimensions in x,y and z direction      *
-  ! xt                   current x coordinate                                 *
-  ! yint                 the final interpolated value                         *
-  ! yt                   current y coordinate                                 *
-  ! yy(0:nxmax,0:nymax,nzmax,3) meteorological field used for interpolation   *
-  ! zt                   current z coordinate                                 *
-  !                                                                           *
-  !****************************************************************************
-  use par_mod, only: numwfmem
-
-  implicit none
-
-  integer :: maxnests,ngrid
-  integer :: nxn(maxnests),nyn(maxnests),nxmaxn,nymaxn,nzmax,iwftouse
-  integer :: m,ix,jy,ixp,jyp,itime,itime1,itime2,level,indexh
-  real :: yy1(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,maxnests)
-  real :: yy2(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,maxnests)
-  real :: yy3(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,maxnests)
-  real :: ddx,ddy,rddx,rddy,dt1,dt2,dt,y1(2),y2(2),y3(2)
-  real :: xt,yt,yint1,yint2,yint3,p1,p2,p3,p4
-
-
-
-  ! If point at border of grid -> small displacement into grid
-  !***********************************************************
-
-  ! if (xt.ge.(real(nxn(ngrid)-1)-0.0001)) &
-  !      xt=real(nxn(ngrid)-1)-0.0001
-  ! if (yt.ge.(real(nyn(ngrid)-1)-0.0001)) &
-  !      yt=real(nyn(ngrid)-1)-0.0001
-
-  ! ESO make it consistent with interpol_rain
-  if (xt.ge.(real(nxn(ngrid)-1))) xt=real(nxn(ngrid)-1)-0.00001
-  if (yt.ge.(real(nyn(ngrid)-1))) yt=real(nyn(ngrid)-1)-0.00001
-
-
-
-  !**********************************************************************
-  ! 1.) Bilinear horizontal interpolation
-  ! This has to be done separately for 2 fields (Temporal)
-  !*******************************************************
-
-  ! Determine the lower left corner and its distance to the current position
-  !*************************************************************************
-
-  ix=int(xt)
-  jy=int(yt)
-
-  ixp=ix+1
-  jyp=jy+1
-  ddx=xt-real(ix)
-  ddy=yt-real(jy)
-  rddx=1.-ddx
-  rddy=1.-ddy
-  p1=rddx*rddy
-  p2=ddx*rddy
-  p3=rddx*ddy
-  p4=ddx*ddy
-
-  ! eso: Temporary fix for particle exactly at north pole
-  if (jyp >= nymax) then
-    write(*,*) 'WARNING: interpol_mod.f90 jyp >= nymax. xt,yt:',xt,yt
-    jyp=jyp-1
-  end if
-
-  if (ixp >= nxmax) then
-    write(*,*) 'WARNING: interpol_mod.f90 ixp >= nxmax. xt,yt:',xt,yt
-    ixp=ixp-1
-  end if
-  
-  ! Loop over 2 time steps
-  !***********************
-
-  !  do m=1,2
-  !    indexh=memind(m)
-    indexh=iwftouse
-
-    y1(1)=p1*yy1(ix ,jy ,level,indexh,ngrid) &
-         + p2*yy1(ixp,jy ,level,indexh,ngrid) &
-         + p3*yy1(ix ,jyp,level,indexh,ngrid) &
-         + p4*yy1(ixp,jyp,level,indexh,ngrid)
-    y2(1)=p1*yy2(ix ,jy ,level,indexh,ngrid) &
-         + p2*yy2(ixp,jy ,level,indexh,ngrid) &
-         + p3*yy2(ix ,jyp,level,indexh,ngrid) &
-         + p4*yy2(ixp,jyp,level,indexh,ngrid)
-    y3(1)=p1*yy3(ix ,jy ,level,indexh,ngrid) &
-         + p2*yy3(ixp,jy ,level,indexh,ngrid) &
-         + p3*yy3(ix ,jyp,level,indexh,ngrid) &
-         + p4*yy3(ixp,jyp,level,indexh,ngrid)
-  !  end do
-
-
-  !************************************
-  ! 2.) Temporal interpolation (linear)
-  !************************************
-
-  ! dt1=real(itime-itime1)
-  ! dt2=real(itime2-itime)
-  ! dt=dt1+dt2
-
-  ! yint1=(y1(1)*dt2+y1(2)*dt1)/dt
-  ! yint2=(y2(1)*dt2+y2(2)*dt1)/dt
-  ! yint3=(y3(1)*dt2+y3(2)*dt1)/dt
-
-   yint1=y1(1)
-   yint2=y2(1)
-   yint3=y3(1)
-end subroutine interpol_rain_nests
-
-subroutine interpol_vdep_nests(field,level,output)
-  !                                 i     o
-  !****************************************************************************
-  !                                                                           *
-  !  Interpolation of the deposition velocity on 2-d model layer.             *
-  !  In horizontal direction bilinear interpolation interpolation is used.    *
-  !  Temporally a linear interpolation is used.                               *
-  !                                                                           *
-  !  1 first time                                                             *
-  !  2 second time                                                            *
-  !                                                                           *
-  !                                                                           *
-  !     Author: A. Stohl                                                      *
-  !                                                                           *
-  !     30 May 1994                                                           *
-  !                                                                           *
-  !****************************************************************************
-  !                                                                           *
-  ! Variables:                                                                *
-  !                                                                           *
-  ! level                number of species for which interpolation is done    *
-  !                                                                           *
-  !****************************************************************************
-
-
-  implicit none
-  integer, intent(in) ::  &
-    level                    ! number of species for which interpolation is done
-  real, intent(in) ::     &
-    field(:,:,:,:,:)         ! vdepn
-  real, intent(inout) ::  &
-    output                   ! interpolated value
-  integer :: indexh,m
-  real :: y(2)
-
-  ! a) Bilinear horizontal interpolation
-
-  do m=1,2
-    indexh=memind(m)
-
-    y(m)=p1*field(ix ,jy ,level,indexh,ngrid) &
-         +p2*field(ixp,jy ,level,indexh,ngrid) &
-         +p3*field(ix ,jyp,level,indexh,ngrid) &
-         +p4*field(ixp,jyp,level,indexh,ngrid)
-  end do
-
-
-  ! b) Temporal interpolation
-
-  output=(y(1)*dt2+y(2)*dt1)*dtt
-
-  depoindicator(level)=.false.
-end subroutine interpol_vdep_nests
-
-! PRIVATE FUNCTIONS
-!******************
-subroutine interpol_all_eta(iw,iuv,iweta)
-  implicit none 
-
-  integer,intent(in)  :: iw(2),iuv(2),iweta(2)
-  real                :: uh1(2),vh1(2),wetah1(2),wh1(2),rho1(2),rhograd1(2)
-  integer             :: n,m
-
-  !**************************************
-  ! 1.) Bilinear horizontal interpolation
-  ! 2.) Temporal interpolation (linear)
-  !**************************************
-  
-  ! Loop over 2 time steps and indz levels
-  !***************************************
-  if (ngrid.le.0) then ! No nest
-    do n=1,2
-      do m=1,2
-        wh1(m)=p1*ww(ix ,jy ,iw(n),memind(m)) &
-             + p2*ww(ixp,jy ,iw(n),memind(m)) &
-             + p3*ww(ix ,jyp,iw(n),memind(m)) &
-             + p4*ww(ixp,jyp,iw(n),memind(m))
-        wetah1(m)=p1*wweta(ix ,jy ,iweta(n),memind(m)) &
-                + p2*wweta(ixp,jy ,iweta(n),memind(m)) &
-                + p3*wweta(ix ,jyp,iweta(n),memind(m)) &
-                + p4*wweta(ixp,jyp,iweta(n),memind(m))
-        rho1(m)=p1*rhoeta(ix ,jy ,iuv(n),memind(m)) &
-              + p2*rhoeta(ixp,jy ,iuv(n),memind(m)) &
-              + p3*rhoeta(ix ,jyp,iuv(n),memind(m)) &
-              + p4*rhoeta(ixp,jyp,iuv(n),memind(m))
-        rhograd1(m)=p1*drhodzeta(ix ,jy ,iuv(n),memind(m)) &
-                  + p2*drhodzeta(ixp,jy ,iuv(n),memind(m)) &
-                  + p3*drhodzeta(ix ,jyp,iuv(n),memind(m)) &
-                  + p4*drhodzeta(ixp,jyp,iuv(n),memind(m))
-        if (ngrid.lt.0) then
-          uh1(m)=p1*uupoleta(ix ,jy ,iuv(n),memind(m)) &
-               + p2*uupoleta(ixp,jy ,iuv(n),memind(m)) &
-               + p3*uupoleta(ix ,jyp,iuv(n),memind(m)) &
-               + p4*uupoleta(ixp,jyp,iuv(n),memind(m))
-          vh1(m)=p1*vvpoleta(ix ,jy ,iuv(n),memind(m)) &
-               + p2*vvpoleta(ixp,jy ,iuv(n),memind(m)) &
-               + p3*vvpoleta(ix ,jyp,iuv(n),memind(m)) &
-               + p4*vvpoleta(ixp,jyp,iuv(n),memind(m))
-        else
-          uh1(m)=p1*uueta(ix ,jy ,iuv(n),memind(m)) &
-               + p2*uueta(ixp,jy ,iuv(n),memind(m)) &
-               + p3*uueta(ix ,jyp,iuv(n),memind(m)) &
-               + p4*uueta(ixp,jyp,iuv(n),memind(m))
-          vh1(m)=p1*vveta(ix ,jy ,iuv(n),memind(m)) &
-               + p2*vveta(ixp,jy ,iuv(n),memind(m)) &
-               + p3*vveta(ix ,jyp,iuv(n),memind(m)) &
-               + p4*vveta(ixp,jyp,iuv(n),memind(m))
-        endif
-      end do
-      wprof(iw(n))=(wh1(1)*dt2+wh1(2)*dt1)*dtt
-      uprof(iuv(n))=(uh1(1)*dt2+uh1(2)*dt1)*dtt
-      vprof(iuv(n))=(vh1(1)*dt2+vh1(2)*dt1)*dtt
-      rhoprof(iuv(n))=(rho1(1)*dt2+rho1(2)*dt1)*dtt
-      wprofeta(iweta(n))=(wetah1(1)*dt2+wetah1(2)*dt1)*dtt
-      rhogradprof(iuv(n))=(rhograd1(1)*dt2+rhograd1(2)*dt1)*dtt
-
-      indzindicator(iweta(n))=.false.
-    end do
-  else ! Nest
-    do n=1,2
-      do m=1,2
-        wh1(m)=p1*wwn(ix ,jy ,iw(n),memind(m),ngrid) &
-             + p2*wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-             + p3*wwn(ix ,jyp,iw(n),memind(m),ngrid) &
-             + p4*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        wetah1(m)=p1*wwetan(ix ,jy ,iweta(n),memind(m),ngrid) &
-                + p2*wwetan(ixp,jy ,iweta(n),memind(m),ngrid) &
-                + p3*wwetan(ix ,jyp,iweta(n),memind(m),ngrid) &
-                + p4*wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-        rho1(m)=p1*rhoetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-              + p2*rhoetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-              + p3*rhoetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-              + p4*rhoetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        rhograd1(m)=p1*drhodzetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-                  + p2*drhodzetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-                  + p3*drhodzetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-                  + p4*drhodzetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        uh1(m)=p1*uuetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-             + p2*uuetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-             + p3*uuetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-             + p4*uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        vh1(m)=p1*vvetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-             + p2*vvetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-             + p3*vvetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-             + p4*vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      end do
-      wprof(iw(n))=(wh1(1)*dt2+wh1(2)*dt1)*dtt
-      uprof(iuv(n))=(uh1(1)*dt2+uh1(2)*dt1)*dtt
-      vprof(iuv(n))=(vh1(1)*dt2+vh1(2)*dt1)*dtt
-      rhoprof(iuv(n))=(rho1(1)*dt2+rho1(2)*dt1)*dtt
-      wprofeta(iweta(n))=(wetah1(1)*dt2+wetah1(2)*dt1)*dtt
-      rhogradprof(iuv(n))=(rhograd1(1)*dt2+rhograd1(2)*dt1)*dtt
-
-      indzindicator(iweta(n))=.false.
-    end do
-  endif
-end subroutine interpol_all_eta
-
-subroutine standard_deviation_all_eta(iw,iuv,iweta)
-  implicit none
-
-  integer,intent(in)  :: iw(2),iuv(2),iweta(2)
-  real                :: wsl,wsq,wxaux,usl,usq,uxaux,vsl,vsq,vxaux,wetasl,wetasq,wetaxaux
-  integer             :: n,m
-  real,parameter      :: eps=1.0e-30
-  ! Compute standard deviations
-  !****************************
-  if (ngrid.le.0) then ! No nest  
-    do n=1,2
-      wsl=0.
-      wsq=0.
-      usl=0.
-      usq=0.
-      vsl=0.
-      vsq=0.
-      wetasl=0.
-      wetasq=0.
-      do m=1,2
-        wsl=wsl+ww(ix ,jy ,iw(n),memind(m))+ww(ixp,jy ,iw(n),memind(m)) &
-               +ww(ix ,jyp,iw(n),memind(m))+ww(ixp,jyp,iw(n),memind(m))
-        wsq=wsq+ww(ix ,jy ,iw(n),memind(m))*ww(ix ,jy ,iw(n),memind(m))+ &
-                ww(ixp,jy ,iw(n),memind(m))*ww(ixp,jy ,iw(n),memind(m))+ &
-                ww(ix ,jyp,iw(n),memind(m))*ww(ix ,jyp,iw(n),memind(m))+ &
-                ww(ixp,jyp,iw(n),memind(m))*ww(ixp,jyp,iw(n),memind(m))
-        wetasl=wetasl+wweta(ix ,jy ,iweta(n),memind(m))+wweta(ixp,jy ,iweta(n),memind(m)) &
-                     +wweta(ix ,jyp,iweta(n),memind(m))+wweta(ixp,jyp,iweta(n),memind(m))
-        wetasq=wetasq+wweta(ix ,jy ,iweta(n),memind(m))*wweta(ix ,jy ,iweta(n),memind(m))+ &
-                      wweta(ixp,jy ,iweta(n),memind(m))*wweta(ixp,jy ,iweta(n),memind(m))+ &
-                      wweta(ix ,jyp,iweta(n),memind(m))*wweta(ix ,jyp,iweta(n),memind(m))+ &
-                      wweta(ixp,jyp,iweta(n),memind(m))*wweta(ixp,jyp,iweta(n),memind(m))
-        if (ngrid.lt.0) then
-          usl=usl+uupoleta(ix ,jy ,iuv(n),memind(m))+uupoleta(ixp,jy ,iuv(n),memind(m)) &
-                 +uupoleta(ix ,jyp,iuv(n),memind(m))+uupoleta(ixp,jyp,iuv(n),memind(m))
-          usq=usq+uupoleta(ix ,jy ,iuv(n),memind(m))*uupoleta(ix ,jy ,iuv(n),memind(m))+ &
-                  uupoleta(ixp,jy ,iuv(n),memind(m))*uupoleta(ixp,jy ,iuv(n),memind(m))+ &
-                  uupoleta(ix ,jyp,iuv(n),memind(m))*uupoleta(ix ,jyp,iuv(n),memind(m))+ &
-                  uupoleta(ixp,jyp,iuv(n),memind(m))*uupoleta(ixp,jyp,iuv(n),memind(m))
-          vsl=vsl+vvpoleta(ix ,jy ,iuv(n),memind(m))+vvpoleta(ixp,jy ,iuv(n),memind(m)) &
-                 +vvpoleta(ix ,jyp,iuv(n),memind(m))+vvpoleta(ixp,jyp,iuv(n),memind(m))
-          vsq=vsq+vvpoleta(ix ,jy ,iuv(n),memind(m))*vvpoleta(ix ,jy ,iuv(n),memind(m))+ &
-                  vvpoleta(ixp,jy ,iuv(n),memind(m))*vvpoleta(ixp,jy ,iuv(n),memind(m))+ &
-                  vvpoleta(ix ,jyp,iuv(n),memind(m))*vvpoleta(ix ,jyp,iuv(n),memind(m))+ &
-                  vvpoleta(ixp,jyp,iuv(n),memind(m))*vvpoleta(ixp,jyp,iuv(n),memind(m))
-        else
-          usl=usl+uueta(ix ,jy ,iuv(n),memind(m))+uueta(ixp,jy ,iuv(n),memind(m)) &
-                 +uueta(ix ,jyp,iuv(n),memind(m))+uueta(ixp,jyp,iuv(n),memind(m))
-          usq=usq+uueta(ix ,jy ,iuv(n),memind(m))*uueta(ix ,jy ,iuv(n),memind(m))+ &
-                  uueta(ixp,jy ,iuv(n),memind(m))*uueta(ixp,jy ,iuv(n),memind(m))+ &
-                  uueta(ix ,jyp,iuv(n),memind(m))*uueta(ix ,jyp,iuv(n),memind(m))+ &
-                  uueta(ixp,jyp,iuv(n),memind(m))*uueta(ixp,jyp,iuv(n),memind(m))
-          vsl=vsl+vveta(ix ,jy ,iuv(n),memind(m))+vveta(ixp,jy ,iuv(n),memind(m)) &
-                 +vveta(ix ,jyp,iuv(n),memind(m))+vveta(ixp,jyp,iuv(n),memind(m))
-          vsq=vsq+vveta(ix ,jy ,iuv(n),memind(m))*vveta(ix ,jy ,iuv(n),memind(m))+ &
-                  vveta(ixp,jy ,iuv(n),memind(m))*vveta(ixp,jy ,iuv(n),memind(m))+ &
-                  vveta(ix ,jyp,iuv(n),memind(m))*vveta(ix ,jyp,iuv(n),memind(m))+ &
-                  vveta(ixp,jyp,iuv(n),memind(m))*vveta(ixp,jyp,iuv(n),memind(m))
-        endif
-      end do
-
-      wxaux=wsq-wsl*wsl/8.
-      uxaux=usq-usl*usl/8.
-      vxaux=vsq-vsl*vsl/8.
-      wetaxaux=wetasq-wetasl*wetasl/8.
-      if (wxaux.lt.eps) then
-        wsigprof(iw(n))=0.
-      else
-        wsigprof(iw(n))=sqrt(wxaux/7.)
-      endif
-      if (uxaux.lt.eps) then
-        usigprof(iuv(n))=0.
-      else
-        usigprof(iuv(n))=sqrt(uxaux/7.)
-      endif
-      if (vxaux.lt.eps) then
-        vsigprof(iuv(n))=0.
-      else
-        vsigprof(iuv(n))=sqrt(vxaux/7.)
-      endif
-      if (wetaxaux.lt.eps) then
-        wsigprofeta(iweta(n))=0.
-      else
-        wsigprofeta(iweta(n))=sqrt(wetaxaux/7.)
-      endif
-    end do
-  else ! Nest
-    do n=1,2
-      wsl=0.
-      wsq=0.
-      usl=0.
-      usq=0.
-      vsl=0.
-      vsq=0.
-      wetasl=0.
-      wetasq=0.
-      do m=1,2
-        wsl=wsl+wwn(ix ,jy ,iw(n),memind(m),ngrid)+wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-               +wwn(ix ,jyp,iw(n),memind(m),ngrid)+wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        wsq=wsq+wwn(ix ,jy ,iw(n),memind(m),ngrid)*wwn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-                wwn(ixp,jy ,iw(n),memind(m),ngrid)*wwn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-                wwn(ix ,jyp,iw(n),memind(m),ngrid)*wwn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-                wwn(ixp,jyp,iw(n),memind(m),ngrid)*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        wetasl=wetasl+wwetan(ix ,jy ,iweta(n),memind(m),ngrid)+wwetan(ixp,jy ,iweta(n),memind(m),ngrid) &
-                     +wwetan(ix ,jyp,iweta(n),memind(m),ngrid)+wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-        wetasq=wetasq+wwetan(ix ,jy ,iweta(n),memind(m),ngrid)*wwetan(ix ,jy ,iweta(n),memind(m),ngrid)+ &
-                      wwetan(ixp,jy ,iweta(n),memind(m),ngrid)*wwetan(ixp,jy ,iweta(n),memind(m),ngrid)+ &
-                      wwetan(ix ,jyp,iweta(n),memind(m),ngrid)*wwetan(ix ,jyp,iweta(n),memind(m),ngrid)+ &
-                      wwetan(ixp,jyp,iweta(n),memind(m),ngrid)*wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-        usl=usl+uuetan(ix ,jy ,iuv(n),memind(m),ngrid)+uuetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-               +uuetan(ix ,jyp,iuv(n),memind(m),ngrid)+uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        usq=usq+uuetan(ix ,jy ,iuv(n),memind(m),ngrid)*uuetan(ix ,jy ,iuv(n),memind(m),ngrid)+ &
-                uuetan(ixp,jy ,iuv(n),memind(m),ngrid)*uuetan(ixp,jy ,iuv(n),memind(m),ngrid)+ &
-                uuetan(ix ,jyp,iuv(n),memind(m),ngrid)*uuetan(ix ,jyp,iuv(n),memind(m),ngrid)+ &
-                uuetan(ixp,jyp,iuv(n),memind(m),ngrid)*uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        vsl=vsl+vvetan(ix ,jy ,iuv(n),memind(m),ngrid)+vvetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-               +vvetan(ix ,jyp,iuv(n),memind(m),ngrid)+vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        vsq=vsq+vvetan(ix ,jy ,iuv(n),memind(m),ngrid)*vvetan(ix ,jy ,iuv(n),memind(m),ngrid)+ &
-                vvetan(ixp,jy ,iuv(n),memind(m),ngrid)*vvetan(ixp,jy ,iuv(n),memind(m),ngrid)+ &
-                vvetan(ix ,jyp,iuv(n),memind(m),ngrid)*vvetan(ix ,jyp,iuv(n),memind(m),ngrid)+ &
-                vvetan(ixp,jyp,iuv(n),memind(m),ngrid)*vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      end do
-
-      wxaux=wsq-wsl*wsl/8.
-      uxaux=usq-usl*usl/8.
-      vxaux=vsq-vsl*vsl/8.
-      wetaxaux=wetasq-wetasl*wetasl/8.
-      if (wxaux.lt.eps) then
-        wsigprof(iw(n))=0.
-      else
-        wsigprof(iw(n))=sqrt(wxaux/7.)
-      endif
-      if (uxaux.lt.eps) then
-        usigprof(iuv(n))=0.
-      else
-        usigprof(iuv(n))=sqrt(uxaux/7.)
-      endif
-      if (vxaux.lt.eps) then
-        vsigprof(iuv(n))=0.
-      else
-        vsigprof(iuv(n))=sqrt(vxaux/7.)
-      endif
-      if (wetaxaux.lt.eps) then
-        wsigprofeta(iweta(n))=0.
-      else
-        wsigprofeta(iweta(n))=sqrt(wetaxaux/7.)
-      endif
-    end do 
-  endif
-end subroutine standard_deviation_all_eta
-
-subroutine interpol_all_meter(iw)
-  implicit none 
-  real,parameter      :: eps=1.0e-30
-  integer,intent(in)  :: iw(2)
-  real                :: uh1(2),vh1(2),wh1(2),rho1(2),rhograd1(2)
-  integer             :: n,m
-
-  !**************************************
-  ! 1.) Bilinear horizontal interpolation
-  ! 2.) Temporal interpolation (linear)
-  !**************************************
-  
-  ! Loop over 2 time steps and indz levels
-  !***************************************
-  if (ngrid.le.0) then ! No nest
-    do n=1,2
-      do m=1,2
-        wh1(m)=p1*ww(ix ,jy ,iw(n),memind(m)) &
-             + p2*ww(ixp,jy ,iw(n),memind(m)) &
-             + p3*ww(ix ,jyp,iw(n),memind(m)) &
-             + p4*ww(ixp,jyp,iw(n),memind(m))
-        rho1(m)=p1*rho(ix ,jy ,iw(n),memind(m)) &
-              + p2*rho(ixp,jy ,iw(n),memind(m)) &
-              + p3*rho(ix ,jyp,iw(n),memind(m)) &
-              + p4*rho(ixp,jyp,iw(n),memind(m))
-        rhograd1(m)=p1*drhodz(ix ,jy ,iw(n),memind(m)) &
-                  + p2*drhodz(ixp,jy ,iw(n),memind(m)) &
-                  + p3*drhodz(ix ,jyp,iw(n),memind(m)) &
-                  + p4*drhodz(ixp,jyp,iw(n),memind(m))
-        if (ngrid.lt.0) then
-          uh1(m)=p1*uupol(ix ,jy ,iw(n),memind(m)) &
-               + p2*uupol(ixp,jy ,iw(n),memind(m)) &
-               + p3*uupol(ix ,jyp,iw(n),memind(m)) &
-               + p4*uupol(ixp,jyp,iw(n),memind(m))
-          vh1(m)=p1*vvpol(ix ,jy ,iw(n),memind(m)) &
-               + p2*vvpol(ixp,jy ,iw(n),memind(m)) &
-               + p3*vvpol(ix ,jyp,iw(n),memind(m)) &
-               + p4*vvpol(ixp,jyp,iw(n),memind(m))
-        else
-          uh1(m)=p1*uu(ix ,jy ,iw(n),memind(m)) &
-               + p2*uu(ixp,jy ,iw(n),memind(m)) &
-               + p3*uu(ix ,jyp,iw(n),memind(m)) &
-               + p4*uu(ixp,jyp,iw(n),memind(m))
-          vh1(m)=p1*vv(ix ,jy ,iw(n),memind(m)) &
-               + p2*vv(ixp,jy ,iw(n),memind(m)) &
-               + p3*vv(ix ,jyp,iw(n),memind(m)) &
-               + p4*vv(ixp,jyp,iw(n),memind(m))
-        endif
-      end do
-      wprof(iw(n))=(wh1(1)*dt2+wh1(2)*dt1)*dtt
-      uprof(iw(n))=(uh1(1)*dt2+uh1(2)*dt1)*dtt
-      vprof(iw(n))=(vh1(1)*dt2+vh1(2)*dt1)*dtt
-      rhoprof(iw(n))=(rho1(1)*dt2+rho1(2)*dt1)*dtt
-      rhogradprof(iw(n))=(rhograd1(1)*dt2+rhograd1(2)*dt1)*dtt
-    end do
-  else ! Nest
-    do n=1,2
-      do m=1,2
-        wh1(m)=p1*wwn(ix ,jy ,iw(n),memind(m),ngrid) &
-             + p2*wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-             + p3*wwn(ix ,jyp,iw(n),memind(m),ngrid) &
-             + p4*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        rho1(m)=p1*rhon(ix ,jy ,iw(n),memind(m),ngrid) &
-              + p2*rhon(ixp,jy ,iw(n),memind(m),ngrid) &
-              + p3*rhon(ix ,jyp,iw(n),memind(m),ngrid) &
-              + p4*rhon(ixp,jyp,iw(n),memind(m),ngrid)
-        rhograd1(m)=p1*drhodzn(ix ,jy ,iw(n),memind(m),ngrid) &
-                  + p2*drhodzn(ixp,jy ,iw(n),memind(m),ngrid) &
-                  + p3*drhodzn(ix ,jyp,iw(n),memind(m),ngrid) &
-                  + p4*drhodzn(ixp,jyp,iw(n),memind(m),ngrid)
-        uh1(m)=p1*uun(ix ,jy ,iw(n),memind(m),ngrid) &
-             + p2*uun(ixp,jy ,iw(n),memind(m),ngrid) &
-             + p3*uun(ix ,jyp,iw(n),memind(m),ngrid) &
-             + p4*uun(ixp,jyp,iw(n),memind(m),ngrid)
-        vh1(m)=p1*vvn(ix ,jy ,iw(n),memind(m),ngrid) &
-             + p2*vvn(ixp,jy ,iw(n),memind(m),ngrid) &
-             + p3*vvn(ix ,jyp,iw(n),memind(m),ngrid) &
-             + p4*vvn(ixp,jyp,iw(n),memind(m),ngrid)
-      end do
-      wprof(iw(n))=(wh1(1)*dt2+wh1(2)*dt1)*dtt
-      uprof(iw(n))=(uh1(1)*dt2+uh1(2)*dt1)*dtt
-      vprof(iw(n))=(vh1(1)*dt2+vh1(2)*dt1)*dtt
-      rhoprof(iw(n))=(rho1(1)*dt2+rho1(2)*dt1)*dtt
-      rhogradprof(iw(n))=(rhograd1(1)*dt2+rhograd1(2)*dt1)*dtt
-
-      indzindicator(iw(n))=.false.
-    end do
-  endif
-end subroutine interpol_all_meter
-
-subroutine standard_deviation_all_meter(iw)
-  implicit none
-
-  integer,intent(in)  :: iw(2)
-  real                :: wsl,wsq,wxaux,usl,usq,uxaux,vsl,vsq,vxaux
-  integer             :: n,m
-  real,parameter      :: eps=1.0e-30
-  ! Compute standard deviations
-  !****************************
-  if (ngrid.le.0) then ! No nest  
-    do n=1,2
-      wsl=0.
-      wsq=0.
-      usl=0.
-      usq=0.
-      vsl=0.
-      vsq=0.
-      do m=1,2
-        wsl=wsl+ww(ix ,jy ,iw(n),memind(m))+ww(ixp,jy ,iw(n),memind(m)) &
-               +ww(ix ,jyp,iw(n),memind(m))+ww(ixp,jyp,iw(n),memind(m))
-        wsq=wsq+ww(ix ,jy ,iw(n),memind(m))*ww(ix ,jy ,iw(n),memind(m))+ &
-                ww(ixp,jy ,iw(n),memind(m))*ww(ixp,jy ,iw(n),memind(m))+ &
-                ww(ix ,jyp,iw(n),memind(m))*ww(ix ,jyp,iw(n),memind(m))+ &
-                ww(ixp,jyp,iw(n),memind(m))*ww(ixp,jyp,iw(n),memind(m))
-        if (ngrid.lt.0) then
-          usl=usl+uupol(ix ,jy ,iw(n),memind(m))+uupol(ixp,jy ,iw(n),memind(m)) &
-                 +uupol(ix ,jyp,iw(n),memind(m))+uupol(ixp,jyp,iw(n),memind(m))
-          usq=usq+uupol(ix ,jy ,iw(n),memind(m))*uupol(ix ,jy ,iw(n),memind(m))+ &
-                  uupol(ixp,jy ,iw(n),memind(m))*uupol(ixp,jy ,iw(n),memind(m))+ &
-                  uupol(ix ,jyp,iw(n),memind(m))*uupol(ix ,jyp,iw(n),memind(m))+ &
-                  uupol(ixp,jyp,iw(n),memind(m))*uupol(ixp,jyp,iw(n),memind(m))
-          vsl=vsl+vvpol(ix ,jy ,iw(n),memind(m))+vvpol(ixp,jy ,iw(n),memind(m)) &
-                 +vvpol(ix ,jyp,iw(n),memind(m))+vvpol(ixp,jyp,iw(n),memind(m))
-          vsq=vsq+vvpol(ix ,jy ,iw(n),memind(m))*vvpol(ix ,jy ,iw(n),memind(m))+ &
-                  vvpol(ixp,jy ,iw(n),memind(m))*vvpol(ixp,jy ,iw(n),memind(m))+ &
-                  vvpol(ix ,jyp,iw(n),memind(m))*vvpol(ix ,jyp,iw(n),memind(m))+ &
-                  vvpol(ixp,jyp,iw(n),memind(m))*vvpol(ixp,jyp,iw(n),memind(m))
-        else
-          usl=usl+uu(ix ,jy ,iw(n),memind(m))+uu(ixp,jy ,iw(n),memind(m)) &
-                 +uu(ix ,jyp,iw(n),memind(m))+uu(ixp,jyp,iw(n),memind(m))
-          usq=usq+uu(ix ,jy ,iw(n),memind(m))*uu(ix ,jy ,iw(n),memind(m))+ &
-                  uu(ixp,jy ,iw(n),memind(m))*uu(ixp,jy ,iw(n),memind(m))+ &
-                  uu(ix ,jyp,iw(n),memind(m))*uu(ix ,jyp,iw(n),memind(m))+ &
-                  uu(ixp,jyp,iw(n),memind(m))*uu(ixp,jyp,iw(n),memind(m))
-          vsl=vsl+vv(ix ,jy ,iw(n),memind(m))+vv(ixp,jy ,iw(n),memind(m)) &
-                 +vv(ix ,jyp,iw(n),memind(m))+vv(ixp,jyp,iw(n),memind(m))
-          vsq=vsq+vv(ix ,jy ,iw(n),memind(m))*vv(ix ,jy ,iw(n),memind(m))+ &
-                  vv(ixp,jy ,iw(n),memind(m))*vv(ixp,jy ,iw(n),memind(m))+ &
-                  vv(ix ,jyp,iw(n),memind(m))*vv(ix ,jyp,iw(n),memind(m))+ &
-                  vv(ixp,jyp,iw(n),memind(m))*vv(ixp,jyp,iw(n),memind(m))
-        endif
-      end do
-
-      wxaux=wsq-wsl*wsl/8.
-      uxaux=usq-usl*usl/8.
-      vxaux=vsq-vsl*vsl/8.
-      if (wxaux.lt.eps) then
-        wsigprof(iw(n))=0.
-      else
-        wsigprof(iw(n))=sqrt(wxaux/7.)
-      endif
-      if (uxaux.lt.eps) then
-        usigprof(iw(n))=0.
-      else
-        usigprof(iw(n))=sqrt(uxaux/7.)
-      endif
-      if (vxaux.lt.eps) then
-        vsigprof(iw(n))=0.
-      else
-        vsigprof(iw(n))=sqrt(vxaux/7.)
-      endif
-    end do
-  else ! Nest
-    do n=1,2
-      wsl=0.
-      wsq=0.
-      usl=0.
-      usq=0.
-      vsl=0.
-      vsq=0.
-      do m=1,2
-        wsl=wsl+wwn(ix ,jy ,iw(n),memind(m),ngrid)+wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-               +wwn(ix ,jyp,iw(n),memind(m),ngrid)+wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        wsq=wsq+wwn(ix ,jy ,iw(n),memind(m),ngrid)*wwn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-                wwn(ixp,jy ,iw(n),memind(m),ngrid)*wwn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-                wwn(ix ,jyp,iw(n),memind(m),ngrid)*wwn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-                wwn(ixp,jyp,iw(n),memind(m),ngrid)*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        usl=usl+uun(ix ,jy ,iw(n),memind(m),ngrid)+uun(ixp,jy ,iw(n),memind(m),ngrid) &
-               +uun(ix ,jyp,iw(n),memind(m),ngrid)+uun(ixp,jyp,iw(n),memind(m),ngrid)
-        usq=usq+uun(ix ,jy ,iw(n),memind(m),ngrid)*uun(ix ,jy ,iw(n),memind(m),ngrid)+ &
-                uun(ixp,jy ,iw(n),memind(m),ngrid)*uun(ixp,jy ,iw(n),memind(m),ngrid)+ &
-                uun(ix ,jyp,iw(n),memind(m),ngrid)*uun(ix ,jyp,iw(n),memind(m),ngrid)+ &
-                uun(ixp,jyp,iw(n),memind(m),ngrid)*uun(ixp,jyp,iw(n),memind(m),ngrid)
-        vsl=vsl+vvn(ix ,jy ,iw(n),memind(m),ngrid)+vvn(ixp,jy ,iw(n),memind(m),ngrid) &
-               +vvn(ix ,jyp,iw(n),memind(m),ngrid)+vvn(ixp,jyp,iw(n),memind(m),ngrid)
-        vsq=vsq+vvn(ix ,jy ,iw(n),memind(m),ngrid)*vvn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-                vvn(ixp,jy ,iw(n),memind(m),ngrid)*vvn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-                vvn(ix ,jyp,iw(n),memind(m),ngrid)*vvn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-                vvn(ixp,jyp,iw(n),memind(m),ngrid)*vvn(ixp,jyp,iw(n),memind(m),ngrid)
-      end do
-
-      wxaux=wsq-wsl*wsl/8.
-      uxaux=usq-usl*usl/8.
-      vxaux=vsq-vsl*vsl/8.
-      if (wxaux.lt.eps) then
-        wsigprof(iw(n))=0.
-      else
-        wsigprof(iw(n))=sqrt(wxaux/7.)
-      endif
-      if (uxaux.lt.eps) then
-        usigprof(iw(n))=0.
-      else
-        usigprof(iw(n))=sqrt(uxaux/7.)
-      endif
-      if (vxaux.lt.eps) then
-        vsigprof(iw(n))=0.
-      else
-        vsigprof(iw(n))=sqrt(vxaux/7.)
-      endif
-    end do 
-  endif
-end subroutine standard_deviation_all_meter
-
-subroutine interpol_misslev_eta(n,iw,iuv,iweta)
-  implicit none
-
-  integer,intent(in)  :: n,iw(2),iuv(2),iweta(2)
-  real                :: uh1(2),vh1(2),wetah1(2),wh1(2),rho1(2),rhograd1(2)
-  integer             :: m
-
-  if (ngrid.le.0) then ! No nest
-    do m=1,2
-      wh1(m)=p1*ww(ix ,jy ,iw(n),memind(m)) &
-           + p2*ww(ixp,jy ,iw(n),memind(m)) &
-           + p3*ww(ix ,jyp,iw(n),memind(m)) &
-           + p4*ww(ixp,jyp,iw(n),memind(m))
-      wetah1(m)=p1*wweta(ix ,jy ,iweta(n),memind(m)) &
-              + p2*wweta(ixp,jy ,iweta(n),memind(m)) &
-              + p3*wweta(ix ,jyp,iweta(n),memind(m)) &
-              + p4*wweta(ixp,jyp,iweta(n),memind(m))
-      rho1(m)=p1*rhoeta(ix ,jy ,iuv(n),memind(m)) &
-            + p2*rhoeta(ixp,jy ,iuv(n),memind(m)) &
-            + p3*rhoeta(ix ,jyp,iuv(n),memind(m)) &
-            + p4*rhoeta(ixp,jyp,iuv(n),memind(m))
-      rhograd1(m)=p1*drhodzeta(ix ,jy ,iuv(n),memind(m)) &
-                + p2*drhodzeta(ixp,jy ,iuv(n),memind(m)) &
-                + p3*drhodzeta(ix ,jyp,iuv(n),memind(m)) &
-                + p4*drhodzeta(ixp,jyp,iuv(n),memind(m))
-      if (ngrid.lt.0) then
-        uh1(m)=p1*uupoleta(ix ,jy ,iuv(n),memind(m)) &
-             + p2*uupoleta(ixp,jy ,iuv(n),memind(m)) &
-             + p3*uupoleta(ix ,jyp,iuv(n),memind(m)) &
-             + p4*uupoleta(ixp,jyp,iuv(n),memind(m))
-        vh1(m)=p1*vvpoleta(ix ,jy ,iuv(n),memind(m)) &
-             + p2*vvpoleta(ixp,jy ,iuv(n),memind(m)) &
-             + p3*vvpoleta(ix ,jyp,iuv(n),memind(m)) &
-             + p4*vvpoleta(ixp,jyp,iuv(n),memind(m))
-      else
-        uh1(m)=p1*uueta(ix ,jy ,iuv(n),memind(m)) &
-             + p2*uueta(ixp,jy ,iuv(n),memind(m)) &
-             + p3*uueta(ix ,jyp,iuv(n),memind(m)) &
-             + p4*uueta(ixp,jyp,iuv(n),memind(m))
-        vh1(m)=p1*vveta(ix ,jy ,iuv(n),memind(m)) &
-             + p2*vveta(ixp,jy ,iuv(n),memind(m)) &
-             + p3*vveta(ix ,jyp,iuv(n),memind(m)) &
-             + p4*vveta(ixp,jyp,iuv(n),memind(m))
-      endif
-    end do
-  else ! Nest
-    do m=1,2
-      wh1(m)=p1*wwn(ix ,jy ,iw(n),memind(m),ngrid) &
-           + p2*wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-           + p3*wwn(ix ,jyp,iw(n),memind(m),ngrid) &
-           + p4*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-      wetah1(m)=p1*wwetan(ix ,jy ,iweta(n),memind(m),ngrid) &
-              + p2*wwetan(ixp,jy ,iweta(n),memind(m),ngrid) &
-              + p3*wwetan(ix ,jyp,iweta(n),memind(m),ngrid) &
-              + p4*wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-      rho1(m)=p1*rhoetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-            + p2*rhoetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-            + p3*rhoetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-            + p4*rhoetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      rhograd1(m)=p1*drhodzetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-                + p2*drhodzetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-                + p3*drhodzetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-                + p4*drhodzetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      uh1(m)=p1*uuetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-           + p2*uuetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-           + p3*uuetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-           + p4*uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      vh1(m)=p1*vvetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-           + p2*vvetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-           + p3*vvetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-           + p4*vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
-    end do
-  endif
-  wprof(iw(n))=(wh1(1)*dt2+wh1(2)*dt1)*dtt
-  uprof(iuv(n))=(uh1(1)*dt2+uh1(2)*dt1)*dtt
-  vprof(iuv(n))=(vh1(1)*dt2+vh1(2)*dt1)*dtt
-  rhoprof(iuv(n))=(rho1(1)*dt2+rho1(2)*dt1)*dtt
-  wprofeta(iweta(n))=(wetah1(1)*dt2+wetah1(2)*dt1)*dtt
-  rhogradprof(iuv(n))=(rhograd1(1)*dt2+rhograd1(2)*dt1)*dtt
-
-  indzindicator(iweta(n))=.false.
-end subroutine interpol_misslev_eta 
-
-subroutine standard_deviation_misslev_eta(n,iw,iuv,iweta)
-  implicit none
-
-  integer,intent(in)  :: n,iw(2),iuv(2),iweta(2)
-  real                :: wsl,wsq,wxaux,usl,usq,uxaux,vsl,vsq,vxaux,wetasl,wetasq,wetaxaux
-  integer             :: n,m
-  real,parameter      :: eps=1.0e-30
-
-  ! Standard deviation
-  !*******************
-
-  wsl=0.
-  wsq=0.
-  usl=0.
-  usq=0.
-  vsl=0.
-  vsq=0.
-  wetasl=0.
-  wetasq=0.
-  if (ngrid.le.0) then ! No nest
-    do m=1,2
-      wsl=wsl+ww(ix ,jy ,iw(n),memind(m))+ww(ixp,jy ,iw(n),memind(m)) &
-             +ww(ix ,jyp,iw(n),memind(m))+ww(ixp,jyp,iw(n),memind(m))
-      wsq=wsq+ww(ix ,jy ,iw(n),memind(m))*ww(ix ,jy ,iw(n),memind(m))+ &
-              ww(ixp,jy ,iw(n),memind(m))*ww(ixp,jy ,iw(n),memind(m))+ &
-              ww(ix ,jyp,iw(n),memind(m))*ww(ix ,jyp,iw(n),memind(m))+ &
-              ww(ixp,jyp,iw(n),memind(m))*ww(ixp,jyp,iw(n),memind(m))
-      wetasl=wetasl+wweta(ix ,jy ,iweta(n),memind(m))+wweta(ixp,jy ,iweta(n),memind(m)) &
-                   +wweta(ix ,jyp,iweta(n),memind(m))+wweta(ixp,jyp,iweta(n),memind(m))
-      wetasq=wetasq+wweta(ix ,jy ,iweta(n),memind(m))*wweta(ix ,jy ,iweta(n),memind(m))+ &
-                    wweta(ixp,jy ,iweta(n),memind(m))*wweta(ixp,jy ,iweta(n),memind(m))+ &
-                    wweta(ix ,jyp,iweta(n),memind(m))*wweta(ix ,jyp,iweta(n),memind(m))+ &
-                    wweta(ixp,jyp,iweta(n),memind(m))*wweta(ixp,jyp,iweta(n),memind(m))
-      if (ngrid.lt.0) then
-        usl=usl+uupoleta(ix ,jy ,iuv(n),memind(m))+uupoleta(ixp,jy ,iuv(n),memind(m)) &
-               +uupoleta(ix ,jyp,iuv(n),memind(m))+uupoleta(ixp,jyp,iuv(n),memind(m))
-        usq=usq+uupoleta(ix ,jy ,iuv(n),memind(m))*uupoleta(ix ,jy ,iuv(n),memind(m))+ &
-                uupoleta(ixp,jy ,iuv(n),memind(m))*uupoleta(ixp,jy ,iuv(n),memind(m))+ &
-                uupoleta(ix ,jyp,iuv(n),memind(m))*uupoleta(ix ,jyp,iuv(n),memind(m))+ &
-                uupoleta(ixp,jyp,iuv(n),memind(m))*uupoleta(ixp,jyp,iuv(n),memind(m))
-        vsl=vsl+vvpoleta(ix ,jy ,iuv(n),memind(m))+vvpoleta(ixp,jy ,iuv(n),memind(m)) &
-               +vvpoleta(ix ,jyp,iuv(n),memind(m))+vvpoleta(ixp,jyp,iuv(n),memind(m))
-        vsq=vsq+vvpoleta(ix ,jy ,iuv(n),memind(m))*vvpoleta(ix ,jy ,iuv(n),memind(m))+ &
-                vvpoleta(ixp,jy ,iuv(n),memind(m))*vvpoleta(ixp,jy ,iuv(n),memind(m))+ &
-                vvpoleta(ix ,jyp,iuv(n),memind(m))*vvpoleta(ix ,jyp,iuv(n),memind(m))+ &
-                vvpoleta(ixp,jyp,iuv(n),memind(m))*vvpoleta(ixp,jyp,iuv(n),memind(m))
-      else
-        usl=usl+uueta(ix ,jy ,iuv(n),memind(m))+uueta(ixp,jy ,iuv(n),memind(m)) &
-               +uueta(ix ,jyp,iuv(n),memind(m))+uueta(ixp,jyp,iuv(n),memind(m))
-        usq=usq+uueta(ix ,jy ,iuv(n),memind(m))*uueta(ix ,jy ,iuv(n),memind(m))+ &
-                uueta(ixp,jy ,iuv(n),memind(m))*uueta(ixp,jy ,iuv(n),memind(m))+ &
-                uueta(ix ,jyp,iuv(n),memind(m))*uueta(ix ,jyp,iuv(n),memind(m))+ &
-                uueta(ixp,jyp,iuv(n),memind(m))*uueta(ixp,jyp,iuv(n),memind(m))
-        vsl=vsl+vveta(ix ,jy ,iuv(n),memind(m))+vveta(ixp,jy ,iuv(n),memind(m)) &
-               +vveta(ix ,jyp,iuv(n),memind(m))+vveta(ixp,jyp,iuv(n),memind(m))
-        vsq=vsq+vveta(ix ,jy ,iuv(n),memind(m))*vveta(ix ,jy ,iuv(n),memind(m))+ &
-                vveta(ixp,jy ,iuv(n),memind(m))*vveta(ixp,jy ,iuv(n),memind(m))+ &
-                vveta(ix ,jyp,iuv(n),memind(m))*vveta(ix ,jyp,iuv(n),memind(m))+ &
-                vveta(ixp,jyp,iuv(n),memind(m))*vveta(ixp,jyp,iuv(n),memind(m))
-      endif
-    end do
-  else ! Nest
-    do m=1,2
-      wsl=wsl+wwn(ix ,jy ,iw(n),memind(m),ngrid)+wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-             +wwn(ix ,jyp,iw(n),memind(m),ngrid)+wwn(ixp,jyp,iw(n),memind(m),ngrid)
-      wsq=wsq+wwn(ix ,jy ,iw(n),memind(m),ngrid)*wwn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-              wwn(ixp,jy ,iw(n),memind(m),ngrid)*wwn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-              wwn(ix ,jyp,iw(n),memind(m),ngrid)*wwn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-              wwn(ixp,jyp,iw(n),memind(m),ngrid)*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-      wetasl=wetasl+wwetan(ix ,jy ,iweta(n),memind(m),ngrid)+wwetan(ixp,jy ,iweta(n),memind(m),ngrid) &
-                   +wwetan(ix ,jyp,iweta(n),memind(m),ngrid)+wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-      wetasq=wetasq+wwetan(ix ,jy ,iweta(n),memind(m),ngrid)*wwetan(ix ,jy ,iweta(n),memind(m),ngrid)+ &
-                    wwetan(ixp,jy ,iweta(n),memind(m),ngrid)*wwetan(ixp,jy ,iweta(n),memind(m),ngrid)+ &
-                    wwetan(ix ,jyp,iweta(n),memind(m),ngrid)*wwetan(ix ,jyp,iweta(n),memind(m),ngrid)+ &
-                    wwetan(ixp,jyp,iweta(n),memind(m),ngrid)*wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-      usl=usl+uuetan(ix ,jy ,iuv(n),memind(m),ngrid)+uuetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-             +uuetan(ix ,jyp,iuv(n),memind(m),ngrid)+uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      usq=usq+uuetan(ix ,jy ,iuv(n),memind(m),ngrid)*uuetan(ix ,jy ,iuv(n),memind(m),ngrid)+ &
-              uuetan(ixp,jy ,iuv(n),memind(m),ngrid)*uuetan(ixp,jy ,iuv(n),memind(m),ngrid)+ &
-              uuetan(ix ,jyp,iuv(n),memind(m),ngrid)*uuetan(ix ,jyp,iuv(n),memind(m),ngrid)+ &
-              uuetan(ixp,jyp,iuv(n),memind(m),ngrid)*uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      vsl=vsl+vvetan(ix ,jy ,iuv(n),memind(m),ngrid)+vvetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-             +vvetan(ix ,jyp,iuv(n),memind(m),ngrid)+vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      vsq=vsq+vvetan(ix ,jy ,iuv(n),memind(m),ngrid)*vvetan(ix ,jy ,iuv(n),memind(m),ngrid)+ &
-              vvetan(ixp,jy ,iuv(n),memind(m),ngrid)*vvetan(ixp,jy ,iuv(n),memind(m),ngrid)+ &
-              vvetan(ix ,jyp,iuv(n),memind(m),ngrid)*vvetan(ix ,jyp,iuv(n),memind(m),ngrid)+ &
-              vvetan(ixp,jyp,iuv(n),memind(m),ngrid)*vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
-    end do
-  endif
-  wxaux=wsq-wsl*wsl/8.
-  uxaux=usq-usl*usl/8.
-  vxaux=vsq-vsl*vsl/8.
-  wetaxaux=wetasq-wetasl*wetasl/8.
-  if (wxaux.lt.eps) then
-    wsigprof(iw(n))=0.
-  else
-    wsigprof(iw(n))=sqrt(wxaux/7.)
-  endif
-  if (uxaux.lt.eps) then
-    usigprof(iuv(n))=0.
-  else
-    usigprof(iuv(n))=sqrt(uxaux/7.)
-  endif
-  if (vxaux.lt.eps) then
-    vsigprof(iuv(n))=0.
-  else
-    vsigprof(iuv(n))=sqrt(vxaux/7.)
-  endif
-  if (wetaxaux.lt.eps) then
-    wsigprofeta(iweta(n))=0.
-  else
-    wsigprofeta(iweta(n))=sqrt(wetaxaux/7.)
-  endif
-end subroutine standard_deviation_misslev_eta
-
-subroutine interpol_misslev_meter(n,iw)
-  implicit none
-
-  integer,intent(in)  :: n,iw(2)
-  real                :: uh1(2),vh1(2),wetah1(2),wh1(2),rho1(2),rhograd1(2)
-  integer             :: m
-
-  if (ngrid.le.0) then ! No nest
-    do m=1,2
-      wh1(m)=p1*ww(ix ,jy ,iw(n),memind(m)) &
-           + p2*ww(ixp,jy ,iw(n),memind(m)) &
-           + p3*ww(ix ,jyp,iw(n),memind(m)) &
-           + p4*ww(ixp,jyp,iw(n),memind(m))
-      rho1(m)=p1*rho(ix ,jy ,iw(n),memind(m)) &
-            + p2*rho(ixp,jy ,iw(n),memind(m)) &
-            + p3*rho(ix ,jyp,iw(n),memind(m)) &
-            + p4*rho(ixp,jyp,iw(n),memind(m))
-      rhograd1(m)=p1*drhodz(ix ,jy ,iw(n),memind(m)) &
-                + p2*drhodz(ixp,jy ,iw(n),memind(m)) &
-                + p3*drhodz(ix ,jyp,iw(n),memind(m)) &
-                + p4*drhodz(ixp,jyp,iw(n),memind(m))
-      if (ngrid.lt.0) then
-        uh1(m)=p1*uupol(ix ,jy ,iw(n),memind(m)) &
-             + p2*uupol(ixp,jy ,iw(n),memind(m)) &
-             + p3*uupol(ix ,jyp,iw(n),memind(m)) &
-             + p4*uupol(ixp,jyp,iw(n),memind(m))
-        vh1(m)=p1*vvpol(ix ,jy ,iw(n),memind(m)) &
-             + p2*vvpol(ixp,jy ,iw(n),memind(m)) &
-             + p3*vvpol(ix ,jyp,iw(n),memind(m)) &
-             + p4*vvpol(ixp,jyp,iw(n),memind(m))
-      else
-        uh1(m)=p1*uu(ix ,jy ,iw(n),memind(m)) &
-             + p2*uu(ixp,jy ,iw(n),memind(m)) &
-             + p3*uu(ix ,jyp,iw(n),memind(m)) &
-             + p4*uu(ixp,jyp,iw(n),memind(m))
-        vh1(m)=p1*vv(ix ,jy ,iw(n),memind(m)) &
-             + p2*vv(ixp,jy ,iw(n),memind(m)) &
-             + p3*vv(ix ,jyp,iw(n),memind(m)) &
-             + p4*vv(ixp,jyp,iw(n),memind(m))
-      endif
-    end do
-  else ! Nest
-    do m=1,2
-      wh1(m)=p1*wwn(ix ,jy ,iw(n),memind(m),ngrid) &
-           + p2*wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-           + p3*wwn(ix ,jyp,iw(n),memind(m),ngrid) &
-           + p4*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-      rho1(m)=p1*rhon(ix ,jy ,iw(n),memind(m),ngrid) &
-            + p2*rhon(ixp,jy ,iw(n),memind(m),ngrid) &
-            + p3*rhon(ix ,jyp,iw(n),memind(m),ngrid) &
-            + p4*rhon(ixp,jyp,iw(n),memind(m),ngrid)
-      rhograd1(m)=p1*drhodzn(ix ,jy ,iw(n),memind(m),ngrid) &
-                + p2*drhodzn(ixp,jy ,iw(n),memind(m),ngrid) &
-                + p3*drhodzn(ix ,jyp,iw(n),memind(m),ngrid) &
-                + p4*drhodzn(ixp,jyp,iw(n),memind(m),ngrid)
-      uh1(m)=p1*uun(ix ,jy ,iw(n),memind(m),ngrid) &
-           + p2*uun(ixp,jy ,iw(n),memind(m),ngrid) &
-           + p3*uun(ix ,jyp,iw(n),memind(m),ngrid) &
-           + p4*uun(ixp,jyp,iw(n),memind(m),ngrid)
-      vh1(m)=p1*vvn(ix ,jy ,iw(n),memind(m),ngrid) &
-           + p2*vvn(ixp,jy ,iw(n),memind(m),ngrid) &
-           + p3*vvn(ix ,jyp,iw(n),memind(m),ngrid) &
-           + p4*vvn(ixp,jyp,iw(n),memind(m),ngrid)
-    end do
-  endif
-  wprof(iw(n))=(wh1(1)*dt2+wh1(2)*dt1)*dtt
-  uprof(iw(n))=(uh1(1)*dt2+uh1(2)*dt1)*dtt
-  vprof(iw(n))=(vh1(1)*dt2+vh1(2)*dt1)*dtt
-  rhoprof(iw(n))=(rho1(1)*dt2+rho1(2)*dt1)*dtt
-  rhogradprof(iw(n))=(rhograd1(1)*dt2+rhograd1(2)*dt1)*dtt
-
-  indzindicator(iw(n))=.false.
-end subroutine interpol_misslev_meter 
-
-subroutine standard_deviation_misslev_meter(n,iw)
-  implicit none
-
-  integer,intent(in)  :: n,iw(2)
-  real                :: wsl,wsq,wxaux,usl,usq,uxaux,vsl,vsq,vxaux,wetasl,wetasq,wetaxaux
-  integer             :: n,m
-  real,parameter      :: eps=1.0e-30
-
-  ! Standard deviation
-  !*******************
-
-  wsl=0.
-  wsq=0.
-  usl=0.
-  usq=0.
-  vsl=0.
-  vsq=0.
-  if (ngrid.le.0) then ! No nest
-    do m=1,2
-      wsl=wsl+ww(ix ,jy ,iw(n),memind(m))+ww(ixp,jy ,iw(n),memind(m)) &
-             +ww(ix ,jyp,iw(n),memind(m))+ww(ixp,jyp,iw(n),memind(m))
-      wsq=wsq+ww(ix ,jy ,iw(n),memind(m))*ww(ix ,jy ,iw(n),memind(m))+ &
-              ww(ixp,jy ,iw(n),memind(m))*ww(ixp,jy ,iw(n),memind(m))+ &
-              ww(ix ,jyp,iw(n),memind(m))*ww(ix ,jyp,iw(n),memind(m))+ &
-              ww(ixp,jyp,iw(n),memind(m))*ww(ixp,jyp,iw(n),memind(m))
-      if (ngrid.lt.0) then
-        usl=usl+uupol(ix ,jy ,iw(n),memind(m))+uupol(ixp,jy ,iw(n),memind(m)) &
-               +uupol(ix ,jyp,iw(n),memind(m))+uupol(ixp,jyp,iw(n),memind(m))
-        usq=usq+uupol(ix ,jy ,iw(n),memind(m))*uupol(ix ,jy ,iw(n),memind(m))+ &
-                uupol(ixp,jy ,iw(n),memind(m))*uupol(ixp,jy ,iw(n),memind(m))+ &
-                uupol(ix ,jyp,iw(n),memind(m))*uupol(ix ,jyp,iw(n),memind(m))+ &
-                uupol(ixp,jyp,iw(n),memind(m))*uupol(ixp,jyp,iw(n),memind(m))
-        vsl=vsl+vvpol(ix ,jy ,iw(n),memind(m))+vvpol(ixp,jy ,iw(n),memind(m)) &
-               +vvpol(ix ,jyp,iw(n),memind(m))+vvpol(ixp,jyp,iw(n),memind(m))
-        vsq=vsq+vvpol(ix ,jy ,iw(n),memind(m))*vvpol(ix ,jy ,iw(n),memind(m))+ &
-                vvpol(ixp,jy ,iw(n),memind(m))*vvpol(ixp,jy ,iw(n),memind(m))+ &
-                vvpol(ix ,jyp,iw(n),memind(m))*vvpol(ix ,jyp,iw(n),memind(m))+ &
-                vvpol(ixp,jyp,iw(n),memind(m))*vvpol(ixp,jyp,iw(n),memind(m))
-      else
-        usl=usl+uu(ix ,jy ,iw(n),memind(m))+uu(ixp,jy ,iw(n),memind(m)) &
-               +uu(ix ,jyp,iw(n),memind(m))+uu(ixp,jyp,iw(n),memind(m))
-        usq=usq+uu(ix ,jy ,iw(n),memind(m))*uu(ix ,jy ,iw(n),memind(m))+ &
-                uu(ixp,jy ,iw(n),memind(m))*uu(ixp,jy ,iw(n),memind(m))+ &
-                uu(ix ,jyp,iw(n),memind(m))*uu(ix ,jyp,iw(n),memind(m))+ &
-                uu(ixp,jyp,iw(n),memind(m))*uu(ixp,jyp,iw(n),memind(m))
-        vsl=vsl+vv(ix ,jy ,iw(n),memind(m))+vv(ixp,jy ,iw(n),memind(m)) &
-               +vv(ix ,jyp,iw(n),memind(m))+vv(ixp,jyp,iw(n),memind(m))
-        vsq=vsq+vv(ix ,jy ,iw(n),memind(m))*vv(ix ,jy ,iw(n),memind(m))+ &
-                vv(ixp,jy ,iw(n),memind(m))*vv(ixp,jy ,iw(n),memind(m))+ &
-                vv(ix ,jyp,iw(n),memind(m))*vv(ix ,jyp,iw(n),memind(m))+ &
-                vv(ixp,jyp,iw(n),memind(m))*vv(ixp,jyp,iw(n),memind(m))
-      endif
-    end do
-  else ! Nest
-    do m=1,2
-      wsl=wsl+wwn(ix ,jy ,iw(n),memind(m),ngrid)+wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-             +wwn(ix ,jyp,iw(n),memind(m),ngrid)+wwn(ixp,jyp,iw(n),memind(m),ngrid)
-      wsq=wsq+wwn(ix ,jy ,iw(n),memind(m),ngrid)*wwn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-              wwn(ixp,jy ,iw(n),memind(m),ngrid)*wwn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-              wwn(ix ,jyp,iw(n),memind(m),ngrid)*wwn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-              wwn(ixp,jyp,iw(n),memind(m),ngrid)*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-      usl=usl+uun(ix ,jy ,iw(n),memind(m),ngrid)+uun(ixp,jy ,iw(n),memind(m),ngrid) &
-             +uun(ix ,jyp,iw(n),memind(m),ngrid)+uun(ixp,jyp,iw(n),memind(m),ngrid)
-      usq=usq+uun(ix ,jy ,iw(n),memind(m),ngrid)*uun(ix ,jy ,iw(n),memind(m),ngrid)+ &
-              uun(ixp,jy ,iw(n),memind(m),ngrid)*uun(ixp,jy ,iw(n),memind(m),ngrid)+ &
-              uun(ix ,jyp,iw(n),memind(m),ngrid)*uun(ix ,jyp,iw(n),memind(m),ngrid)+ &
-              uun(ixp,jyp,iw(n),memind(m),ngrid)*uun(ixp,jyp,iw(n),memind(m),ngrid)
-      vsl=vsl+vvn(ix ,jy ,iw(n),memind(m),ngrid)+vvn(ixp,jy ,iw(n),memind(m),ngrid) &
-             +vvn(ix ,jyp,iw(n),memind(m),ngrid)+vvn(ixp,jyp,iw(n),memind(m),ngrid)
-      vsq=vsq+vvn(ix ,jy ,iw(n),memind(m),ngrid)*vvn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-              vvn(ixp,jy ,iw(n),memind(m),ngrid)*vvn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-              vvn(ix ,jyp,iw(n),memind(m),ngrid)*vvn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-              vvn(ixp,jyp,iw(n),memind(m),ngrid)*vvn(ixp,jyp,iw(n),memind(m),ngrid)
-    end do
-  endif
-  wxaux=wsq-wsl*wsl/8.
-  uxaux=usq-usl*usl/8.
-  vxaux=vsq-vsl*vsl/8.
-  if (wxaux.lt.eps) then
-    wsigprof(iw(n))=0.
-  else
-    wsigprof(iw(n))=sqrt(wxaux/7.)
-  endif
-  if (uxaux.lt.eps) then
-    usigprof(iw(n))=0.
-  else
-    usigprof(iw(n))=sqrt(uxaux/7.)
-  endif
-  if (vxaux.lt.eps) then
-    vsigprof(iw(n))=0.
-  else
-    vsigprof(iw(n))=sqrt(vxaux/7.)
-  endif
-end subroutine standard_deviation_misslev_meter
-
+!*********************
+!* PRIVATE FUNCTIONS *
+!*********************
+! Interpolation of wind fields
+!*****************************
 subroutine interpol_wind_eta(zt,zteta,iw,iuv,iweta)
   implicit none
 
@@ -2328,189 +1048,40 @@ subroutine interpol_wind_eta(zt,zteta,iw,iuv,iweta)
   if (ngrid.le.0) then ! No nest
     do m=1,2
       do n=1,2
-        wh1(n)=p1*ww(ix ,jy ,iw(n),memind(m)) &
-             + p2*ww(ixp,jy ,iw(n),memind(m)) &
-             + p3*ww(ix ,jyp,iw(n),memind(m)) &
-             + p4*ww(ixp,jyp,iw(n),memind(m))
-        wetah1(n)=p1*wweta(ix ,jy ,iweta(n),memind(m)) &
-             + p2*wweta(ixp,jy ,iweta(n),memind(m)) &
-             + p3*wweta(ix ,jyp,iweta(n),memind(m)) &
-             + p4*wweta(ixp,jyp,iweta(n),memind(m))
+        call horizontal_interpolation(ww,wh1(n),iw(n),memind(m),nzmax)
+        call horizontal_interpolation(wweta,wetah1(n),iweta(n),memind(m),nzmax)
         if (ngrid.lt.0) then
-          uh1(n)=p1*uupoleta(ix ,jy ,iuv(n),memind(m)) &
-               + p2*uupoleta(ixp,jy ,iuv(n),memind(m)) &
-               + p3*uupoleta(ix ,jyp,iuv(n),memind(m)) &
-               + p4*uupoleta(ixp,jyp,iuv(n),memind(m))
-          vh1(n)=p1*vvpoleta(ix ,jy ,iuv(n),memind(m)) &
-               + p2*vvpoleta(ixp,jy ,iuv(n),memind(m)) &
-               + p3*vvpoleta(ix ,jyp,iuv(n),memind(m)) &
-               + p4*vvpoleta(ixp,jyp,iuv(n),memind(m))
+          call horizontal_interpolation(uupoleta,uh1(n),iuv(n),memind(m),nzmax)
+          call horizontal_interpolation(vvpoleta,vh1(n),iuv(n),memind(m),nzmax)
         else
-          uh1(n)=p1*uueta(ix ,jy ,iuv(n),memind(m)) &
-               + p2*uueta(ixp,jy ,iuv(n),memind(m)) &
-               + p3*uueta(ix ,jyp,iuv(n),memind(m)) &
-               + p4*uueta(ixp,jyp,iuv(n),memind(m))
-          vh1(n)=p1*vveta(ix ,jy ,iuv(n),memind(m)) &
-               + p2*vveta(ixp,jy ,iuv(n),memind(m)) &
-               + p3*vveta(ix ,jyp,iuv(n),memind(m)) &
-               + p4*vveta(ixp,jyp,iuv(n),memind(m))
+          call horizontal_interpolation(uueta,uh1(n),iuv(n),memind(m),nzmax)
+          call horizontal_interpolation(vveta,vh1(n),iuv(n),memind(m),nzmax)
         endif
       end do
-      wh(m)=dz2w*wh1(1)+dz1w*wh1(2)
-      uh(m)=dz2uv*uh1(1)+dz1uv*uh1(2)
-      vh(m)=dz2uv*vh1(1)+dz1uv*vh1(2)
-      wetah(m)=dz2weta*wetah1(1)+dz1weta*wetah1(2)
+      call vertical_interpolation(wh1(1),wh1(2),dz1w,dz2w,wh(m))
+      call vertical_interpolation(uh1(1),uh1(2),dz1uv,dz2uv,uh(m))
+      call vertical_interpolation(vh1(1),vh1(2),dz1uv,dz2uv,vh(m))
+      call vertical_interpolation(wetah1(1),wetah1(2),dz1weta,dz2weta,wetah(m))
     end do 
   else ! Nest
     do m=1,2
       do n=1,2
-        wh1(n)=p1*wwn(ix ,jy ,iw(n),memind(m),ngrid) &
-             + p2*wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-             + p3*wwn(ix ,jyp,iw(n),memind(m),ngrid) &
-             + p4*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        wetah1(n)=p1*wwetan(ix ,jy ,iweta(n),memind(m),ngrid) &
-             + p2*wwetan(ixp,jy ,iweta(n),memind(m),ngrid) &
-             + p3*wwetan(ix ,jyp,iweta(n),memind(m),ngrid) &
-             + p4*wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-        uh1(n)=p1*uuetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-             + p2*uuetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-             + p3*uuetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-             + p4*uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        vh1(n)=p1*vvetan(ix ,jy ,iuv(n),memind(m),ngrid) &
-             + p2*vvetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-             + p3*vvetan(ix ,jyp,iuv(n),memind(m),ngrid) &
-             + p4*vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
+        call horizontal_interpolation_nests(wwn,wh1(n),iw(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(wwetan,wetah1(n),iweta(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(uuetan,uh1(n),iuv(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(vvetan,vh1(n),iuv(n),memind(m),nzmax)
       end do
-      wh(m)=dz2w*wh1(1)+dz1w*wh1(2)
-      uh(m)=dz2uv*uh1(1)+dz1uv*uh1(2)
-      vh(m)=dz2uv*vh1(1)+dz1uv*vh1(2)
-      wetah(m)=dz2weta*wetah1(1)+dz1weta*wetah1(2)
+      call vertical_interpolation(wh1(1),wh1(2),dz1w,dz2w,wh(m))
+      call vertical_interpolation(uh1(1),uh1(2),dz1uv,dz2uv,uh(m))
+      call vertical_interpolation(vh1(1),vh1(2),dz1uv,dz2uv,vh(m))
+      call vertical_interpolation(wetah1(1),wetah1(2),dz1weta,dz2weta,wetah(m))
     end do    
   endif
-  w=(wh(1)*dt2+wh(2)*dt1)*dtt
-  u=(uh(1)*dt2+uh(2)*dt1)*dtt
-  v=(vh(1)*dt2+vh(2)*dt1)*dtt
-  weta=(wetah(1)*dt2+wetah(2)*dt1)*dtt
+  call temporal_interpolation(wh(1),wh(2),w)
+  call temporal_interpolation(uh(1),uh(2),u)
+  call temporal_interpolation(vh(1),vh(2),v)
+  call temporal_interpolation(wetah(1),wetah(2),weta)
 end subroutine interpol_wind_eta
-
-subroutine standard_deviation_wind_eta(iw,iuv,iweta)
-  implicit none
-
-  integer,intent(in)  :: iw(2),iuv(2),iweta(2)
-  real                :: wsl,wsq,wxaux,usl,usq,uxaux,vsl,vsq,vxaux,wetasl,wetasq,wetaxaux
-  integer             :: n,m
-  real,parameter      :: eps=1.0e-30
-  ! Standard deviations
-  !********************
-  wsl=0.
-  wsq=0.
-  usl=0.
-  usq=0.
-  vsl=0.
-  vsq=0.
-  wetasl=0.
-  wetasq=0.
-
-  if (ngrid.le.0) then ! No nest  
-    do m=1,2
-      do n=1,2
-        wsl=wsl+ww(ix ,jy ,iw(n),memind(m))+ww(ixp,jy ,iw(n),memind(m)) &
-               +ww(ix ,jyp,iw(n),memind(m))+ww(ixp,jyp,iw(n),memind(m))
-        wsq=wsq+ww(ix ,jy ,iw(n),memind(m))*ww(ix ,jy ,iw(n),memind(m))+ &
-                ww(ixp,jy ,iw(n),memind(m))*ww(ixp,jy ,iw(n),memind(m))+ &
-                ww(ix ,jyp,iw(n),memind(m))*ww(ix ,jyp,iw(n),memind(m))+ &
-                ww(ixp,jyp,iw(n),memind(m))*ww(ixp,jyp,iw(n),memind(m))
-        wetasl=wetasl+wweta(ix ,jy ,iweta(n),memind(m))+wweta(ixp,jy ,iweta(n),memind(m)) &
-                     +wweta(ix ,jyp,iweta(n),memind(m))+wweta(ixp,jyp,iweta(n),memind(m))
-        wetasq=wetasq+wweta(ix ,jy ,iweta(n),memind(m))*wweta(ix ,jy ,iweta(n),memind(m))+ &
-                      wweta(ixp,jy ,iweta(n),memind(m))*wweta(ixp,jy ,iweta(n),memind(m))+ &
-                      wweta(ix ,jyp,iweta(n),memind(m))*wweta(ix ,jyp,iweta(n),memind(m))+ &
-                      wweta(ixp,jyp,iweta(n),memind(m))*wweta(ixp,jyp,iweta(n),memind(m))
-        if (ngrid.lt.0) then
-          usl=usl+uupoleta(ix ,jy ,iuv(n),memind(m))+uupoleta(ixp,jy ,iuv(n),memind(m)) &
-                 +uupoleta(ix ,jyp,iuv(n),memind(m))+uupoleta(ixp,jyp,iuv(n),memind(m))
-          usq=usq+uupoleta(ix ,jy ,iuv(n),memind(m))*uupoleta(ix ,jy ,iuv(n),memind(m))+ &
-                  uupoleta(ixp,jy ,iuv(n),memind(m))*uupoleta(ixp,jy ,iuv(n),memind(m))+ &
-                  uupoleta(ix ,jyp,iuv(n),memind(m))*uupoleta(ix ,jyp,iuv(n),memind(m))+ &
-                  uupoleta(ixp,jyp,iuv(n),memind(m))*uupoleta(ixp,jyp,iuv(n),memind(m))
-          vsl=vsl+vvpoleta(ix ,jy ,iuv(n),memind(m))+vvpoleta(ixp,jy ,iuv(n),memind(m)) &
-                 +vvpoleta(ix ,jyp,iuv(n),memind(m))+vvpoleta(ixp,jyp,iuv(n),memind(m))
-          vsq=vsq+vvpoleta(ix ,jy ,iuv(n),memind(m))*vvpoleta(ix ,jy ,iuv(n),memind(m))+ &
-                  vvpoleta(ixp,jy ,iuv(n),memind(m))*vvpoleta(ixp,jy ,iuv(n),memind(m))+ &
-                  vvpoleta(ix ,jyp,iuv(n),memind(m))*vvpoleta(ix ,jyp,iuv(n),memind(m))+ &
-                  vvpoleta(ixp,jyp,iuv(n),memind(m))*vvpoleta(ixp,jyp,iuv(n),memind(m))
-        else
-          usl=usl+uueta(ix ,jy ,iuv(n),memind(m))+uueta(ixp,jy ,iuv(n),memind(m)) &
-                 +uueta(ix ,jyp,iuv(n),memind(m))+uueta(ixp,jyp,iuv(n),memind(m))
-          usq=usq+uueta(ix ,jy ,iuv(n),memind(m))*uueta(ix ,jy ,iuv(n),memind(m))+ &
-                  uueta(ixp,jy ,iuv(n),memind(m))*uueta(ixp,jy ,iuv(n),memind(m))+ &
-                  uueta(ix ,jyp,iuv(n),memind(m))*uueta(ix ,jyp,iuv(n),memind(m))+ &
-                  uueta(ixp,jyp,iuv(n),memind(m))*uueta(ixp,jyp,iuv(n),memind(m))
-          vsl=vsl+vveta(ix ,jy ,iuv(n),memind(m))+vveta(ixp,jy ,iuv(n),memind(m)) &
-                 +vveta(ix ,jyp,iuv(n),memind(m))+vveta(ixp,jyp,iuv(n),memind(m))
-          vsq=vsq+vveta(ix ,jy ,iuv(n),memind(m))*vveta(ix ,jy ,iuv(n),memind(m))+ &
-                  vveta(ixp,jy ,iuv(n),memind(m))*vveta(ixp,jy ,iuv(n),memind(m))+ &
-                  vveta(ix ,jyp,iuv(n),memind(m))*vveta(ix ,jyp,iuv(n),memind(m))+ &
-                  vveta(ixp,jyp,iuv(n),memind(m))*vveta(ixp,jyp,iuv(n),memind(m))
-        endif
-      end do
-    end do
-  else ! Nest
-    do m=1,2
-      do n=1,2
-        wsl=wsl+wwn(ix ,jy ,iw(n),memind(m),ngrid)+wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-               +wwn(ix ,jyp,iw(n),memind(m),ngrid)+wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        wsq=wsq+wwn(ix ,jy ,iw(n),memind(m),ngrid)*wwn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-                wwn(ixp,jy ,iw(n),memind(m),ngrid)*wwn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-                wwn(ix ,jyp,iw(n),memind(m),ngrid)*wwn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-                wwn(ixp,jyp,iw(n),memind(m),ngrid)*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        wetasl=wetasl+wwetan(ix ,jy ,iweta(n),memind(m),ngrid)+wwetan(ixp,jy ,iweta(n),memind(m),ngrid) &
-                     +wwetan(ix ,jyp,iweta(n),memind(m),ngrid)+wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-        wetasq=wetasq+wwetan(ix ,jy ,iweta(n),memind(m),ngrid)*wwetan(ix ,jy ,iweta(n),memind(m),ngrid)+ &
-                      wwetan(ixp,jy ,iweta(n),memind(m),ngrid)*wwetan(ixp,jy ,iweta(n),memind(m),ngrid)+ &
-                      wwetan(ix ,jyp,iweta(n),memind(m),ngrid)*wwetan(ix ,jyp,iweta(n),memind(m),ngrid)+ &
-                      wwetan(ixp,jyp,iweta(n),memind(m),ngrid)*wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
-        usl=usl+uuetan(ix ,jy ,iuv(n),memind(m),ngrid)+uuetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-               +uuetan(ix ,jyp,iuv(n),memind(m),ngrid)+uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        usq=usq+uuetan(ix ,jy ,iuv(n),memind(m),ngrid)*uuetan(ix ,jy ,iuv(n),memind(m),ngrid)+ &
-                uuetan(ixp,jy ,iuv(n),memind(m),ngrid)*uuetan(ixp,jy ,iuv(n),memind(m),ngrid)+ &
-                uuetan(ix ,jyp,iuv(n),memind(m),ngrid)*uuetan(ix ,jyp,iuv(n),memind(m),ngrid)+ &
-                uuetan(ixp,jyp,iuv(n),memind(m),ngrid)*uuetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        vsl=vsl+vvetan(ix ,jy ,iuv(n),memind(m),ngrid)+vvetan(ixp,jy ,iuv(n),memind(m),ngrid) &
-               +vvetan(ix ,jyp,iuv(n),memind(m),ngrid)+vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
-        vsq=vsq+vvetan(ix ,jy ,iuv(n),memind(m),ngrid)*vvetan(ix ,jy ,iuv(n),memind(m),ngrid)+ &
-                vvetan(ixp,jy ,iuv(n),memind(m),ngrid)*vvetan(ixp,jy ,iuv(n),memind(m),ngrid)+ &
-                vvetan(ix ,jyp,iuv(n),memind(m),ngrid)*vvetan(ix ,jyp,iuv(n),memind(m),ngrid)+ &
-                vvetan(ixp,jyp,iuv(n),memind(m),ngrid)*vvetan(ixp,jyp,iuv(n),memind(m),ngrid)
-      end do
-    end do
-  endif
-
-  wxaux=wsq-wsl*wsl/16.
-  uxaux=usq-usl*usl/16.
-  vxaux=vsq-vsl*vsl/16.
-  wetaxaux=wetasq-wetasl*wetasl/16.
-  if (wxaux.lt.eps) then
-    wsig=0.
-  else
-    wsig=sqrt(wxaux/15.)
-  endif
-  if (uxaux.lt.eps) then
-    usig=0.
-  else
-    usig=sqrt(uxaux/15.)
-  endif
-  if (vxaux.lt.eps) then
-    vsig=0.
-  else
-    vsig=sqrt(vxaux/15.)
-  endif
-  if (wetaxaux.lt.eps) then
-    wsigeta=0.
-  else
-    wsigeta=sqrt(wetaxaux/15.)
-  endif
-end subroutine standard_deviation_wind_eta
 
 subroutine interpol_wind_meter(zt,iw)
   implicit none
@@ -2535,159 +1106,35 @@ subroutine interpol_wind_meter(zt,iw)
   if (ngrid.le.0) then ! No nest
     do m=1,2
       do n=1,2
-        wh1(n)=p1*ww(ix ,jy ,iw(n),memind(m)) &
-             + p2*ww(ixp,jy ,iw(n),memind(m)) &
-             + p3*ww(ix ,jyp,iw(n),memind(m)) &
-             + p4*ww(ixp,jyp,iw(n),memind(m))
+        call horizontal_interpolation(ww,wh1(n),iw(n),memind(m),nzmax)
         if (ngrid.lt.0) then
-          uh1(n)=p1*uupol(ix ,jy ,iw(n),memind(m)) &
-               + p2*uupol(ixp,jy ,iw(n),memind(m)) &
-               + p3*uupol(ix ,jyp,iw(n),memind(m)) &
-               + p4*uupol(ixp,jyp,iw(n),memind(m))
-          vh1(n)=p1*vvpol(ix ,jy ,iw(n),memind(m)) &
-               + p2*vvpol(ixp,jy ,iw(n),memind(m)) &
-               + p3*vvpol(ix ,jyp,iw(n),memind(m)) &
-               + p4*vvpol(ixp,jyp,iw(n),memind(m))
+          call horizontal_interpolation(uupol,uh1(n),iw(n),memind(m),nzmax)
+          call horizontal_interpolation(vvpol,vh1(n),iw(n),memind(m),nzmax)
         else
-          uh1(n)=p1*uu(ix ,jy ,iw(n),memind(m)) &
-               + p2*uu(ixp,jy ,iw(n),memind(m)) &
-               + p3*uu(ix ,jyp,iw(n),memind(m)) &
-               + p4*uu(ixp,jyp,iw(n),memind(m))
-          vh1(n)=p1*vv(ix ,jy ,iw(n),memind(m)) &
-               + p2*vv(ixp,jy ,iw(n),memind(m)) &
-               + p3*vv(ix ,jyp,iw(n),memind(m)) &
-               + p4*vv(ixp,jyp,iw(n),memind(m))
+          call horizontal_interpolation(uu,uh1(n),iw(n),memind(m),nzmax)
+          call horizontal_interpolation(vv,vh1(n),iw(n),memind(m),nzmax)
         endif
       end do
-      wh(m)=dz2w*wh1(1)+dz1w*wh1(2)
-      uh(m)=dz2w*uh1(1)+dz1w*uh1(2)
-      vh(m)=dz2w*vh1(1)+dz1w*vh1(2)
+      call vertical_interpolation(wh1(1),wh1(2),dz1w,dz2w,wh(m))
+      call vertical_interpolation(uh1(1),uh1(2),dz1w,dz2w,uh(m))
+      call vertical_interpolation(vh1(1),vh1(2),dz1w,dz2w,vh(m))
     end do 
   else ! Nest
     do m=1,2
       do n=1,2
-        wh1(n)=p1*wwn(ix ,jy ,iw(n),memind(m),ngrid) &
-             + p2*wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-             + p3*wwn(ix ,jyp,iw(n),memind(m),ngrid) &
-             + p4*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        uh1(n)=p1*uun(ix ,jy ,iw(n),memind(m),ngrid) &
-             + p2*uun(ixp,jy ,iw(n),memind(m),ngrid) &
-             + p3*uun(ix ,jyp,iw(n),memind(m),ngrid) &
-             + p4*uun(ixp,jyp,iw(n),memind(m),ngrid)
-        vh1(n)=p1*vvn(ix ,jy ,iw(n),memind(m),ngrid) &
-             + p2*vvn(ixp,jy ,iw(n),memind(m),ngrid) &
-             + p3*vvn(ix ,jyp,iw(n),memind(m),ngrid) &
-             + p4*vvn(ixp,jyp,iw(n),memind(m),ngrid)
+        call horizontal_interpolation_nests(wwn,wh1(n),iw(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(uun,uh1(n),iw(n),memind(m),nzmax)
+        call horizontal_interpolation_nests(vvn,vh1(n),iw(n),memind(m),nzmax)
       end do
-      wh(m)=dz2w*wh1(1)+dz1w*wh1(2)
-      uh(m)=dz2w*uh1(1)+dz1w*uh1(2)
-      vh(m)=dz2w*vh1(1)+dz1w*vh1(2)
+      call vertical_interpolation(wh1(1),wh1(2),dz1w,dz2w,wh(m))
+      call vertical_interpolation(uh1(1),uh1(2),dz1w,dz2w,uh(m))
+      call vertical_interpolation(vh1(1),vh1(2),dz1w,dz2w,vh(m))
     end do    
   endif
-  w=(wh(1)*dt2+wh(2)*dt1)*dtt
-  u=(uh(1)*dt2+uh(2)*dt1)*dtt
-  v=(vh(1)*dt2+vh(2)*dt1)*dtt
+  call temporal_interpolation(wh(1),wh(2),w)
+  call temporal_interpolation(uh(1),uh(2),u)
+  call temporal_interpolation(vh(1),vh(2),v)
 end subroutine interpol_wind_meter
-
-subroutine standard_deviation_wind_meter(iw)
-  implicit none
-
-  integer,intent(in)  :: iw(2)
-  real                :: wsl,wsq,wxaux,usl,usq,uxaux,vsl,vsq,vxaux
-  integer             :: n,m
-  real,parameter      :: eps=1.0e-30
-
-  ! Standard deviations
-  !********************
-  wsl=0.
-  wsq=0.
-  usl=0.
-  usq=0.
-  vsl=0.
-  vsq=0.
-
-  if (ngrid.le.0) then ! No nest  
-    do m=1,2
-      do n=1,2
-        wsl=wsl+ww(ix ,jy ,iw(n),memind(m))+ww(ixp,jy ,iw(n),memind(m)) &
-               +ww(ix ,jyp,iw(n),memind(m))+ww(ixp,jyp,iw(n),memind(m))
-        wsq=wsq+ww(ix ,jy ,iw(n),memind(m))*ww(ix ,jy ,iw(n),memind(m))+ &
-                ww(ixp,jy ,iw(n),memind(m))*ww(ixp,jy ,iw(n),memind(m))+ &
-                ww(ix ,jyp,iw(n),memind(m))*ww(ix ,jyp,iw(n),memind(m))+ &
-                ww(ixp,jyp,iw(n),memind(m))*ww(ixp,jyp,iw(n),memind(m))
-        if (ngrid.lt.0) then
-          usl=usl+uupol(ix ,jy ,iw(n),memind(m))+uupol(ixp,jy ,iw(n),memind(m)) &
-                 +uupol(ix ,jyp,iw(n),memind(m))+uupol(ixp,jyp,iw(n),memind(m))
-          usq=usq+uupol(ix ,jy ,iw(n),memind(m))*uupol(ix ,jy ,iw(n),memind(m))+ &
-                  uupol(ixp,jy ,iw(n),memind(m))*uupol(ixp,jy ,iw(n),memind(m))+ &
-                  uupol(ix ,jyp,iw(n),memind(m))*uupol(ix ,jyp,iw(n),memind(m))+ &
-                  uupol(ixp,jyp,iw(n),memind(m))*uupol(ixp,jyp,iw(n),memind(m))
-          vsl=vsl+vvpol(ix ,jy ,iw(n),memind(m))+vvpol(ixp,jy ,iw(n),memind(m)) &
-                 +vvpol(ix ,jyp,iw(n),memind(m))+vvpol(ixp,jyp,iw(n),memind(m))
-          vsq=vsq+vvpol(ix ,jy ,iw(n),memind(m))*vvpol(ix ,jy ,iw(n),memind(m))+ &
-                  vvpol(ixp,jy ,iw(n),memind(m))*vvpol(ixp,jy ,iw(n),memind(m))+ &
-                  vvpol(ix ,jyp,iw(n),memind(m))*vvpol(ix ,jyp,iw(n),memind(m))+ &
-                  vvpol(ixp,jyp,iw(n),memind(m))*vvpol(ixp,jyp,iw(n),memind(m))
-        else
-          usl=usl+uu(ix ,jy ,iw(n),memind(m))+uu(ixp,jy ,iw(n),memind(m)) &
-                 +uu(ix ,jyp,iw(n),memind(m))+uu(ixp,jyp,iw(n),memind(m))
-          usq=usq+uu(ix ,jy ,iw(n),memind(m))*uu(ix ,jy ,iw(n),memind(m))+ &
-                  uu(ixp,jy ,iw(n),memind(m))*uu(ixp,jy ,iw(n),memind(m))+ &
-                  uu(ix ,jyp,iw(n),memind(m))*uu(ix ,jyp,iw(n),memind(m))+ &
-                  uu(ixp,jyp,iw(n),memind(m))*uu(ixp,jyp,iw(n),memind(m))
-          vsl=vsl+vv(ix ,jy ,iw(n),memind(m))+vv(ixp,jy ,iw(n),memind(m)) &
-                 +vv(ix ,jyp,iw(n),memind(m))+vv(ixp,jyp,iw(n),memind(m))
-          vsq=vsq+vv(ix ,jy ,iw(n),memind(m))*vv(ix ,jy ,iw(n),memind(m))+ &
-                  vv(ixp,jy ,iw(n),memind(m))*vv(ixp,jy ,iw(n),memind(m))+ &
-                  vv(ix ,jyp,iw(n),memind(m))*vv(ix ,jyp,iw(n),memind(m))+ &
-                  vv(ixp,jyp,iw(n),memind(m))*vv(ixp,jyp,iw(n),memind(m))
-        endif
-      end do
-    end do
-  else ! Nest
-    do m=1,2
-      do n=1,2
-        wsl=wsl+wwn(ix ,jy ,iw(n),memind(m),ngrid)+wwn(ixp,jy ,iw(n),memind(m),ngrid) &
-               +wwn(ix ,jyp,iw(n),memind(m),ngrid)+wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        wsq=wsq+wwn(ix ,jy ,iw(n),memind(m),ngrid)*wwn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-                wwn(ixp,jy ,iw(n),memind(m),ngrid)*wwn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-                wwn(ix ,jyp,iw(n),memind(m),ngrid)*wwn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-                wwn(ixp,jyp,iw(n),memind(m),ngrid)*wwn(ixp,jyp,iw(n),memind(m),ngrid)
-        usl=usl+uun(ix ,jy ,iw(n),memind(m),ngrid)+uun(ixp,jy ,iw(n),memind(m),ngrid) &
-               +uun(ix ,jyp,iw(n),memind(m),ngrid)+uun(ixp,jyp,iw(n),memind(m),ngrid)
-        usq=usq+uun(ix ,jy ,iw(n),memind(m),ngrid)*uun(ix ,jy ,iw(n),memind(m),ngrid)+ &
-                uun(ixp,jy ,iw(n),memind(m),ngrid)*uun(ixp,jy ,iw(n),memind(m),ngrid)+ &
-                uun(ix ,jyp,iw(n),memind(m),ngrid)*uun(ix ,jyp,iw(n),memind(m),ngrid)+ &
-                uun(ixp,jyp,iw(n),memind(m),ngrid)*uun(ixp,jyp,iw(n),memind(m),ngrid)
-        vsl=vsl+vvn(ix ,jy ,iw(n),memind(m),ngrid)+vvn(ixp,jy ,iw(n),memind(m),ngrid) &
-               +vvn(ix ,jyp,iw(n),memind(m),ngrid)+vvn(ixp,jyp,iw(n),memind(m),ngrid)
-        vsq=vsq+vvn(ix ,jy ,iw(n),memind(m),ngrid)*vvn(ix ,jy ,iw(n),memind(m),ngrid)+ &
-                vvn(ixp,jy ,iw(n),memind(m),ngrid)*vvn(ixp,jy ,iw(n),memind(m),ngrid)+ &
-                vvn(ix ,jyp,iw(n),memind(m),ngrid)*vvn(ix ,jyp,iw(n),memind(m),ngrid)+ &
-                vvn(ixp,jyp,iw(n),memind(m),ngrid)*vvn(ixp,jyp,iw(n),memind(m),ngrid)
-      end do
-    end do
-  endif
-
-  wxaux=wsq-wsl*wsl/16.
-  uxaux=usq-usl*usl/16.
-  vxaux=vsq-vsl*vsl/16.
-  if (wxaux.lt.eps) then
-    wsig=0.
-  else
-    wsig=sqrt(wxaux/15.)
-  endif
-  if (uxaux.lt.eps) then
-    usig=0.
-  else
-    usig=sqrt(uxaux/15.)
-  endif
-  if (vxaux.lt.eps) then
-    vsig=0.
-  else
-    vsig=sqrt(vxaux/15.)
-  endif
-end subroutine standard_deviation_wind_meter
 
 subroutine interpol_partoutput_value_eta(fieldname,output,j)
   implicit none
@@ -2776,33 +1223,118 @@ subroutine interpol_mixinglayer_eta(zt,zteta,rhoa,rhograd)
   implicit none 
   real, intent(in)    :: zt,zteta
   real, intent(inout) :: rhoa,rhograd
-  real                :: dz1,dz2  
+  real                :: dz1w,dz2w,dz1uv,dz2uv,dz1weta,dz2weta
 
-  call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds,.false.)
-  call vertical_interpolation(wprof(indz),wprof(indzp),dz1,dz2,w)
+  call find_vertical_variables(height,zt,indz,dz1w,dz2w,lbounds,.false.)
+  call find_vertical_variables(uvheight,zteta,induv,dz1uv,dz2uv,lbounds_uv,.false.)
+  call find_vertical_variables(wheight,zteta,indzeta,dz1weta,dz2weta,lbounds_w,.true.)
 
-  call find_vertical_variables(uvheight,zteta,induv,dz1,dz2,lbounds_uv,.false.)
-  call vertical_interpolation(uprof(induv),uprof(indpuv),dz1,dz2,u)
-  call vertical_interpolation(vprof(induv),vprof(indpuv),dz1,dz2,v)
-  call vertical_interpolation(rhoprof(induv),rhoprof(indpuv),dz1,dz2,rhoa)
-  call vertical_interpolation(rhogradprof(induv),rhogradprof(indpuv),dz1,dz2,rhograd)
-
-  call find_vertical_variables(wheight,zteta,indzeta,dz1,dz2,lbounds_w,.true.)
-  call vertical_interpolation(wprofeta(indzeta),wprofeta(indzpeta),dz1,dz2,weta)
+  call vertical_interpolation(wprof(indz),wprof(indzp),dz1w,dz2w,w)
+  call vertical_interpolation(uprof(induv),uprof(indpuv),dz1uv,dz2uv,u)
+  call vertical_interpolation(vprof(induv),vprof(indpuv),dz1uv,dz2uv,v)
+  call vertical_interpolation(rhoprof(induv),rhoprof(indpuv),dz1uv,dz2uv,rhoa)
+  call vertical_interpolation(rhogradprof(induv),rhogradprof(indpuv),dz1uv,dz2uv,rhograd)
+  call vertical_interpolation(wprofeta(indzeta),wprofeta(indzpeta),dz1weta,dz2weta,weta)
 end subroutine interpol_mixinglayer_eta
 
-subroutine interpol_mixinglayer_meter(zt,rhoa,rhograd)
-  implicit none 
-  real, intent(in)    :: zt
-  real, intent(inout) :: rhoa,rhograd
-  real                :: dz1,dz2  
+subroutine standard_deviation_eta(iw,iuv,iweta)
+  ! Standard deviation of surrounding grid points
+  ! Only used in mesoscale turbulence calculations
+  !***********************************************
+  implicit none
 
-  call find_vertical_variables(height,zt,indz,dz1,dz2,lbounds,.false.)
-  call vertical_interpolation(wprof(indz),wprof(indzp),dz1,dz2,w)
-  call vertical_interpolation(uprof(indz),uprof(indzp),dz1,dz2,u)
-  call vertical_interpolation(vprof(indz),vprof(indzp),dz1,dz2,v)
-  call vertical_interpolation(rhoprof(indz),rhoprof(indzp),dz1,dz2,rhoa)
-  call vertical_interpolation(rhogradprof(indz),rhogradprof(indzp),dz1,dz2,rhograd)
-end subroutine interpol_mixinglayer_meter
+  integer,intent(in)  :: iw(2),iuv(2),iweta(2)
+  real                :: wsl,wsq,wxaux,usl,usq,uxaux,vsl,vsq,vxaux,wetasl,wetasq,wetaxaux
+  integer             :: n,m
+  real,parameter      :: eps=1.0e-30
+  ! Standard deviations
+  !********************
+  wsl=0.
+  wsq=0.
+  usl=0.
+  usq=0.
+  vsl=0.
+  vsq=0.
+  wetasl=0.
+  wetasq=0.
+
+  if (ngrid.le.0) then ! No nest  
+    do m=1,2
+      do n=1,2
+        call compute_sl_sq(ww,wsl,wsq,iw(n),memind(m),nzmax)
+        call compute_sl_sq(wweta,wetasl,wetasq,iweta(n),memind(m),nzmax)
+        if (ngrid.lt.0) then
+          call compute_sl_sq(uupoleta,usl,usq,iuv(n),memind(m),nzmax)
+          call compute_sl_sq(vvpoleta,vsl,vsq,iuv(n),memind(m),nzmax)
+        else
+          call compute_sl_sq(uueta,usl,usq,iuv(n),memind(m),nzmax)
+          call compute_sl_sq(vveta,vsl,vsq,iuv(n),memind(m),nzmax)
+        endif
+      end do
+    end do
+  else ! Nest
+    do m=1,2
+      do n=1,2
+        call compute_sl_sq_nests(wwn,wsl,wsq,iw(n),memind(m),nzmax)
+        call compute_sl_sq_nests(wwetan,wetasl,wetasq,iweta(n),memind(m),nzmax)
+        call compute_sl_sq_nests(uuetan,usl,usq,iuv(n),memind(m),nzmax)
+        call compute_sl_sq_nests(vvetan,vsl,vsq,iuv(n),memind(m),nzmax)
+      end do
+    end do
+  endif
+
+  call standard_deviation(wsl,wsq,16.,wsig)
+  call standard_deviation(usl,usq,16.,usig)
+  call standard_deviation(vsl,vsq,16.,vsig)
+  call standard_deviation(wetasl,wetasq,16.,wsigeta)
+end subroutine standard_deviation_eta
+
+subroutine standard_deviation_meter(iw)
+  ! Standard deviation of surrounding grid points
+  ! Only used in mesoscale turbulence calculations
+  !***********************************************
+  implicit none
+
+  integer,intent(in)  :: iw(2)
+  real                :: wsl,wsq,wxaux,usl,usq,uxaux,vsl,vsq,vxaux
+  integer             :: n,m
+  real,parameter      :: eps=1.0e-30
+
+  ! Standard deviations
+  !********************
+  wsl=0.
+  wsq=0.
+  usl=0.
+  usq=0.
+  vsl=0.
+  vsq=0.
+
+  if (ngrid.le.0) then ! No nest  
+    do m=1,2
+      do n=1,2
+        call compute_sl_sq(ww,wsl,wsq,iw(n),memind(m),nzmax)
+        if (ngrid.lt.0) then
+          call compute_sl_sq(uupol,usl,usq,iw(n),memind(m),nzmax)
+          call compute_sl_sq(vvpol,vsl,vsq,iw(n),memind(m),nzmax)
+        else
+          call compute_sl_sq(uu,usl,usq,iw(n),memind(m),nzmax)
+          call compute_sl_sq(vv,vsl,vsq,iw(n),memind(m),nzmax)
+        endif
+      end do
+    end do
+  else ! Nest
+    do m=1,2
+      do n=1,2
+        call compute_sl_sq_nests(wwn,wsl,wsq,iw(n),memind(m),nzmax)
+        call compute_sl_sq_nests(uun,usl,usq,iw(n),memind(m),nzmax)
+        call compute_sl_sq_nests(vvn,vsl,vsq,iw(n),memind(m),nzmax)
+      end do
+    end do
+  endif
+
+  call standard_deviation(wsl,wsq,16.,wsig)
+  call standard_deviation(usl,usq,16.,usig)
+  call standard_deviation(vsl,vsq,16.,vsig)
+end subroutine standard_deviation_meter
 
 end module interpol_mod

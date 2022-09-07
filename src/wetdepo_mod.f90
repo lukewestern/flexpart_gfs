@@ -229,14 +229,14 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   !                                                                            *
   !*****************************************************************************
 
-  use interpol_mod, only: interpol_rain, interpol_rain_nests
+  use interpol_mod
   use windfields_mod
   use coordinates_ecmwf
 
   implicit none
 
-  integer :: jpart,itime,ltsample,loutnext,i,j,ix,jy
-  integer :: ngrid,hz,il,interp_time, n
+  integer :: jpart,itime,ltsample,loutnext,i,j
+  integer :: hz,il,interp_time, n
   integer(kind=1) :: clouds_v
   integer :: ks, kp
   integer(selected_int_kind(16)), dimension(nspec) :: blc_count, inc_count
@@ -244,10 +244,11 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   !  integer :: n1,n2, icbot,ictop, indcloud !TEST
   real :: S_i, act_temp, cl, cle ! in cloud scavenging
   real :: clouds_h ! cloud height for the specific grid point
-  real :: xtn,ytn,lsp,convp,cc,grfraction(3),prec(3),wetscav,totprec
+  real :: lsp,convp,cc,grfraction(3),prec(3),wetscav,totprec
   real :: restmass
   real,parameter :: smallnum = tiny(0.0) ! smallest number that can be handled
   !save lfr,cfr
+  real :: xts,yts
 
   real, parameter :: lfr(5) = (/ 0.5,0.65,0.8,0.9,0.95/)
   real, parameter :: cfr(5) = (/ 0.4,0.55,0.7,0.8,0.9 /)
@@ -263,32 +264,6 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
 
   wetscav=0.
 
-  ! Determine which nesting level to be used
-  !*****************************************
-  ngrid=0
-  do j=numbnests,1,-1
-    if ((part(jpart)%xlon.gt.xln(j)).and.(part(jpart)%xlon.lt.xrn(j)).and. &
-         (part(jpart)%ylat.gt.yln(j)).and.(part(jpart)%ylat.lt.yrn(j))) then
-      ngrid=j
-      exit
-    endif
-  end do
-
-  ! Determine nested grid coordinates
-  !**********************************
-  readclouds_this_nest=.false.
-
-  if (ngrid.gt.0) then
-    xtn=(part(jpart)%xlon-xln(ngrid))*xresoln(ngrid)
-    ytn=(part(jpart)%ylat-yln(ngrid))*yresoln(ngrid)
-    ix=int(xtn)
-    jy=int(ytn)
-    if (readclouds_nest(ngrid)) readclouds_this_nest=.true.
-  else
-    ix=int(part(jpart)%xlon)
-    jy=int(part(jpart)%ylat)
-  endif
-
   ! Interpolate large scale precipitation, convective precipitation and
   ! total cloud cover
   ! Note that interpolated time refers to itime-0.5*ltsample [PS]
@@ -299,29 +274,49 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   if (abs(memtime(1)-interp_time).lt.abs(memtime(2)-interp_time)) &
        n=memind(1)
 
-  if (ngrid.eq.0) then
-    call interpol_rain(lsprec,convprec,tcc,nxmax,nymax, &
-         1,nx,ny,n,real(part(jpart)%xlon),real(part(jpart)%ylat),1, &
-         memtime(1),memtime(2),interp_time,lsp,convp,cc)
+  xts=real(part(jpart)%xlon)
+  yts=real(part(jpart)%ylat)
+
+  ! Determine which nesting level to be used
+  !*****************************************
+  call find_ngrid(part(jpart)%xlon,part(jpart)%ylat)
+
+  ! If point at border of grid -> small displacement into grid
+  !***********************************************************
+  if (ngrid.le.0) then
+    if (xts.ge.real(nx-1)) xts=real(nx-1)-0.00001
+    if (yts.ge.real(ny-1)) yts=real(ny-1)-0.00001
   else
-    call interpol_rain_nests(lsprecn,convprecn,tccn, &
-         nxmaxn,nymaxn,1,maxnests,ngrid,nxn,nyn,n,xtn,ytn,1, &
-         memtime(1),memtime(2),interp_time,lsp,convp,cc)
+    if (xts.ge.real(nx-1)) xts=real(nx-1)-0.00001
+    if (yts.ge.real(ny-1)) yts=real(ny-1)-0.00001
+  endif
+
+  call determine_grid_coordinates(xts,yts)
+  call find_grid_distances(real(part(jpart)%xlon),real(part(jpart)%ylat))
+
+  if (ngrid.le.0) then
+    ! No temporal interpolation to stay consistent with clouds
+    call horizontal_interpolation(lsprec,lsp,1,n,nzmax) ! large scale total precipitation
+    call horizontal_interpolation(convprec,convp,1,n,nzmax) ! convective precipitation
+    call horizontal_interpolation(tcc,cc,1,n,nzmax) ! total cloud cover
+  else
+    call horizontal_interpolation(lsprecn,lsp,1,n,nzmax) ! large scale total precipitation
+    call horizontal_interpolation(convprecn,convp,1,n,nzmax) ! convective precipitation
+    call horizontal_interpolation(tccn,cc,1,n,nzmax) ! total cloud cover
   endif
 
   !  If total precipitation is less than 0.01 mm/h - no scavenging occurs
   if ((lsp.lt.0.01).and.(convp.lt.0.01)) return
 
-  ! get the level were the actual particle is in
-  call update_zeta_to_z(itime,jpart)
-  do il=2,nz
-    if (height(il).gt.part(jpart)%z) then
-      hz=il-1
-      exit
-    endif
-  end do
+  if (wind_coord_type.eq.'ETA') then
+    call find_z_level_eta_uv(part(jpart)%zeta)
+    hz=induv
+  else
+    call find_z_level_meters(part(jpart)%z)
+    hz=indz
+  endif
 
-  if (ngrid.eq.0) then
+  if (ngrid.le.0) then
     clouds_v=clouds(ix,jy,hz,n)
     clouds_h=cloudsh(ix,jy,n)
   else
@@ -380,9 +375,17 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   !**********************************************************
 
   if (ngrid.gt.0) then
-    act_temp=ttn(ix,jy,hz,n,ngrid)
+    if (wind_coord_type.eq.'ETA') then
+      act_temp=ttetan(ix,jy,hz,n,ngrid)
+    else
+      act_temp=ttn(ix,jy,hz,n,ngrid)
+    endif
   else
-    act_temp=tt(ix,jy,hz,n)
+    if (wind_coord_type.eq.'ETA') then
+      act_temp=tteta(ix,jy,hz,n)
+    else
+      act_temp=tt(ix,jy,hz,n)
+    endif
   endif
 
   !***********************
