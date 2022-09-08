@@ -309,10 +309,10 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   if ((lsp.lt.0.01).and.(convp.lt.0.01)) return
 
   if (wind_coord_type.eq.'ETA') then
-    call find_z_level_eta_uv(part(jpart)%zeta)
+    call find_z_level_eta_uv(real(part(jpart)%zeta))
     hz=induv
   else
-    call find_z_level_meters(part(jpart)%z)
+    call find_z_level_meters(real(part(jpart)%z))
     hz=indz
   endif
 

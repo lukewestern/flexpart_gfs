@@ -400,7 +400,9 @@ subroutine timemanager
 !$OMP END DO
 !$OMP END PARALLEL
 
-!$OMP PARALLEL PRIVATE(prob_rec,ks,kp,thread,j,xmassfract,drydeposit) num_threads(numthreads_grid)
+!$OMP PARALLEL PRIVATE(prob_rec,ks,kp,thread,j,xmassfract,drydeposit) 
+
+!
 
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM() ! Starts with 0
@@ -408,7 +410,7 @@ subroutine timemanager
     thread = 1
 #endif
 
-!$OMP DO 
+!$OMP DO num_threads(numthreads_grid)
 ! SCHEDULE(dynamic, max(1,numpart/1000))
 !max(1,int(real(numpart)/numthreads/20.)))
     do j=1,numpart

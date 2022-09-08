@@ -888,8 +888,8 @@ subroutine verttransform_ecmwf_clouds(n,lreadclouds,lsumclouds,nxlim,nylim,cloud
   ! assuming rho is in kg/m3 and hz in m gives: kg/kg * kg/m3 *m3/kg /m = m2/m3
             if (wind_coord_type.eq.'ETA') then
               clw_tmp(ix,jy,kz)=(clwc_tmp(ix,jy,kz)*rho_tmp(ix,jy,kz))* &
-                (etauvheight(ix,jy,kz+1)-etauvheight(ix,jy,kz))
-              cloudh_min=min(etauvheight(ix,jy,kz+1),etauvheight(ix,jy,kz))
+                (etauvheight(ix,jy,kz+1,n)-etauvheight(ix,jy,kz,n))
+              cloudh_min=min(etauvheight(ix,jy,kz+1,n),etauvheight(ix,jy,kz,n))
             else
               clw_tmp(ix,jy,kz)=(clwc_tmp(ix,jy,kz)*rho_tmp(ix,jy,kz))*(height(kz+1)-height(kz))
   !           icloud_stats(ix,jy,3,n)= min(height(kz+1),height(kz))                     ! Cloud BOT height stats      [m]
@@ -909,7 +909,7 @@ subroutine verttransform_ecmwf_clouds(n,lreadclouds,lsumclouds,nxlim,nylim,cloud
           do kz=nz,2,-1 !go Bottom up!
             if (clw_tmp(ix,jy,kz).gt. 0) then ! is in cloud
               if (wind_coord_type.eq.'ETA') then
-                cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+etauvheight(ix,jy,kz)-etauvheight(ix,jy,kz-1) 
+                cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+etauvheight(ix,jy,kz,n)-etauvheight(ix,jy,kz-1,n) 
               else
                 cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+height(kz)-height(kz-1) 
               endif
@@ -961,7 +961,7 @@ subroutine verttransform_ecmwf_clouds(n,lreadclouds,lsumclouds,nxlim,nylim,cloud
               rain_cloud_above(ix,jy)=1
               if (wind_coord_type.eq.'ETA') then
                 cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+ &
-                     etauvheight(ix,jy,kz)-etauvheight(ix,jy,kz-1)              
+                     etauvheight(ix,jy,kz,n)-etauvheight(ix,jy,kz-1,n)              
               else
                 cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+ &
                      height(kz)-height(kz-1)
