@@ -96,6 +96,7 @@ program flexpart
     !numthreads = min(40,numthreads)
 #else
     numthreads = 1
+    numthreads_grid = 1
 #endif
 
   if (numthreads.gt.1) then
@@ -103,7 +104,9 @@ program flexpart
     write(*,*) "*********** WARNING  *********************************"
     write(*,*) "* FLEXPART running in parallel mode                  *"
     write(*,*) "* Number of uncertainty classes in                   *"
-    write(*,*) "* set to number of threads:", numthreads, ".         *"
+    write(*,*) "* set to number of threads:", numthreads_grid, ".           *"
+    write(*,*) "* All other computations are done with               *"
+    write(*,*) "* ", numthreads, " threads.                                 *"
     write(*,*) "******************************************************"
     write(*,*)
   endif
