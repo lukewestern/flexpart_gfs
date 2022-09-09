@@ -53,7 +53,6 @@ module windfields_mod
     wweta,                                & ! wind component on model levels in z direction [eta/s]
     uupoleta,vvpoleta,                    & ! wind components on half model levels in polar stereographic projection [m/s]
     tteta,                                & ! temperature data on half model levels [K]
-    qveta,                                & ! specific humidity data on half model levels
     pveta,                                & ! potential vorticity on half model levels
     rhoeta,                               & ! air density on half model levels [kg/m3]
     prseta,                               & ! air pressure on half model levels
@@ -110,7 +109,6 @@ module windfields_mod
     uuetan,vvetan,                         & ! wind components on half model levels in x and y direction [m/s]
     wwetan,                                & ! wind component on model levels in z direction [eta/s]
     ttetan,                                & ! temperature data on half model levels [K]
-    qvetan,                                & ! specific humidity data on half model levels
     pvetan,                                & ! potential vorticity on half model levels
     rhoetan,                               & ! air density on half model levels [kg/m3]
     drhodzetan                               ! vertical air density gradient on half model levels [kg/m2]
@@ -3870,7 +3868,6 @@ subroutine windfields_allocate
   allocate(uupoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(vvpoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(tteta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(qveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(pveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(prseta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(rhoeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
@@ -3978,7 +3975,6 @@ subroutine windfields_nest_allocate
   allocate(vvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(wwetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(ttetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(qvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(pvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))  
   allocate(rhoetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(drhodzetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
@@ -4052,7 +4048,7 @@ subroutine windfields_deallocate
 
   deallocate(oro,excessoro,lsm)
 
-  deallocate(uueta,vveta,wweta,uupoleta,vvpoleta,tteta,qveta,pveta, &
+  deallocate(uueta,vveta,wweta,uupoleta,vvpoleta,tteta,pveta, &
     prseta,rhoeta,drhodzeta,tvirtual,etauvheight,etawheight)
 
   deallocate(uu,vv,ww,uupol,vvpol,tt,tth,qv,qvh,pv,rho,drhodz,pplev,prs,rho_dry)

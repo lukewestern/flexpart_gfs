@@ -304,35 +304,34 @@ subroutine verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,
     do ix=0,nxmin1
 
       uu(ix,jy,1,n)=uuh(ix,jy,1)
+      uu(ix,jy,nz,n)=uuh(ix,jy,nuvz)
       vv(ix,jy,1,n)=vvh(ix,jy,1)
+      vv(ix,jy,nz,n)=vvh(ix,jy,nuvz)
       tt(ix,jy,1,n)=tth(ix,jy,1,n)
-      qv(ix,jy,1,n)=qvh(ix,jy,1,n)
-      !hg adding the cloud water 
-      if (readclouds) then
-        clwc(ix,jy,1,n)=clwch(ix,jy,1,n)
-        if (.not.sumclouds) ciwc(ix,jy,1,n)=ciwch(ix,jy,1,n)
-      end if
-      !hg 
+      tt(ix,jy,nz,n)=tth(ix,jy,nuvz,n)
       pv(ix,jy,1,n)=pvh(ix,jy,1)
+      pv(ix,jy,nz,n)=pvh(ix,jy,nuvz)
+      if  (wind_coord_type.ne.'ETA') then
+        qv(ix,jy,1,n)=qvh(ix,jy,1,n)
+        qv(ix,jy,nz,n)=qvh(ix,jy,nuvz,n)
+        !hg adding the cloud water 
+        if (readclouds) then
+          clwc(ix,jy,1,n)=clwch(ix,jy,1,n)
+          clwc(ix,jy,nz,n)=clwch(ix,jy,nuvz,n)
+          if (.not.sumclouds) then 
+            ciwc(ix,jy,1,n)=ciwch(ix,jy,1,n)
+            ciwc(ix,jy,nz,n)=ciwch(ix,jy,nuvz,n)
+          endif
+        end if
+        !hg 
+      endif
       rho(ix,jy,1,n)=rhoh(ix,jy,1)
+      rho(ix,jy,nz,n)=rhoh(ix,jy,nuvz)
       ! RLT add pressure
       prs(ix,jy,1,n)=prsh(ix,jy,1)
-
-      uu(ix,jy,nz,n)=uuh(ix,jy,nuvz)
-      vv(ix,jy,nz,n)=vvh(ix,jy,nuvz)
-      tt(ix,jy,nz,n)=tth(ix,jy,nuvz,n)
-      qv(ix,jy,nz,n)=qvh(ix,jy,nuvz,n)
-      !hg adding the cloud water
-      if (readclouds) then
-        clwc(ix,jy,nz,n)=clwch(ix,jy,nuvz,n)
-        if (.not.sumclouds) ciwc(ix,jy,nz,n)=ciwch(ix,jy,nuvz,n)
-      end if
-      !hg
-      pv(ix,jy,nz,n)=pvh(ix,jy,nuvz)
-      rho(ix,jy,nz,n)=rhoh(ix,jy,nuvz)
-      ! RLT
       prs(ix,jy,nz,n)=prsh(ix,jy,nuvz)
-
+      ! RLT
+      
       idx(ix,jy)=2
     end do
   end do
@@ -346,18 +345,17 @@ subroutine verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,
           uu(ix,jy,iz,n)=uu(ix,jy,nz,n)
           vv(ix,jy,iz,n)=vv(ix,jy,nz,n)
           tt(ix,jy,iz,n)=tt(ix,jy,nz,n)
-          qv(ix,jy,iz,n)=qv(ix,jy,nz,n)
-
-  !hg adding the cloud water
-          if (readclouds) then
-            clwc(ix,jy,iz,n)=clwc(ix,jy,nz,n)
-            if (.not.sumclouds) ciwc(ix,jy,iz,n)=ciwc(ix,jy,nz,n)
-          end if
-  !hg
           pv(ix,jy,iz,n)=pv(ix,jy,nz,n)
+          if  (wind_coord_type.ne.'ETA') then
+            qv(ix,jy,iz,n)=qv(ix,jy,nz,n)
+            !hg adding the cloud water
+            if (readclouds) then
+              clwc(ix,jy,iz,n)=clwc(ix,jy,nz,n)
+              if (.not.sumclouds) ciwc(ix,jy,iz,n)=ciwc(ix,jy,nz,n)
+            end if
+          endif
           rho(ix,jy,iz,n)=rho(ix,jy,nz,n)
-  ! RLT
-          prs(ix,jy,iz,n)=prs(ix,jy,nz,n)
+          prs(ix,jy,iz,n)=prs(ix,jy,nz,n)   ! RLT
         else
           innuvz: do kz=idx(ix,jy),nuvz
             if (idx(ix,jy) .le. kz .and. (height(iz).gt.etauvheight(ix,jy,kz-1,n)).and. &
@@ -377,16 +375,17 @@ subroutine verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,
           vv(ix,jy,iz,n)=(vvh(ix,jy,kz-1)*dz2+vvh(ix,jy,kz)*dz1)/dz
           tt(ix,jy,iz,n)=(tth(ix,jy,kz-1,n)*dz2 &
                +tth(ix,jy,kz,n)*dz1)/dz
-          qv(ix,jy,iz,n)=(qvh(ix,jy,kz-1,n)*dz2 &
-               +qvh(ix,jy,kz,n)*dz1)/dz
-  !hg adding the cloud water
-          if  ((wind_coord_type.ne.'ETA').and.(readclouds)) then
-            clwc(ix,jy,iz,n)=(clwch(ix,jy,kz-1,n)*dz2+clwch(ix,jy,kz,n)*dz1)/dz
-            if (.not.sumclouds) &
-                 &ciwc(ix,jy,iz,n)=(ciwch(ix,jy,kz-1,n)*dz2+ciwch(ix,jy,kz,n)*dz1)/dz
-          end if
-  !hg
           pv(ix,jy,iz,n)=(pvh(ix,jy,kz-1)*dz2+pvh(ix,jy,kz)*dz1)/dz
+          if  (wind_coord_type.ne.'ETA') then
+            qv(ix,jy,iz,n)=(qvh(ix,jy,kz-1,n)*dz2+qvh(ix,jy,kz,n)*dz1)/dz
+    !hg adding the cloud water
+            if  (readclouds) then
+              clwc(ix,jy,iz,n)=(clwch(ix,jy,kz-1,n)*dz2+clwch(ix,jy,kz,n)*dz1)/dz
+              if (.not.sumclouds) &
+                   &ciwc(ix,jy,iz,n)=(ciwch(ix,jy,kz-1,n)*dz2+ciwch(ix,jy,kz,n)*dz1)/dz
+            end if
+    !hg
+          endif
           rho(ix,jy,iz,n)=(rhoh(ix,jy,kz-1)*dz2+rhoh(ix,jy,kz)*dz1)/dz
   ! RLT add pressure
           prs(ix,jy,iz,n)=(prsh(ix,jy,kz-1)*dz2+prsh(ix,jy,kz)*dz1)/dz
@@ -509,12 +508,12 @@ subroutine verttransform_ecmwf_transform_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,
           uueta(ix,jy,kz,n) = uuh(ix,jy,kz)
           vveta(ix,jy,kz,n) = vvh(ix,jy,kz)
           tteta(ix,jy,kz,n) = tth(ix,jy,kz,n)
-          qveta(ix,jy,kz,n) = qvh(ix,jy,kz,n)
+          qv(ix,jy,kz,n)    = qvh(ix,jy,kz,n)
           pveta(ix,jy,kz,n) = pvh(ix,jy,kz)
           rhoeta(ix,jy,kz,n) = rhoh(ix,jy,kz)
           prseta(ix,jy,kz,n) = prsh(ix,jy,kz)
           tvirtual(ix,jy,kz,n)=tteta(ix,jy,kz,n)* &  ! eq A11 from Mid-latitude atmospheric dynamics by Jonathan E. Martin
-            ((qveta(ix,jy,kz,n)+0.622)/(0.622*qveta(ix,jy,kz,n)+0.622))
+            ((qv(ix,jy,kz,n)+0.622)/(0.622*qv(ix,jy,kz,n)+0.622))
           if ((kz.gt.1).and.(kz.lt.nz)) drhodzeta(ix,jy,kz,n)=(rhoh(ix,jy,kz+1)-rhoh(ix,jy,kz-1))/ &
                (height(kz+1)-height(kz-1)) ! Note that this is still in SI units and not in eta
           if (readclouds) then
@@ -1730,7 +1729,9 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
     uun(0:nxm1,0:nym1,1,n,l)=uuhn(0:nxm1,0:nym1,1,l)
     vvn(0:nxm1,0:nym1,1,n,l)=vvhn(0:nxm1,0:nym1,1,l)
     ttn(0:nxm1,0:nym1,1,n,l)=tthn(0:nxm1,0:nym1,1,n,l)
-    qvn(0:nxm1,0:nym1,1,n,l)=qvhn(0:nxm1,0:nym1,1,n,l)
+    if (wind_coord_type.ne.'ETA') then 
+      qvn(0:nxm1,0:nym1,1,n,l)=qvhn(0:nxm1,0:nym1,1,n,l)
+    endif
     if (readclouds_nest(l)) then
       clwcn(0:nxm1,0:nym1,1,n,l)=clwchn(0:nxm1,0:nym1,1,n,l)
       if (.not.sumclouds_nest(l)) ciwcn(0:nxm1,0:nym1,1,n,l)=ciwchn(0:nxm1,0:nym1,1,n,l)
@@ -1741,11 +1742,13 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
     uun(0:nxm1,0:nym1,nz,n,l)=uuhn(0:nxm1,0:nym1,nuvz,l)
     vvn(0:nxm1,0:nym1,nz,n,l)=vvhn(0:nxm1,0:nym1,nuvz,l)
     ttn(0:nxm1,0:nym1,nz,n,l)=tthn(0:nxm1,0:nym1,nuvz,n,l)
-    qvn(0:nxm1,0:nym1,nz,n,l)=qvhn(0:nxm1,0:nym1,nuvz,n,l)
-    if (readclouds_nest(l)) then
-      clwcn(0:nxm1,0:nym1,nz,n,l)=clwchn(0:nxm1,0:nym1,nuvz,n,l)
-      if (.not.sumclouds_nest(l)) ciwcn(0:nxm1,0:nym1,nz,n,l)=ciwchn(0:nxm1,0:nym1,nuvz,n,l)
-    end if
+    if (wind_coord_type.ne.'ETA') then 
+      qvn(0:nxm1,0:nym1,nz,n,l)=qvhn(0:nxm1,0:nym1,nuvz,n,l)
+      if (readclouds_nest(l)) then
+        clwcn(0:nxm1,0:nym1,nz,n,l)=clwchn(0:nxm1,0:nym1,nuvz,n,l)
+        if (.not.sumclouds_nest(l)) ciwcn(0:nxm1,0:nym1,nz,n,l)=ciwchn(0:nxm1,0:nym1,nuvz,n,l)
+      endif
+    endif
     pvn(0:nxm1,0:nym1,nz,n,l)=pvhn(0:nxm1,0:nym1,nuvz,l)
     rhon(0:nxm1,0:nym1,nz,n,l)=rhohn(0:nxm1,0:nym1,nuvz)
 
@@ -1759,12 +1762,14 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
             uun(ix,jy,iz,n,l)=uun(ix,jy,nz,n,l)
             vvn(ix,jy,iz,n,l)=vvn(ix,jy,nz,n,l)
             ttn(ix,jy,iz,n,l)=ttn(ix,jy,nz,n,l)
-            qvn(ix,jy,iz,n,l)=qvn(ix,jy,nz,n,l)
+            if (wind_coord_type.ne.'ETA') then 
+              qvn(ix,jy,iz,n,l)=qvn(ix,jy,nz,n,l)
   !hg adding the cloud water
-            if (readclouds_nest(l)) then
-              clwcn(ix,jy,iz,n,l)=clwcn(ix,jy,nz,n,l)
-              if (.not.sumclouds_nest(l)) ciwcn(ix,jy,iz,n,l)=ciwcn(ix,jy,nz,n,l)
-            end if
+              if (readclouds_nest(l)) then
+                clwcn(ix,jy,iz,n,l)=clwcn(ix,jy,nz,n,l)
+                if (.not.sumclouds_nest(l)) ciwcn(ix,jy,iz,n,l)=ciwcn(ix,jy,nz,n,l)
+              endif
+            endif
   !hg
             pvn(ix,jy,iz,n,l)=pvn(ix,jy,nz,n,l)
             rhon(ix,jy,iz,n,l)=rhon(ix,jy,nz,n,l)
@@ -1790,15 +1795,16 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
             vvn(ix,jy,iz,n,l)=(vvhn(ix,jy,kz-1,l)*dz2+vvhn(ix,jy,kz,l)*dz1)/dz
             ttn(ix,jy,iz,n,l)=(tthn(ix,jy,kz-1,n,l)*dz2 &
                  +tthn(ix,jy,kz,n,l)*dz1)/dz
-            qvn(ix,jy,iz,n,l)=(qvhn(ix,jy,kz-1,n,l)*dz2 &
-                 +qvhn(ix,jy,kz,n,l)*dz1)/dz
-  !hg adding the cloud water
-            if (readclouds_nest(l)) then
-              clwcn(ix,jy,iz,n,l)=(clwchn(ix,jy,kz-1,n,l)*dz2+clwchn(ix,jy,kz,n,l)*dz1)/dz
-              if (.not.sumclouds_nest(l)) &
-                   &ciwcn(ix,jy,iz,n,l)=(ciwchn(ix,jy,kz-1,n,l)*dz2+ciwchn(ix,jy,kz,n,l)*dz1)/dz
-            end if
-  !hg
+            if (wind_coord_type.ne.'ETA') then 
+              qvn(ix,jy,iz,n,l)=(qvhn(ix,jy,kz-1,n,l)*dz2 &
+                   +qvhn(ix,jy,kz,n,l)*dz1)/dz
+              !hg adding the cloud water
+              if (readclouds_nest(l)) then
+                clwcn(ix,jy,iz,n,l)=(clwchn(ix,jy,kz-1,n,l)*dz2+clwchn(ix,jy,kz,n,l)*dz1)/dz
+                if (.not.sumclouds_nest(l)) &
+                     &ciwcn(ix,jy,iz,n,l)=(ciwchn(ix,jy,kz-1,n,l)*dz2+ciwchn(ix,jy,kz,n,l)*dz1)/dz
+              end if
+            endif
             pvn(ix,jy,iz,n,l)=(pvhn(ix,jy,kz-1,l)*dz2+pvhn(ix,jy,kz,l)*dz1)/dz
             rhon(ix,jy,iz,n,l)=(rhohn(ix,jy,kz-1)*dz2+rhohn(ix,jy,kz)*dz1)/dz
           endif
@@ -1906,17 +1912,25 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
       uuetan(0:nxm1,0:nym1,1:nz-1,n,l) = uuhn(0:nxm1,0:nym1,1:nz-1,l)
       vvetan(0:nxm1,0:nym1,1:nz-1,n,l) = vvhn(0:nxm1,0:nym1,1:nz-1,l)
       ttetan(0:nxm1,0:nym1,1:nz-1,n,l) = tthn(0:nxm1,0:nym1,1:nz-1,n,l)
-      qvetan(0:nxm1,0:nym1,1:nz-1,n,l) = qvhn(0:nxm1,0:nym1,1:nz-1,n,l)
+      qvn(0:nxm1,0:nym1,1:nz-1,n,l) = qvhn(0:nxm1,0:nym1,1:nz-1,n,l)
       pvetan(0:nxm1,0:nym1,1:nz-1,n,l) = pvhn(0:nxm1,0:nym1,1:nz-1,l)
       rhoetan(0:nxm1,0:nym1,1:nz-1,n,l) = rhohn(0:nxm1,0:nym1,1:nz-1)
 
       uuetan(0:nxm1,0:nym1,nz,n,l)=uuhn(0:nxm1,0:nym1,nuvz,l)
       vvetan(0:nxm1,0:nym1,nz,n,l)=vvhn(0:nxm1,0:nym1,nuvz,l)
       ttetan(0:nxm1,0:nym1,nz,n,l)=tthn(0:nxm1,0:nym1,nuvz,n,l)
-      qvetan(0:nxm1,0:nym1,nz,n,l)=qvhn(0:nxm1,0:nym1,nuvz,n,l)
+      qvn(0:nxm1,0:nym1,nz,n,l)=qvhn(0:nxm1,0:nym1,nuvz,n,l)
       pvetan(0:nxm1,0:nym1,nz,n,l)=pvhn(0:nxm1,0:nym1,nuvz,l)
       rhoetan(0:nxm1,0:nym1,nz,n,l)=rhohn(0:nxm1,0:nym1,nuvz)
-      
+      if (readclouds) then
+        clwcn(0:nxm1,0:nym1,1:nz-1,n,l)=clwchn(0:nxm1,0:nym1,1:nz-1,n,l)
+        clwcn(0:nxm1,0:nym1,nz,n,l)=clwchn(0:nxm1,0:nym1,nuvz,n,l)
+        if (.not.sumclouds_nest(l)) then
+          ciwcn(0:nxm1,0:nym1,1:nz-1,n,l)=(ciwchn(0:nxm1,0:nym1,1:nz-1,n,l)
+          ciwcn(0:nxm1,0:nym1,nz,n,l)=ciwchn(0:nxm1,0:nym1,nuvz,n,l)
+        endif
+      endif
+
 
       drhodzetan(0:nxm1,0:nym1,1,n,l)=(rhoetan(0:nxm1,0:nym1,2,n,l)-rhoetan(0:nxm1,0:nym1,1,n,l))/ &
            (height(2)-height(1))
