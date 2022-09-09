@@ -1,0 +1,22 @@
+site_name: Flexpart
+# default is ./site/
+# could change this to /var/www/html/docs
+site_dir: "/tmp/cr-site/"
+# site_dir: "/var/www/html/documentation/general/"
+docs_dir: "documentation/"
+repo_url: https://gitlab.phaidra.org/flexpart/flexpart
+repo_name: IMGW/Flexpart
+# this makes relative links  valid
+use_directory_urls: false
+theme:
+  name: readthedocs
+plugins:
+  - tags
+  - search
+extra_javascript: 
+    - https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+markdown_extensions:
+    - smarty
+    - toc:
+        permalink: True
+    - codehilite:
