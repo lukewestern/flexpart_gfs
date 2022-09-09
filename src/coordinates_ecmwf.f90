@@ -91,9 +91,12 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
   ! Integration method as used in the original verttransform_ecmwf.f90
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! First estimate the level it is at, to reduce computation time
-  n=nz-1
+  n=nz-3
   do i=2,nz-1
-    if (etauvheight(ix,jy,i,memind(1)).gt.real(zold)) then
+    if ((etauvheight(ix,jy,i,memind(1)).gt.real(zold)) .or. &
+        (etauvheight(ixp,jy,i,memind(1)).gt.real(zold)) .or. & 
+        (etauvheight(ix,jyp,i,memind(1)).gt.real(zold)) .or. &
+        (etauvheight(ixp,jyp,i,memind(1)).gt.real(zold))) then
       n=i-2
       exit
     endif
@@ -259,9 +262,12 @@ subroutine z_to_zeta_lin(itime,xt,yt,zold,zteta)
   ! Integration method as used in the original verttransform_ecmwf.f90
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! First estimate the level it is at, to reduce computation time
-  n=nz-1
+  n=nz-3
   do i=2,nz-1
-    if (etauvheight(ix,jy,i,memind(1)).gt.real(zold)) then
+    if ((etauvheight(ix,jy,i,memind(1)).gt.real(zold)) .or. &
+        (etauvheight(ixp,jy,i,memind(1)).gt.real(zold)) .or. &
+        (etauvheight(ix,jyp,i,memind(1)).gt.real(zold)) .or. &
+        (etauvheight(ixp,jyp,i,memind(1)).gt.real(zold))) then
       n=i-2
       exit
     endif
