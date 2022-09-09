@@ -20,3 +20,9 @@ markdown_extensions:
     - toc:
         permalink: True
     - codehilite:
+nav:
+  - installation.md
+  - configuration.md
+  - running.md
+  - output.md
+  - examples.md
