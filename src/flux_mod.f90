@@ -526,7 +526,9 @@ subroutine fluxoutput(itime)
             do nage=1,nageclass
               do i=1,6
                 flux(i,ix,jy,kz,k,kp,nage)=0.
+#ifdef _OPENMP
                 flux_omp(i,ix,jy,kz,k,kp,nage,:)=0.
+#endif
               end do
             end do
           end do

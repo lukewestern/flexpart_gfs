@@ -131,9 +131,11 @@ subroutine finalise_output(itime)
     do j=1,numpart
       call initial_cond_calc(itime,j,1)
     end do
+#ifdef _OPENMP
     do ithread=1,numthreads
       init_cond(:,:,:,:,:)=init_cond(:,:,:,:,:)+init_cond_omp(:,:,:,:,:,ithread)
     end do
+#endif
   endif
 
 
