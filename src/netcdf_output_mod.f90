@@ -1280,7 +1280,7 @@ subroutine concoutput_nest_netcdf(itime,outnum)
     end do
   endif
 
-
+  gridtotal=0.
   !*******************************************************************
   ! Compute air density:
   ! brd134: we now take into account whether we are in the mother or in
@@ -1288,7 +1288,9 @@ subroutine concoutput_nest_netcdf(itime,outnum)
   ! Determine center altitude of output layer, and interpolate density
   ! data to that altitude
   !*******************************************************************
-
+!$OMP PARALLEL PRIVATE(halfheight,kzz,dz1,dz2,dz,xl,yl,ngrid,iix,jjy, &
+!$OMP kz,ix,jy,l,ks,kp,nage,auxgrid) REDUCTION(+:gridtotal)
+!$OMP DO
   do kz=1,numzgrid
     if (kz.eq.1) then
       halfheight=outheight(1)/2.
@@ -1338,17 +1340,23 @@ subroutine concoutput_nest_netcdf(itime,outnum)
       end do
     end do
   end do
+!$OMP END DO NOWAIT
 
-  do i=1,numreceptor
-    xl=xreceptor(i)
-    yl=yreceptor(i)
-    iix=max(min(nint(xl),nxmin1),0)
-    jjy=max(min(nint(yl),nymin1),0)
-    densityoutrecept(i)=rho(iix,jjy,1,memind(2))
-  end do
+  if (numreceptor.gt.0) then
+!$OMP DO
+     do i=1,numreceptor
+       xl=xreceptor(i)
+       yl=yreceptor(i)
+       iix=max(min(nint(xl),nxmin1),0)
+       jjy=max(min(nint(yl),nymin1),0)
+       densityoutrecept(i)=rho(iix,jjy,1,memind(2))
+     end do
+!$OMP END DO NOWAIT
+  endif
 
   ! Output is different for forward and backward simulations
   if (ldirect.eq.1) then
+!$OMP DO
      do kz=1,numzgrid
         do jy=0,numygridn-1
            do ix=0,numxgridn-1
@@ -1356,7 +1364,9 @@ subroutine concoutput_nest_netcdf(itime,outnum)
            end do
         end do
      end do
+!$OMP END DO
   else
+!$OMP DO
      do kz=1,numzgrid
         do jy=0,numygridn-1
            do ix=0,numxgridn-1
@@ -1364,6 +1374,7 @@ subroutine concoutput_nest_netcdf(itime,outnum)
            end do
         end do
      end do
+!$OMP END DO
   endif
 
   !*********************************************************************
@@ -1371,13 +1382,11 @@ subroutine concoutput_nest_netcdf(itime,outnum)
   ! ratio (uncertainty of the output) and the dry and wet deposition
   !*********************************************************************
 
-  gridtotal=0.
-
   do ks=1,nspec
 
     do kp=1,maxpointspec_act
       do nage=1,nageclass
-
+!$OMP DO
         do jy=0,numygridn-1
           do ix=0,numxgridn-1
             ! WET DEPOSITION
@@ -1440,7 +1449,7 @@ subroutine concoutput_nest_netcdf(itime,outnum)
             end do
           end do
         end do
-
+!$OMP END DO
   !       print*,gridtotal,maxpointspec_act
 
         !*******************************************************************
@@ -1453,6 +1462,7 @@ subroutine concoutput_nest_netcdf(itime,outnum)
 
         ! Concentration output
         !*********************
+!$OMP SINGLE
         if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
 
           ! Wet deposition
@@ -1503,12 +1513,13 @@ subroutine concoutput_nest_netcdf(itime,outnum)
                (/ 1,1,1,tpointer,kp,nage /), (/ numxgridn,numygridn,numzgrid,1,1,1 /)))
 
         endif ! output for ppt
-
+!$OMP END SINGLE
+!$OMP BARRIER
       end do
     end do
 
   end do
-
+!$OMP END PARALLEL
   ! Close netCDF file
   !**************************
   call nf90_err(nf90_close(ncid))
