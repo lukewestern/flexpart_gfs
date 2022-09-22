@@ -82,7 +82,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM() ! Starts with 0
 #else
-    thread = 1
+    thread = 0
 #endif
 
 !$OMP DO 

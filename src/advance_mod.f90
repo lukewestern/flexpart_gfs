@@ -321,7 +321,7 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
     xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     wp                              ! random turbulence velocities
   integer ::                      &
-    nsp                             ! loop variables for number of species
+    insp,nsp                        ! loop variables for number of species
 
   zts=real(part(ipart)%z)
   ztseta=real(part(ipart)%zeta)
@@ -357,12 +357,10 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
   ! Does not work in eta coordinates yet
   if (mdomainfill.eq.0) then
     if (lsettling) then
-      do nsp=1,nspec
+      do insp=1,nspec
+        nsp=insp
         if (xmass(part(ipart)%npoint,nsp).gt.eps3) exit
       end do
-      if (nsp.gt.nspec) then
-        nsp=nspec
-      end if
       ! LB needs to be checked if this works with openmp and change to eta coords
       if (density(nsp).gt.0.) then
         call get_settling(itime,xts,yts,zts,nsp,part(ipart)%settling)  !bugfix

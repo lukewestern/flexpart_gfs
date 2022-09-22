@@ -301,9 +301,9 @@ subroutine convmix(itime)
 !$OMP ztold,nage,ipconv,itage,thread)
 
 #if (defined _OPENMP)
-    thread = OMP_GET_THREAD_NUM()
+    thread = OMP_GET_THREAD_NUM() ! Starts at 0
 #else
-    thread = 1
+    thread = 0
 #endif
 
 !$OMP DO SCHEDULE(static)
@@ -397,7 +397,7 @@ subroutine convmix(itime)
   ! Now visit all grid columns where particles are present
   ! by going through the sorted particles
 !$OMP PARALLEL PRIVATE (igrold,kpart,ipart,igr,jy,ix,kz,lconv, &
-!$OMP ktop,ztold,nage,ipconv,itage,thread)
+!$OMP ktop,ztold,nage,ipconv,itage)
     igrold = -1
 !$OMP DO
     do kpart=1,numpart
@@ -679,7 +679,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
   real :: tv1, tv2, dlogp, dz, dz1, dz2
   
 #ifdef _OPENMP
-  ithread = OMP_GET_THREAD_NUM()
+  ithread = OMP_GET_THREAD_NUM() ! Starts at 0
 #else
   ithread=0
 #endif
