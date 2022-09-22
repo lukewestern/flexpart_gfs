@@ -344,7 +344,7 @@ subroutine output_particles(itime,initial_output)
 
 !$OMP DO
   do i=1,numpart
-    if ((.not. part(i)%alive).and.(abs(part(i)%tend-itime).ge.ipoutfac*loutstep)) .or. &
+    if (((.not. part(i)%alive).and.(abs(part(i)%tend-itime).ge.ipoutfac*loutstep)) .or. &
       (init_out .and. (i.lt.partinitpointer1-1))) then ! Only freshly spawned particles need to be computed for init_out
       output(:,i) = -1
       masstemp(i,:) = -1
