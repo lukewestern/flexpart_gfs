@@ -289,6 +289,7 @@ module par_mod
   integer,parameter :: max_partoutput_filesize=30000
 
   ! Set maximum number of threads for doing grid computations. Recommended to set this to max 16
+  ! High numbers creates more overhead and a larger memory footprint
   !**********************************************************************************************
   integer,parameter :: max_numthreads_grid=16
   ! Set the coordinate system. At the moment only ECMWF is possible. This bit needs

@@ -668,7 +668,7 @@ subroutine readrestart
     part(i)%meterupdate=.true.
     if (.not. part(i)%alive) then
       if (part(i)%tstart.le.itime_init) then
-        call terminate_particle(i)
+        call terminate_particle(i,part(i)%tend)
       else ! Particle is not spawned yet (original run with ipin=3)
         count%alive = count%alive - 1
         count%spawned = count%spawned -1
@@ -1299,7 +1299,7 @@ subroutine init_domainfill
                 if (mdomainfill.eq.2) part(numpart+jj)%mass(1)= &
                      part(numpart+jj)%mass(1)*pvpart*48./29.*ozonescale/10.**9
               else
-                call terminate_particle(numpart+jj)
+                call terminate_particle(numpart+jj, 0)
                 jj=jj-1
               endif
             endif
@@ -1325,7 +1325,7 @@ subroutine init_domainfill
   do j=1,numpart
     if ((part(j)%xlon.lt.0.).or.(part(j)%xlon.ge.real(nxmin1,kind=dp)).or. &
          (part(j)%ylat.lt.0.).or.(part(j)%ylat.ge.real(nymin1,kind=dp))) then
-      call terminate_particle(j)
+      call terminate_particle(j,0)
       alive_tmp=alive_tmp-1
       terminated_tmp=terminated_tmp+1
     endif
@@ -1530,10 +1530,10 @@ subroutine boundcond_domainfill(itime,loutend)
     if (.not. part(i)%alive) cycle
 
     if ((part(i)%ylat.gt.real(ny_sn(2))).or. &
-         (part(i)%ylat.lt.real(ny_sn(1)))) call terminate_particle(i)
+         (part(i)%ylat.lt.real(ny_sn(1)))) call terminate_particle(i,itime)
     if (((.not.xglobal).or.(nx_we(2).ne.(nx-2))).and. &
          ((part(i)%xlon.lt.real(nx_we(1))).or. &
-         (part(i)%xlon.gt.real(nx_we(2))))) call terminate_particle(i)
+         (part(i)%xlon.gt.real(nx_we(2))))) call terminate_particle(i,itime)
     if (part(i)%alive) numactiveparticles = numactiveparticles+1
   end do
 

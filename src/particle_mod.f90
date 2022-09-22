@@ -267,7 +267,7 @@ contains
     count%spawned = count%spawned + 1
   end subroutine spawn_particle
 
-  subroutine terminate_particle(ipart)
+  subroutine terminate_particle(ipart,itime)
     !*****************************************************
     ! Terminating specified particle
     !
@@ -276,10 +276,12 @@ contains
     implicit none
 
     integer, intent(in) :: ipart ! to be terminated particle index
+    integer, intent(in) :: itime ! Time at which particle is terminated
 
     ! Flagging the particle as having been terminated
     !************************************************
     part(ipart)%alive=.false.
+    part(ipart)%tend=itime
 
     ! Update the number of current particles that are alive
     !******************************************************

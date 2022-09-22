@@ -435,7 +435,7 @@ subroutine timemanager
   !**************************************
       if (part(j)%nstop) then
         if (linit_cond.ge.1) call initial_cond_calc(itime,j,thread+1)
-        call terminate_particle(j)
+        call terminate_particle(j,itime)
       else
 
   ! Dry deposition and radioactive decay for each species
@@ -462,7 +462,7 @@ subroutine timemanager
         end do
         
         if (xmassfract.le.minmassfrac) then   ! terminate all particles carrying less mass
-          call terminate_particle(j)
+          call terminate_particle(j,itime)
         endif
 
 !        Sabine Eckhardt, June 2008
@@ -487,7 +487,7 @@ subroutine timemanager
 
         if ((part(j)%alive).and.(abs(itime-part(j)%tstart).ge.lage(nageclass))) then
           if (linit_cond.ge.1) call initial_cond_calc(itime+lsynctime,j,thread+1)
-          call terminate_particle(j)
+          call terminate_particle(j,itime)
         endif
       endif
 
