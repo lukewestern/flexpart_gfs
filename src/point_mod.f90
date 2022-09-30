@@ -57,6 +57,8 @@ subroutine coordtrafo(nxmin1,nymin1)
   integer :: i,j,k
   real :: yrspc ! small real number relative to x
 
+  if((ipin.eq.3).or.(ipin.eq.4)) return ! Not necessary when using part_ic.nc
+  
   if(numpoint.eq.0) then
     write(*,*) ' FLEXPART MODEL SUBROUTINE COORDTRAFO: ERROR ! '
     write(*,*) ' NO PARTICLE RELEASES ARE DEFINED!'

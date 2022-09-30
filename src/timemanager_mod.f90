@@ -248,7 +248,12 @@ subroutine timemanager
 !$OMP DO
       do i=1,count%allocated
         if (.not. part(i)%alive) then
-          if ((part(i)%tstart.ge.itime).and.(part(i)%tstart.lt.itime+lsynctime)) then
+          if (ldirect.lt.0) then
+            if ((part(i)%tstart.le.itime).and.(part(i)%tstart.gt.itime+lsynctime)) then
+              call spawn_particle(itime,i)
+              call update_z_to_zeta(itime,i)
+            endif
+          else if ((part(i)%tstart.ge.itime).and.(part(i)%tstart.lt.itime+lsynctime)) then
             call spawn_particle(itime,i)
             call update_z_to_zeta(itime,i)
           endif

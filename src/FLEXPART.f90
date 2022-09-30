@@ -298,12 +298,6 @@ subroutine read_options_and_initialise_flexpart
   call openreceptors ! CHECK ETA
   if ((iout.eq.4).or.(iout.eq.5)) call openouttraj ! CHECK ETA
 
-  ! Releases can only start and end at discrete times (multiples of lsynctime)
-  !***************************************************************************
-  do i=1,numpoint
-    ireleasestart(i)=nint(real(ireleasestart(i))/real(lsynctime))*lsynctime
-    ireleaseend(i)=nint(real(ireleaseend(i))/real(lsynctime))*lsynctime
-  end do
 
   ! Initialize cloud-base mass fluxes for the convection scheme
   !************************************************************
@@ -320,11 +314,15 @@ end subroutine read_options_and_initialise_flexpart
 
 
 subroutine initialise_warm_start
+
+  use point_mod
   use com_mod
   use initialise_mod
   use netcdf_output_mod
 
   implicit none
+
+  integer :: i
 
   itime_init=0
   if ((ipin.eq.1).or.(ipin.eq.4)) then ! Restarting from restart.bin file
@@ -343,6 +341,12 @@ subroutine initialise_warm_start
     stop 'Compile with netCDF if you want to use the ipin=3 option.'
 #endif
   else
+    ! Releases can only start and end at discrete times (multiples of lsynctime)
+    !***************************************************************************
+    do i=1,numpoint
+      ireleasestart(i)=nint(real(ireleasestart(i))/real(lsynctime))*lsynctime
+      ireleaseend(i)=nint(real(ireleaseend(i))/real(lsynctime))*lsynctime
+    end do
     numpart=0
     numparticlecount=0
   endif

@@ -357,13 +357,17 @@ subroutine advance_abovePBL(itime,itimec,dxsave,dysave,&
   ! Does not work in eta coordinates yet
   if (mdomainfill.eq.0) then
     if (lsettling) then
-      do insp=1,nspec
-        nsp=insp
-        if (xmass(part(ipart)%npoint,nsp).gt.eps3) exit
-      end do
-      ! LB needs to be checked if this works with openmp and change to eta coords
+      if ((ipin.ne.3).and.(ipin.ne.4)) then
+        do insp=1,nspec
+          nsp=insp
+          if (xmass(part(ipart)%npoint,nsp).gt.eps3) exit
+        end do
+      else
+        nsp=1
+      endif
+      ! LB change to eta coords?
       if (density(nsp).gt.0.) then
-        call get_settling(itime,xts,yts,zts,nsp,part(ipart)%settling)  !bugfix
+        call get_settling(itime,xts,yts,zts,nsp,part(ipart)%settling)
         w=w+part(ipart)%settling
         if (wind_coord_type.eq.'ETA') then 
           call update_zeta_to_z(itime,ipart)
@@ -423,7 +427,7 @@ subroutine advance_PBL(itime,itimec,&
     rhograd                         ! vertical gradient of the air density, used in CBL
   integer ::                      &
     loop,                         & ! loop variable for time in the PBL
-    nsp                             ! loop variable for species
+    nsp,insp                        ! loop variable for species
   real :: vdepo(maxspec)  ! deposition velocities for all species
 
   eps=nxmax/3.e5
@@ -511,12 +515,14 @@ subroutine advance_PBL(itime,itimec,&
 
     if (mdomainfill.eq.0) then
       if (lsettling) then
-        do nsp=1,nspec
-          if (xmass(part(ipart)%npoint,nsp).gt.eps3) exit
-        end do
-        if (nsp.gt.nspec) then
-          nsp=nspec
-        end if
+        if ((ipin.ne.3).and.(ipin.ne.4)) then
+          do insp=1,nspec
+            nsp=insp
+            if (xmass(part(ipart)%npoint,nsp).gt.eps3) exit
+          end do
+        else
+          nsp=1
+        endif
         if (density(nsp).gt.0.) then
           call get_settling(itime,xts,yts,zts,nsp,part(ipart)%settling)  !bugfix
           w=w+part(ipart)%settling
@@ -578,7 +584,7 @@ subroutine advance_PettersonCorrection(itime,ipart)
     itime,                        & ! time index
     ipart                           ! particle index
   integer ::                      &
-    nsp                             ! loop variables for number of species
+    nsp,insp                        ! loop variables for number of species
   real ::                         &
     xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     uold,vold,wold,woldeta       
@@ -613,12 +619,14 @@ subroutine advance_PettersonCorrection(itime,ipart)
 
   if (mdomainfill.eq.0) then
     if (lsettling) then
-      do nsp=1,nspec
-        if (xmass(part(ipart)%npoint,nsp).gt.eps3) exit
-      end do
-      if (nsp.gt.nspec) then
-        nsp=nspec
-      end if
+      if ((ipin.ne.3).and.(ipin.ne.4)) then
+        do insp=1,nspec
+          nsp=insp
+          if (xmass(part(ipart)%npoint,nsp).gt.eps3) exit
+        end do
+      else
+        nsp=1
+      endif
       if (density(nsp).gt.0.) then
         select case (wind_coord_type)
 

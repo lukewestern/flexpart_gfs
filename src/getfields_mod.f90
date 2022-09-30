@@ -183,7 +183,7 @@ subroutine getfields(itime,nstop)
     end do
     indmin=indj
 
-    if (WETBKDEP) then
+    if ((WETBKDEP).and.(ipin.ne.3).and.(ipin.ne.4)) then
       call writeprecip(itime,memind(1))
     endif
 
@@ -242,7 +242,7 @@ subroutine getfields(itime,nstop)
     end do
     indmin=indj
 
-    if (WETBKDEP) then
+    if ((WETBKDEP).and.(ipin.ne.3).and.(ipin.ne.4)) then
       call writeprecip(itime,memind(1))
     endif
 

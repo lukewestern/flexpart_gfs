@@ -826,6 +826,15 @@ subroutine readcommand
     stop
   endif
 
+  ! Check whether input and output settings don't contradict
+  !*********************************************************
+  if (((iout.eq.4).or.(iout.eq.5)).and.((ipin.eq.3).or.(ipin.eq.4))) then
+    write(*,*) ' #### FLEXPART MODEL ERROR! FILE COMMAND:     #### '
+    write(*,*) ' #### IOUT CANNOT BE 4 or 5 (plume) WHEN      #### '
+    write(*,*) ' #### READING FROM part_ic.nc (ipin=4/5)      #### '
+    stop
+  endif    
+
   if(lsubgrid.ne.1.and.verbosity.eq.0) then
     write(*,*) '             ----------------               '
     write(*,*) ' INFORMATION: SUBGRIDSCALE TERRAIN EFFECT IS'
@@ -1999,90 +2008,26 @@ subroutine readreleases
   endif
 
   if ((readerror.ne.0).or.(nspec.lt.0)) then
-
-  ! no namelist format, close file and allow reopening in old format
-    close(unitreleases)
-    open(unitreleases,file=path(1)(1:length(1))//'RELEASES',status='old',err=999)
-
-    readerror=1 ! indicates old format
-
-  ! Check the format of the RELEASES file (either in free format,
-  ! or using a formatted mask)
-  ! Use of formatted mask is assumed if line 10 contains the word 'DIRECTION'
-  !**************************************************************************
-
-    call skplin(12,unitreleases)
-    read (unitreleases,901) line
-901 format (a)
-    if (index(line,'Total') .eq. 0) then
-      old = .false.
+    if (lroot) write(*,*) 'RELEASE either having unrecognised entries, &
+      &or in old format, please update to namelist format.'
+      stop
+  else
+    if ((ipin.ne.3).and.(ipin.ne.4)) then ! Not necessary to read releases when using part_ic.nc
+      readerror=0
+      do while (readerror.eq.0) 
+        idate1=-1
+        read(unitreleases,release,iostat=readerror)
+        if ((idate1.lt.0).or.(readerror.ne.0)) then
+          readerror=1
+        else
+          numpoint=numpoint+1
+        endif
+      end do
+      readerror=0
     else
-      old = .true.
+      numpoint=1
     endif
-    rewind(unitreleases)
-
-
-  ! Skip first 11 lines (file header)
-  !**********************************
-
-    call skplin(11,unitreleases)
-
-    read(unitreleases,*,err=998) nspec
-    if (old) call skplin(2,unitreleases)
-    do i=1,nspec
-      read(unitreleases,*,err=998) specnum_rel(i)
-      if (old) call skplin(2,unitreleases)
-    end do
-
-    numpoint=0
-100 numpoint=numpoint+1
-    read(unitreleases,*,end=25)
-    read(unitreleases,*,err=998,end=25) idum,idum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) idum,idum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) xdum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) xdum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) xdum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) xdum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) idum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) xdum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) xdum
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) idum
-    if (old) call skplin(2,unitreleases)
-    do i=1,nspec
-      read(unitreleases,*,err=998) xdum
-      if (old) call skplin(2,unitreleases)
-    end do
-  !save compoint only for the first 1000 release points
-    read(unitreleases,'(a40)',err=998) compoint(1)(1:40)
-    if (old) call skplin(1,unitreleases)
-
-    goto 100
-
-25  numpoint=numpoint-1
-
-  else 
-
-    readerror=0
-    do while (readerror.eq.0) 
-      idate1=-1
-      read(unitreleases,release,iostat=readerror)
-      if ((idate1.lt.0).or.(readerror.ne.0)) then
-        readerror=1
-      else
-        numpoint=numpoint+1
-      endif
-    end do
-    readerror=0
-  endif ! if namelist input
+  endif
 
   rewind(unitreleases)
 
@@ -2147,48 +2092,18 @@ subroutine readreleases
     WETDEPSPEC(i)=.false.
   end do
 
-  if (readerror.ne.0) then
-  ! Skip first 11 lines (file header)
-  !**********************************
-
-    call skplin(11,unitreleases)
-
-  ! Assign species-specific parameters needed for physical processes
-  !*************************************************************************
-
-    read(unitreleases,*,err=998) nspec
-    if (nspec.gt.maxspec) goto 994
-    if (old) call skplin(2,unitreleases)
-  endif
-
   ! namelist output
   if (nmlout.and.lroot) then
     write(unitreleasesout,nml=releases_ctrl)
   endif
 
   do i=1,nspec
-    if (readerror.ne.0) then
-      read(unitreleases,*,err=998) specnum_rel(i)
-      if (old) call skplin(2,unitreleases)
-      call readspecies(specnum_rel(i),i)
-    else
-      call readspecies(specnum_rel(i),i)
-    endif
+    call readspecies(specnum_rel(i),i)
 
-    ! Allocate temporary memory necessary for the different diameter bins
-    !********************************************************************
+
+  ! Allocate temporary memory necessary for the different diameter bins
+  !********************************************************************
     allocate(vsh(ndia(i)),fracth(ndia(i)),schmih(ndia(i)))
-
-  ! For backward runs, only 1 species is allowed
-  !*********************************************
-
-  !if ((ldirect.lt.0).and.(nspec.gt.1)) then
-  !write(*,*) '#####################################################'
-  !write(*,*) '#### FLEXPART MODEL SUBROUTINE READRELEASES:     ####'
-  !write(*,*) '#### FOR BACKWARD RUNS, ONLY 1 SPECIES IS ALLOWED####'
-  !write(*,*) '#####################################################'
-  !  stop
-  !endif
 
   ! Molecular weight
   !*****************
@@ -2279,6 +2194,8 @@ subroutine readreleases
 
   if (WETDEP.or.DRYDEP) DEP=.true.
 
+  if ((ipin.eq.3).or.(ipin.eq.4)) return ! Not necessary to read releases when using part_ic.nc
+
   ! Read specifications for each release point
   !*******************************************
   numpoints=numpoint
@@ -2287,101 +2204,33 @@ subroutine readreleases
   releaserate=0.
 101 numpoint=numpoint+1
 
-  if (readerror.lt.1) then ! reading namelist format
+  if (numpoint.gt.numpoints) goto 250
+  zkind = 1
+  mass = 0
+  parts = 0
+  comment = ' '
+  read(unitreleases,release,iostat=readerror)
+  id1=idate1
+  it1=itime1
+  id2=idate2
+  it2=itime2
+  xpoint1(numpoint)=lon1
+  xpoint2(numpoint)=lon2
+  ypoint1(numpoint)=lat1
+  ypoint2(numpoint)=lat2
+  zpoint1(numpoint)=z1
+  zpoint2(numpoint)=z2
+  kindz(numpoint)=zkind
+  do i=1,nspec
+    xmass(numpoint,i)=mass(i)
+  end do
+  npart(numpoint)=parts
+  compoint(min(1001,numpoint))=comment
 
-    if (numpoint.gt.numpoints) goto 250
-    zkind = 1
-    mass = 0
-    parts = 0
-    comment = ' '
-    read(unitreleases,release,iostat=readerror)
-    id1=idate1
-    it1=itime1
-    id2=idate2
-    it2=itime2
-    xpoint1(numpoint)=lon1
-    xpoint2(numpoint)=lon2
-    ypoint1(numpoint)=lat1
-    ypoint2(numpoint)=lat2
-    zpoint1(numpoint)=z1
-    zpoint2(numpoint)=z2
-    kindz(numpoint)=zkind
-    do i=1,nspec
-      xmass(numpoint,i)=mass(i)
-    end do
-    npart(numpoint)=parts
-    compoint(min(1001,numpoint))=comment
-
-  ! namelist output
-    if (nmlout.and.lroot) then
-      write(unitreleasesout,nml=release)
-    endif
-
-  else
-
-    read(unitreleases,*,end=250)
-    read(unitreleases,*,err=998,end=250) id1,it1
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) id2,it2
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) xpoint1(numpoint)
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) ypoint1(numpoint)
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) xpoint2(numpoint)
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) ypoint2(numpoint)
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) kindz(numpoint)
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) zpoint1(numpoint)
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) zpoint2(numpoint)
-    if (old) call skplin(2,unitreleases)
-    read(unitreleases,*,err=998) npart(numpoint)
-    if (old) call skplin(2,unitreleases)
-    do i=1,nspec
-      read(unitreleases,*,err=998) xmass(numpoint,i)
-      if (old) call skplin(2,unitreleases)
-      mass(i)=xmass(numpoint,i)
-    end do
-  !save compoint only for the first 1000 release points
-    if (numpoint.le.1000) then
-      read(unitreleases,'(a40)',err=998) compoint(numpoint)(1:40)
-      comment=compoint(numpoint)(1:40)
-    else
-      read(unitreleases,'(a40)',err=998) compoint(1001)(1:40)
-      comment=compoint(1001)(1:40)
-    endif
-    if (old) call skplin(1,unitreleases)
-
-  ! namelist output
-    if (nmlout.and.lroot) then
-      idate1=id1
-      itime1=it1
-      idate2=id2
-      itime2=it2
-      lon1=xpoint1(numpoint)
-      lon2=xpoint2(numpoint)
-      lat1=ypoint1(numpoint)
-      lat2=ypoint2(numpoint)
-      z1=zpoint1(numpoint)
-      z2=zpoint2(numpoint)
-      zkind=kindz(numpoint)
-      parts=npart(numpoint)
-      write(unitreleasesout,nml=release)
-    endif
-
-    if (numpoint.le.1000) then
-      if((xpoint1(numpoint).eq.0.).and.(ypoint1(numpoint).eq.0.).and. &
-           (xpoint2(numpoint).eq.0.).and.(ypoint2(numpoint).eq.0.).and. &
-           (compoint(numpoint)(1:8).eq.'        ')) goto 250
-    else
-      if((xpoint1(numpoint).eq.0.).and.(ypoint1(numpoint).eq.0.).and. &
-           (xpoint2(numpoint).eq.0.).and.(ypoint2(numpoint).eq.0.)) goto 250
-    endif
-
-  endif ! if namelist format
+! namelist output
+  if (nmlout.and.lroot) then
+    write(unitreleasesout,nml=release)
+  endif
 
   ! If a release point contains no particles, stop and issue error message
   !***********************************************************************
@@ -3308,6 +3157,7 @@ subroutine readpartoptions
       write(*,*) '### FLEXPART MODEL ERROR! FILE COMMAND:     ###'
       write(*,*) '### LOUTRESTART NEEDS TO BE DIVISABLE BY    ###'
       write(*,*) '### LOUTSTEP*IPOUTFAC.                      ###'
+      stop
     endif
   endif
 

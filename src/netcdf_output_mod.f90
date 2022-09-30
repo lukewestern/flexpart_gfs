@@ -679,7 +679,7 @@ subroutine writeheader_netcdf(lnest)
     end if
   end if
 
-  if (write_releases.eqv..true.) then
+  if ((write_releases.eqv..true.).and.(ipin.ne.3).and.(ipin.ne.4)) then
     ! release point information
     do i = 1,numpoint
        call nf90_err(nf90_put_var(ncid, relstartID, ireleasestart(i), (/i/)))
@@ -696,7 +696,7 @@ subroutine writeheader_netcdf(lnest)
        call nf90_err(nf90_put_var(ncid, relzz1ID, zpoint1(i), (/i/)))
        call nf90_err(nf90_put_var(ncid, relzz2ID, zpoint2(i), (/i/)))
        call nf90_err(nf90_put_var(ncid, relpartID, npart(i), (/i/)))
-       if (i .le. 1000) then
+       if ((i .le. 1000).and.(ipin.ne.3).and.(ipin.ne.4)) then
          call nf90_err(nf90_put_var(ncid, relcomID, compoint(i), (/1,i/), (/45,1/)))
        else
          call nf90_err(nf90_put_var(ncid, relcomID, 'NA', (/1,i/), (/45,1/)))
@@ -2377,6 +2377,7 @@ subroutine readinitconditions_netcdf()
 
   integer             :: ncidend,tIDend,pIDend,tempIDend
   integer             :: plen,tend,i
+  real                :: totmass
 
   integer :: idummy = -8
   
@@ -2424,16 +2425,21 @@ subroutine readinitconditions_netcdf()
   ! call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%species, & 
   !   start=(/ 1 /),count=(/ plen /)))
 
+  totmass=0.
   part(:)%idt=part(:)%tstart
   do i=1,plen
     part(i)%nclass=min(int(ran1(idummy,0)*real(nclassunc))+1, &
          nclassunc)
     part(i)%npoint=1
+    totmass=totmass+part(i)%mass(1)
     ! Activate particles that are alive from the start of the simulation
     if (part(i)%tstart.eq.0) call spawn_particle(0,i)
   end do
+  xmass(1,1)=part(1)%mass(1)
+    write(*,FMT='(A,ES14.7)') ' Total mass to be released:', sum(xmass(1:numpoint,1:nspec))
   call get_total_part_num(numpart)
   numparticlecount=numpart
+  npart(1)=numpart
   call nf90_err(nf90_close(ncidend))
 end subroutine readinitconditions_netcdf
 
