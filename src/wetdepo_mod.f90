@@ -52,7 +52,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
   implicit none
 
   integer :: jpart,itime,ltsample,loutnext,ldeltat
-  integer :: itage,nage,ithread,thread
+  integer :: itage,nage,inage,ithread,thread
   integer :: ks, kp
   integer(selected_int_kind(16)), dimension(nspec) :: blc_count, inc_count
   real :: grfraction(3),wetscav
@@ -76,7 +76,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
 #ifdef _OPENMP
   call omp_set_num_threads(numthreads_grid)
 #endif
-!$OMP PARALLEL PRIVATE(jpart,itage,nage,ks,kp,thread,wetscav,wetdeposit, &
+!$OMP PARALLEL PRIVATE(jpart,itage,nage,inage,ks,kp,thread,wetscav,wetdeposit, &
 !$OMP restmass, grfraction) REDUCTION(+:blc_count,inc_count)
 
 #if (defined _OPENMP)
@@ -97,8 +97,10 @@ subroutine wetdepo(itime,ltsample,loutnext)
   ! Determine age class of the particle - nage is used for the kernel
   !******************************************************************
     itage=abs(itime-part(jpart)%tstart)
-    do nage=1,nageclass
-     if (itage.lt.lage(nage)) exit
+    nage=1
+    do inage=1,nageclass
+      nage=inage
+      if (itage.lt.lage(nage)) exit
     end do
 
     do ks=1,nspec      ! loop over species

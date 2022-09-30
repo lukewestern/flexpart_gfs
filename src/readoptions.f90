@@ -2194,8 +2194,13 @@ subroutine readreleases
 
   if (WETDEP.or.DRYDEP) DEP=.true.
 
-  if ((ipin.eq.3).or.(ipin.eq.4)) return ! Not necessary to read releases when using part_ic.nc
-
+  ! Not necessary to read releases when using part_ic.nc
+  !*****************************************************
+  if ((ipin.eq.3).or.(ipin.eq.4)) then
+    maxpointspec_act=1
+    return 
+  endif
+  
   ! Read specifications for each release point
   !*******************************************
   numpoints=numpoint

@@ -55,6 +55,7 @@ module particle_mod
       idt                           ! internal time of the particle
     real               ::         &
       mass(maxspec),              & ! Particle mass for each particle species
+      mass_init(maxspec),         & ! Initial mass of each particle
       wetdepo(maxspec)=0.,        & ! Wet deposition (cumulative)
       drydepo(maxspec)=0.,        & ! Dry deposition (cumulative)
       prob(maxspec)                 ! Probability of absorption at ground due to dry deposition

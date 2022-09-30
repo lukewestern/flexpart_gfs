@@ -2372,6 +2372,7 @@ subroutine readinitconditions_netcdf()
   use random_mod
   use particle_mod
   use date_mod
+  use coordinates_ecmwf
 
   implicit none 
 
@@ -2431,11 +2432,14 @@ subroutine readinitconditions_netcdf()
     part(i)%nclass=min(int(ran1(idummy,0)*real(nclassunc))+1, &
          nclassunc)
     part(i)%npoint=1
+    part(i)%mass_init=part(i)%mass
     totmass=totmass+part(i)%mass(1)
     ! Activate particles that are alive from the start of the simulation
-    if (part(i)%tstart.eq.0) call spawn_particle(0,i)
+    if (part(i)%tstart.eq.0) then
+      call spawn_particle(0,i)
+    endif
   end do
-  xmass(1,1)=part(1)%mass(1)
+  xmass(1,1)=totmass
     write(*,FMT='(A,ES14.7)') ' Total mass to be released:', sum(xmass(1:numpoint,1:nspec))
   call get_total_part_num(numpart)
   numparticlecount=numpart

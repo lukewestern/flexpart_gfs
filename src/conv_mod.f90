@@ -168,7 +168,7 @@ subroutine convmix(itime)
   real :: dt1,dt2,dtt
   integer :: mind1,mind2
   ! dt1,dt2,dtt,mind1,mind2       variables used for time interpolation
-  integer :: itage,nage
+  integer :: itage,nage,inage
 
   ! OMP changes
   integer :: cnt,kk
@@ -356,7 +356,9 @@ subroutine convmix(itime)
 
         if (iflux.eq.1) then
           itage=abs(itime-part(ipart)%tstart)
-          do nage=1,nageclass
+          nage=1
+          do inage=1,nageclass
+            nage=inage
             if ((itage.lt.lage(nage)).or.(.not.part(ipart)%alive)) exit
           end do
 
@@ -444,7 +446,9 @@ subroutine convmix(itime)
 
         if (iflux.eq.1) then
           itage=abs(itime-part(ipart)%tstart)
-          do nage=1,nageclass
+          nage=1
+          do inage=1,nageclass
+            nage=inage
             if ((itage.lt.lage(nage)).or.(.not.part(ipart)%alive)) exit
           end do
 

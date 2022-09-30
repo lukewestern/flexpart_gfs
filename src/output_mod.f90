@@ -726,7 +726,7 @@ subroutine conccalc(itime,weight)
 
   integer,intent(in) :: itime
   real,intent(in) :: weight
-  integer :: itage,i,kz,ks,n,nage,thread,ithread
+  integer :: itage,i,kz,ks,n,nage,inage,thread,ithread
   integer :: il,ind,indz,indzp,nrelpointer
   integer :: ix,jy,ixp,jyp
   real :: ddx,ddy
@@ -745,7 +745,7 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
   call omp_set_num_threads(numthreads_grid)
 #endif
-!$OMP PARALLEL PRIVATE(i,itage,nage,rhoi,nrelpointer,kz,xl,yl,ks,wx,wy,w,thread,ddx,ddy, &
+!$OMP PARALLEL PRIVATE(i,itage,nage,inage,rhoi,nrelpointer,kz,xl,yl,ks,wx,wy,w,thread,ddx,ddy, &
 !$OMP ix,jy,ixp,jyp)
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM()+1 ! Starts with 1
@@ -759,7 +759,9 @@ subroutine conccalc(itime,weight)
 
   ! Determine age class of the particle
     itage=abs(itime-part(i)%tstart)
-    do nage=1,nageclass
+    nage=1
+    do inage=1,nageclass
+      nage=inage
       if (itage.lt.lage(nage)) exit
     end do
 

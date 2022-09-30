@@ -106,7 +106,7 @@ subroutine timemanager
     loutstart,loutend,      & ! concentration calculation starting and ending time
     ix,jy,                  & ! gridcell indices
     ldeltat,                & ! radioactive decay time
-    itage,nage,             & ! related to age classes
+    itage,nage,inage,       & ! related to age classes
     idummy,                 & ! used for the random routines
     i_nan=0,ii_nan,total_nan_intl=0, &  !added by mc to check instability in CBL scheme 
     thread                    ! openmp change (not sure if necessary)
@@ -210,6 +210,12 @@ subroutine timemanager
       end do
 !$OMP END DO
 !$OMP END PARALLEL
+    endif
+
+    if ((ipin.eq.3).and.(itime.eq.itime_init).and.(wind_coord_type.eq.'ETA')) then
+      do i=1,count%allocated
+        call update_z_to_zeta(itime, i)
+      end do
     endif
 
     if (WETDEP .and. (itime.ne.0) .and. (numpart.gt.0)) then
@@ -330,7 +336,7 @@ subroutine timemanager
   ! openmp change
   ! LB, openmp following CTM version, need to be very careful due to big differences
   ! between the openmp loop in this and the CTM version
-!$OMP PARALLEL PRIVATE(prob_rec,ks,kp,thread,j,xmassfract,drydeposit)
+!$OMP PARALLEL PRIVATE(prob_rec,inage,nage,itage,ks,kp,thread,j,xmassfract,drydeposit)
 
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM() ! Starts with 0
@@ -350,7 +356,9 @@ subroutine timemanager
   ! Determine age class of the particle
   !************************************
       itage=abs(itime-part(j)%tstart)
-      do nage=1,nageclass
+      nage=1
+      do inage=1,nageclass
+        nage=inage
         if (itage.lt.lage(nage)) exit
       end do
 
@@ -412,7 +420,7 @@ subroutine timemanager
 alive_tmp=count%alive
 terminated_tmp=count%terminated
 
-!$OMP PARALLEL PRIVATE(prob_rec,ks,kp,thread,j,xmassfract,drydeposit) &
+!$OMP PARALLEL PRIVATE(prob_rec,nage,inage,itage,ks,kp,thread,j,xmassfract,drydeposit) &
 !$OMP REDUCTION(+:alive_tmp,terminated_tmp) 
 
 !num_threads(numthreads_grid)
@@ -435,7 +443,9 @@ terminated_tmp=count%terminated
   ! Determine age class of the particle
   !************************************
       itage=abs(itime-part(j)%tstart)
-      do nage=1,nageclass
+      nage=1
+      do inage=1,nageclass
+        nage=inage
         if (itage.lt.lage(nage)) exit
       end do
 
@@ -463,7 +473,11 @@ terminated_tmp=count%terminated
           endif
   ! Skip check on mass fraction when npoint represents particle number
           if (mdomainfill.eq.0.and.mquasilag.eq.0) then
-            if (xmass(part(j)%npoint,ks).gt.0.) then
+            if ((ipin.eq.3).or.(ipin.eq.4)) then 
+              if (part(j)%mass_init(ks).gt.0) then
+                xmassfract=max(xmassfract,part(j)%mass(ks)/part(j)%mass_init(ks))
+              endif
+            else if (xmass(part(j)%npoint,ks).gt.0.) then
               xmassfract=max(xmassfract,real(npart(part(j)%npoint))* &
                 part(j)%mass(ks)/xmass(part(j)%npoint,ks))
             endif
