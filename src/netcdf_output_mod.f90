@@ -2388,7 +2388,7 @@ subroutine readinitconditions_netcdf()
   endif
 
   ! Open part_ic.nc file
-  call nf90_err(nf90_open(trim('part_ic.nc'), mode=NF90_NOWRITE,ncid=ncidend))
+  call nf90_err(nf90_open(trim(path(2)(1:length(2))//'part_ic.nc'), mode=NF90_NOWRITE,ncid=ncidend))
 
   ! Get the particle dimension
   call nf90_err(nf90_inq_dimid(ncid=ncidend,name='particle',dimid=pIDend))
