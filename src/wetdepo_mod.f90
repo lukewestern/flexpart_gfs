@@ -308,17 +308,22 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   endif
 
   call determine_grid_coordinates(xts,yts)
-  call find_grid_distances(real(part(jpart)%xlon),real(part(jpart)%ylat))
+  call find_grid_distances(xts,yts)
 
+  if ((ixp.lt.0).or.(ixp.ge.nxmax).or.(jyp.lt.0).or.(jyp.ge.nymax)) then
+    write(*,*) ix, jy
+    write(*,*) tcc(1,1,1,n)
+    write(*,*) tcc(ix,jy,1,n)
+  endif
   if (ngrid.le.0) then
     ! No temporal interpolation to stay consistent with clouds
-    call horizontal_interpolation(lsprec,lsp,1,n,nzmax) ! large scale total precipitation
-    call horizontal_interpolation(convprec,convp,1,n,nzmax) ! convective precipitation
-    call horizontal_interpolation(tcc,cc,1,n,nzmax) ! total cloud cover
+    call horizontal_interpolation(lsprec,lsp,1,n,1) ! large scale total precipitation
+    call horizontal_interpolation(convprec,convp,1,n,1) ! convective precipitation
+    call horizontal_interpolation(tcc,cc,1,n,1) ! total cloud cover
   else
-    call horizontal_interpolation(lsprecn,lsp,1,n,nzmax) ! large scale total precipitation
-    call horizontal_interpolation(convprecn,convp,1,n,nzmax) ! convective precipitation
-    call horizontal_interpolation(tccn,cc,1,n,nzmax) ! total cloud cover
+    call horizontal_interpolation(lsprecn,lsp,1,n,1) ! large scale total precipitation
+    call horizontal_interpolation(convprecn,convp,1,n,1) ! convective precipitation
+    call horizontal_interpolation(tccn,cc,1,n,1) ! total cloud cover
   endif
 
   !  If total precipitation is less than 0.01 mm/h - no scavenging occurs

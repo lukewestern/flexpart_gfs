@@ -110,7 +110,7 @@ subroutine determine_grid_coordinates(xt,yt)
 
   if (ixp >= nxmax) then
     write(*,*) 'WARNING: interpol_mod.f90 ixp >= nxmax. xt,yt:',xt,yt
-    ixp=ixp-1
+    ixp=ixp-nxmax
   end if
 end subroutine determine_grid_coordinates
 
