@@ -238,6 +238,7 @@ subroutine releaseparticles(itime)
         do k=1,nspec
           part(ipart)%mass(k)=xmass(i,k)/real(npart(i)) &
                 *timecorrect(k)/average_timecorrect
+          part(ipart)%mass_init(k)=part(ipart)%mass(k)
           if (DRYBKDEP.or.WETBKDEP) then ! if there is no scavenging in wetdepo it will be set to 0
 	!              if ( henry(k).gt.0 .or. &
 	!                   crain_aero(k).gt.0. .or. csnow_aero(k).gt.0. .or. &
@@ -433,6 +434,7 @@ subroutine releaseparticles(itime)
 
           do k=1,nspec
             part(ipart)%mass(k)=part(ipart)%mass(k)*rhoout
+            part(ipart)%mass_init(k)=part(ipart)%mass(k)
           end do
         endif
 
@@ -1307,6 +1309,7 @@ subroutine init_domainfill
                 part(numpart+jj)%mass(1)=colmass(lix,ljy)/real(ncolumn)
                 if (mdomainfill.eq.2) part(numpart+jj)%mass(1)= &
                      part(numpart+jj)%mass(1)*pvpart*48./29.*ozonescale/10.**9
+                part(numpart+jj)%mass_init(1)=part(numpart+jj)%mass(1)
               else
                 call terminate_particle(numpart+jj, 0)
                 jj=jj-1
@@ -1762,6 +1765,7 @@ subroutine boundcond_domainfill(itime,loutend)
             part(ipart)%mass(1)=xmassperparticle
             if (mdomainfill.eq.2) part(ipart)%mass(1)= &
                  part(ipart)%mass(1)*pvpart*48./29.*ozonescale/10.**9
+            part(ipart)%mass_init(1)=part(ipart)%mass(1)
           else
             stop 'boundcond_domainfill error: look into original to understand what should happen here'
           endif
@@ -1973,6 +1977,7 @@ subroutine boundcond_domainfill(itime,loutend)
             part(ipart)%mass(1)=xmassperparticle
             if (mdomainfill.eq.2) part(ipart)%mass(1)= &
                  part(ipart)%mass(1)*pvpart*48./29.*ozonescale/10.**9
+            part(ipart)%mass_init(1)=part(ipart)%mass(1)
           else
             stop 'boundcond_domainfill error: look into original to understand what should happen here'
           endif
