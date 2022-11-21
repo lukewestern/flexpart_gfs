@@ -861,17 +861,13 @@ subroutine interpol_wind(itime,xt,yt,zt,zteta,pp)
   !**********************************************************
   select case (wind_coord_type)
     case ('ETA')
-      ! Determine the level below the current position for u,v
-      !*******************************************************
-      call find_z_level_meters(zt)
       ! Same for eta coordinates
       !*************************
       call find_z_level_eta(zteta)
 
-      iw(:)   = (/ indz, indzp /)
       iuv(:)  = (/ induv, indpuv /)
       iweta(:)= (/ indzeta, indzpeta /)
-      call interpol_wind_eta(zt,zteta,iw,iuv,iweta)
+      call interpol_wind_eta(zteta,iuv,iweta)
       !call standard_deviation_wind_eta(iw,iuv,iweta)
     case ('METER')
       ! Determine the level below the current position for u,v
@@ -932,9 +928,6 @@ subroutine interpol_wind_short(itime,xt,yt,zt,zteta)
   !*******************************************
   call find_time_variables(itime)
 
-  ! Determine the level below the current position for u,v
-  !*******************************************************
-  call find_z_level_meters(zt)
   ! Interpolate over the windfields depending on the prefered
   ! coordinate system
   !**********************************************************
@@ -944,13 +937,16 @@ subroutine interpol_wind_short(itime,xt,yt,zt,zteta)
       !*******************************************************************
       call find_z_level_eta(zteta)
 
-      iw(:)=(/ indz, indzp /)
       iuv(:)=(/ induv, indpuv /)
       iweta(:)=(/ indzeta, indzpeta /)
       ! Interpolate the u, v, weta windfields
       !**************************************
-      call interpol_wind_eta(zt,zteta,iw,iuv,iweta)
+      call interpol_wind_eta(zteta,iuv,iweta)
     case ('METER')
+
+      ! Determine the level below the current position for u,v
+      !*******************************************************
+      call find_z_level_meters(zt)
 
       iw(:)=(/ indz, indzp /)
       call interpol_wind_meter(zt,iw)
@@ -1062,14 +1058,14 @@ end subroutine interpol_density
 !*********************
 ! Interpolation of wind fields
 !*****************************
-subroutine interpol_wind_eta(zt,zteta,iw,iuv,iweta)
+subroutine interpol_wind_eta(zteta,iuv,iweta)
   implicit none
 
-  real, intent(in)    :: zt,zteta
-  integer,intent(in)  :: iw(2),iuv(2),iweta(2)
+  real, intent(in)    :: zteta
+  integer,intent(in)  :: iuv(2),iweta(2)
   integer             :: n,m
-  real                :: uh(2),vh(2),wh(2),wetah(2),uh1(2),vh1(2),wh1(2),wetah1(2)
-  real                :: dz1w,dz2w,dz1uv,dz2uv,dz1weta,dz2weta
+  real                :: uh(2),vh(2),wetah(2),uh1(2),vh1(2),wetah1(2)
+  real                :: dz1uv,dz2uv,dz1weta,dz2weta
   !**********************************************************************
   ! 1.) Bilinear horizontal interpolation
   ! This has to be done separately for 6 fields (Temporal(2)*Vertical(3))
