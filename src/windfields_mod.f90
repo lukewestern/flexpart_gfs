@@ -2514,6 +2514,38 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
   do i=0,nxmin1
     do j=0,nymin1
+      if ((ewss(i,j).eq.0.).and.(nsss(i,j).eq.0.)) then
+        if ((i.ne.0).and.(j.ne.0).and.(i.ne.nxmin1).and.(j.ne.nymin1)) then
+          ewss(i,j)=(ewss(i-1,j-1)+ewss(i+1,j+1)+ewss(i+1,j)+ewss(i-1,j)+ &
+                     ewss(i,j+1)+ewss(i,j-1)+ewss(i-1,j+1)+ewss(i+1,j-1))/8.
+          nsss(i,j)=(nsss(i-1,j-1)+nsss(i+1,j+1)+nsss(i+1,j)+nsss(i-1,j)+ &
+                     nsss(i,j+1)+nsss(i,j-1)+nsss(i-1,j+1)+nsss(i+1,j-1))/8.
+        else if ((i.eq.0).and.(j.eq.0)) then
+          ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i,j+1))/3.
+          nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i,j+1))/3.
+        else if ((i.eq.nxmin1).and.(j.eq.nymin1)) then
+          ewss(i,j)=(ewss(i-1,j-1)+ewss(i-1,j)+ewss(i,j-1))/3.
+          nsss(i,j)=(nsss(i-1,j-1)+nsss(i-1,j)+nsss(i,j-1))/3.
+        else if ((i.eq.0).and.(j.eq.nymin1)) then
+          ewss(i,j)=(ewss(i+1,j-1)+ewss(i+1,j)+ewss(i,j-1))/3.
+          nsss(i,j)=(nsss(i+1,j-1)+nsss(i+1,j)+nsss(i,j-1))/3.
+        else if ((i.eq.nxmin1).and.(j.eq.0)) then
+          ewss(i,j)=(ewss(i-1,j+1)+ewss(i-1,j)+ewss(i,j+1))/3.
+          nsss(i,j)=(nsss(i-1,j+1)+nsss(i-1,j)+nsss(i,j+1))/3.
+        else if (i.eq.0) then
+          ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i,j+1)+ewss(i,j-1)+ewss(i+1,j-1))/5.
+          nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i,j+1)+nsss(i,j-1)+nsss(i+1,j-1))/5.
+        else if (i.eq.nxmin1) then
+          ewss(i,j)=(ewss(i-1,j+1)+ewss(i-1,j)+ewss(i,j+1)+ewss(i,j-1)+ewss(i-1,j-1))/5.
+          nsss(i,j)=(nsss(i-1,j+1)+nsss(i-1,j)+nsss(i,j+1)+nsss(i,j-1)+nsss(i-1,j-1))/5.
+        else if (j.eq.0) then
+          ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i-1,j)+ewss(i,j+1)+ewss(i-1,j+1))/5.
+          nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i-1,j)+nsss(i,j+1)+nsss(i-1,j+1))/5.
+        else if (j.eq.nymin1) then
+          ewss(i,j)=(ewss(i+1,j-1)+ewss(i+1,j)+ewss(i-1,j)+ewss(i,j-1)+ewss(i-1,j-1))/5.
+          nsss(i,j)=(nsss(i+1,j-1)+nsss(i+1,j)+nsss(i-1,j)+nsss(i,j-1)+nsss(i-1,j-1))/5.
+        endif
+      endif
       surfstr(i,j,1,n)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
     end do
   end do

@@ -1384,13 +1384,17 @@ real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
   plev=ak1+bk1*ps                        ! Pressure level 1
   end if
   theta=tlev*(100000./plev)**(r_air/cpa) ! potential temperature
-  if (ustar.le.0.) ustar=1.e-8
+  if (ustar.le.0.) then 
+          ustar=1.e-8
+          write(*,*) 'ustar is too small, this is going to make the turbulent velocities huge'
+  endif
   thetastar=hf/(rhoa*cpa*ustar)           ! scale temperature
   if(abs(thetastar).gt.1.e-10) then
      obukhov=theta*ustar**2/(karman*ga*thetastar)
   else
      obukhov=9999                        ! zero heat flux
   endif
+
   if (obukhov.gt. 9999.) obukhov= 9999.
   if (obukhov.lt.-9999.) obukhov=-9999.
 end function obukhov
