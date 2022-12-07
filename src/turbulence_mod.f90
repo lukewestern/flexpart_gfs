@@ -325,7 +325,7 @@ subroutine hanna(z)
   ! Determine sigmas
   !*****************
 
-    sigu=1.e-2+ust*(12-0.5*h/ol)**0.33333
+    sigu=1.e-2+ust*(12.-0.5*h/ol)**0.33333
     sigv=sigu
     sigw=sqrt(1.2*wst**2*(1.-.9*zeta)*zeta**0.66666+ &
          (1.8-1.4*zeta)*ust**2)+1.e-2
@@ -427,7 +427,7 @@ subroutine hanna1(z)
   ! Determine sigmas
   !*****************
 
-    sigu=ust*(12-0.5*h/ol)**0.33333
+    sigu=ust*(12.-0.5*h/ol)**0.33333
     sigu=max(sigu,1.e-6)
     sigv=sigu
 
