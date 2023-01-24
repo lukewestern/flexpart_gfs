@@ -2724,7 +2724,7 @@ subroutine readspecies(id_spec,pos_spec)
           pia=(2.0**0.5)*psa
           pla=(3.0**0.5)*psa
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, but no valid axes are provided."
+            write(*,*) "#### ERROR: Shape=3 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
             stop
           endif
@@ -2735,7 +2735,7 @@ subroutine readspecies(id_spec,pos_spec)
           pia=pla*((3.0/4.0)**(0.5))
           psa=pla*((2.0/3.0)**(0.5))
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, but no valid axes are provided."
+            write(*,*) "#### ERROR: Shape=4 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
             stop
           endif
@@ -2746,7 +2746,7 @@ subroutine readspecies(id_spec,pos_spec)
           pia=psa
           pla=psa*(2.0**(0.5))
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, but no valid axes are provided."
+            write(*,*) "#### ERROR: Shape=5 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
             stop
           endif
@@ -2757,7 +2757,7 @@ subroutine readspecies(id_spec,pos_spec)
           pia=psa
           pla=2*pia
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, but no valid axes are provided."
+            write(*,*) "#### ERROR: Shape=6 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
             stop
           endif
