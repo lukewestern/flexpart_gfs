@@ -10,6 +10,10 @@ These files define the simulation settings. At the start of a simulation, a copy
 All option files should be presented as namelists (i.e. &OPTIONFILE)
 ### COMMAND
 Sets the behaviour of the run (time range, backward or forward, output frequency, etc.)
+| Syntax | Description |
+| ----------- | ----------- |
+| Header | Title |
+| Paragraph | Text | 
 ### RELEASES
 ### SPECIES
 ### OUTGRID
