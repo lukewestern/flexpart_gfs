@@ -26,22 +26,22 @@ Sets the behaviour of the run (time range, backward or forward, output frequency
 | LSYNCTIME | All processes are synchronized to this time interval; all values above should be dividable by this number (seconds) | **900** |
 | CTL | Factor by which particle transport time step in the ABL must be smaller than the Lagrangian timescale t l ; resulting time steps can be shorter than LSYNCTIME; LSYNCTIME is used if CTL < 0 | **-5.0** |
 | IFINE | Additional reduction factor for time step used for vertical transport only considered if CTL > 1 | **4** |
-| IOUT | Switch determining the gridded output type | 0 (no gridded output), **1** (forward: mass concentration; backwards: residence time), 2 (volume mixing ratio), 3 (1 and 2 combined), 4 (plume trajectories), 5 (1 and 4 combined), Add 8 for NetCDF output |
-| IPOUT | Switch for particle position output | **0** (no particle output), 1 (particle output every LOUTSTEP), 2 (particle output at the end of the simulation) |
-| LSUBGRID | Increase in ABL heights due to subgrid-scale orographic variations | **0** (off), 1 (on) |
-| LCONVECTION | Switch for convection parameterization | 0 (off), **1** (on) |
-| LAGESPECTRA | Switch for calculation of age spectra (needs file AGECLASSES option file) | 0 (off), **1** (on) |
-| IPIN | Particle information input | **0** (using RELEASES option file), 1 (using restart.bin file), 2 (using previous partoutput file), 3 (self made initial conditions), 4 (restart.bin and self made initial conditions) |
-| IOUTPUTFOREACHRELEASE | Switch for separate output fields for each location in the RELEASE file | 0 (no), **1** (yes) |
-| IFLUX | Output of mass fluxes through output grid box boundaries (northward, southward, eastward, westward, upward and downward) | 0 (off), **1** (on) |
-| MDOMAINFILL | Switch for domain-filling calculations: particles are initialized to reproduce air density or stratospheric ozone density; for limited-area simulations, particles are generated at the domain boundaries | **0** (no), 1 (like air density), 2 (stratospheric ozone tracer) |
-| IND_SOURCE | Unit to be used at the source; see Seibert and Frank (2004); Eckhardt et al. (2017) | **1** (mass), 2 (mass mixing ratio) |
-| IND_RECEPTOR | Unit to be used at the receptor; see Seibert and Frank (2004); Eckhardt et al. (2017) | 0 (no receptor), **1** (mass), 2 (mass mixing ratio), 3 (backward only: wet deposition),  4 (backward only: dry depostion) |
-| MQUASILAG | Quasi-Lagrangian mode to track individual numbered particles | **0** (off), 1 (on) |
-| NESTED_OUTPUT | Switch to produce output also for a nested domain | **0** (no), 1 (yes) |
-| LINIT_COND | Switch to produce output sensitivity to initial conditions given in concentration or mixing ratio units (in backwards mode only) | **0** (no receptor), 1 (mass), 2 (mass mixing ratio) |
-| SURF_ONLY | Output of SRR for fluxes only for the lowest model layer, most useful for backward runs when LINIT_COND set to 1 or 2 | **0** (no), 1 (yes) |
-| CBLFLAG | Skewed rather than Gaussian turbulence in the convective ABL; when turned on, very short time steps should be used (see CTL and IFINE) | **0** (no), 1 (yes) |
+| IOUT | Switch determining the gridded output type | 0 (no gridded output), **1 (forward: mass concentration; backwards: residence time)**, 2 (volume mixing ratio), 3 (1 and 2 combined), 4 (plume trajectories), 5 (1 and 4 combined), Add 8 for NetCDF output |
+| IPOUT | Switch for particle position output | **0 (no particle output)**, 1 (particle output every LOUTSTEP), 2 (particle output at the end of the simulation) |
+| LSUBGRID | Increase in ABL heights due to subgrid-scale orographic variations | **0 (off)**, 1 (on) |
+| LCONVECTION | Switch for convection parameterization | 0 (off), **1 (on)** |
+| LAGESPECTRA | Switch for calculation of age spectra (needs file AGECLASSES option file) | 0 (off), **1 (on)** |
+| IPIN | Particle information input | **0 (using RELEASES option file)**, 1 (using restart.bin file), 2 (using previous partoutput file), 3 (self made initial conditions), 4 (restart.bin and self made initial conditions) |
+| IOUTPUTFOREACHRELEASE | Switch for separate output fields for each location in the RELEASE file | 0 (no), **1 (yes)** |
+| IFLUX | Output of mass fluxes through output grid box boundaries (northward, southward, eastward, westward, upward and downward) | 0 (off), **1 (on)** |
+| MDOMAINFILL | Switch for domain-filling calculations: particles are initialized to reproduce air density or stratospheric ozone density; for limited-area simulations, particles are generated at the domain boundaries | **0 (no)**, 1 (like air density), 2 (stratospheric ozone tracer) |
+| IND_SOURCE | Unit to be used at the source; see Seibert and Frank (2004); Eckhardt et al. (2017) | **1 (mass)**, 2 (mass mixing ratio) |
+| IND_RECEPTOR | Unit to be used at the receptor; see Seibert and Frank (2004); Eckhardt et al. (2017) | 0 (no receptor), **1 (mass)**, 2 (mass mixing ratio), 3 (backward only: wet deposition),  4 (backward only: dry depostion) |
+| MQUASILAG | Quasi-Lagrangian mode to track individual numbered particles | **0 (off)**, 1 (on) |
+| NESTED_OUTPUT | Switch to produce output also for a nested domain | **0 (no)**, 1 (yes) |
+| LINIT_COND | Switch to produce output sensitivity to initial conditions given in concentration or mixing ratio units (in backwards mode only) | **0 (no receptor)**, 1 (mass), 2 (mass mixing ratio) |
+| SURF_ONLY | Output of SRR for fluxes only for the lowest model layer, most useful for backward runs when LINIT_COND set to 1 or 2 | **0 (no)**, 1 (yes) |
+| CBLFLAG | Skewed rather than Gaussian turbulence in the convective ABL; when turned on, very short time steps should be used (see CTL and IFINE) | **0 (no)**, 1 (yes) |
 ### RELEASES
 ### SPECIES
 ### OUTGRID
