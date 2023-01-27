@@ -3,13 +3,15 @@ To run FLEXPART, there are three important (sets) of files that need to be speci
 These are:
 - the **option files**, defining the set-up of the run,
 - the **pathnames file**, defining the paths of where input and output are located, 
-- and the **AVAILABLE file**, listing all available meteorological input
+- the **AVAILABLE file**, listing all available meteorological input,
+
+Of course, there is also the **par_mod.f90** file, which needs to be specified before compiling (see section compiling), but the parameters in this file are expected to not have to be changed between simulations.
 
 In addition to the regular input files listed above, a simulation can also be started using a NetCDF file listing all particles to be released. This option can be switched on by specifying IPIN=3 in the COMMAND option file. More information about how to use this option can be found in Silvia Bucci's paper (link)
 
 ## Option files
 These files define the simulation settings. At the start of a simulation, a copy of each file will be written to the output directory defined in the **pathnames file**.
-All option files should be presented as namelists (i.e. &OPTIONFILE).
+All option files should be presented as namelists (i.e. &OPTIONFILE). A template of these files can be found in the options/ directory within the repository.
 ### COMMAND
 Sets the behaviour of the run (time range, backward or forward, output frequency, etc.). A table of all options is listed below.
 - **Time variables**: Flexpart can be run in forward or backward mode. In forward mode, particles are being traced forward in time, while in backward more, the origin of particles are being traced, going backward in time. This can be set by the LDIRECT variable. The start and end of the simulation are set by IBDATE:IBTIME and IEDATE:IETIME. IEDATE:IETIME is always at a later time than IBDATE:IBTIME, also for backwards simulations. Output variables can be written at specified times: LOUTSTEP, and restart files will be written at every LOUTRESTART interval.
@@ -49,12 +51,68 @@ from a particle netCDF file written in a previous run (only works when the corre
 | SURF_ONLY | Output of SRR for fluxes only for the lowest model layer, most useful for backward runs when LINIT_COND set to 1 or 2 | **0 (no)**, 1 (yes) |
 | CBLFLAG | Skewed rather than Gaussian turbulence in the convective ABL; when turned on, very short time steps should be used (see CTL and IFINE) | **0 (no)**, 1 (yes) |
 ### RELEASES
+This file contains the information about the particles initial conditions: how many, where and when they will be released, their mass and what species they are (defined in the SPECIES files).
 ### SPECIES
+The subdirectory options/SPECIES/ needs to contain one or more files named SPECIES_nnn. For each species nnn listed in the header section of the RELEASES file, such a SPECIES_nnn file must exist. The parameters in the SPECIES_nnn file, contained in the namelist &SPECIES_PARAMS, set the species name and define the physicochemical properties of the species; they are described in Table 10. These are important for simulating radioactive or chemical decay, wet deposition (scavenging) for gases and aerosols, dry deposition for gases and aerosols, particle settling, and chemical reaction with the OH radical. Some parameters are only necessary for gas tracers and some are only necessary for aerosol tracers; thus, a namelist does not need to contain all parameters for both gases and particles. Optionally, since FLEXPART version 6.0, information about temporal emission variations can be added at the end of the file.
+
+The following specifies the parameters associated with each physicochemical process simulated. 
+- Radioactive or chemical decay: set with pdecay; off if pdecay<0.
+- Wet deposition for gases: set with pweta_gas, pwetb_gas (for below-cloud) and phenry (for in-cloud). Switch off for both in- and below-cloud if either pweta_gas or pwetb_gas is negative.
+- Wet deposition for aerosols: set with pccn_aero, pin_aero for in-cloud scavenging and pcrain_aero, pcsnow_aero and pdquer for below-cloud scavenging.
+- Dry deposition for aerosols: set with pdensity, pdquer, pndia, and psigma; off if pdensity < 0. 
+- Dry deposition for gases: set with phenry, pf0 and preldiff; off if preldiff < 0. Alternatively, a constant dry deposition velocity pdryvel can be given. 
+- Settling of particles: set with pdensity and pdquer.
+- Shape of particles: set with PSHAPE, PASPECTRATIO, PLA, PIA, PSA, and PORIENT
+- OH reaction: chemical reaction with the OH radical can be turned on by giving parameter pohcconst (cm 3 molecule −1 s −1 ), pohdconst (K) and pohnconst (no unit) positive values; defined by Eq. (13) in Pisso et al. (2019).
+- Emission variation: emission variation during the hours (local time) of the day and during the days of the week can be specified. Factors should be 1.0 on average to obtain unbiased emissions overall. The area source factors (useful, e.g., for traffic emissions) are applied to emis sions with a lower release height below 0.5 m above ground level (a.g.l.) and the point source factors (useful, e.g., for power plant emissions) to emissions with a lower release height than 0.5 m a.g.l. Default values are 1.0.
+
+| Variable name | Description |
+| ----------- | ----------- |
+|PSPECIES | Tracer name |
+|PDECAY | Species half life |
+|PWETA_GAS | Below-cloud scavenging (gases) - A (weta_gas) |
+|PWETB_GAS | Below-cloud scavenging (gases) - B (wetb_gas) |
+|PCRAIN_AERO | Below-cloud scavenging (particles) - Crain (crain_aero) |
+|PCSNOW_AERO | Below-cloud scavenging (particles) - Csnow (csnow_aero) |
+|PCCN_AERO | In-cloud scavenging (particles) - CCNeff (ccn_aero) |
+|PIN_AERO | In-cloud scavenging (particles) - INeff (in_aero) |
+|PDENSITY | Dry deposition (particles) - rho |
+|PDQUER | Dry deposition (particles) - dquer (equivalent diameter for shape) |
+|PDSIGMA | Dry deposition (particles) - dsig |
+|PNDIA | Dry deposition (particles) - ndia |
+|PDRYVEL | Alternative: dry deposition velocity |
+|PRELDIFF | Dry deposition (gases) - D |
+|PHENRY | Dry deposition (gases) - Henrys const. |
+|PF0 | Dry deposition (gases) - f0 (reactivity) |
+|PWEIGHTMOLAR | molweight |
+|POHCCONST | OH Reaction rate - C [cm^3/molecule/sec] |
+|POHDCONST | OH Reaction rate - D [K] |
+|POHNCONST | OH Reaction rate - C [cm^3/molecule/sec] |
+|PSHAPE | 0 for sphere, 1 any shape (defined by axes PLA,PIA,PSA), 2-cylinder, 3-cube, 4-tetrahedron, 5-octahedron, 6-ellipsoid |
+|PASPECTRATIO | Aspect ratio of cylinders: works for PSHAPE=2 only |
+|PLA | Longest axis in micrometer (Bagheri & Bonadonna 2016): only for PSHAPE=1 |
+|PIA | Intermediate axis in micrometer: only for PSHAPE=1 |
+|PSA | Smallest axis in micrometer: only for PSHAPE=1 |
+|PORIENT | 0 for horizontal, 1 for random orientation of particles, 2 for an average between random and horizontal |
+
 ### OUTGRID
 ### OUTGRID_NEST
 ### AGECLASSES
 ### RECEPTORS
 ### PARTOPTIONS
+This option file is only necessary when requiring particle properties to be written out (IPOUT=1 in the COMMAND option file). In this file, the user can set what particle properties and interpolated fields they want to be written to files. At the moment, the available fields that can be written to file are: 
+- particle positions (longitude, latitude and height), 
+- potential vorticity, 
+- specific humidity, 
+- density, temperature, 
+- pressure, 
+- particle mass, 
+- separate cumulative wet and dry deposition masses, 
+- settling velocity, 
+- 3D velocities, 
+- the height of the PBL, tropopause and topography. 
+Each property can also be printed out as an average instead of an instantaneous value. For example, if one makes internal time steps of 600 seconds each,
+and writes properties to files every hour, the outputted value will be the average of the 6 previous values of the particle of the past hour. Note that this comes with an additional computational cost.
 
 ## Pathnames file
 
