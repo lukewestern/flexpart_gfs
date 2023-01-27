@@ -56,5 +56,7 @@ Sets the behaviour of the run (time range, backward or forward, output frequency
 
 ## Restarting a simulation
 In case your simulation crashes or if you simply want to extend your simulation period, it is possible to run using the restart option (COMMAND option file: IPIN=1). You will need to decide if you will need this option before starting your initial simulation: LOUTRESTART in the COMMAND option file needs to be set to an appropriate time interval. For example, you can choose to set LOUTRESTART = 172800 s to get a new restart file ever 2 days. The restart files are written in binary and their name specifies the time within your simulation period they are written.
-To run from one of these files, simply rename the desired restart_XXX.bin file to restart.bin, set IPIN=1 and you can restart your run from there. 
-WARNING: If you chose to use gridded data output (IOUT>0), then new data will be written to this file. If it is not desirable to overwrite a gridded 
+
+To run from one of these files, simply rename the desired restart_XXX.bin file to restart.bin, set IPIN=1 and you can restart your run from there.
+
+WARNING: If you chose to use gridded data output (IOUT>0), then new data will be written to this file. If it is not desirable to overwrite a gridded data output file from a previous run, copy this file to another directory.
