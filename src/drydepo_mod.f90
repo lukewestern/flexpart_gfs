@@ -1301,23 +1301,26 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
     if (density(ic).gt.0.) then
       do j=1,ndia(ic)         ! loop over all diameter intervals
         if (ustar.gt.eps) then          
+
+          ! Stokes number for each diameter interval
+          !*****************************************
+          ! Use this stokes number for different shapes
+          stokes=vset(ic,j)/ga*ustar*ustar/nyl
+          alpha=-3./stokes
+
+          ! Deposition layer resistance
+          !****************************
+
+          if (alpha.le.log10(eps)) then
+            rdp=1./(schmi(ic,j)*ustar)
+          else
+            rdp=1./((schmi(ic,j)+10.**alpha)*ustar)
+          endif
+
           if (shape(ic).eq.0) then
 
-            ! Stokes number for each diameter interval
-            !*****************************************
-            ! Use this stokes number for different shapes
-            stokes=vset(ic,j)/ga*ustar*ustar/nyl
-            alpha=-3./stokes
-
-            ! Deposition layer resistance
-            !****************************
-
-            if (alpha.le.log10(eps)) then
-              rdp=1./(schmi(ic,j)*ustar)
-            else
-              rdp=1./((schmi(ic,j)+10.**alpha)*ustar)
-            endif
             vdepj=vset(ic,j)+1./(ra+rdp+ra*rdp*vset(ic,j))
+
           else ! Daria Tatsii: Drag coefficient scheme by Bagheri & Bonadonna 2016
                ! Settling velocities of other shapes
             dfdr=density(ic)/rhoa
@@ -1367,8 +1370,9 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
               reynolds=dquer(ic)/1.e6*abs(settling)/nyl
               settling_old=settling
             end do
-            ! No layer resistance: deposition velocity is equal to settling velocity 
-            vdepj=abs(settling)
+            ! We assume aerodynamic resistance ra and quasi-laminar sub-layer resistance rdp
+            vdepj=abs(settling)+1./(ra+rdp+ra*rdp*abs(settling))
+
           endif
 
         else
