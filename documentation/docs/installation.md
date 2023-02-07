@@ -36,15 +36,17 @@ These libraries are usually available as packages in most Linux distributions an
   - In Fedora: `no idea`
   - In MacOS + Homebrew: `brew install eccodes netcdf`
 
+## Parameters
+Before compiling FLEXPART, you might want to change parameters defined in par_mod.f90
+
+- *wind_coord_type*: for ECMWF meteorological data, you can set this to ETA to use the native eta coordinate system. Otherwise, set this to METER.
+- *mesoscale_turbulence*: by default the mesocale turbulence is switched off, but can be switched on setting this variable to .true.
+- *max_partoutput_filesize*: maximum output of each partoutput NetCDF-4 file in Mb before a new one is created.
+- *max_numthreads_grid*: when using many openmp threads and gridded output (IOUT>0 in COMMAND option file), this variable sets a maximum on how many threads are used for doing the reductions on the grid. A high number can result in a significant increase in RAM usage.
+
 ## Compiling
 _FLEXPART_ is compiled with [make](https://www.gnu.org/software/make/), which uses the makefile in the `src` subdirectory. In the makefile, make sure that the library and include paths point to the directories where `ecCodes` and `netCDF` are installed. Starting from the root directory, you can then compile _FLEXPART_ with the following steps:
 
     $ cd src/
-    $ make
-
-Before compiling FLEXPART, you might want to change parameters defined in par_mod.f90
-- wind_coord_type: for ECMWF meteorological data, you can set this to ETA to use the native eta coordinate system. Otherwise, set this to METER.
-- mesoscale_turbulence: by default the mesocale turbulence is switched off, but can be switched on setting this variable to .true.
-- max_partoutput_filesize: maximum output of each partoutput NetCDF-4 file in Mb before a new one is created.
-- max_numthreads_grid: when using many openmp threads and gridded output (IOUT>0 in COMMAND option file), this variable sets a maximum on how many threads are used for doing the reductions on the grid. A high number can result in a significant increase in RAM usage.
+    $ make -j -f <prefered_makefile>
 
