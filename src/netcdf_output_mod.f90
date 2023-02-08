@@ -2485,14 +2485,17 @@ subroutine readinitconditions_netcdf()
   use particle_mod
   use date_mod
   use coordinates_ecmwf
+  use readoptions
 
   implicit none 
 
   integer             :: ncidend,tIDend,pIDend,tempIDend,stat
   integer             :: plen,tend,i,j,release_max,nsp
-  real                :: totmass
+  integer             :: zkind
+  real                :: totmass,cun
   integer,allocatable, dimension (:) :: specnum_rel,numpoint_max
   real,allocatable,dimension(:,:) :: mass_temp
+  real,allocatable,dimension(:) :: vsh,fracth,schmih
 
   integer :: idummy = -8
   
@@ -2516,6 +2519,11 @@ subroutine readinitconditions_netcdf()
   ! Which species?
   call nf90_err(nf90_inquire_attribute(ncid=ncidend,name='species',varid=tempIDend))
   call nf90_err(nf90_get_att(ncid=ncidend,varid=tempIDend,name='species',values=specnum_rel(1:nspec)))
+
+  ! Above sea-level or ground?
+  call nf90_err(nf90_inquire_attribute(ncid=ncidend,name='kindz',varid=tempIDend))
+  call nf90_err(nf90_get_att(ncid=ncidend,varid=tempIDend,name='kindz',values=zkind))
+  kindz=zkind
 
   ! Get the particle dimension
   call nf90_err(nf90_inq_dimid(ncid=ncidend,name='particle',dimid=pIDend))
@@ -2580,6 +2588,12 @@ subroutine readinitconditions_netcdf()
     if (part(i)%npoint.gt.release_max) release_max=part(i)%npoint
   end do l1
 
+  if (ioutputforeachrelease.eq.1) then
+    maxpointspec_act=numpoint
+  else
+    maxpointspec_act=1
+  endif
+
   if (release_max.gt.numpoint) then
     write(*,*) "WARNING: release numbers in part_ic.nc are not consecutive:", &
       release_max, "is larger than the total number of releases:", numpoint, &
@@ -2596,15 +2610,26 @@ subroutine readinitconditions_netcdf()
   deallocate(numpoint_max)
 
   xmass=0
+  npart=0
+  ireleasestart=-1
+  ireleaseend=-1
   do i=1,plen
-    do nsp=1,nspec
-      do j=1,numpoint
+    do j=1,numpoint
+      do nsp=1,nspec
         xmass(j,nsp) = xmass(j,nsp)+part(i)%mass(nsp)
       end do 
+      if (part(i)%npoint.eq.j) then 
+        npart(j)=npart(j)+1
+        if ((ireleasestart(j).gt.part(i)%tstart).or.(ireleasestart(j).eq.-1)) ireleasestart(j)=part(i)%tstart
+        if ((ireleaseend(j).le.part(i)%tstart).or.(ireleaseend(j).eq.-1)) ireleaseend(j)=part(i)%tstart
+      endif
     end do
   end do
+  if ((iout.eq.4).or.(iout.eq.5)) then
+    write(*,*) "ERROR: IPIN=3 or IPIN=4, using the part_ic.nc file, is not possible in combination with plume", &
+      "computations (IOUT=4 or 5)."
+  endif
 
-  totmass=sum(xmass)
   part(:)%idt=part(:)%tstart
   do i=1,plen
     part(i)%nclass=min(int(ran1(idummy,0)*real(nclassunc))+1, &
@@ -2615,12 +2640,114 @@ subroutine readinitconditions_netcdf()
       call spawn_particle(0,i)
     endif
   end do
-  xmass(1,1)=totmass
   write(*,FMT='(A,ES14.7)') ' Total mass to be released:', sum(xmass(1:numpoint,1:nspec))
   call get_total_part_num(numpart)
   numparticlecount=numpart
-  npart(1)=numpart
   call nf90_err(nf90_close(ncidend))
+
+
+  ! Read species and derive initial conditions
+
+  !now save the information
+  DEP=.false.
+  DRYDEP=.false.
+  WETDEP=.false.
+  OHREA=.false.
+  do i=1,maxspec
+    DRYDEPSPEC(i)=.false.
+    WETDEPSPEC(i)=.false.
+  end do
+
+  do nsp=1,nspec
+    call readspecies(specnum_rel(nsp),nsp)
+    ! Allocate temporary memory necessary for the different diameter bins
+    !********************************************************************
+    allocate(vsh(ndia(i)),fracth(ndia(i)),schmih(ndia(i)))
+
+    ! Molecular weight
+    !*****************
+    if (((iout.eq.2).or.(iout.eq.3)).and.(weightmolar(i).lt.0.)) then
+      write(*,*) 'For mixing ratio output, valid molar weight'
+      write(*,*) 'must be specified for all simulated species.'
+      write(*,*) 'Check table SPECIES or choose concentration'
+      write(*,*) 'output instead if molar weight is not known.'
+      stop
+    endif
+
+    ! Radioactive decay
+    !******************
+    decay(i)=0.693147/decay(i) !conversion half life to decay constant
+
+  ! Dry deposition of gases
+  !************************
+
+    if (reldiff(i).gt.0.) rm(i)=1./(henry(i)/3000.+100.*f0(i))    ! mesophyll resistance
+
+  ! Dry deposition of particles
+  !****************************
+
+    vsetaver(i)=0.
+    cunningham(i)=0.
+    dquer(i)=dquer(i)*1000000.         ! Conversion m to um
+    if (density(i).gt.0.) then         ! Additional parameters
+      call part0(dquer(i),dsigma(i),density(i),ndia(i),fracth,schmih,cun,vsh)
+      do j=1,ndia(i)
+        fract(i,j)=fracth(j)
+        schmi(i,j)=schmih(j)
+        vset(i,j)=vsh(j)
+        cunningham(i)=cunningham(i)+cun*fract(i,j)
+        vsetaver(i)=vsetaver(i)-vset(i,j)*fract(i,j)
+      end do
+      if (lroot) write(*,*) 'Average settling velocity: ',i,vsetaver(i)
+    endif
+
+    ! Dry deposition for constant deposition velocity
+    !************************************************
+
+    dryvel(i)=dryvel(i)*0.01         ! conversion to m/s
+
+    ! Check if wet deposition or OH reaction shall be calculated
+    !***********************************************************
+
+    ! ESO 04.2016 check for below-cloud scavenging (gas or aerosol)
+    if ((dquer(i).le.0..and.(weta_gas(i).gt.0. .or. wetb_gas(i).gt.0.)) .or. &
+         &(dquer(i).gt.0. .and. (crain_aero(i) .gt. 0. .or. csnow_aero(i).gt.0.)))  then
+      WETDEP=.true.
+      WETDEPSPEC(i)=.true.
+      if (lroot) then
+        write (*,*) '  Below-cloud scavenging: ON'
+      end if
+    else
+      if (lroot) write (*,*) '  Below-cloud scavenging: OFF'
+    endif
+
+    ! NIK 31.01.2013 + 10.12.2013 + 15.02.2015
+    if (dquer(i).gt.0..and.(ccn_aero(i).gt.0. .or. in_aero(i).gt.0.))  then
+      WETDEP=.true.
+      WETDEPSPEC(i)=.true.
+      if (lroot) then
+        write (*,*) '  In-cloud scavenging: ON'
+      end if
+    else
+      if (lroot) write (*,*) '  In-cloud scavenging: OFF' 
+    endif
+
+    if (ohcconst(i).gt.0.) then
+      OHREA=.true.
+      if (lroot) write (*,*) '  OHreaction switched on: ',ohcconst(i),i
+    endif
+
+    if ((reldiff(i).gt.0.).or.(density(i).gt.0.).or.(dryvel(i).gt.0.)) then
+      DRYDEP=.true.
+      DRYDEPSPEC(i)=.true.
+    endif
+
+    deallocate(vsh,fracth,schmih)
+  end do ! end loop over species
+
+  if (WETDEP.or.DRYDEP) DEP=.true.
+
+  deallocate(specnum_rel)
 end subroutine readinitconditions_netcdf
 
 end module netcdf_output_mod

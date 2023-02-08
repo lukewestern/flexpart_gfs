@@ -165,7 +165,7 @@ initialise_mod.o: com_mod.o turbulence_mod.o interpol_mod.o par_mod.o random_mod
 interpol_mod.o: par_mod.o com_mod.o turbulence_mod.o particle_mod.o windfields_mod.o
 mean_mod.o: par_mod.o
 netcdf_output_mod.o: com_mod.o mean_mod.o outg_mod.o par_mod.o point_mod.o \
-	unc_mod.o particle_mod.o windfields_mod.o date_mod.o
+	unc_mod.o particle_mod.o windfields_mod.o date_mod.o readoptions.o
 oh_mod.o: com_mod.o par_mod.o date_mod.o particle_mod.o windfields_mod.o
 outg_mod.o: par_mod.o com_mod.o oh_mod.o par_mod.o unc_mod.o windfields_mod.o interpol_mod.o \
         coordinates_ecmwf.o particle_mod.o

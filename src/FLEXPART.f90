@@ -276,7 +276,7 @@ subroutine read_options_and_initialise_flexpart
 
   ! Read the coordinates of the release locations
   !**********************************************
-  call readreleases ! CHECK ETA
+  if (ipin.le.2) call readreleases ! CHECK ETA
   ! Convert the release point coordinates from geografical to grid coordinates
   !***************************************************************************
   call coordtrafo(nxmin1,nymin1) ! CHECK ETA
