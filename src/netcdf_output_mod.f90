@@ -2486,6 +2486,7 @@ subroutine readinitconditions_netcdf()
   use date_mod
   use coordinates_ecmwf
   use readoptions
+  use drydepo_mod
 
   implicit none 
 
