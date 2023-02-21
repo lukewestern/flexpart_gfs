@@ -2629,6 +2629,7 @@ subroutine readinitconditions_netcdf()
   if ((iout.eq.4).or.(iout.eq.5)) then
     write(*,*) "ERROR: IPIN=3 or IPIN=4, using the part_ic.nc file, is not possible in combination with plume", &
       "computations (IOUT=4 or 5)."
+    stop
   endif
 
   part(:)%idt=part(:)%tstart
