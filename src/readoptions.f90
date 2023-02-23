@@ -3254,12 +3254,12 @@ subroutine readpartoptions
 
   return
 
-9999   write(*,*) ' #### FLEXPART MODEL ERROR! FILE "AGECLASSES" #### '
+9999   write(*,*) ' #### FLEXPART MODEL ERROR! FILE "PARTOPTIONS" #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(1)(1:length(1))
   stop
 
-10000  write(*,*) ' #### FLEXPART MODEL ERROR! FILE "AGECLASSES" #### '
+10000  write(*,*) ' #### FLEXPART MODEL ERROR! FILE "PARTOPTIONS" #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(2)(1:length(2))
   stop

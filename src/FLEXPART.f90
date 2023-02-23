@@ -203,6 +203,16 @@ subroutine read_options_and_initialise_flexpart
   !********************************
   call readageclasses
 
+
+  ! Allocate memory for windfields
+  !*******************************
+  call windfields_allocate
+  if (numbnests.ge.1) then
+    ! If nested wind fields are used, allocate arrays
+    !************************************************
+    call windfields_nest_allocate
+  endif
+
   ! Read, which wind fields are available within the modelling period
   !******************************************************************
   call readavailable
@@ -222,9 +232,6 @@ subroutine read_options_and_initialise_flexpart
     stop
   endif
 
-  ! Allocate memory for windfields
-  !*******************************
-  call windfields_allocate
 
   ! Read the model grid specifications,
   ! both for the mother domain and eventual nests
@@ -232,7 +239,7 @@ subroutine read_options_and_initialise_flexpart
   if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
     call gridcheck_ecmwf
   else 
-    call gridcheck_gfs    
+    call gridcheck_gfs
   endif
 
   ! Set the upper level for where the convection will be working
@@ -242,7 +249,6 @@ subroutine read_options_and_initialise_flexpart
   if (numbnests.ge.1) then
   ! If nested wind fields are used, allocate arrays
   !************************************************
-    call windfields_nest_allocate
     call gridcheck_nests
   endif
 
