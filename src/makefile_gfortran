@@ -68,7 +68,7 @@ endif
 VPATH = gributils/
 
 ## OPTIMIZATION LEVEL
-O_LEV = 2 # [0,1,2,3,g,s,fast]
+O_LEV = 3 # [0,1,2,3,g,s,fast]
 O_LEV_DBG = g # [0,g]
 FUSER = -g -fopenmp -march=skylake-avx512# -fopenmp #-pg -fbacktrace -fcheck=all -fbounds-check #-fopenmp#-p -fbacktrace -fopenmp #-tau_options=-optCompInst -tau_makefile=/home/lucie/Codes/Tau/x86_64/lib/Makefile.tau-mpi-pdt-openmp-opari#-fdefault-real-8# -freal-8-real-4#-pg -fcheck=all
 mpi: FUSER := $(FUSER) -Dusempi #-MM -MT -MD
