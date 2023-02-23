@@ -719,7 +719,7 @@ subroutine readcommand
   endif
 #ifndef USE_NCF
   if (ipout.ne.0) then
-    write(*,*) 'ERROR: NETCDF missing! Please recompile with the netcdf
+    write(*,*) 'ERROR: NETCDF missing! Please recompile with the netcdf'
     write(*,*) 'library if you want the particle dump or set IPOUT=0.'
     stop    
   endif
