@@ -71,7 +71,7 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
   integer :: i,n,nix,njy,indzh
 
   ! Variables needed for drag coefficient calculation
-  real :: dfdr,f,e,kn,ks,alpha2,beta2
+  real :: dfdr,f,e,kn,ks,alpha1,alpha2,beta1,beta2,ks1,ks2,kn1,kn2
 
   !*****************************************************************************
   ! 1. Interpolate temperature and density: nearest neighbor interpolation sufficient
@@ -125,18 +125,23 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
   ! Iteration to determine both Reynolds number and settling velocity
   !******************************************************************
 
-  settling_old=vsetaver(nsp)    ! initialize iteration with Stokes' law, constant viscosity estimate
+  settling_old=vsetaver(nsp)    ! initialize iteration with Stokes' law to define settling velocity of a sphere, constant viscosity estimate
 
   if (shape(nsp).eq.0) then
     do i=1,20    ! do a few iterations Why 20???
 
-      if (reynolds.lt.1.917) then
-        c_d=24./reynolds
-      else if (reynolds.lt.500.) then
-        c_d=18.5/(reynolds**0.6)
-      else
-        c_d=0.44
-      endif
+      ! if (reynolds.lt.1.917) then
+      !   c_d=24./reynolds
+      ! else if (reynolds.lt.500.) then
+      !   c_d=18.5/(reynolds**0.6)
+      ! else
+      !   c_d=0.44
+      ! endif
+
+      ! Clift and Guavin 1971 model
+ 
+      c_d=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
+              0.42/(1.0+42500.0/(reynolds**1.16))
 
       settling=-1.* &
            sqrt(4*ga*dquer(nsp)/1.e6*density(nsp)*cunningham(nsp)/ &
@@ -148,27 +153,43 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
       settling_old=settling
     end do
 
-  else ! Daria Tatsii: Bagheri & Bonadonna 2016
+  else ! Drag coefficient scheme by Bagheri & Bonadonna, 2016 to define settling velocities of other shapes (by D.Tatsii)
     dfdr=density(nsp)/airdens
 
-    if (orient(nsp).eq.1) then
-      alpha2=0.45+10.0/exp(2.5*log10(dfdr)+30.0)
-      beta2=1.0-37.0/exp(3.0*log10(dfdr)+100.0)
-      ks=(Fs(nsp)**(1./3.) + Fs(nsp)**(-1./3))/2.
-    else
+    ! Orientation of particles
+    !*************************
+    if (orient(nsp).eq.0) then
+      ! Horizontal orientation
       alpha2=0.77 ! B&B: eq. 32
       beta2=0.63
-      ks=0.5*((Fs(nsp)**0.05)+(Fs(nsp)**(-0.36)))           ! horizontal orientation ???
+      ks=0.5*((Fs(nsp)**0.05)+(Fs(nsp)**(-0.36)))  ! B&B Figure 12 k_(s,max)
+      kn=10.**(alpha2*(-log10(Fn(nsp)))**beta2)
+    else if (orient(nsp).eq.1) then 
+      ! Random orientation
+      alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
+      beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
+      ks=(Fs(nsp)**(1./3.) + Fs(nsp)**(-1./3))/2.
+      kn=10.**(alpha1*(-log10(Fn(nsp)))**beta1)
+    else
+      ! The average of random and horizontal orientation
+      alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
+      beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
+      alpha2=0.77 ! B&B: eq. 32
+      beta2=0.63
+      ks1=(Fs(nsp)**(1./3.) + Fs(nsp)**(-1./3))/2.
+      kn1=10.**(alpha1*(-log10(Fn(nsp)))**beta1)
+      ks2=0.5*((Fs(nsp)**0.05)+(Fs(nsp)**(-0.36)))  ! B&B Figure 12 k_(s,max)
+      kn2=10.**(alpha2*(-log10(Fn(nsp)))**beta2)
+      ks=(ks1+ks2)/2.
+      kn=(kn1+kn2)/2.
     endif
-
-    kn=10.**(alpha2*(-log10(Fn(nsp)))**beta2)
 
     do i=1,20
       c_d=(24.*ks/reynolds)*(1.+0.125*((reynolds*kn/ks)**(2./3.)))+ &
         (0.46*kn/(1.+5330./(reynolds*kn/ks)))
 
       settling=-1.* &
-              sqrt(4.*ga*dquer(nsp)/1.e6*(density(nsp)-airdens)/ &
+              sqrt(4.*ga*dquer(nsp)/1.e6*density(nsp)*cunningham(nsp)/ &
               (3.*c_d*airdens))
 
       if (abs((settling-settling_old)/settling).lt.0.01) exit

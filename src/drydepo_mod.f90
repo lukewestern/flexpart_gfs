@@ -1329,18 +1329,18 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
 
             ! Orientation of particles
             !*************************
-            if (orient(ic).eq.1) then 
-              ! Random orientation
-              alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
-              beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
-              ks=(Fs(ic)**(1./3.) + Fs(ic)**(-1./3))/2.
-              kn=10.**(alpha1*(-log10(Fn(ic)))**beta1)
-            else if (orient(ic).eq.2) then
+            if (orient(ic).eq.0) then
               ! Horizontal orientation
               alpha2=0.77 ! B&B: eq. 32
               beta2=0.63
               ks=0.5*((Fs(ic)**0.05)+(Fs(ic)**(-0.36)))  ! B&B Figure 12 k_(s,max)
               kn=10.**(alpha2*(-log10(Fn(ic)))**beta2)
+            else if (orient(ic).eq.1) then 
+              ! Random orientation
+              alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
+              beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
+              ks=(Fs(ic)**(1./3.) + Fs(ic)**(-1./3))/2.
+              kn=10.**(alpha1*(-log10(Fn(ic)))**beta1)
             else
               ! The average of random and horizontal orientation
               alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
@@ -1398,10 +1398,6 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
         !***********************************************************************
 
         vdep(ic)=vdep(ic)+vdepj*fract(ic,j)
-            
-            !print*, 'partdep:113: ic', ic, 'vdep', vdep
-            !stop
-
           
       end do
     endif
