@@ -1837,7 +1837,7 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
 !$OMP DO
   do jy=1,nyn(l)-2
     cosf(jy)=1./cos((real(jy)*dyn(l)+ylat0n(l))*pi180)
-    do ix=1,nx-2
+    do ix=1,nxn(l)-2
       idx(ix,jy)=2
     end do
   end do
