@@ -1907,11 +1907,11 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
 !$OMP END DO NOWAIT
 
 !$OMP DO
-    do jy=0,nymin1
-      do ix=0,nxmin1
-        drhodzetan(0:nxm1,0:nym1,1,n,l)=(rhoetan(0:nxm1,0:nym1,2,n,l)-rhoetan(0:nxm1,0:nym1,1,n,l))/ &
+    do jy=0,nym1
+      do ix=0,nxm1
+        drhodzetan(ix,jy,1,n,l)=(rhoetan(ix,jy,2,n,l)-rhoetan(ix,jy,1,n,l))/ &
              (height(2)-height(1))
-        drhodzetan(0:nxm1,0:nym1,nz,n,l)=drhodzetan(0:nxm1,0:nym1,nz-1,n,l)
+        drhodzetan(ix,jy,nz,n,l)=drhodzetan(ix,jy,nz-1,n,l)
 
         ! Convert w from Pa/s to eta/s, following FLEXTRA
         !************************************************
