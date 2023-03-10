@@ -363,7 +363,6 @@ subroutine initialize_cbl_vel(idum,zp,ust,wst,h,sigmaw,wp,ol,ithread)
   real timedir
   real ol, transition
   integer :: idum
-  integer :: thread
   
   !---------------------------------------------------------------------------  
   timedir=ldirect !direction of time forward (1) or backward(-1)

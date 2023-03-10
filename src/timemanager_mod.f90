@@ -239,7 +239,7 @@ subroutine timemanager
   !*************************************
 
     if ((ldirect.eq.-1).and.(lconvection.eq.1).and.(itime.lt.0)) then
-      call convmix(itime) !OMP (not the nested part yet), conv_mod.f90
+      call convmix(itime) !OMP, conv_mod.f90
     endif
 
   ! Get hourly OH fields if not available 

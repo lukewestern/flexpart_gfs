@@ -354,6 +354,8 @@ subroutine convmix(itime)
   ! assign new vertical position to particle
       do kpart=frst(kk), frst(kk+1)-1
         ipart = ipoint(kpart)
+        ! do not consider particles that are not (yet) part of simulation
+        if (.not. part(ipart)%alive) cycle
         ztold=real(part(ipart)%z)
         call redist(itime,ipart,ktop,ipconv)
   !    if (ipconv.le.0) sumconv = sumconv+1
