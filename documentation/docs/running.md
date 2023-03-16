@@ -82,7 +82,7 @@ The following specifies the parameters associated with each physicochemical proc
 - Dry deposition for gases: set with phenry, pf0 and preldiff; off if preldiff < 0. Alternatively, a constant dry deposition velocity pdryvel can be given. 
 - Settling of particles: set with pdensity and pdquer.
 - Shape of particles: set with PSHAPE, PASPECTRATIO, PLA, PIA, PSA, and PORIENT
-- OH reaction: chemical reaction with the OH radical can be turned on by giving parameter pohcconst (cm 3 molecule −1 s −1 ), pohdconst (K) and pohnconst (no unit) positive values; defined by Eq. (13) in Pisso et al. (2019).
+- OH reaction: chemical reaction with the OH radical can be turned on by giving parameter pohcconst (cm^3 molecule^-1 s^-1 ), pohdconst (K) and pohnconst (no unit) positive values; defined by Eq. (13) in Pisso et al. (2019).
 - Emission variation: emission variation during the hours (local time) of the day and during the days of the week can be specified. Factors should be 1.0 on average to obtain unbiased emissions overall. The area source factors (useful, e.g., for traffic emissions) are applied to emis sions with a lower release height below 0.5 m above ground level (a.g.l.) and the point source factors (useful, e.g., for power plant emissions) to emissions with a lower release height than 0.5 m a.g.l. Default values are 1.0.
 
 | Variable name | Description |

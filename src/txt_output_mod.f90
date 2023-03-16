@@ -1,6 +1,6 @@
 module txt_output_mod
-	
-	implicit none
+
+  implicit none
 
 
 contains

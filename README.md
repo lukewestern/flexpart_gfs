@@ -1,8 +1,5 @@
 # README #
-asdf
 This is our version on Gitlab.... :)
-
-Uhu
 
 ### What is this repository for? ###
 

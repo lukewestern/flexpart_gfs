@@ -1,5 +1,5 @@
 
-		FLEXPART VERSION 10.0 beta (MPI)
+FLEXPART VERSION 10.0 beta (MPI)
 
 Description
 -----------
@@ -21,7 +21,7 @@ Installation
   A MPI library must be installed on the target platform, either as a 
   system library or compiled from source.
 
-  So far, we have tested the following freely available implementations: 	   
+  So far, we have tested the following freely available implementations:
   mpich2  -- versions 3.0.1, 3.0.4, 3.1, 3.1.3
   OpenMPI -- version 1.8.3
 
@@ -124,22 +124,22 @@ Performance efficency considerations
   A) Running without dedicated reader process
   ----------------------------------------
   Running REF1 with 100M particles on 16 processes (NILU machine 'dmz-proc04'), 
-  a speedup close to 8 is observed (~50% efficiency).
+  a speedup close to 8 is observed (ca 50% efficiency).
 
   Running REF1 with 10M particles on 8 processes (NILU machine 'dmz-proc04'), 
-  a speedup close to 3 is observed (~40% efficiency). Running with 16
-  processes gives only marginal improvements (speedup ~3.5) because of the 'getfields'
+  a speedup close to 3 is observed (ca 40% efficiency). Running with 16
+  processes gives only marginal improvements (speedup ca 3.5) because of the 'getfields'
   bottleneck.
   
-  Running REF1 with 1M particles: Here 'getfields' consumes ~70% of the CPU
-  time. Running with 4 processes gives a speedup of ~1.5. Running with more
+  Running REF1 with 1M particles: Here 'getfields' consumes ca 70% of the CPU
+  time. Running with 4 processes gives a speedup of ca 1.5. Running with more
   processes does not help much here.
 
   B) Running with dedicated reader process
   ----------------------------------------
 
   Running REF1 with 40M particles on 16 processes (NILU machine 'dmz-proc04'), 
-  a speedup above 10 is observed (~63% efficiency).
+  a speedup above 10 is observed (ca 63% efficiency).
 
   :TODO: more to come...
 

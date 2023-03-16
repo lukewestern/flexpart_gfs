@@ -46,7 +46,7 @@ subroutine turbulence_boundarylayer(ipart,nrand,dt,zts,rhoa,rhograd,thread)
   integer ::                      &
     flagrein,                     & ! flag used in CBL scheme
     icbt,                         &
-    i                               ! ĺoop variable
+    i                               ! loop variable
 
   ! tlw,dsigwdz and dsigw2dz are defined in hanna
     if (turbswitch) then

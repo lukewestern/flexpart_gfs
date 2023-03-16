@@ -107,7 +107,7 @@
 
 
 1. Simulation direction, 1 for forward, -1 for backward in time 
-	(consult Seibert and Frank, 2004 for backward runs)
+    (consult Seibert and Frank, 2004 for backward runs)
 
 2. Beginning date and time of simulation. Must be given in format
    YYYYMMDD HHMISS, where YYYY is YEAR, MM is MONTH, DD is DAY, HH is HOUR,

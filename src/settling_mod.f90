@@ -38,13 +38,13 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
   !                                                                            *
   ! Constants:                                                                 *
   ! dfdr               fluid density/particle density                          *
-  ! Veq [m³]           equivalent volume of a sphere                           *
+  ! Veq [m^3]           equivalent volume of a sphere                          *
   ! dcyl [m]           diameter of a cylinder (fiber)                          * 
-  ! f                  flatness parameters , S/I                               *
+  ! f                  flatness parameters, S/I                               *
   ! e                  elongation parameters, I/L                              *
   ! Fs                 Stokes form factor, f e^1.3                             *
-  ! Fn                 Newton’s  form factor                                   *
-  ! Ks                 Stokes’ drag correction                                 * 
+  ! Fn                 Newton's  form factor                                   *
+  ! Ks                 Stokes' drag correction                                 * 
   ! vsp                help variable                                           *
   ! x                  aspect ratio of cylinder height to its diameter         *
   !                                                                            *

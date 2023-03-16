@@ -9,16 +9,16 @@
   !*****************************************************************************
 
 module initialise_mod
-	
-	use com_mod
-	use par_mod
-  use date_mod
-	use particle_mod
-	use windfields_mod
-	use random_mod
-	use coordinates_ecmwf
 
-	implicit none
+  use com_mod
+  use par_mod
+  use date_mod
+  use particle_mod
+  use windfields_mod
+  use random_mod
+  use coordinates_ecmwf
+
+  implicit none
 
   !**********************************************************
   ! Variables used for domain-filling trajectory calculations
@@ -174,7 +174,7 @@ subroutine releaseparticles(itime)
       average_timecorrect=0.
       do k=1,nspec
         if(abs(xpoint2(i)-xpoint1(i)).lt.1.E-4.and.abs(ypoint2(i)-ypoint1(i)).lt.1.E-4) then
-	!        if (zpoint1(i).gt.0.5) then      ! point source
+  !        if (zpoint1(i).gt.0.5) then      ! point source
           timecorrect(k)=point_hour(k,nhour)*point_dow(k,ndayofweek)
         else                             ! area source
           timecorrect(k)=area_hour(k,nhour)*area_dow(k,ndayofweek)
@@ -240,9 +240,9 @@ subroutine releaseparticles(itime)
                 *timecorrect(k)/average_timecorrect
           part(ipart)%mass_init(k)=part(ipart)%mass(k)
           if (DRYBKDEP.or.WETBKDEP) then ! if there is no scavenging in wetdepo it will be set to 0
-	!              if ( henry(k).gt.0 .or. &
-	!                   crain_aero(k).gt.0. .or. csnow_aero(k).gt.0. .or. &
-	!                   ccn_aero(k).gt.0. .or. in_aero(k).gt.0. )  then
+  !              if ( henry(k).gt.0 .or. &
+  !                   crain_aero(k).gt.0. .or. csnow_aero(k).gt.0. .or. &
+  !                   ccn_aero(k).gt.0. .or. in_aero(k).gt.0. )  then
             xscav_frac1(ipart,k)=-1.
           endif
   ! Assign certain properties to particle
