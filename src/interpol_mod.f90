@@ -37,9 +37,17 @@ module interpol_mod
   private :: interpol_partoutput_value_eta,interpol_partoutput_value_meter
 
   interface horizontal_interpolation
-    procedure horizontal_interpolation_4d,horizontal_interpolation_2d,horizontal_interpolation_nests
+    procedure horizontal_interpolation_4d,horizontal_interpolation_2d
   end interface horizontal_interpolation
+  
+  interface horizontal_interpolation_nests
+    procedure horizontal_interpolation_4d_nests,horizontal_interpolation_2d_nests
+  end interface horizontal_interpolation_nests
 
+
+  interface find_ngrid
+    procedure find_ngrid_dp, find_ngrid_float
+  end interface find_ngrid
 !$OMP THREADPRIVATE(uprof,vprof,wprof,usigprof,vsigprof,wsigprof, &
 !$OMP rhoprof,rhogradprof,u,v,w,usig,vsig,wsig, &
 !$OMP p1,p2,p3,p4,ddx,ddy,rddx,rddy,dtt,dt1,dt2,ix,jy,ixp,jyp, &
@@ -75,6 +83,7 @@ subroutine initialise_interpol_mod(itime,xt,yt,zt,zteta)
   real, intent(in)    :: zt                ! height in meters
   real, intent(in)    :: zteta             ! height in eta coordinates
 
+  call find_ngrid(xt,yt)
   call determine_grid_coordinates(xt,yt)
   call find_grid_distances(xt,yt)
   call find_time_variables(itime)
@@ -93,22 +102,33 @@ subroutine determine_grid_coordinates(xt,yt)
     jy=int(ytn)
     nix=nint(xtn)
     njy=nint(ytn)
+    if (ix+1 .ge. nxmaxn-1) then
+      ixp=ix
+    else
+      ixp=ix+1
+    endif
+    if (jy+1 .ge. nymaxn-1) then
+      jyp=jy
+    else
+      jyp=jy+1
+    endif
+    return
   else
     ix=int(xt)
     jy=int(yt)
     nix=nint(xt)
     njy=nint(yt)
+    ixp=ix+1
+    jyp=jy+1
   endif
-  ixp=ix+1
-  jyp=jy+1
 
   ! eso: Temporary fix for particle exactly at north pole
-  if (jyp >= nymax) then
+  if (jyp.ge.nymax) then
     write(*,*) 'WARNING: interpol_mod.f90 jyp >= nymax. xt,yt:',xt,yt
     jyp=jyp-1
   end if
 
-  if (ixp >= nxmax) then
+  if (ixp.ge.nxmax) then
     write(*,*) 'WARNING: interpol_mod.f90 ixp >= nxmax. xt,yt:',xt,yt
     ixp=ixp-nxmax
   end if
@@ -120,8 +140,13 @@ subroutine find_grid_distances(xt,yt)
 
   real, intent(in) :: xt,yt                 ! particle positions
 
-  ddx=xt-real(ix)
-  ddy=yt-real(jy)
+  if (ngrid.le.0) then
+    ddx=xt-real(ix)
+    ddy=yt-real(jy)
+  else
+    ddx=xtn-real(ix)
+    ddy=ytn-real(jy)
+  endif
   rddx=1.-ddx
   rddy=1.-ddy
   p1=rddx*rddy
@@ -304,9 +329,15 @@ subroutine find_vertical_variables(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
     dz1=(zpos-vertlevels(zlevel))*dz
     dz2=(vertlevels(zlevel+1)-zpos)*dz
   else
-    do m=1,2
-      call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
-    end do
+    if (ngrid.le.0) then
+      do m=1,2
+        call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
+      end do
+    else
+      do m=1,2
+        call horizontal_interpolation_nests(psn,psint1(m),1,memind(m),1)
+      end do
+    endif
     call temporal_interpolation(psint1(1),psint1(2),psint)
     dh = vertlevels(zlevel+1)-vertlevels(zlevel)
     dh1 = zpos - vertlevels(zlevel)
@@ -360,7 +391,7 @@ subroutine find_vertical_variables_lin(vertlevels,zpos,zlevel,dz1,dz2,bounds,wle
   endif
 end subroutine find_vertical_variables_lin
 
-subroutine find_ngrid(xt,yt)
+subroutine find_ngrid_dp(xt,yt)
 
   implicit none
   real ::                      &
@@ -385,7 +416,34 @@ subroutine find_ngrid(xt,yt)
       endif
     end do
   endif
-end subroutine find_ngrid
+end subroutine find_ngrid_dp
+
+subroutine find_ngrid_float(xt,yt)
+
+  implicit none
+  real ::                      &
+    eps           
+  real, intent(in) :: &
+    xt,yt                           ! particle positions on grid
+  integer ::                   &
+    j
+
+  eps=nxmax/3.e5
+  if (nglobal.and.(yt.gt.switchnorthg)) then
+    ngrid=-1
+  else if (sglobal.and.(yt.lt.switchsouthg)) then
+    ngrid=-2
+  else
+    ngrid=0
+    do j=numbnests,1,-1
+      if ((xt.gt.xln(j)+eps).and.(xt.lt.xrn(j)-eps).and. &
+           (yt.gt.yln(j)+eps).and.(yt.lt.yrn(j)-eps)) then
+        ngrid=j
+        exit
+      endif
+    end do
+  endif
+end subroutine find_ngrid_float
 
 subroutine horizontal_interpolation_4d(field,output,zlevel,indexh,ztot)
 
@@ -412,20 +470,32 @@ subroutine horizontal_interpolation_2d(field,output)
          + p4*field(ixp,jyp)
 end subroutine horizontal_interpolation_2d
 
-subroutine horizontal_interpolation_nests(field,output,zlevel,indexh,ztot)
+subroutine horizontal_interpolation_4d_nests(field,output,zlevel,indexh,ztot)
 
   implicit none
 
   integer, intent(in) :: zlevel,ztot,indexh                       ! interpolation z level, z
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,numbnests) ! input field to interpolate over
+  real, intent(in)    :: field(0:nxmaxn-1,0:nymaxn-1,ztot,numwfmem,numbnests) ! input field to interpolate over
   real, intent(inout) :: output                                   ! interpolated values
-  integer             :: m
 
   output=p1*field(ix ,jy ,zlevel,indexh,ngrid) &
        + p2*field(ixp,jy ,zlevel,indexh,ngrid) &
        + p3*field(ix ,jyp,zlevel,indexh,ngrid) &
        + p4*field(ixp,jyp,zlevel,indexh,ngrid)
-end subroutine horizontal_interpolation_nests
+end subroutine horizontal_interpolation_4d_nests
+
+subroutine horizontal_interpolation_2d_nests(field,output)
+
+  implicit none
+
+  real, intent(in)    :: field(0:nxmaxn-1,0:nymaxn-1,numbnests) ! input field to interpolate over
+  real, intent(inout) :: output                                   ! interpolated values
+
+  output=p1*field(ix ,jy ,ngrid) &
+       + p2*field(ixp,jy ,ngrid) &
+       + p3*field(ix ,jyp,ngrid) &
+       + p4*field(ixp,jyp,ngrid)
+end subroutine horizontal_interpolation_2d_nests
 
 subroutine temporal_interpolation(time1,time2,output)
 
@@ -469,6 +539,27 @@ subroutine bilinear_spatial_interpolation(field,output,zlevel,dz1,dz2,ztot)
   end do
 end subroutine bilinear_spatial_interpolation
 
+subroutine bilinear_spatial_interpolation_nests(field,output,zlevel,dz1,dz2,ztot)
+  implicit none
+  integer, intent(in) :: zlevel,ztot                               ! interpolation z level
+  real, intent(in)    :: field(0:nxmaxn-1,0:nymaxn-1,ztot,numwfmem,numbnests)  ! input field to interpolate over
+  real, intent(in)    :: dz1,dz2
+  real, intent(inout) :: output(2)                                 ! interpolated values
+  integer             :: m,n,indzh
+  real                :: output1(2)
+
+  do m=1,2
+    do n=1,2
+      indzh=zlevel+n-1
+      call horizontal_interpolation_4d_nests(field,output1(n),indzh,memind(m),ztot)
+    end do
+    !**********************************
+    ! 2.) Linear vertical interpolation on logarithmic scale
+    !**********************************
+    call vertical_interpolation(output1(1),output1(2),dz1,dz2,output(m))
+  end do
+end subroutine bilinear_spatial_interpolation_nests
+
 subroutine compute_sl_sq(field,sl,sq,zlevel,indexh,ztot)
   implicit none
 
@@ -489,7 +580,7 @@ subroutine compute_sl_sq_nests(field,sl,sq,zlevel,indexh,ztot)
   implicit none
 
   integer, intent(in) :: zlevel,ztot,indexh                       ! interpolation z levels
-  real, intent(in)    :: field(0:nxmax-1,0:nymax-1,ztot,numwfmem,numbnests) ! input field to interpolate over
+  real, intent(in)    :: field(0:nxmaxn-1,0:nymaxn-1,ztot,numwfmem,numbnests) ! input field to interpolate over
   real, intent(inout) :: sl,sq                                   ! standard deviation
 
 
@@ -565,6 +656,10 @@ subroutine interpol_PBL(itime,xt,yt,zt,zteta)
   !********************************************
   ! Multilinear interpolation in time and space
   !********************************************
+
+  ! Where in the grid? Stereographic (ngrid<0) or nested (ngrid>0)
+  !***************************************************************
+  call find_ngrid(xt,yt)
 
   ! Determine the lower left corner and its distance to the current position
   !*************************************************************************
@@ -784,6 +879,10 @@ subroutine interpol_mesoscale(itime,xt,yt,zt,zteta)
   integer             :: m,indexh
   integer             :: iw(2),iuv(2),iweta(2)
 
+  ! Where in the grid? Stereographic (ngrid<0) or nested (ngrid>0)
+  !***************************************************************
+  call find_ngrid(xt,yt)
+
   call determine_grid_coordinates(xt,yt)
 
   ! Determine the level below the current position
@@ -843,6 +942,10 @@ subroutine interpol_wind(itime,xt,yt,zt,zteta,pp)
   real, intent(in)    :: zteta
   integer             :: iw(2),iuv(2),iweta(2)
 
+
+  ! Where in the grid? Stereographic (ngrid<0) or nested (ngrid>0)
+  !***************************************************************
+  call find_ngrid(xt,yt)
 
   call determine_grid_coordinates(xt,yt)
   ! ! Multilinear interpolation in time and space
@@ -921,6 +1024,10 @@ subroutine interpol_wind_short(itime,xt,yt,zt,zteta)
   !********************************************
   ! Multilinear interpolation in time and space
   !********************************************
+
+  ! Where in the grid? Stereographic (ngrid<0) or nested (ngrid>0)
+  !***************************************************************
+  call find_ngrid(xt,yt)
   call determine_grid_coordinates(xt,yt)
   call find_grid_distances(xt,yt)
 
@@ -1028,6 +1135,9 @@ subroutine interpol_density(itime,ipart,output)
   real :: dz1,dz2
   real :: rhoprof(2)
 
+  ! Where in the grid? Stereographic (ngrid<0) or nested (ngrid>0)
+  !***************************************************************
+  call find_ngrid(part(ipart)%xlon,part(ipart)%ylat)
   call determine_grid_coordinates(real(part(ipart)%xlon),real(part(ipart)%ylat))
   call find_grid_distances(real(part(ipart)%xlon),real(part(ipart)%ylat))
   call find_time_variables(itime)
@@ -1038,15 +1148,27 @@ subroutine interpol_density(itime,ipart,output)
     case ('ETA')
       call find_z_level_eta(real(part(ipart)%zeta))
       call find_vertical_variables(uvheight,real(part(ipart)%zeta),induv,dz1,dz2,lbounds_uv,.false.)
-      do ind=induv,indpuv
-        call horizontal_interpolation(rhoeta,rhoprof(ind-induv+1),ind,memind(2),nzmax)
-      end do
+      if (ngrid.le.0) then
+        do ind=induv,indpuv
+          call horizontal_interpolation(rhoeta,rhoprof(ind-induv+1),ind,memind(2),nzmax)
+        end do
+      else
+        do ind=induv,indpuv
+          call horizontal_interpolation_nests(rhoetan,rhoprof(ind-induv+1),ind,memind(2),nzmax)
+        end do
+      endif
     case ('METER')
       call find_z_level_meters(real(part(ipart)%z))
       call find_vertical_variables(height,real(part(ipart)%z),indz,dz1,dz2,lbounds,.false.)
-      do ind=indz,indzp
-        call horizontal_interpolation(rho,rhoprof(ind-indz+1),ind,memind(2),nzmax)
-      end do
+      if (ngrid.le.0) then
+        do ind=indz,indzp
+          call horizontal_interpolation(rho,rhoprof(ind-indz+1),ind,memind(2),nzmax)
+        end do
+      else
+        do ind=indz,indzp
+          call horizontal_interpolation_nests(rhon,rhoprof(ind-indz+1),ind,memind(2),nzmax)
+        end do
+      endif
     case default
       stop 'wind_coord_type not defined in conccalc.f90'
   end select
@@ -1097,6 +1219,11 @@ subroutine interpol_wind_eta(zteta,iuv,iweta)
   else ! Nest
     do m=1,2
       do n=1,2
+        
+        ! wetah1(n) = p1*wwetan(ix ,jy ,iweta(n),memind(m),ngrid) &
+        !           + p2*wwetan(ixp,jy ,iweta(n),memind(m),ngrid) &
+        !           + p3*wwetan(ix ,jyp,iweta(n),memind(m),ngrid) &
+        !           + p4*wwetan(ixp,jyp,iweta(n),memind(m),ngrid)
         call horizontal_interpolation_nests(wwetan,wetah1(n),iweta(n),memind(m),nzmax)
         call horizontal_interpolation_nests(uuetan,uh1(n),iuv(n),memind(m),nzmax)
         call horizontal_interpolation_nests(vvetan,vh1(n),iuv(n),memind(m),nzmax)
@@ -1178,31 +1305,63 @@ subroutine interpol_partoutput_value_eta(fieldname,output,j)
 
   select case(fieldname)
     case('PR','pr')
-      call bilinear_spatial_interpolation(prseta,field1,induv,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(prseta,field1,induv,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(prsetan,field1,induv,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('PV','pv')
-      call bilinear_spatial_interpolation(pveta,field1,induv,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(pveta,field1,induv,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(pvetan,field1,induv,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('QV','qv')
-      call bilinear_spatial_interpolation(qv,field1,induv,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(qv,field1,induv,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(qvn,field1,induv,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('TT','tt')
-      call bilinear_spatial_interpolation(tteta,field1,induv,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(tteta,field1,induv,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(ttetan,field1,induv,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('UU','uu')
-      call bilinear_spatial_interpolation(uueta,field1,induv,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(uueta,field1,induv,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(uuetan,field1,induv,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('VV','vv')
-      call bilinear_spatial_interpolation(vveta,field1,induv,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(vveta,field1,induv,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(vvetan,field1,induv,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('WW','ww')
       call find_z_level_meters(real(part(j)%z))
       call find_vertical_variables(height,real(part(j)%z),indz,dz1out,dz2out,lbounds,.false.)
-      call bilinear_spatial_interpolation(ww,field1,induv,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(ww,field1,induv,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(wwn,field1,induv,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
       dz1out = -1
     case('RH','rh')
-      call bilinear_spatial_interpolation(rhoeta,field1,induv,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(rhoeta,field1,induv,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(rhoetan,field1,induv,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
   end select
 end subroutine interpol_partoutput_value_eta
@@ -1221,28 +1380,60 @@ subroutine interpol_partoutput_value_meter(fieldname,output,j)
 
   select case(fieldname)
     case('PR','pr')
-      call bilinear_spatial_interpolation(prs,field1,indz,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(prs,field1,indz,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(prsn,field1,indz,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('PV','pv')
-      call bilinear_spatial_interpolation(pv,field1,indz,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(pv,field1,indz,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(pvn,field1,indz,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('QV','qv')
-      call bilinear_spatial_interpolation(qv,field1,indz,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(qv,field1,indz,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(qvn,field1,indz,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('TT','tt')
-      call bilinear_spatial_interpolation(tt,field1,indz,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(tt,field1,indz,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(ttn,field1,indz,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('UU','uu')
-      call bilinear_spatial_interpolation(uu,field1,indz,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(uu,field1,indz,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(uun,field1,indz,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('VV','vv')
-      call bilinear_spatial_interpolation(vv,field1,indz,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(vv,field1,indz,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(vvn,field1,indz,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('WW','ww')
-      call bilinear_spatial_interpolation(ww,field1,indz,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(ww,field1,indz,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(wwn,field1,indz,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
     case('RH','rh')
-      call bilinear_spatial_interpolation(rho,field1,indz,dz1out,dz2out,nzmax)
+      if (ngrid.le.0) then
+        call bilinear_spatial_interpolation(rho,field1,indz,dz1out,dz2out,nzmax)
+      else
+        call bilinear_spatial_interpolation_nests(rhon,field1,indz,dz1out,dz2out,nzmax)
+      endif
       call temporal_interpolation(field1(1),field1(2),output)
   end select
 end subroutine interpol_partoutput_value_meter

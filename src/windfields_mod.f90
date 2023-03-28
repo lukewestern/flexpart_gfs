@@ -66,7 +66,7 @@ module windfields_mod
     rhoeta,                               & ! air density on half model levels [kg/m3]
     prseta,                               & ! air pressure on half model levels
     drhodzeta,                            & ! vertical air density gradient on half model levels [kg/m2]
-    tvirtual,                             & ! Virtual temperature on half model levels
+    !tvirtual,                             & ! Virtual temperature on half model levels
     etauvheight,etawheight                  ! Saved half model and model heights for ETA coordinate system [m]
 
   ! 3d fields
@@ -111,6 +111,7 @@ module windfields_mod
     qvn, qvhn,                             & ! specific humidity data on internal and half model levels
     pvn,                                   & ! potential vorticity
     rhon,                                  & ! air density [kg/m3]
+    prsn,                                   & ! air pressure RLT
     drhodzn                                  ! vertical air density gradient [kg/m2] 
 
   ! ETA equivalents
@@ -120,7 +121,11 @@ module windfields_mod
     ttetan,                                & ! temperature data on half model levels [K]
     pvetan,                                & ! potential vorticity on half model levels
     rhoetan,                               & ! air density on half model levels [kg/m3]
-    drhodzetan                               ! vertical air density gradient on half model levels [kg/m2]
+    prsetan,                               & ! air pressure on half model levels
+    drhodzetan,                            & ! vertical air density gradient on half model levels [kg/m2]
+    !tvirtualn,                             & ! Virtual temperature on half model levels
+    etauvheightn,etawheightn                 ! Saved half model and model heights for ETA coordinate system [m]
+
 
   ! Nested cloud properties
   real,allocatable,dimension(:,:,:,:,:) :: &
@@ -3911,7 +3916,7 @@ subroutine windfields_allocate
   allocate(prseta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(rhoeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(drhodzeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(tvirtual(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+  !allocate(tvirtual(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(etauvheight(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
   allocate(etawheight(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
 
@@ -4014,12 +4019,17 @@ subroutine windfields_nest_allocate
   allocate(vvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(wwetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(ttetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(pvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))  
+  allocate(pvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests)) 
+  allocate(prsetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))  
   allocate(rhoetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(drhodzetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  ! allocate(tvirtualn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(etauvheightn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
+  allocate(etawheightn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
 
   allocate(cloudsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(cloudshn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
+  allocate(prsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(rhon(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(drhodzn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(tthn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
@@ -4074,7 +4084,10 @@ subroutine windfields_nest_deallocate
   deallocate(oron,excessoron,lsmn)
 
   deallocate(uun,vvn,wwn,ttn,qvn,pvn,clwcn,ciwcn,clwn,cloudsn, &
-    cloudshn,rhon,drhodzn,tthn,qvhn,clwchn,ciwchn,ctwcn)
+    cloudshn,rhon,prsn,drhodzn,tthn,qvhn,clwchn,ciwchn,ctwcn)
+
+  deallocate(uuetan,vvetan,wwetan,ttetan,pvetan,prsetan,rhoetan, &
+    drhodzetan,etauvheightn,etawheightn)
 
   deallocate(psn,sdn,msln,tccn,u10n,v10n,tt2n,td2n,lsprecn,convprecn, &
     sshfn,ssrn,surfstrn,ustarn,wstarn,hmixn,tropopausen,olin,vdepn)
@@ -4088,7 +4101,7 @@ subroutine windfields_deallocate
   deallocate(oro,excessoro,lsm)
 
   deallocate(uueta,vveta,wweta,uupoleta,vvpoleta,tteta,pveta, &
-    prseta,rhoeta,drhodzeta,tvirtual,etauvheight,etawheight)
+    prseta,rhoeta,drhodzeta,etauvheight,etawheight)
 
   deallocate(uu,vv,ww,uupol,vvpol,tt,tth,qv,qvh,pv,rho,drhodz,pplev,prs,rho_dry)
 

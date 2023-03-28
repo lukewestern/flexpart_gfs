@@ -807,7 +807,7 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob)
             end do
           else
             do m=1,2
-              call horizontal_interpolation(vdepn,vdeptemp(m),ks,memind(m),maxspec)
+              call horizontal_interpolation_nests(vdepn,vdeptemp(m),ks,memind(m),maxspec)
             end do
           endif
           call temporal_interpolation(vdeptemp(1),vdeptemp(2),vdepo(ks))
@@ -846,7 +846,7 @@ subroutine drydepo_probability(prob,dt,zts,vdepo)
             end do
           else
             do m=1,2
-              call horizontal_interpolation(vdepn,vdeptemp(m),ns,memind(m),maxspec)
+              call horizontal_interpolation_nests(vdepn,vdeptemp(m),ns,memind(m),maxspec)
             end do
           endif
           call temporal_interpolation(vdeptemp(1),vdeptemp(2),vdepo(ns))

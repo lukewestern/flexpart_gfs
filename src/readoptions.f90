@@ -706,6 +706,10 @@ subroutine readcommand
     write(*,*) ' Please only use IPIN>0 when compiling and running using'
     write(*,*) ' netcdf output. '
   endif
+  if ((surf_only.eq.1).or.(linversionout.eq.1)) then
+    write(*,*) ' ERROR: NetCDF output for surface only or for inversions'
+    write(*,*) ' is not yet implemented. Please compile without NetCDF.'
+  endif
 #endif
 
   ! Determine kind of dispersion method

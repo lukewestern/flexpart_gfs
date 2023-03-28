@@ -295,6 +295,8 @@ subroutine convmix(itime)
   frst(1) = 1
   cnt = 2
   igrold = igrid(1)
+  ! Looping over all particles and counting how many in each igrid reside.
+  ! This is saved in frst. The number of consecutive particles in igrid is saved in frst(i)
   do kpart=1,numpart
     if (igrold.ne.igrid(kpart)) then
       frst(cnt) = kpart
@@ -315,8 +317,10 @@ subroutine convmix(itime)
 
 !$OMP DO SCHEDULE(static)
   do kk=1,cnt-1
+    ! Only consider grids that have particles inside
     if (igrid(frst(kk)).eq.-1) cycle
 
+    ! Find horizontal location of grid column
     ix = (igrid(frst(kk))-1)/ny
     jy = igrid(frst(kk)) - ix*ny - 1
     ! jy = (igrid(frst(kk))-1)/nx
@@ -354,8 +358,6 @@ subroutine convmix(itime)
   ! assign new vertical position to particle
       do kpart=frst(kk), frst(kk+1)-1
         ipart = ipoint(kpart)
-        ! do not consider particles that are not (yet) part of simulation
-        if (.not. part(ipart)%alive) cycle
         ztold=real(part(ipart)%z)
         call redist(itime,ipart,ktop,ipconv)
   !    if (ipconv.le.0) sumconv = sumconv+1

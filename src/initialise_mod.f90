@@ -867,6 +867,9 @@ subroutine initialize_particle(itime,ipart)
   ! 2. Interpolate necessary data
   !******************************
 
+  ! Where in the grid? Stereographic (ngrid<0) or nested (ngrid>0)
+  !***************************************************************
+  call find_ngrid(xt,yt)
   ! Compute maximum mixing height around particle position
   !*******************************************************
   call determine_grid_coordinates(xt,yt)

@@ -369,6 +369,9 @@ subroutine output_particles(itime,initial_output)
     !*****************************************************************************
     ! Interpolate several variables (PV, specific humidity, etc.) to particle position
     !*****************************************************************************
+    ! Where in the grid? Stereographic (ngrid<0) or nested (ngrid>0)
+    !***************************************************************
+    call find_ngrid(real(part(i)%xlon),real(part(i)%ylat))
     call determine_grid_coordinates(real(part(i)%xlon),real(part(i)%ylat))
     call find_grid_distances(real(part(i)%xlon),real(part(i)%ylat))
     ! First set dz1out from interpol_mod to -1 so it only is calculated once per particle
@@ -395,18 +398,34 @@ subroutine output_particles(itime,initial_output)
           output(np,i)=ylat0+part(i)%ylat*dy
           cycle
         case ('TO') ! Topography
-          call horizontal_interpolation(oro,output(np,i))
+          if (ngrid.le.0) then
+            call horizontal_interpolation(oro,output(np,i))
+          else
+            call horizontal_interpolation_nests(oron,output(np,i))
+          endif 
           cycle
         case ('TR') ! Tropopause
-          do m=1,2
-            call horizontal_interpolation(tropopause,tmp(m),1,memind(m),1)
-          end do
+          if (ngrid.le.0) then
+            do m=1,2
+              call horizontal_interpolation(tropopause,tmp(m),1,memind(m),1)
+            end do
+          else
+            do m=1,2
+              call horizontal_interpolation_nests(tropopausen,tmp(m),1,memind(m),1)
+            end do
+          endif
           call temporal_interpolation(tmp(1),tmp(2),output(np,i))
           cycle
         case ('HM') ! PBL height
-          do m=1,2
-            call horizontal_interpolation(hmix,tmp(m),1,memind(m),1)
-          end do
+          if (ngrid.le.0) then
+            do m=1,2
+              call horizontal_interpolation(hmix,tmp(m),1,memind(m),1)
+            end do
+          else
+            do m=1,2
+              call horizontal_interpolation_nests(hmixn,tmp(m),1,memind(m),1)
+            end do
+          endif
           call temporal_interpolation(tmp(1),tmp(2),output(np,i))
           cycle
         case ('ZZ') ! Height
@@ -1371,7 +1390,9 @@ subroutine partpos_average(itime,j)
   !*****************************************************************************
   ! Interpolate several variables (PV, specific humidity, etc.) to particle position
   !*****************************************************************************
-
+  ! Where in the grid? Stereographic (ngrid<0) or nested (ngrid>0)
+  !***************************************************************
+  call find_ngrid(real(part(j)%xlon),real(part(j)%ylat))
   call determine_grid_coordinates(real(part(j)%xlon),real(part(j)%ylat))
   call find_grid_distances(real(part(j)%xlon),real(part(j)%ylat))
 
@@ -1385,18 +1406,34 @@ subroutine partpos_average(itime,j)
     i_av = partopt(np)%i_average
     select case (partopt(np)%name)
       case ('to')
-        call horizontal_interpolation(oro,output)
+        if (ngrid.le.0) then
+          call horizontal_interpolation(oro,output)
+        else
+          call horizontal_interpolation_nests(oron,output)
+        endif
         part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
       case ('tr')
-        do m=1,2
-          call horizontal_interpolation(tropopause,tr(m),1,memind(m),1)
-        end do
+        if (ngrid.le.0) then
+          do m=1,2
+            call horizontal_interpolation(tropopause,tr(m),1,memind(m),1)
+          end do
+        else
+          do m=1,2
+            call horizontal_interpolation_nests(tropopausen,tr(m),1,memind(m),1)
+          end do
+        endif
         call temporal_interpolation(tr(1),tr(2),output)
         part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
       case ('hm')
-        do m=1,2
-          call horizontal_interpolation(hmix,hm(m),1,memind(m),1)
-        end do
+        if (ngrid.le.0) then
+          do m=1,2
+            call horizontal_interpolation(hmix,hm(m),1,memind(m),1)
+          end do
+        else
+          do m=1,2
+            call horizontal_interpolation_nests(hmixn,hm(m),1,memind(m),1)
+          end do
+        endif
         call temporal_interpolation(hm(1),hm(2),output)
         part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
       case ('lo')

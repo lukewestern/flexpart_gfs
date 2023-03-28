@@ -29,7 +29,8 @@ subroutine update_zeta_to_z(itime, ipart)
   if (.not. part(ipart)%alive) return  
   if (part(ipart)%etaupdate) return
 
-  call zeta_to_z(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%zeta,part(ipart)%z)
+  call zeta_to_z(itime,part(ipart)%xlon,part(ipart)%ylat, &
+    part(ipart)%zeta,part(ipart)%z)
   part(ipart)%etaupdate = .true.
   part(ipart)%meterupdate = .true.
 end subroutine update_zeta_to_z
@@ -46,7 +47,8 @@ subroutine update_z_to_zeta(itime, ipart)
   if (.not. part(ipart)%alive) return
   if (part(ipart)%meterupdate) return
 
-  call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)
+  call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat, &
+      part(ipart)%z,part(ipart)%zeta)
   part(ipart)%etaupdate = .true.
   part(ipart)%meterupdate = .true.
 end subroutine update_z_to_zeta
@@ -92,6 +94,7 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
     return
   endif
 
+  call find_ngrid(xt,yt)
   call determine_grid_coordinates(real(xt),real(yt))
   call find_grid_distances(real(xt),real(yt))
   call find_time_variables(itime)
@@ -100,23 +103,41 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! First estimate the level it is at, to reduce computation time
   n=nz-3
-  do i=2,nz-1
-    if ((etauvheight(ix,jy,i,memind(1)).gt.real(zold)) .or. &
-        (etauvheight(ixp,jy,i,memind(1)).gt.real(zold)) .or. & 
-        (etauvheight(ix,jyp,i,memind(1)).gt.real(zold)) .or. &
-        (etauvheight(ixp,jyp,i,memind(1)).gt.real(zold))) then
-      n=i-2
-      exit
-    endif
-  end do
+  if (ngrid.le.0) then
+    do i=2,nz-1
+      if ((etauvheight(ix,jy,i,memind(1)).gt.real(zold)) .or. &
+          (etauvheight(ixp,jy,i,memind(1)).gt.real(zold)) .or. & 
+          (etauvheight(ix,jyp,i,memind(1)).gt.real(zold)) .or. &
+          (etauvheight(ixp,jyp,i,memind(1)).gt.real(zold))) then
+        n=i-2
+        exit
+      endif
+    end do
+  else
+    do i=2,nz-1
+      if ((etauvheightn(ix,jy,i,memind(1),ngrid).gt.real(zold)) .or. &
+          (etauvheightn(ixp,jy,i,memind(1),ngrid).gt.real(zold)) .or. & 
+          (etauvheightn(ix,jyp,i,memind(1),ngrid).gt.real(zold)) .or. &
+          (etauvheightn(ixp,jyp,i,memind(1),ngrid).gt.real(zold))) then
+        n=i-2
+        exit
+      endif
+    end do
+  endif
   n=max(n,2)
 
   ztemp1 = 0.
   do i=n,nz-1
     k=i
-    do m=1,2
-      call horizontal_interpolation(etauvheight,ttemp1(m),i,memind(m),nzmax)
-    end do
+    if (ngrid.le.0) then
+      do m=1,2
+        call horizontal_interpolation(etauvheight,ttemp1(m),i,memind(m),nzmax)
+      end do
+    else
+      do m=1,2
+        call horizontal_interpolation_nests(etauvheightn,ttemp1(m),i,memind(m),nzmax)
+      end do
+    endif
     call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
 
     if (ztemp2.gt.real(zold)) then
@@ -129,15 +150,22 @@ subroutine z_to_zeta(itime,xt,yt,zold,zteta)
     ztemp1=ztemp2
   end do
 
-  if (k.lt.nz-1) then 
-    do m=1,2
-      call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
-    end do
+  if (k.lt.nz-1) then
+    if (ngrid.le.0) then
+      do m=1,2
+        call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
+      end do
+    else
+      do m=1,2
+        call horizontal_interpolation_nests(psn,psint1(m),1,memind(m),1)
+      end do
+    endif
     call temporal_interpolation(psint1(1),psint1(2),psint)  
     pr1=akz(k-1) + bkz(k-1)*psint
     pr2=akz(k) + bkz(k)*psint
 
-    prx=pr1/exp(log(pr2/pr1)/(ztemp2-ztemp1)*ztemp1) * exp(log(pr2/pr1)/(ztemp2-ztemp1)*real(zold))
+    prx=pr1/exp(log(pr2/pr1)/(ztemp2-ztemp1)*ztemp1) * &
+      exp(log(pr2/pr1)/(ztemp2-ztemp1)*real(zold))
     frac=(prx-pr1)/(pr2 - pr1)
   endif
 
@@ -163,7 +191,7 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
   integer, intent(in) ::          &
     itime                           ! time index
   integer ::                      &
-    i,j,k,m,indexh                  ! loop indices
+    i,j,k,m,ii,indexh               ! loop indices
   real(kind=dp), intent(in) ::    &
     xt,yt                           ! particle position
   real(kind=dp), intent(in) ::    &
@@ -173,7 +201,7 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
   real(kind=dp) ::                &
     frac                            ! fraction between z levels
   real ::                         &
-    ztemp1,ztemp2,                & ! z positions of the two encompassing levels
+    ztemp1(2),                    & ! z positions of the two encompassing levels
     ttemp1(2),                    & ! storing virtual temperature
     psint1(2),psint,prx,pr1,pr2     ! pressure of encompassing levels
  
@@ -184,6 +212,7 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
 
   ! Convert eta z coordinate to meters
   !***********************************
+  call find_ngrid(xt,yt)
   call determine_grid_coordinates(real(xt),real(yt))
   call find_grid_distances(real(xt),real(yt))
   call find_time_variables(itime)
@@ -198,30 +227,44 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
     endif
   end do
 
-  do m=1,2
-    call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
-  end do
+  if (ngrid.le.0) then
+    do m=1,2
+      call horizontal_interpolation(ps,psint1(m),1,memind(m),1)
+    end do
+  else
+    do m=1,2
+      call horizontal_interpolation_nests(psn,psint1(m),1,memind(m),1)
+    end do
+  endif
+
   call temporal_interpolation(psint1(1),psint1(2),psint)  
   pr1=akz(k-1) + bkz(k-1)*psint
   pr2=akz(k) + bkz(k)*psint
   prx=pr1*(1.-frac) + pr2*frac
   
-  do m=1,2
-    call horizontal_interpolation(etauvheight,ttemp1(m),k-1,memind(m),nzmax)
-  end do
-  call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1)
+  if (ngrid.le.0) then
+    do ii=1,2
+      do m=1,2
+        call horizontal_interpolation(etauvheight,ttemp1(m),k+ii-2,memind(m),nzmax)
+      end do
+      call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1(ii))
+    end do
+  else
+    do ii=1,2
+      do m=1,2
+        call horizontal_interpolation_nests(etauvheightn, &
+          ttemp1(m),k+ii-2,memind(m),nzmax)
+      end do
+      call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1(ii))
+    end do
+  endif
 
-  do m=1,2
-    call horizontal_interpolation(etauvheight,ttemp1(m),k,memind(m),nzmax)
-  end do
-  call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
-  
   if ((pr2.eq.0).or.(pr1.eq.0)) then
-    ztout = real(ztemp1,kind=dp)*(1.-frac)+real(ztemp2,kind=dp)*frac
+    ztout = real(ztemp1(1),kind=dp)*(1.-frac)+real(ztemp1(2),kind=dp)*frac
     return
   endif
   
-  ztout = ztemp1 + (ztemp2-ztemp1)/log(pr2/pr1)*log(prx/pr1)
+  ztout = ztemp1(1) + (ztemp1(2)-ztemp1(1))/log(pr2/pr1)*log(prx/pr1)
 end subroutine zeta_to_z
 
 subroutine w_to_weta(itime,dt,xt,yt,z_old,zeta_old,w_in,weta_out)
@@ -299,6 +342,7 @@ subroutine z_to_zeta_lin(itime,xt,yt,zold,zteta)
   real ::                         &
     prx,pr1,pr2     ! pressure of encompassing levels
 
+  call find_ngrid(xt,yt)
   call determine_grid_coordinates(real(xt),real(yt))
   call find_grid_distances(real(xt),real(yt))
   call find_time_variables(itime)
@@ -307,23 +351,41 @@ subroutine z_to_zeta_lin(itime,xt,yt,zold,zteta)
   !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! First estimate the level it is at, to reduce computation time
   n=nz-3
-  do i=2,nz-1
-    if ((etauvheight(ix,jy,i,memind(1)).gt.real(zold)) .or. &
-        (etauvheight(ixp,jy,i,memind(1)).gt.real(zold)) .or. &
-        (etauvheight(ix,jyp,i,memind(1)).gt.real(zold)) .or. &
-        (etauvheight(ixp,jyp,i,memind(1)).gt.real(zold))) then
-      n=i-2
-      exit
-    endif
-  end do
+  if (ngrid.le.0) then
+    do i=2,nz-1
+      if ((etauvheight(ix,jy,i,memind(1)).gt.real(zold)) .or. &
+          (etauvheight(ixp,jy,i,memind(1)).gt.real(zold)) .or. &
+          (etauvheight(ix,jyp,i,memind(1)).gt.real(zold)) .or. &
+          (etauvheight(ixp,jyp,i,memind(1)).gt.real(zold))) then
+        n=i-2
+        exit
+      endif
+    end do
+  else
+    do i=2,nz-1
+      if ((etauvheightn(ix,jy,i,memind(1),ngrid).gt.real(zold)) .or. &
+          (etauvheightn(ixp,jy,i,memind(1),ngrid).gt.real(zold)) .or. &
+          (etauvheightn(ix,jyp,i,memind(1),ngrid).gt.real(zold)) .or. &
+          (etauvheightn(ixp,jyp,i,memind(1),ngrid).gt.real(zold))) then
+        n=i-2
+        exit
+      endif
+    end do
+  endif
   n=max(n,2)
 
   ztemp1 = 0.
   do i=n,nz-1
     k=i
-    do m=1,2
-      call horizontal_interpolation(etauvheight,ttemp1(m),i,memind(m),nzmax)
-    end do
+    if (ngrid.le.0) then
+      do m=1,2
+        call horizontal_interpolation(etauvheight,ttemp1(m),i,memind(m),nzmax)
+      end do
+    else
+      do m=1,2
+        call horizontal_interpolation_nests(etauvheightn,ttemp1(m),i,memind(m),nzmax)
+      end do
+    endif    
     call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
 
     if (ztemp2.gt.real(zold)) then
@@ -359,7 +421,7 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
   integer, intent(in) ::          &
     itime                           ! time index
   integer ::                      &
-    i,j,k,m,indexh                  ! loop indices
+    i,j,k,m,ii,indexh               ! loop indices
   real(kind=dp), intent(in) ::    &
     xt,yt                           ! particle position
   real(kind=dp), intent(in) ::    &
@@ -369,13 +431,14 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
   real(kind=dp) ::                &
     frac                            ! fraction between z levels
   real ::                         &
-    ztemp1,ztemp2,                & ! z positions of the two encompassing levels
+    ztemp1(2),                    & ! z positions of the two encompassing levels
     ttemp1(2),                    & ! storing virtual temperature
     psint1(2),psint                 ! pressure of encompassing levels
  
 
   ! Convert eta z coordinate to meters
   !***********************************
+  call find_ngrid(xt,yt)
   call determine_grid_coordinates(real(xt),real(yt))
   call find_grid_distances(real(xt),real(yt))
   call find_time_variables(itime)
@@ -390,17 +453,23 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
     endif
   end do
   
-  do m=1,2
-    call horizontal_interpolation(etauvheight,ttemp1(m),k-1,memind(m),nzmax)
-  end do
-  call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1)
-
-  do m=1,2
-    call horizontal_interpolation(etauvheight,ttemp1(m),k,memind(m),nzmax)
-  end do
-  call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp2)
+  if (ngrid.le.0) then
+    do ii=1,2
+      do m=1,2
+        call horizontal_interpolation(etauvheight,ttemp1(m),k+ii-2,memind(m),nzmax)
+      end do
+      call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1(ii))
+    end do
+  else
+    do ii=1,2
+      do m=1,2
+        call horizontal_interpolation_nests(etauvheightn,ttemp1(m),k+ii-2,memind(m),nzmax)
+      end do
+      call temporal_interpolation(ttemp1(1),ttemp1(2),ztemp1(ii))
+    end do
+  endif
   
-  ztout = real(ztemp1,kind=dp)*(1.-frac)+real(ztemp2,kind=dp)*frac
+  ztout = real(ztemp1(1),kind=dp)*(1.-frac)+real(ztemp1(2),kind=dp)*frac
 end subroutine zeta_to_z_lin
 
 end module coordinates_ecmwf
