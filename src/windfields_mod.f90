@@ -1856,7 +1856,6 @@ subroutine pbl_profile(ps,td2m,zml1,t2m,tml1,u10m,uml1,stress,hf)
   !********************************************************************
 
   use qvsat_mod
-  use turbulence_mod, only: psim, psih
 
   implicit none
 
