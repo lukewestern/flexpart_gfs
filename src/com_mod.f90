@@ -265,11 +265,12 @@ module com_mod
   ! Variables associated with the ECMWF meteorological input data ("wind fields")
   !******************************************************************************
 
-  integer :: memtime(numwfmem),memind(3) ! eso: or memind(numwfmem) 
+  integer :: memtime(numwfmem),memind(3),lwindinterv ! eso: or memind(numwfmem) 
 
   ! memtime [s]             validation times of wind fields in memory
   ! memind                  pointer to wind field, in order to avoid shuffling
   !                         of wind fields
+  ! lwindinterv [s]         Interval between wind fields currently in memory
 
   !********************************************************************
   ! Variables associated with the ECMWF input data (nested wind fields)

@@ -1770,7 +1770,7 @@ subroutine readreceptors
   !     HSO, 14 August 2013: Added optional namelist input
   !     PS, 2/2015: access= -> position=
   !     PS, 6/2015: variable names, simplify code
-  !     PS, 3/2023: remvoe position=append, makes no sense for new file        *
+  !     PS, 3/2023: remove position=append, makes no sense for new file        *
   !                                                                            *
   !*****************************************************************************
   !                                                                            *
@@ -1808,20 +1808,20 @@ subroutine readreceptors
   ! Open the RECEPTORS file and read output grid specifications
   !************************************************************
 
-  open (unitreceptor,file=path(1)(1:length(1))//'RECEPTORS',form='formatted',
+  open (unitreceptor,file=trim(path(1))//'RECEPTORS',form='formatted',
     status='old',err=999)
 
   ! try namelist input
   read(unitreceptor,nml_receptors,iostat=ios)
 
   ! prepare namelist output if requested
-  if (nmlout) open(unitreceptorout,file=path(2)(1:length(2))// &
+  if (nmlout) open(unitreceptorout,file=trim(path(2))// &
     'RECEPTORS.namelist',status='new',err=1000)
 
   if (ios .ne. 0) then ! read as regular text file
 
     close(unitreceptor)
-    open (unitreceptor,file=path(1)(1:length(1))//'RECEPTORS',status='old',err=999)
+    open (unitreceptor,file=trim(path(1))//'RECEPTORS',status='old',err=999)
 
     call skplin(5,unitreceptor)
 
@@ -1901,15 +1901,15 @@ subroutine readreceptors
 
 
 999 write(*,*) 'INFORMATION: input file RECEPTORS cannot be opened'
-    write(*,*) 'in directory '//path(1)(1:length(1))
+    write(*,*) 'in directory '//trim(path(1))
     write(*,*) 'Continuing without RECEPTOR'
 
   numreceptor=0
   return
 
-1000 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "RECEPTORS"    #### '
-  write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
-  write(*,'(a)') path(2)(1:length(2))
+1000 write(*,*) ' #### FLEXPART MODEL ERROR! File "RECEPTORS" #### '
+  write(*,*)    ' #### cannot be opened in the directory      #### '
+  write(*,'(a)') ' #### '//trim(path(2))
 
   stop
 

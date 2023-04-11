@@ -24,7 +24,7 @@ module windfields_mod
   integer ::            &
     numbwf,             & ! actual number of wind fields
     wftime(maxwf),      & ! times relative to beginning time of wind fields [s]
-    lwindinterv           ! Interval between wind fields currently in memory [s]
+
   character(len=255) :: &
     wfname(maxwf),      & ! file names of wind fields
     wfspec(maxwf)         ! specifications of wind field file, e.g. if on hard

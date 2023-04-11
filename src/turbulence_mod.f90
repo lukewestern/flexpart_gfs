@@ -227,7 +227,6 @@ subroutine turbulence_stratosphere(dt,nrand,ux,vy,wp,tropop,zts)
 end subroutine turbulence_stratosphere
 
 subroutine turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta,eps_eta)
-  use windfields_mod, only: lwindinterv
   
   implicit none
 
