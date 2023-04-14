@@ -85,24 +85,24 @@ LDFLAGS  = $(FFLAGS) -L$(LIBPATH3) -L$(LIBPATH1) -Wl,-rpath,$(LIBPATH1) $(LIBS) 
 LDDEBUG  = $(DBGFLAGS) -L$(LIBPATH1) -Wl,-rpath,$(LIBPATH1) $(LIBS) -L$(LIBPATH2) -Wl,-rpath,$(LIBPATH2) -Wl, -rpaht,$(LIBPATH3) #MD add LIBPATH2 and LIBPATH3 as rpath (for dynamic libraries)
 
 MODOBJS = \
-par_mod.o    		class_gribfile_mod.o \
-particle_mod.o       interpol_mod.o \
-coordinates_ecmwf_mod.o  conv_mod.o \
-windfields_mod.o     txt_output_mod.o \
-turbulence_mod.o     cmapf_mod.o \
-unc_mod.o            oh_mod.o \
-xmass_mod.o          flux_mod.o \
-point_mod.o          outg_mod.o \
-mean_mod.o	 	random_mod.o \
-com_mod.o		advance_mod.o \
-readoptions_mod.o 	binary_output_mod.o \
-drydepo_mod.o 		wetdepo_mod.o \
-timemanager_mod.o 	qvsat_mod.o \
-plume_mod.o 		settling_mod.o \
-initialise_mod.o 	getfields_mod.o \
-date_mod.o 		output_mod.o \
-cbl_mod.o \
-verttransform_mod.o
+advance_mod.o 		binary_output_mod.o \
+cbl_mod.o 		cmapf_mod.o \
+com_mod.o 		conv_mod.o \
+class_gribfile_mod.o 	coordinates_ecmwf_mod.o \
+date_mod.o 		drydepo_mod.o \
+erf_mod.o 		flux_mod.o \
+getfields_mod.o 	initialise_mod.o \
+interpol_mod.o 		mean_mod.o \
+oh_mod.o 		outg_mod.o \
+output_mod.o 		par_mod.o \
+particle_mod.o 		plume_mod.o \
+point_mod.o 		random_mod.o \
+readoptions_mod.o 	settling_mod.o \
+timemanager_mod.o 	turbulence_mod.o \
+txt_output_mod.o 	unc_mod.o \
+verttransform_mod.o 	wetdepo_mod.o \
+windfields_mod.o 	qvsat_mod.o \
+xmass_mod.o
 
 OBJECTS_NCF = netcdf_output_mod.o
 
@@ -149,6 +149,7 @@ conv_mod.o: par_mod.o com_mod.o flux_mod.o par_mod.o particle_mod.o class_gribfi
 	random_mod.o interpol_mod.o coordinates_ecmwf_mod.o windfields_mod.o qvsat_mod.o
 coordinates_ecmwf_mod.o: par_mod.o com_mod.o interpol_mod.o particle_mod.o windfields_mod.o
 date_mod.o: par_mod.o
+erf_mod.o: par_mod.o
 drydepo_mod.o: com_mod.o par_mod.o unc_mod.o interpol_mod.o point_mod.o windfields_mod.o \
 	date_mod.o turbulence_mod.o erf_mod.o
 FLEXPART.o: com_mod.o conv_mod.o par_mod.o point_mod.o drydepo_mod.o interpol_mod.o \
@@ -158,9 +159,6 @@ flux_mod.o: com_mod.o outg_mod.o par_mod.o coordinates_ecmwf_mod.o particle_mod.
 	windfields_mod.o
 getfields_mod.o: com_mod.o par_mod.o drydepo_mod.o wetdepo_mod.o windfields_mod.o qvsat_mod.o \
 	verttransform_mod.o
-settling_mod.o: com_mod.o par_mod.o windfields_mod.o
-initial_cond_calc.o: com_mod.o outg_mod.o par_mod.o unc_mod.o particle_mod.o \
-	coordinates_ecmwf_mod.o
 initialise_mod.o: com_mod.o turbulence_mod.o interpol_mod.o par_mod.o random_mod.o \
 	coordinates_ecmwf_mod.o particle_mod.o windfields_mod.o date_mod.o \
 	netcdf_output_mod.o xmass_mod.o point_mod.o cbl_mod.o output_mod.o unc_mod.o
@@ -178,6 +176,7 @@ plume_mod.o: com_mod.o mean_mod.o par_mod.o point_mod.o particle_mod.o coordinat
 	windfields_mod.o
 point_mod.o: com_mod.o par_mod.o
 readoptions_mod.o: com_mod.o par_mod.o date_mod.o drydepo_mod.o point_mod.o windfields_mod.o
+settling_mod.o: com_mod.o par_mod.o windfields_mod.o
 timemanager_mod.o: com_mod.o flux_mod.o oh_mod.o outg_mod.o advance_mod.o\
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf_mod.o \
 	drydepo_mod.o wetdepo_mod.o conv_mod.o windfields_mod.o netcdf_output_mod.o \

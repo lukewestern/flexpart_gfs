@@ -3,6 +3,11 @@
 
 module erf_mod
 
+  implicit none
+
+  private :: gammln,gammp,gammq,gser,gcf
+  public :: erf,erfc,erfcc
+
 contains
 
 
@@ -90,7 +95,7 @@ subroutine gser(gamser,a,x,gln)
 
   integer :: n
   real :: gamser, a, x, gln, ap, summ, del
-  real, external :: gammln
+  !real, external :: gammln
 
   integer,parameter :: itmax=100
   real,parameter    :: eps=3.e-7
@@ -124,7 +129,7 @@ subroutine gcf(gammcf,a,x,gln)
 
   integer :: n
   real :: gammcf, a, x, gln, gold, a0, a1, b0, b1, fac, an, anf, ana, g
-  real, external :: gammln
+  !real, external :: gammln
 
   integer,parameter :: itmax=100
   real,parameter    :: eps=3.e-7
@@ -161,7 +166,7 @@ function erf(x)
   implicit none
 
   real :: x, erf
-  real, external :: gammp
+  !real, external :: gammp
 
   if(x.lt.0.)then
     erf=-gammp(.5,x**2)
@@ -175,7 +180,7 @@ function erfc(x)
   implicit none
 
   real :: x, erfc
-  real, external :: gammp, gammq
+  !real, external :: gammp, gammq
 
   if(x.lt.0.)then
     erfc=1.+gammp(.5,x**2)
