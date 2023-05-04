@@ -190,7 +190,8 @@ particle_mod.o: com_mod.o par_mod.o
 plume_mod.o: com_mod.o mean_mod.o par_mod.o point_mod.o particle_mod.o coordinates_ecmwf_mod.o \
 	windfields_mod.o
 point_mod.o: com_mod.o par_mod.o
-readoptions_mod.o: com_mod.o par_mod.o date_mod.o drydepo_mod.o point_mod.o windfields_mod.o
+readoptions_mod.o: com_mod.o par_mod.o date_mod.o drydepo_mod.o point_mod.o windfields_mod.o \
+        xmass_mod.o
 settling_mod.o: com_mod.o par_mod.o windfields_mod.o
 timemanager_mod.o: com_mod.o flux_mod.o oh_mod.o outg_mod.o advance_mod.o\
 	par_mod.o point_mod.o unc_mod.o xmass_mod.o particle_mod.o coordinates_ecmwf_mod.o \
