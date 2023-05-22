@@ -17,7 +17,7 @@ ubuntu-build:
   script:
     - export FC=gfortran
     - export LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu
-    - export INCLUDE=/usr/include
+    - export CPATH=/usr/include
     - make -C src -f makefile_gfortran
     - ulimit -s unlimited
     - ./src/FLEXPART
