@@ -14,7 +14,7 @@ ubuntu-build:
   before_script:
     - export DEBIAN_FRONTEND=noninteractive 
     - export TZ=Etc/UTC
-    - apt-get update -qq && apt-get install -y -qq gfortran libnetcdf-dev libnetcdff-dev libeccodes-dev netcdf-bin
+    - apt-get update -qq && apt-get install -y -qq make gfortran libnetcdf-dev libnetcdff-dev libeccodes-dev netcdf-bin
 
   script:
     - export FC=gfortran
