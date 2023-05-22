@@ -6,7 +6,7 @@ default:
   tags:
     - podman
 
-ubuntu-build:
+alma8-build:
   image: almalinux:8-minimal
   stage: build
   when: manual
@@ -19,10 +19,10 @@ ubuntu-build:
     - export FC=gfortran
     - export LIBRARY_PATH=/usr/lib64
     - export CPATH=/usr/include:/usr/lib64/gfortran/modules
-    - make -C src -f makefile_gfortran
+    - make -j -C src -f makefile_gfortran
     - ulimit -s unlimited
     - ./src/FLEXPART
 
-  artifacts:
-    paths:
-      - ./src/FLEXPART
+#  artifacts:
+#    paths:
+#      - ./src/FLEXPART
