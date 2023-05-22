@@ -54,10 +54,15 @@ ROOT_DIR = . #MD
 # JET (INCLUDE/CPATH and LIBRARY_PATH)
 # VSC (CPATH and LIBRARY_PATH)
 # 
-
+ifndef CPATH
+	$(error CPATH is not set)
+endif
+ifndef LIBRARY_PATH
+        $(error LIBRARY_PATH is not set)
+endif
 # use the environmental variable $INCLUDE
 # split the paths separated by :
-INC = $(subst :, ,$(INCLUDE))
+INC = $(subst :, ,$(CPATH))
 # add a -I/path/to/include
 INC := $(INC:%=-I%)
 # use the environmental variable $LIBRARY_PATH
@@ -83,7 +88,8 @@ endif
 O_LEV = 3 # [0,1,2,3,g,s,fast]
 O_LEV_DBG = g # [0,g]
 # -fopenmp #-pg -fbacktrace -fcheck=all -fbounds-check #-fopenmp#-p -fbacktrace -fopenmp #-tau_options=-optCompInst -tau_makefile=/home/lucie/Codes/Tau/x86_64/lib/Makefile.tau-mpi-pdt-openmp-opari#-fdefault-real-8# -freal-8-real-4#-pg -fcheck=all
-FUSER = -g -fopenmp -march=skylake-avx512
+#FUSER = -g -fopenmp -march=skylake-avx512
+FUSER = -g -fopenmp -march=native -mtune=native
 mpi: FUSER := $(FUSER) -Dusempi #-MM -MT -MD
 ## LIBRARIES
 LIBS = -leccodes -leccodes_f90 -lm -ljasper $(NCOPT) #MD
@@ -134,7 +140,7 @@ endif
 
 # serial executable
 serial: $(FLEXPART-SERIAL)
-serial: FC := $(F90)
+serial: FC := $(FC)
 
 $(FLEXPART-SERIAL): $(MODOBJS) $(OBJECTS)
 	+$(FC) -o $@ $(MODOBJS) $(OBJECTS) $(LDFLAGS)
