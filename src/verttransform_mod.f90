@@ -284,7 +284,9 @@ subroutine initialise_verttransform(n)
     endif
   end do
 
-  call output_heightlevels(height,nmixz)
+  if (loutrestart.ne.-1) then
+    call output_heightlevels(height,nmixz)
+  endif
 end subroutine initialise_verttransform
 
 subroutine output_heightlevels(height_tmp,nmixz_tmp)

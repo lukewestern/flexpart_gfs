@@ -200,7 +200,9 @@ subroutine timemanager
 
   ! Writing restart file
   !*********************
-    if ((itime.ne.itime_init).and.(mod(itime,loutrestart).eq.0)) call output_restart(itime,loutnext,outnum)
+    if ((itime.ne.itime_init).and.(loutrestart.ne.-1).and.(mod(itime,loutrestart).eq.0)) then
+      call output_restart(itime,loutnext,outnum)
+    endif
 
     if (itime.ne.0) write(*,*) part(1)%xlon,part(1)%ylat,part(1)%z,part(1)%zeta
     call initialise_output(itime,filesize)

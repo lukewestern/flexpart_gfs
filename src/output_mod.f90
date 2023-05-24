@@ -108,7 +108,8 @@ subroutine initialise_output(itime,filesize)
   ! Also if a new restart file is created.
   else if ((mod(itime,ipoutfac*loutstep).eq.0).and.(ipout.ge.1)) then
 #ifdef USE_NCF
-    if ((filesize.ge.max_partoutput_filesize).or.(mod(itime,loutrestart).eq.0)) then 
+    if ((filesize.ge.max_partoutput_filesize).or. &
+      ((loutrestart.ne.-1).and.(mod(itime,loutrestart).eq.0))) then 
       jul=bdate+real(itime,kind=dp)/86400._dp
       call caldate(jul,jjjjmmdd,ihmmss)
       if (ldirect.eq.1) then 

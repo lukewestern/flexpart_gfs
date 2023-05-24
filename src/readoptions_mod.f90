@@ -508,7 +508,7 @@ subroutine readcommand
   loutstep=10800
   loutaver=10800
   loutsample=900
-  loutrestart=999999999
+  loutrestart=-1
   lsynctime=900
   ctl=-5.0
   ifine=4
@@ -701,7 +701,7 @@ subroutine readcommand
   endif
 
 #ifndef USE_NCF
-  if ((loutrestart.ne.999999999).or.(ipin.ne.0)) then
+  if ((loutrestart.ne.-1).or.(ipin.ne.0)) then
     write(*,*) ' WARNING: restart option set with intervals'
     write(*,*) ' LOUTRESTART', loutrestart
     write(*,*) ' not possible when using binary gridded output'
