@@ -32,7 +32,7 @@ The model is written in Fortran. It needs to be compiled for the architecture th
 
  * [ecCodes](https://confluence.ecmwf.int/display/ECC) from ECMWF. 
  * [NetCDF](https://www.unidata.ucar.edu/software/netcdf/) (optional) from UCAR
- * Fortran Compiler, e.g. GCC compiler `8.5.0+` or INTEL 19+ or INTEL-ONEAPI
+ * Fortran Compiler with [Fortran 2008](https://fortranwiki.org/fortran/show/Fortran+2008+status) standard, e.g. GCC compiler `8+` or INTEL `19+` or INTEL-ONEAPI 
  * make utils
 
 ### 2.Compilation
@@ -62,7 +62,7 @@ Now you are almost ready to run.
    In the winds are available in flex_ecmwf/work it should suffice to execute 
    `./src/FLEXPART` in the main directory  
 
-### Contribution guidelines ###
+## Contribution guidelines
 
 * The version contributed should compile on a reference version of the system and compiler. 
    - `FLEXPART 10.4` used as reference gfortran 5.4 on Ubuntu 16.04
