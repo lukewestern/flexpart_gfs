@@ -2590,8 +2590,8 @@ subroutine readinitconditions_netcdf()
   call nf90_err(nf90_inquire_attribute(ncid=ncidend,name='kindz',varid=NF90_GLOBAL))
   call nf90_err(nf90_get_att(ncid=ncidend,varid=NF90_GLOBAL,name='kindz',values=zkind))
   kindz=zkind
-  do nsp=1,nspec
-   if ((kindz(nsp).le.0).or.(kindz(nsp).ge.4)) then
+  do j=1,numpoint
+   if ((kindz(j).le.0).or.(kindz(j).ge.4)) then
       write(*,*) 'ERROR: kindz should be an integer between 1 and 3, not', kindz(nsp)
       stop
    endif
