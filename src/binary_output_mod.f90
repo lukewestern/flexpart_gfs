@@ -162,7 +162,7 @@ subroutine writeheader_binary
   write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS    #### '
   write(*,*) ' #### NAME ALREADY EXISTS, DELETE IT AND START #### '
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
-  stop
+  error stop
 
 end subroutine writeheader_binary
 
@@ -301,7 +301,7 @@ subroutine writeheader_binary_nest
   write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS    #### '
   write(*,*) ' #### NAME ALREADY EXISTS, DELETE IT AND START #### '
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
-  stop
+  error stop
 
 end subroutine writeheader_binary_nest
 
@@ -440,7 +440,7 @@ subroutine writeheader_binary_nest_surf
   write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS    #### '
   write(*,*) ' #### NAME ALREADY EXISTS, DELETE IT AND START #### '
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
-  stop
+  error stop
 
 end subroutine writeheader_binary_nest_surf
 
@@ -579,7 +579,7 @@ subroutine writeheader_binary_surf
   write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS    #### '
   write(*,*) ' #### NAME ALREADY EXISTS, DELETE IT AND START #### '
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
-  stop
+  error stop
 
 end subroutine writeheader_binary_surf
 
@@ -642,12 +642,12 @@ subroutine openreceptors
 997   write(*,*) ' #### FLEXPART MODEL ERROR! THE FILE           #### '
   write(*,*) ' ####              receptor_conc               #### '
   write(*,*) ' #### CANNOT BE OPENED.                        #### '
-  stop
+  error stop
 
 998   write(*,*) ' #### FLEXPART MODEL ERROR! THE FILE           #### '
   write(*,*) ' ####              receptor_pptv               #### '
   write(*,*) ' #### CANNOT BE OPENED.                        #### '
-  stop
+  error stop
 end subroutine openreceptors
 
 subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &

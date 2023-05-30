@@ -165,7 +165,7 @@ subroutine writeheader_txt
   write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS    #### '
   write(*,*) ' #### NAME ALREADY EXISTS, DELETE IT AND START #### '
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
-  stop
+  error stop
 end subroutine writeheader_txt
 
 end module txt_output_mod

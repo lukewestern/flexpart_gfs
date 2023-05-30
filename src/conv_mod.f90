@@ -794,9 +794,8 @@ subroutine redist(itime,ipart,ktop,ipconv)
           exit
         endif
       end do
-    case default
-      write(*,*) 'The wind_coord_type is not defined in redist.f90'
-      stop
+    case default 
+      error stop 'The wind_coord_type is not defined in redist.f90'
 
   end select
 
@@ -869,8 +868,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
         endif
 
       case default
-        write(*,*) 'The chosen wind_coord_type is not defined in redist.f90'
-        stop
+        error stop 'The chosen wind_coord_type is not defined in redist.f90'
 
     end select
 
@@ -942,8 +940,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
           if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
 
         case default
-          write(*,*) 'The wind_coord_type is not defined in redist.f90'
-          stop
+          error stop 'The wind_coord_type is not defined in redist.f90'
       end select
     endif      !(levnew.le.nconvtop.and.levnew.eq.levold)
   endif
@@ -958,8 +955,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
     case ('METER')
       if (part(abs(ipart))%z .gt. height(nz)-0.5) call set_z(ipart,height(nz)-0.5)
     case default
-      write(*,*) 'The wind_coord_type is not defined in redist.f90'
-      stop
+      error stop 'The wind_coord_type is not defined in redist.f90'
   end select
 
 end subroutine redist
@@ -2177,8 +2173,7 @@ subroutine sort2(n,arr,brr)
       brr(j)=b
       jstack=jstack+2
       if(jstack.gt.nstack) then
-         print*, 'nstack too small in sort2'
-         stop
+         error stop 'nstack too small in sort2'
       end if
       if(ir-i+1.ge.j-l)then
         istack(jstack)=ir

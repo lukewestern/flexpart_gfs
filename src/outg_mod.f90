@@ -253,7 +253,7 @@ subroutine outgrid_init
   if (stat.ne.0) then
     write(*,*)'ERROR: could not allocate gridunc_omp'
     write(*,*)'increase the memory or reduce max_numthreads_grid in par_mod.f90.'
-    stop
+    error stop
   endif
 #endif
   if (ldirect.gt.0) then

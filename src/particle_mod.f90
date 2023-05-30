@@ -264,7 +264,7 @@ contains
       call allocate_particle(ipart)
     endif
 
-    if (part(ipart)%alive) stop 'Attempting to overwrite existing particle'
+    if (part(ipart)%alive) error stop 'Attempting to overwrite existing particle'
 
     ! Update the number of particles that are currently alive
     !********************************************************
@@ -383,7 +383,7 @@ contains
     if (ipart.gt.count%allocated) then 
       call allocate_particles(ipart-count%allocated)
     else
-      stop 'Error: You are trying to allocate an already existing particle'
+      error stop 'Error: You are trying to allocate an already existing particle'
     endif
 
   end subroutine allocate_particle

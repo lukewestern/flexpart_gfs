@@ -63,7 +63,7 @@ subroutine coordtrafo(nxmin1,nymin1)
     write(*,*) ' FLEXPART MODEL SUBROUTINE COORDTRAFO: ERROR ! '
     write(*,*) ' NO PARTICLE RELEASES ARE DEFINED!'
     write(*,*) ' CHECK FILE RELEASES...'
-    stop
+    error stop
   endif
 
   ! TRANSFORM X- AND Y- COORDINATES OF STARTING POINTS TO GRID COORDINATES
@@ -128,7 +128,7 @@ subroutine coordtrafo(nxmin1,nymin1)
     write(*,*) ' FLEXPART MODEL SUBROUTINE COORDTRAFO: ERROR ! '
     write(*,*) ' NO PARTICLE RELEASES ARE DEFINED!'
     write(*,*) ' CHECK FILE RELEASES...'
-    stop
+    error stop
   endif
 end subroutine coordtrafo
 

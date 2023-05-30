@@ -230,8 +230,7 @@ subroutine read_options_and_initialise_flexpart
     print *,'NCEP metdata detected'
     if (nxshift.eq.-9999) nxshift=0
   else
-    print *,'Unknown metdata format'
-    stop
+    error stop 'Unknown metdata format'
   endif
   write(*,*) 'NXSHIFT is set to', nxshift
 
@@ -381,14 +380,14 @@ subroutine flexpart_initialise_particles
 #ifdef USE_NCF
     call readpartpositions
 #else
-    stop 'Compile with netCDF if you want to use the ipin=2 option.'
+    error stop 'Compile with netCDF if you want to use the ipin=2 option.'
 #endif
   else if (ipin.eq.3) then ! User defined particle properties
   ! Reading initial conditions from netcdf file
 #ifdef USE_NCF
     call readinitconditions_netcdf
 #else
-    stop 'Compile with netCDF if you want to use the ipin=3 option.'
+    error stop 'Compile with netCDF if you want to use the ipin=3 option.'
 #endif
   else
     ! Releases can only start and end at discrete times (multiples of lsynctime)

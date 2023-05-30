@@ -219,7 +219,7 @@ subroutine readrestart
   if (abs(julin-bdate).le.1.e-5) then
     write(*,*) ' #### FLEXPART ERROR: PLEASE KEEP IBDATE     #### '
     write(*,*) ' #### AND IBTIME INTACT FROM THE INITIAL RUN!#### '
-    stop
+    error stop
   endif
   call caldate(julin,id1,it1)
   call caldate(bdate,id2,it2)

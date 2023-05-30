@@ -213,8 +213,7 @@ subroutine output_particles(itime,initial_output)
 #ifdef USE_NCF
   integer  :: ncid, mythread, thread_divide(12),mass_divide(nspec)
 #else
-  write(*,*) 'NETCDF missing! Please compile with netcdf if you want the particle dump.'
-  stop
+  error stop 'NETCDF missing! Please compile with netcdf if you want the particle dump.'
 #endif
 
 #ifdef USE_NCF

@@ -129,8 +129,7 @@ real(kind=dp) function juldate(yyyymmdd,hhmiss)
   ss=hhmiss-10000*hh-100*mi
 
   if (yyyy.eq.0) then
-     print*, 'there is no year zero.'
-     stop
+     error stop 'juldate: there is no year zero'
   end if
   if (yyyy.lt.0) yyyy=yyyy+1
   if (mm.gt.2) then

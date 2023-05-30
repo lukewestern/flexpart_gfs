@@ -101,14 +101,14 @@ subroutine readageclasses
     write(*,*) ' #### CHANGE SETTINGS IN FILE AGECLASSES OR   #### '
     write(*,*) ' #### RECOMPILE WITH LARGER MAXAGECLASS IN    #### '
     write(*,*) ' #### FILE PAR_MOD.                        #### '
-    stop
+    error stop 'Number of age classes too large'
   endif
 
   if (lage(1).le.0) then
     write(*,*) ' #### FLEXPART MODEL ERROR! AGE OF FIRST      #### '
     write(*,*) ' #### CLASS MUST BE GREATER THAN ZERO. CHANGE #### '
     write(*,*) ' #### SETTINGS IN FILE AGECLASSES.            #### '
-    stop
+    error stop 'First age class must be larger than zero'
   endif
 
   do i=2,nageclass
@@ -116,7 +116,7 @@ subroutine readageclasses
       write(*,*) ' #### FLEXPART MODEL ERROR! AGE CLASSES     #### '
       write(*,*) ' #### MUST BE GIVEN IN TEMPORAL ORDER.      #### '
       write(*,*) ' #### CHANGE SETTINGS IN FILE AGECLASSES.   #### '
-      stop
+      error stop 'Age classes must be in temporal order'
     endif
   end do
 
@@ -125,12 +125,12 @@ subroutine readageclasses
 999   write(*,*) ' #### FLEXPART MODEL ERROR! FILE "AGECLASSES" #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(1)(1:length(1))
-  stop
+  error stop 'AGECLASSES cannot be opened'
 
 1000  write(*,*) ' #### FLEXPART MODEL ERROR! FILE "AGECLASSES" #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(2)(1:length(2))
-  stop
+  error stop 'AGECLASSES cannot be opened'
 end subroutine readageclasses
 
 subroutine readavailable
@@ -216,7 +216,7 @@ subroutine readavailable
        write(*,*) 'Number of wind fields needed is too great.'
        write(*,*) 'Reduce modelling period (file "COMMAND") or'
        write(*,*) 'reduce number of wind fields (file "AVAILABLE").'
-       stop
+       error stop 'Number of wind fields is larger than maxwf (set in par_mod)'
       endif
 
       wfname1(numbwf)=fname(1:index(fname,' '))
@@ -253,7 +253,7 @@ subroutine readavailable
        write(*,*) 'Number of nested wind fields is too great.'
        write(*,*) 'Reduce modelling period (file "COMMAND") or'
        write(*,*) 'reduce number of wind fields (file "AVAILABLE").'
-          stop
+          error stop 'Number of nested wind fields is larger than maxwf (set in par_mod)'
         endif
 
         wfname1n(k,numbwfn(k))=fname
@@ -274,7 +274,7 @@ subroutine readavailable
   if (numbwf.eq.0) then
     write(*,*) ' #### FLEXPART MODEL ERROR! NO WIND FIELDS    #### '
     write(*,*) ' #### AVAILABLE FOR SELECTED TIME PERIOD.     #### '
-    stop
+    error stop 'No wind fields available for selected time period'
   endif
 
   do i=2,numbwf
@@ -282,7 +282,7 @@ subroutine readavailable
       write(*,*) 'FLEXPART ERROR: FILE AVAILABLE IS CORRUPT.'
       write(*,*) 'THE WIND FIELDS ARE NOT IN TEMPORAL ORDER.'
       write(*,*) 'PLEASE CHECK FIELD ',wfname1(i)
-      stop
+      error stop 'AVAILABLE file error'
     endif
   end do
 
@@ -294,7 +294,7 @@ subroutine readavailable
     if (numbwfn(k).eq.0) then
       write(*,*) '#### FLEXPART MODEL ERROR! NO WIND FIELDS  ####'
       write(*,*) '#### AVAILABLE FOR SELECTED TIME PERIOD.   ####'
-      stop
+      error stop 'No nested wind fields available for selected time period'
     endif
 
     do i=2,numbwfn(k)
@@ -303,7 +303,7 @@ subroutine readavailable
       write(*,*) 'THE NESTED WIND FIELDS ARE NOT IN TEMPORAL ORDER.'
       write(*,*) 'PLEASE CHECK FIELD ',wfname1n(k,i)
       write(*,*) 'AT NESTING LEVEL ',k
-      stop
+      error stop 'nested AVAILABLE file error'
       endif
     end do
 
@@ -366,7 +366,7 @@ subroutine readavailable
       write(*,*) 'NESTED WIND FIELDS ARE NOT CONSISTENT WITH'
       write(*,*) 'THE AVAILABLE FILE OF THE MOTHER DOMAIN.  '
       write(*,*) 'ERROR AT NEST LEVEL: ',k
-      stop
+      error stop 'Not the same number of nested wind field files as mother domain'
     endif
     do i=1,numbwf
       if (wftimen(k,i).ne.wftime(i)) then
@@ -374,7 +374,7 @@ subroutine readavailable
         write(*,*) 'NESTED WIND FIELDS ARE NOT CONSISTENT WITH'
         write(*,*) 'THE AVAILABLE FILE OF THE MOTHER DOMAIN.  '
         write(*,*) 'ERROR AT NEST LEVEL: ',k
-        stop
+        error stop 'Not the same time period of nested wind field files as mother domain'
       endif
     end do
   end do
@@ -393,12 +393,12 @@ subroutine readavailable
   write(*,'(a)') '     '//path(numpath+2*(k-1)+2) &
        (1:length(numpath+2*(k-1)+2))
   write(*,*) ' #### CANNOT BE OPENED             #### '
-  stop
+  error stop 'Nested AVAILABLE file cannot be opened'
 
 999   write(*,*) ' #### FLEXPART MODEL ERROR! AVAILABLE FILE #### '
   write(*,'(a)') '     '//path(4)(1:length(4))
   write(*,*) ' #### CANNOT BE OPENED           #### '
-  stop
+  error stop 'AVAILABLE file cannot be opened'
 end subroutine readavailable
 
 subroutine readcommand
@@ -558,7 +558,7 @@ subroutine readcommand
   if ((readerror.ne.0).or.(ldirect.eq.0)) then ! parse as text file format
     if (lroot) write(*,*) 'COMMAND either having unrecognised entries, &
       &or in old format, please update to namelist format.'
-      stop
+      error stop 'COMMAND has unrecognised entries'
   endif ! input format
 
   ! write command file in namelist format to output directory if requested
@@ -678,7 +678,7 @@ subroutine readcommand
   if ((linit_cond.lt.0).or.(linit_cond.gt.2)) then
     write(*,*) ' #### FLEXPART MODEL ERROR! INVALID OPTION    #### '
     write(*,*) ' #### FOR LINIT_COND IN FILE "COMMAND".       #### '
-    stop
+    error stop 'LINIT_COND in COMMAND is invalid'
   endif
 
   ! Check input dates
@@ -689,14 +689,14 @@ subroutine readcommand
     write(*,*) ' #### IS LARGER THAN ENDING DATE. CHANGE      #### '
     write(*,*) ' #### EITHER POINT 2 OR POINT 3 IN FILE       #### '
     write(*,*) ' #### "COMMAND".                              #### '
-    stop
+    error stop 'COMMAND: beginning date is larger than ending date'
   else if (iedate.eq.ibdate) then
     if (ietime.lt.ibtime) then
     write(*,*) ' #### FLEXPART MODEL ERROR! BEGINNING TIME    #### '
     write(*,*) ' #### IS LARGER THAN ENDING TIME. CHANGE      #### '
     write(*,*) ' #### EITHER POINT 2 OR POINT 3 IN FILE       #### '
     write(*,*) ' #### "COMMAND".                              #### '
-    stop
+    error stop 'COMMAND: beginning time is larger than ending time'
     endif
   endif
 
@@ -717,7 +717,7 @@ subroutine readcommand
   if ((surf_only.eq.1).or.(linversionout.eq.1)) then
     write(*,*) ' ERROR: NetCDF output for surface only or for inversions'
     write(*,*) ' is not yet implemented. Please compile without NetCDF.'
-    stop
+    error stop 'Surface only option is not supported for NetCDF'
   endif
 #endif
 
@@ -738,19 +738,21 @@ subroutine readcommand
   lnetcdfout = 1
 #endif
   if (iout.ge.8) then
-     lnetcdfout = 1
-     iout = iout - 8
+    lnetcdfout = 1
+    iout = iout - 8
 #ifndef USE_NCF
-     write(*,*) 'ERROR: netcdf output not activated during compile time but used in COMMAND file!'
-     write(*,*) 'Please recompile with netcdf library (`make [...] ncf=yes`) or use standard output format.'
-     stop
+    write(*,*) 'ERROR: netcdf output not activated during compile time'
+    write(*,*) 'but used in COMMAND file!'
+    write(*,*) 'Please recompile with netcdf library (`make [...] ncf=yes`)'
+    write(*,*) 'or use standard output format.'
+    error stop 'FLEXPART not compiled with NetCDF'
 #endif
   endif
 #ifndef USE_NCF
   if (ipout.ne.0) then
     write(*,*) 'ERROR: NETCDF missing! Please recompile with the netcdf'
     write(*,*) 'library if you want the particle dump or set IPOUT=0.'
-    stop    
+    error stop 'FLEXPART not compiled with NetCDF'
   endif
 #endif
 
@@ -764,7 +766,7 @@ subroutine readcommand
     write(*,*) ' #### IOUT MUST BE 1, 2, 3, 4 OR 5 FOR        #### '
     write(*,*) ' #### STANDARD FLEXPART OUTPUT OR  9 - 13     #### '
     write(*,*) ' #### FOR NETCDF OUTPUT                       #### '
-    stop
+    error stop
   endif
 
   !AF check consistency between units and volume mixing ratio
@@ -773,7 +775,7 @@ subroutine readcommand
     write(*,*) ' #### FLEXPART MODEL ERROR! FILE COMMAND:     #### '
     write(*,*) ' #### VOLUME MIXING RATIO ONLY SUPPORTED      #### '
     write(*,*) ' #### FOR MASS UNITS (at the moment)          #### '
-    stop
+    error stop
   endif
 
 
@@ -784,7 +786,7 @@ subroutine readcommand
       write(*,*) '#### FLEXPART MODEL ERROR! FILE COMMAND:     ####'
       write(*,*) '#### OUTPUTFOREACHRELEASE AND QUASILAGRANGIAN####'
       write(*,*) '#### MODE IS NOT POSSIBLE   !                ####'
-      stop
+      error stop
   endif
 
 
@@ -795,7 +797,7 @@ subroutine readcommand
       write(*,*) '#### FLEXPART MODEL ERROR! FILE COMMAND:     ####'
       write(*,*) '#### FOR BACKWARD RUNS, QUASILAGRANGIAN MODE ####'
       write(*,*) '#### IS NOT POSSIBLE   !                     ####'
-      stop
+      error stop
   endif
 
 
@@ -807,7 +809,7 @@ subroutine readcommand
       write(*,*) '#### FLEXPART MODEL ERROR! FILE COMMAND:     ####'
       write(*,*) '#### FOR BACKWARD RUNS, IOUTPUTFOREACHRLEASE ####'
       write(*,*) '#### MUST BE SET TO ONE!                     ####'
-      stop
+      error stop
   endif
 
 
@@ -819,7 +821,7 @@ subroutine readcommand
       write(*,*) '#### FLEXPART MODEL ERROR! FILE COMMAND:     ####'
       write(*,*) '#### FOR DOMAIN FILLING RUNS OUTPUT FOR      ####'
       write(*,*) '#### EACH RELEASE IS FORBIDDEN !             ####'
-      stop
+      error stop
   endif
 
   ! Inversion output format only for backward runs
@@ -829,7 +831,7 @@ subroutine readcommand
       write(*,*) '#### FLEXPART MODEL ERROR! FILE COMMAND:     ####'
       write(*,*) '#### INVERSION OUTPUT FORMAT ONLY FOR        ####'
       write(*,*) '#### BACKWARD RUNS                           ####'
-      stop
+      error stop
   endif
 
 
@@ -842,7 +844,7 @@ subroutine readcommand
     if ((iout.eq.2).or.(iout.eq.3)) then
       write(*,*) '#### FLEXPART MODEL ERROR! FILE COMMAND:     ####'
       write(*,*) '#### FOR BACKWARD RUNS, IOUT MUST BE 1,4,OR 5####'
-      stop
+      error stop
     endif
   endif
 
@@ -856,7 +858,7 @@ subroutine readcommand
       write(*,*) '#### FLEXPART MODEL ERROR! FILE COMMAND:     ####'
       write(*,*) '#### FOR DOMAIN-FILLING TRAJECTORY OPTION,   ####'
       write(*,*) '#### IOUT MUST NOT BE SET TO 4 OR 5.         ####'
-      stop
+      error stop
     endif
   endif
 
@@ -866,7 +868,7 @@ subroutine readcommand
   if ((ipout.ne.0).and.(ipout.ne.1).and.(ipout.ne.2).and.(ipout.ne.3)) then
     write(*,*) ' #### FLEXPART MODEL ERROR! FILE COMMAND:     #### '
     write(*,*) ' #### IPOUT MUST BE 0, 1, 2 OR 3!             #### '
-    stop
+    error stop
   endif
 
   ! Check whether input and output settings don't contradict
@@ -875,7 +877,7 @@ subroutine readcommand
     write(*,*) ' #### FLEXPART MODEL ERROR! FILE COMMAND:     #### '
     write(*,*) ' #### IOUT CANNOT BE 4 or 5 (plume) WHEN      #### '
     write(*,*) ' #### READING FROM part_ic.nc (ipin=4/5)      #### '
-    stop
+    error stop
   endif    
 
   if(lsubgrid.ne.1.and.verbosity.eq.0) then
@@ -892,7 +894,7 @@ subroutine readcommand
   if ((lconvection.ne.0).and.(lconvection.ne.1)) then
     write(*,*) ' #### FLEXPART MODEL ERROR! FILE COMMAND:     #### '
     write(*,*) ' #### LCONVECTION MUST BE SET TO EITHER 1 OR 0#### '
-    stop
+    error stop
   endif
 
 
@@ -903,7 +905,7 @@ subroutine readcommand
     write(*,*) ' #### FLEXPART MODEL ERROR! SYNCHRONISATION   #### '
     write(*,*) ' #### TIME IS TOO LONG. MAKE IT SHORTER.      #### '
     write(*,*) ' #### MINIMUM HAS TO BE: ', idiffnorm/2
-    stop
+    error stop
   endif
 
 
@@ -915,7 +917,7 @@ subroutine readcommand
     write(*,*) ' #### CONCENTRATION FIELD OUTPUT MUST NOT BE  #### '
     write(*,*) ' #### ZERO.                                   #### '
     write(*,*) ' #### CHANGE INPUT IN FILE COMMAND.           #### '
-    stop
+    error stop
   endif
 
   if (loutaver.gt.loutstep) then
@@ -923,7 +925,7 @@ subroutine readcommand
     write(*,*) ' #### CONCENTRATION FIELD OUTPUT MUST NOT BE  #### '
     write(*,*) ' #### GREATER THAN INTERVAL OF OUTPUT.        #### '
     write(*,*) ' #### CHANGE INPUT IN FILE COMMAND.           #### '
-    stop
+    error stop
   endif
 
   if (loutsample.gt.loutaver) then
@@ -931,49 +933,49 @@ subroutine readcommand
     write(*,*) ' #### CONCENTRATION FIELD OUTPUT MUST NOT BE  #### '
     write(*,*) ' #### GREATER THAN TIME AVERAGE OF OUTPUT.    #### '
     write(*,*) ' #### CHANGE INPUT IN FILE COMMAND.           #### '
-    stop
+    error stop
   endif
 
   if (mod(loutaver,lsynctime).ne.0) then
     write(*,*) ' #### FLEXPART MODEL ERROR! AVERAGING TIME OF #### '
     write(*,*) ' #### CONCENTRATION FIELD MUST BE A MULTIPLE  #### '
     write(*,*) ' #### OF THE SYNCHRONISATION INTERVAL         #### '
-    stop
+    error stop
   endif
 
   if ((loutaver/lsynctime).lt.2) then
     write(*,*) ' #### FLEXPART MODEL ERROR! AVERAGING TIME OF #### '
     write(*,*) ' #### CONCENTRATION FIELD MUST BE AT LEAST    #### '
     write(*,*) ' #### TWICE THE SYNCHRONISATION INTERVAL      #### '
-    stop
+    error stop
   endif
 
   if (mod(loutstep,lsynctime).ne.0) then
     write(*,*) ' #### FLEXPART MODEL ERROR! INTERVAL BETWEEN  #### '
     write(*,*) ' #### CONCENTRATION FIELDS MUST BE A MULTIPLE #### '
     write(*,*) ' #### OF THE SYNCHRONISATION INTERVAL         #### '
-    stop
+    error stop
   endif
 
   if ((loutstep/lsynctime).lt.2) then
     write(*,*) ' #### FLEXPART MODEL ERROR! INTERVAL BETWEEN  #### '
     write(*,*) ' #### CONCENTRATION FIELDS MUST BE AT LEAST   #### '
     write(*,*) ' #### TWICE THE SYNCHRONISATION INTERVAL      #### '
-    stop
+    error stop
   endif
 
   if (mod(loutsample,lsynctime).ne.0) then
     write(*,*) ' #### FLEXPART MODEL ERROR! SAMPLING TIME OF  #### '
     write(*,*) ' #### CONCENTRATION FIELD MUST BE A MULTIPLE  #### '
     write(*,*) ' #### OF THE SYNCHRONISATION INTERVAL         #### '
-    stop
+    error stop
   endif
 
   if ((mquasilag.eq.1).and.(iout.ge.4)) then
     write(*,*) ' #### FLEXPART MODEL ERROR! CONFLICTING       #### '
     write(*,*) ' #### OPTIONS: IF MQUASILAG=1, PLUME          #### '
     write(*,*) ' #### TRAJECTORY OUTPUT IS IMPOSSIBLE.        #### '
-    stop
+    error stop
   endif
 
   ! Compute modeling time in seconds and beginning date in Julian date
@@ -995,7 +997,7 @@ subroutine readcommand
   else
     write(*,*) ' #### FLEXPART MODEL ERROR! DIRECTION IN      #### '
     write(*,*) ' #### FILE "COMMAND" MUST BE EITHER -1 OR 1.  #### '
-    stop
+    error stop
   endif
 
   return
@@ -1003,12 +1005,12 @@ subroutine readcommand
 999   write(*,*) ' #### FLEXPART MODEL ERROR! FILE "COMMAND"    #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(1)(1:length(1))
-  stop
+  error stop
 
 1000   write(*,*) ' #### FLEXPART MODEL ERROR! FILE "COMMAND"    #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(2)(1:length(2))
-  stop
+  error stop
 end subroutine readcommand
 
 subroutine readdepo
@@ -1128,7 +1130,7 @@ subroutine readdepo
 
 999   write(*,*) '### FLEXPART ERROR! FILE              ###'
   write(*,*) '### surfdepo.t DOES NOT EXIST.        ###'
-  stop
+  error stop
 end subroutine readdepo
 
 subroutine readOHfield
@@ -1175,7 +1177,7 @@ subroutine readOHfield
 
   if(ierr.ne.0) then
     write(*,*) 'Cannot read binary OH fields in ',trim(ohfields_path)//'OH_FIELDS/OH_variables.bin'
-    stop
+    error stop
   endif
 
   read(unitOH) nxOH
@@ -1333,11 +1335,11 @@ subroutine readlanduse
 
 998   write(*,*) ' #### FLEXPART ERROR! FILE CONTAINING          ####'
   write(*,*) ' #### LANDUSE INVENTORY DOES NOT EXIST         ####'
-  stop
+  error stop
 
 999   write(*,*) ' #### FLEXPART ERROR! FILE CONTAINING          ####'
   write(*,*) ' #### RELATION LANDUSE,z0 DOES NOT EXIST       ####'
-  stop
+  error stop
 end subroutine readlanduse
 
 subroutine readoutgrid
@@ -1443,7 +1445,7 @@ subroutine readoutgrid
     write(*,*) ' #### GRID IS OUTSIDE MODEL DOMAIN. CHANGE    ####'
     write(*,*) ' #### FILE OUTGRID IN DIRECTORY               ####'
     write(*,'(a)') path(1)(1:length(1))
-    stop
+    error stop
   endif
 
   ! 2. Count Vertical levels of output grid
@@ -1551,12 +1553,12 @@ subroutine readoutgrid
 999 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "OUTGRID"    #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(1)(1:length(1))
-  stop
+  error stop
 
 1000 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "OUTGRID"    #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(2)(1:length(2))
-  stop
+  error stop
 end subroutine readoutgrid
 
 subroutine readoutgrid_nest
@@ -1661,7 +1663,7 @@ subroutine readoutgrid_nest
     write(*,*) ' #### NEST IS OUTSIDE MODEL DOMAIN. CHANGE    ####'
     write(*,*) ' #### FILE OUTGRID IN DIRECTORY               ####'
     write(*,'(a)') path(1)(1:length(1))
-    stop
+    error stop
   endif
 
   xoutshiftn=xlon0-outlon0n
@@ -1671,12 +1673,12 @@ subroutine readoutgrid_nest
 999 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "OUTGRID"    #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(1)(1:length(1))
-  stop
+  error stop
 
 1000 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "OUTGRID"    #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(2)(1:length(2))
-  stop
+  error stop
 end subroutine readoutgrid_nest
 
 subroutine readpaths
@@ -1758,12 +1760,12 @@ subroutine readpaths
 
 998   write(*,*) ' #### TRAJECTORY MODEL ERROR! ERROR WHILE     #### '
   write(*,*) ' #### READING FILE PATHNAMES.                 #### '
-  stop
+  error stop
 
 999   write(*,*) ' #### TRAJECTORY MODEL ERROR! FILE "pathnames"#### '
   write(*,*) ' #### CANNOT BE OPENED IN THE CURRENT WORKING #### '
   write(*,*) ' #### DIRECTORY.                              #### '
-  stop
+  error stop
 end subroutine readpaths
 
 
@@ -1895,7 +1897,7 @@ subroutine readreceptors
         if (nmlout) write(unitreceptorout,nml=nml_receptors)
       elseif (ios .gt. 0) then
         write(*,*) ' ### FLEXPART MODEL ERROR! Error in RECEPTORS namelist ###'
-        stop 'Error in RECEPTORS namelist'
+        error stop 'Error in RECEPTORS namelist'
       endif
     end do ! end nml receptors reading loop
 
@@ -1920,7 +1922,7 @@ subroutine readreceptors
   write(*,*)    ' #### cannot be opened in the directory      #### '
   write(*,'(a)') ' #### '//trim(path(2))
 
-  stop
+  error stop
 
 end subroutine readreceptors
 
@@ -2046,7 +2048,7 @@ subroutine readreleases
   if ((readerror.ne.0).or.(nspec.lt.0)) then
     if (lroot) write(*,*) 'RELEASE either having unrecognised entries, &
       &or in old format, please update to namelist format.'
-      stop
+      error stop
   else
     if ((ipin.ne.3).and.(ipin.ne.4)) then ! Not necessary to read releases when using part_ic.nc
       readerror=0
@@ -2149,7 +2151,7 @@ subroutine readreleases
       write(*,*) 'must be specified for all simulated species.'
       write(*,*) 'Check table SPECIES or choose concentration'
       write(*,*) 'output instead if molar weight is not known.'
-      stop
+      error stop
     endif
 
   ! Radioactive decay
@@ -2281,7 +2283,7 @@ subroutine readreleases
     write(*,*) 'RELEASES file is corrupt.'
     write(*,*) 'At least for one release point, there are zero'
     write(*,*) 'particles released. Make changes to RELEASES.'
-    stop
+    error stop
   endif
 
   ! If FLEXPART is run for backward deposition force zpoint
@@ -2320,7 +2322,7 @@ subroutine readreleases
     write(*,*) 'FLEXPART MODEL ERROR'
     write(*,*) 'Release stops before it begins.'
     write(*,*) 'Make changes to file RELEASES.'
-    stop
+    error stop
   endif
   if (mdomainfill.eq.0) then   ! no domain filling
     if (ldirect.eq.1) then
@@ -2329,7 +2331,7 @@ subroutine readreleases
         write(*,*) 'Release starts before simulation begins or ends'
         write(*,*) 'after simulation stops.'
         write(*,*) 'Make files COMMAND and RELEASES consistent.'
-        stop
+        error stop
       endif
       if (npart(numpoint).gt.num_min_discrete) then
         ireleasestart(numpoint)=int((jul1-bdate)*86400.)
@@ -2344,7 +2346,7 @@ subroutine readreleases
         write(*,*) 'Release starts before simulation begins or ends'
         write(*,*) 'after simulation stops.'
         write(*,*) 'Make files COMMAND and RELEASES consistent.'
-        stop
+        error stop
       endif
       if (npart(numpoint).gt.num_min_discrete) then
         ireleasestart(numpoint)=int((jul1-bdate)*86400.)
@@ -2452,7 +2454,7 @@ subroutine readreleases
   write(*,*) '#### ERROR - MAXIMUM NUMBER OF EMITTED SPECIES IS####'
   write(*,*) '#### TOO LARGE. PLEASE REDUCE NUMBER OF SPECIES. ####'
   write(*,*) '#####################################################'
-  stop
+  error stop
 
 998 write(*,*) '#####################################################'
   write(*,*) '#### FLEXPART MODEL SUBROUTINE READRELEASES:     ####'
@@ -2462,7 +2464,7 @@ subroutine readreleases
   write(*,*) '#### MISTAKES OR GET A NEW "RELEASES"-           ####'
   write(*,*) '#### FILE ...                                    ####'
   write(*,*) '#####################################################'
-  stop
+  error stop
 
 
 999 write(*,*) '#####################################################'
@@ -2472,12 +2474,12 @@ subroutine readreleases
   write(*,*) 'POINTS IS NOT AVAILABLE OR YOU ARE NOT'
   write(*,*) 'PERMITTED FOR ANY ACCESS'
   write(*,*) '#####################################################'
-  stop
+  error stop
 
 1000 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "RELEASES"    #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(2)(1:length(2))
-  stop
+  error stop
 end subroutine readreleases
 
 subroutine readspecies(id_spec,pos_spec)
@@ -2740,14 +2742,14 @@ subroutine readspecies(id_spec,pos_spec)
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
             write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            stop
+            error stop
           endif
           write(*,*) "SA,IA,LA:",psa,pia,pla
         case (2) ! Cylinders (fibers) !
           if (paspectratio.le.0.0) then
             write(*,*) "#### ERROR: Shape=2 cylinder is chosen, but no valid apect ratio is provided."
             write(*,*) "#### SPECIES file requires ASPECTRATIO parameter greater than zero."
-            stop
+            error stop
           endif
           psa=(((dquer(pos_spec)**3.0)*2.0)/ &
                   (3.0*paspectratio))**(1.0/3.0)
@@ -2763,7 +2765,7 @@ subroutine readspecies(id_spec,pos_spec)
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
             write(*,*) "#### ERROR: Shape=3 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            stop
+            error stop
           endif
           write(*,*) "SA,IA,LA:",psa,pia,pla
         case (4) ! Tetrahedrons !
@@ -2774,7 +2776,7 @@ subroutine readspecies(id_spec,pos_spec)
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
             write(*,*) "#### ERROR: Shape=4 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            stop
+            error stop
           endif
           write(*,*) "SA,IA,LA:",psa,pia,pla
         case (5) ! Octahedrons !
@@ -2785,7 +2787,7 @@ subroutine readspecies(id_spec,pos_spec)
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
             write(*,*) "#### ERROR: Shape=5 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            stop
+            error stop
           endif
           write(*,*) "SA,IA,LA:",psa,pia,pla
         case (6) ! Ellipsoids !
@@ -2796,7 +2798,7 @@ subroutine readspecies(id_spec,pos_spec)
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
             write(*,*) "#### ERROR: Shape=6 (user-defined) is chosen, but no valid axes are provided."
             write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            stop
+            error stop
           endif
           write(*,*) "SA,IA,LA:",psa,pia,pla
       end select
@@ -2859,11 +2861,11 @@ subroutine readspecies(id_spec,pos_spec)
       if (density(pos_spec) .gt. 0) then
         write(*,'(a)') '  Dry deposition is turned         :   ON'
         if (reldiff(pos_spec).gt.0) then
-           stop 'density>0 (SPECIES is a particle) implies reldiff <=0  '
+          error stop 'density>0 (SPECIES is a particle) implies reldiff <=0  '
         endif
       else
         if (reldiff(pos_spec).le.0) then
-           stop 'density<=0 (SPECIES is a gas) implies reldiff >0  '
+          error stop 'density<=0 (SPECIES is a gas) implies reldiff >0  '
         endif      
         write(*,'(a)') '  Dry deposition is (density<0)    :   OFF'
       end if
@@ -2926,7 +2928,7 @@ subroutine readspecies(id_spec,pos_spec)
     write(*,*) '#### if dsigma was < 1                          ####' 
     write(*,*) '#### use the reciprocal of the old dsigma       ####'  
     if (.not.debug_mode) then 
-       stop
+      error stop
     else
        write(*,*) 'debug mode: continue'
     endif
@@ -2937,7 +2939,7 @@ subroutine readspecies(id_spec,pos_spec)
     write(*,*) '#### IS CORRUPT. SPECIES CANNOT BE BOTH      ####'
     write(*,*) '#### PARTICLE AND GAS.                       ####'
     write(*,*) '#### SPECIES NUMBER',aspecnumb
-    stop
+    error stop
   endif
 20 continue
 
@@ -2959,7 +2961,7 @@ subroutine readspecies(id_spec,pos_spec)
   write(*,*) '#### CONSTANT IS SET                            ####'
   write(*,*) '#### PLEASE MODIFY SPECIES DESCR. FILE!        #### '
   write(*,*) '#####################################################'
-  stop
+  error stop
 
 
 997 write(*,*) '#####################################################'
@@ -2969,7 +2971,7 @@ subroutine readspecies(id_spec,pos_spec)
   write(*,*) '#### PLEASE CHANGE ORDER IN RELEASES OR ADD     #### '
   write(*,*) '#### THE ASSOCIATED SPECIES IN RELEASES         #### '
   write(*,*) '#####################################################'
-  stop
+  error stop
 
 
 998 write(*,*) '#####################################################'
@@ -2978,12 +2980,12 @@ subroutine readspecies(id_spec,pos_spec)
   write(*,*) '#### CANNOT BE FOUND: CREATE FILE'
   write(*,*) '#### ',path(1)(1:length(1)),'SPECIES/SPECIES_',aspecnumb
   write(*,*) '#####################################################'
-  stop
+  error stop
 
 1000 write(*,*) ' #### FLEXPART MODEL ERROR! FILE "SPECIES_',aspecnumb,'.namelist'
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(2)(1:length(2))
-  stop
+  error stop
 end subroutine readspecies
 
 subroutine readpartoptions
@@ -3098,7 +3100,7 @@ subroutine readpartoptions
 
   if (readerror.ne.0) then
     write(*,*) 'Namelist error in PARTOPTIONS file', trim(path(1)(1:length(1))//'PARTOPTIONS')
-    stop
+    error stop
   endif
   allocate( partopt(num_partopt) )
   ! Save values in particle options derived type
@@ -3285,7 +3287,7 @@ subroutine readpartoptions
       write(*,*) '### FLEXPART MODEL ERROR! FILE COMMAND:     ###'
       write(*,*) '### LOUTRESTART NEEDS TO BE DIVISABLE BY    ###'
       write(*,*) '### LOUTSTEP*IPOUTFAC.                      ###'
-      stop
+      error stop
     endif
   endif
 
@@ -3294,12 +3296,12 @@ subroutine readpartoptions
 9999   write(*,*) ' #### FLEXPART MODEL ERROR! FILE "PARTOPTIONS" #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(1)(1:length(1))
-  stop
+  error stop
 
 10000  write(*,*) ' #### FLEXPART MODEL ERROR! FILE "PARTOPTIONS" #### '
   write(*,*) ' #### CANNOT BE OPENED IN THE DIRECTORY       #### '
   write(*,'(a)') path(2)(1:length(2))
-  stop
+  error stop
 end subroutine readpartoptions
 
 subroutine skplin(nlines,iunit)

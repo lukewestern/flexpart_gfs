@@ -979,7 +979,7 @@ subroutine calcpar(n)
 
       if (ierr.lt.0) then
         write(*,9500) 'failure', ix, jy
-        stop
+        error stop 'calcpar: richardson computation failed'
       endif
 9500      format( 'calcpar - richardson ', a, ' - ix,jy=', 2i5 )
       
@@ -1220,7 +1220,7 @@ subroutine calcpar_nests(n)
            wstarn(ix,jy,1,n,l),hmixplus,ierr)
       if (ierr.lt.0) then
         write(*,9500) 'failure', ix, jy, l
-        stop
+        error stop 'calcpar_nests: richardson computation failed'
       endif
 9500      format( 'calcparn - richardson ', a, ' - ix,jy=', 2i5 )
 

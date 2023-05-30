@@ -139,7 +139,7 @@ subroutine assignland
            if (xi.lt.0) then
               write (*,*) 'problem with landuseinv sampling: ', &
                    xlon,xlon0lu,ix,iix,xlon0,dx,nxmax
-              stop
+              error stop
            endif
            do k=1,numclass
               xlanduse(ix,jy,k)= &

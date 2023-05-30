@@ -58,8 +58,7 @@ function gammp(a,x)
   real :: a, x, gln, gamser, gammp, gammcf
 
   if(x .lt. 0. .or. a .le. 0.) then
-     print*, 'gammp'
-     stop
+    error stop 'gammp: invalid input'
   end if
   if(x.lt.a+1.)then
     call gser(gamser,a,x,gln)
@@ -77,8 +76,7 @@ function gammq(a,x)
   real :: a, x, gln, gamser, gammq, gammcf
 
   if(x.lt.0..or.a.le.0.) then
-     print*, 'gammq'
-     stop
+    error stop 'gammq: invalid input'
   end if
   if(x.lt.a+1.)then
     call gser(gamser,a,x,gln)
@@ -103,8 +101,7 @@ subroutine gser(gamser,a,x,gln)
   gln=gammln(a)
   if(x.le.0.)then
     if(x.lt.0.) then
-       print*, 'gser'
-       stop
+       error stop 'gser: invalid x input'
     end if
     gamser=0.
     return
@@ -118,8 +115,7 @@ subroutine gser(gamser,a,x,gln)
     summ=summ+del
     if(abs(del).lt.abs(summ)*eps)go to 1
   end do
-  print*, 'gser: a too large, itmax too small'
-  stop
+  error stop 'gser: a too large, itmax too small'
 1   gamser=summ*exp(-x+a*log(x)-gln)
 end subroutine gser
 
@@ -156,8 +152,7 @@ subroutine gcf(gammcf,a,x,gln)
       gold=g
     endif
   end do
-  print*, 'gcf: a too large, itmax too small'
-  stop
+  error stop 'gcf: a too large, itmax too small'
 1   gammcf=exp(-x+a*alog(x)-gln)*g
 end subroutine gcf
 

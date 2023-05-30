@@ -680,7 +680,7 @@ subroutine openouttraj
   write(*,*) ' #### CANNOT BE OPENED. IF A FILE WITH THIS    #### '
   write(*,*) ' #### NAME ALREADY EXISTS, DELETE IT AND START #### '
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
-  stop
+  error stop
 
 end subroutine openouttraj
 

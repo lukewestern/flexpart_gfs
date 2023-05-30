@@ -596,13 +596,13 @@ subroutine gridcheck_ecmwf
         nx=nxfield+1                 ! field is cyclic
         xglobal=.true.
         if (abs(nxshift).ge.nx) &
-             stop 'nxshift in file par_mod is too large'
+          error stop 'nxshift in file par_mod is too large'
         xlon0=xlon0+real(nxshift)*dx
       else
         nx=nxfield
         xglobal=.false.
         if (nxshift.ne.0) &
-             stop 'nxshift (par_mod) must be zero for non-global domain'
+          error stop 'nxshift (par_mod) must be zero for non-global domain'
       endif
       nxmin1=nx-1
       nymin1=ny-1
@@ -636,8 +636,8 @@ subroutine gridcheck_ecmwf
         switchnorthg=999999.
       endif
       if (nxshift.lt.0) &
-           stop 'nxshift (par_mod) must not be negative'
-      if (nxshift.ge.nxfield) stop 'nxshift (par_mod) too large'
+        error stop 'nxshift (par_mod) must not be negative'
+      if (nxshift.ge.nxfield) error stop 'nxshift (par_mod) too large'
     endif ! gotGrid
 
     if (nx.gt.nxmax) then
@@ -645,7 +645,7 @@ subroutine gridcheck_ecmwf
       write(*,*) 'Reduce resolution of wind fields.'
       write(*,*) 'Or change parameter settings in file par_mod.'
       write(*,*) nx,nxmax
-      stop
+      error stop
     endif
 
     if (ny.gt.nymax) then
@@ -653,7 +653,7 @@ subroutine gridcheck_ecmwf
       write(*,*) 'Reduce resolution of wind fields.'
       write(*,*) 'Or change parameter settings in file par_mod.'
       write(*,*) ny,nymax
-      stop
+      error stop
     endif
 
     k=isec1(8)
@@ -711,7 +711,7 @@ subroutine gridcheck_ecmwf
   if (gotGrid.eq.0) then
     print*,'***ERROR: input file needs to contain GRiB1 formatted'// &
          'messages'
-    stop
+    error stop
   endif
 
   nuvz=iumax
@@ -811,7 +811,7 @@ subroutine gridcheck_ecmwf
   !*****************************************************************************
 
   nz=nuvz
-  if (nz.gt.nzmax) stop 'nzmax too small'
+  if (nz.gt.nzmax) error stop 'nzmax too small'
   do i=1,nuvz
     aknew(i)=akz(i)
     bknew(i)=bkz(i)
@@ -845,7 +845,7 @@ subroutine gridcheck_ecmwf
   write(*,*)
   read(*,'(a)') opt
   if(opt.eq.'X') then
-    stop
+    error stop
   else
     goto 5
   endif
@@ -943,7 +943,7 @@ subroutine gridcheck_gfs
   write(*,*) ' FLEXPART ERROR SUBROUTINE GRIDCHECK:'
   write(*,*) ' NO NESTED WINDFIELDAS ALLOWED FOR GFS!      '
   write(*,*) ' ###########################################'
-  stop
+  error stop
   endif
 
   iumax=0
@@ -1099,13 +1099,13 @@ subroutine gridcheck_gfs
         nx=nxfield+1                 ! field is cyclic
         xglobal=.true.
         if (abs(nxshift).ge.nx) &
-             stop 'nxshift in file par_mod is too large'
+          error stop 'nxshift in file par_mod is too large'
         xlon0=xlon0+real(nxshift)*dx
       else
         nx=nxfield
         xglobal=.false.
         if (nxshift.ne.0) &
-             stop 'nxshift (par_mod) must be zero for non-global domain'
+          error stop 'nxshift (par_mod) must be zero for non-global domain'
       endif
       nxmin1=nx-1
       nymin1=ny-1
@@ -1140,8 +1140,8 @@ subroutine gridcheck_gfs
       endif
     endif ! ifield.eq.1
 
-    if (nxshift.lt.0) stop 'nxshift (par_mod) must not be negative'
-    if (nxshift.ge.nxfield) stop 'nxshift (par_mod) too large'
+    if (nxshift.lt.0) error stop 'nxshift (par_mod) must not be negative'
+    if (nxshift.ge.nxfield) error stop 'nxshift (par_mod) too large'
 
     ! NCEP ISOBARIC LEVELS
     !*********************
@@ -1225,19 +1225,19 @@ subroutine gridcheck_gfs
   ! call windfields_allocate
 
   if (nx.gt.nxmax) then
-   write(*,*) 'FLEXPART error: Too many grid points in x direction.'
+    write(*,*) 'FLEXPART error: Too many grid points in x direction.'
     write(*,*) 'Reduce resolution of wind fields.'
     write(*,*) 'Or change parameter settings in file par_mod.'
     write(*,*) nx,nxmax
-    stop
+    error stop
   endif
 
   if (ny.gt.nymax) then
-   write(*,*) 'FLEXPART error: Too many grid points in y direction.'
+    write(*,*) 'FLEXPART error: Too many grid points in y direction.'
     write(*,*) 'Reduce resolution of wind fields.'
     write(*,*) 'Or change parameter settings in file par_mod.'
     write(*,*) ny,nymax
-    stop
+    error stop
   endif
 
   if (nuvz.gt.nuvzmax) then
@@ -1246,7 +1246,7 @@ subroutine gridcheck_gfs
     write(*,*) 'Reduce resolution of wind fields.'
     write(*,*) 'Or change parameter settings in file par_mod.'
     write(*,*) nuvz,nuvzmax
-    stop
+    error stop
   endif
 
   if (nwz.gt.nwzmax) then
@@ -1255,7 +1255,7 @@ subroutine gridcheck_gfs
     write(*,*) 'Reduce resolution of wind fields.'
     write(*,*) 'Or change parameter settings in file par_mod.'
     write(*,*) nwz,nwzmax
-    stop
+    error stop
   endif
 
   ! If desired, shift all grids by nxshift grid cells
@@ -1330,7 +1330,7 @@ subroutine gridcheck_gfs
   !*****************************************************************************
 
   nz=nuvz
-  if (nz.gt.nzmax) stop 'nzmax too small'
+  if (nz.gt.nzmax) error stop 'nzmax too small'
   do i=1,nuvz
     aknew(i)=akz(i)
     bknew(i)=bkz(i)
@@ -1364,7 +1364,7 @@ subroutine gridcheck_gfs
   write(*,*)
   read(*,'(a)') opt
   if(opt.eq.'X') then
-    stop
+    error stop
   else
     goto 5
   endif
@@ -1610,7 +1610,7 @@ subroutine gridcheck_nests
       write(*,*) 'for nesting level ',l
       write(*,*) 'Or change parameter settings in file par_mod.'
       write(*,*) nxn(l),nxmaxn
-      stop
+      error stop
     endif
 
     if (nyn(l).gt.nymaxn) then
@@ -1619,7 +1619,7 @@ subroutine gridcheck_nests
       write(*,*) 'for nesting level ',l
       write(*,*) 'Or change parameter settings in file par_mod.'
       write(*,*) nyn(l),nymaxn
-      stop
+      error stop
     endif
 
     !HSO  get the second part of the grid dimensions only from GRiB1 messages
@@ -1690,7 +1690,7 @@ subroutine gridcheck_nests
   if (gotGrib.eq.0) then
     print*,'***ERROR: input file needs to contain GRiB1 formatted'// &
          'messages'
-    stop
+    error stop
   endif
 
   nuvzn=iumax
@@ -1701,7 +1701,7 @@ subroutine gridcheck_nests
     write(*,*) 'FLEXPART error: Nested wind fields have too many'// &
          'vertical levels.'
     write(*,*) 'Problem was encountered for nesting level ',l
-    stop
+    error stop
   endif
 
 
@@ -1747,7 +1747,7 @@ subroutine gridcheck_nests
     write(*,*) 'shift the mother domain into x-direction'
     write(*,*) 'by setting nxshift (file par_mod) to a'
     write(*,*) 'positive value. Execution is terminated.'
-    stop
+    error stop
   endif
 
 
@@ -1789,7 +1789,7 @@ subroutine gridcheck_nests
   write(*,*) 'FLEXPART error: The wind fields of nesting level',l
   write(*,*) 'are not consistent with the mother domain:'
   write(*,*) 'Differences in vertical levels detected.'
-        stop
+        error stop
       endif
     end do
 
@@ -1798,7 +1798,7 @@ subroutine gridcheck_nests
   write(*,*) 'FLEXPART error: The wind fields of nesting level',l
   write(*,*) 'are not consistent with the mother domain:'
   write(*,*) 'Differences in vertical levels detected.'
-        stop
+        error stop
       endif
     end do
 
@@ -1814,7 +1814,7 @@ subroutine gridcheck_nests
   write(*,*) ' FOR NESTING LEVEL ',k
   write(*,*) ' ###########################################'// &
        '###### '
-  stop
+  error stop
 
 end subroutine gridcheck_nests
 
@@ -1932,7 +1932,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
   ! allocate memory for grib handles
   allocate(igrib(nfield), stat=stat)
-  if (stat.ne.0) stop "Could not allocate igrib"
+  if (stat.ne.0) error stop "Could not allocate igrib"
   ! initialise
   igrib(:) = -1
 
@@ -1961,7 +1961,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   !
   ! allocate memory for reading from grib
   allocate(zsec4(nxfield*ny), stat=stat)
-  if (stat.ne.0) stop "Could not allocate zsec4"
+  if (stat.ne.0) error stop "Could not allocate zsec4"
 
 !$OMP DO SCHEDULE(static)
 
@@ -2099,10 +2099,10 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     call grib_get_int(igrib(ii),'numberOfVerticalCoordinateValues',isec2(12))
     call grib_check(iret,gribFunction,gribErrorMsg)
   ! CHECK GRID SPECIFICATIONS
-    if(isec2(2).ne.nxfield) stop 'READWIND: NX NOT CONSISTENT'
-    if(isec2(3).ne.ny) stop 'READWIND: NY NOT CONSISTENT'
+    if(isec2(2).ne.nxfield) error stop 'READWIND: NX NOT CONSISTENT'
+    if(isec2(3).ne.ny) error stop 'READWIND: NY NOT CONSISTENT'
     if(isec2(12)/2-1.ne.nlev_ec) &
-         stop 'READWIND: VERTICAL DISCRETIZATION NOT CONSISTENT'
+      error stop 'READWIND: VERTICAL DISCRETIZATION NOT CONSISTENT'
   endif ! ifield
 
 !$OMP CRITICAL
@@ -2121,9 +2121,9 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     yaux=yauxin
     if (xaux.gt.180.) xaux=xaux-360.0
     if(abs(xaux-xlon0).gt.eps) &
-         stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT'
+      error stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT'
     if(abs(yaux-ylat0).gt.eps) &
-         stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT'
+      error stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT'
     gotGrid=1
   endif ! gotGrid
 !$OMP END CRITICAL
@@ -2359,7 +2359,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   if (gotGrid.eq.0) then
     print*,'***ERROR: input file needs to contain GRiB1 formatted'// &
          'messages'
-    stop
+    error stop
   endif
 
   if(levdiff2.eq.0) then
@@ -2487,15 +2487,15 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     end do
   end do
 
-  if(iumax.ne.nuvz-1) stop 'READWIND: NUVZ NOT CONSISTENT'
-  if(iwmax.ne.nwz)    stop 'READWIND: NWZ NOT CONSISTENT'
+  if(iumax.ne.nuvz-1) error stop 'READWIND: NUVZ NOT CONSISTENT'
+  if(iwmax.ne.nwz)    error stop 'READWIND: NWZ NOT CONSISTENT'
 
   return
 
 888 write(*,*) ' #### FLEXPART MODEL ERROR! WINDFIELD         #### '
   write(*,*) ' #### ',wfname(indj),'                    #### '
   write(*,*) ' #### IS NOT GRIB FORMAT !!!                  #### '
-  stop 'Execution terminated'
+  error stop 'Execution terminated'
 
 end subroutine readwind_ecmwf
 
@@ -2778,8 +2778,8 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 
     ! CHECK GRID SPECIFICATIONS
 
-      if(isec2(2).ne.nxfield) stop 'READWIND: NX NOT CONSISTENT'
-      if(isec2(3).ne.ny) stop 'READWIND: NY NOT CONSISTENT'
+      if(isec2(2).ne.nxfield) error stop 'READWIND: NX NOT CONSISTENT'
+      if(isec2(3).ne.ny) error stop 'READWIND: NY NOT CONSISTENT'
       if(xaux.eq.0.) xaux=-179.0     ! NCEP DATA
       xaux0=xlon0
       yaux0=ylat0
@@ -2788,9 +2788,9 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
       if(xaux0.lt.0.) xaux0=xaux0+360.
       if(yaux0.lt.0.) yaux0=yaux0+360.
       if(abs(xaux-xaux0).gt.eps) &
-           stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT'
+           error stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT'
       if(abs(yaux-yaux0).gt.eps) &
-           stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT'
+           error stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT'
     endif
     !HSO end of edits
 
@@ -3216,18 +3216,18 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
     end do
   endif
 
-  if(iumax.ne.nuvz) stop 'READWIND: NUVZ NOT CONSISTENT'
-  if(iumax.ne.nwz)    stop 'READWIND: NWZ NOT CONSISTENT'
+  if(iumax.ne.nuvz) error stop 'READWIND: NUVZ NOT CONSISTENT'
+  if(iumax.ne.nwz) error stop 'READWIND: NWZ NOT CONSISTENT'
 
   return
 888   write(*,*) ' #### FLEXPART MODEL ERROR! WINDFIELD         #### '
   write(*,*) ' #### ',wfname(indj),'                    #### '
   write(*,*) ' #### IS NOT GRIB FORMAT !!!                  #### '
-  stop 'Execution terminated'
+  error stop 'Execution terminated'
 999   write(*,*) ' #### FLEXPART MODEL ERROR! WINDFIELD         #### '
   write(*,*) ' #### ',wfname(indj),'                    #### '
   write(*,*) ' #### CANNOT BE OPENED !!!                    #### '
-  stop 'Execution terminated'
+  error stop 'Execution terminated'
 
 end subroutine readwind_gfs
 
@@ -3463,11 +3463,11 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
            isec2(12))
       call grib_check(iret,gribFunction,gribErrorMsg)
       ! CHECK GRID SPECIFICATIONS
-      if(isec2(2).ne.nxn(l)) stop &
+      if(isec2(2).ne.nxn(l)) error stop &
       'READWIND: NX NOT CONSISTENT FOR A NESTING LEVEL'
-      if(isec2(3).ne.nyn(l)) stop &
+      if(isec2(3).ne.nyn(l)) error stop &
       'READWIND: NY NOT CONSISTENT FOR A NESTING LEVEL'
-      if(isec2(12)/2-1.ne.nlev_ec) stop 'READWIND: VERTICAL DISCRET&
+      if(isec2(12)/2-1.ne.nlev_ec) error stop 'READWIND: VERTICAL DISCRET&
            &IZATION NOT CONSISTENT FOR A NESTING LEVEL'
       endif ! ifield
 
@@ -3485,9 +3485,9 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
         xaux=xauxin
         yaux=yauxin
         if (abs(xaux-xlon0n(l)).gt.eps) &
-        stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT FOR A NESTING LEVEL'
+        error stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT FOR A NESTING LEVEL'
         if (abs(yaux-ylat0n(l)).gt.eps) &
-        stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT FOR A NESTING LEVEL'
+        error stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT FOR A NESTING LEVEL'
         gotGrid=1
       endif
 
@@ -3590,7 +3590,7 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
     if (gotGrid.eq.0) then
       print*,'***ERROR: input file needs to contain GRiB1 formatted'// &
            'messages'
-      stop
+      error stop
     endif
 
     if(levdiff2.eq.0) then
@@ -3652,9 +3652,9 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
       end do
     end do
 
-    if(iumax.ne.nuvz-1) stop &
+    if(iumax.ne.nuvz-1) error stop &
          'READWIND: NUVZ NOT CONSISTENT FOR A NESTING LEVEL'
-    if(iwmax.ne.nwz) stop &
+    if(iwmax.ne.nwz) error stop &
          'READWIND: NWZ NOT CONSISTENT FOR A NESTING LEVEL'
 
   end do
@@ -3663,7 +3663,7 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
 888   write(*,*) ' #### FLEXPART MODEL ERROR! WINDFIELD         #### '
   write(*,*) ' #### ',wfnamen(l,indj),' FOR NESTING LEVEL  #### '
   write(*,*) ' #### ',l,' IS NOT GRIB FORMAT !!!           #### '
-  stop 'Execution terminated'
+  error stop 'Execution terminated'
 
 
 999   write(*,*) ' #### FLEXPART MODEL ERROR! WINDFIELD         #### '
