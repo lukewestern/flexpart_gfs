@@ -153,12 +153,13 @@ pbl_profile_mod.o: par_mod.o qvsat_mod.o
 
 #3) 3rd level dependencies
 turbulence_mod.o: particle_mod.o cbl_mod.o qvsat_mod.o
-windfields_mod.o: cmapf_mod.o point_mod.o class_gribfile_mod.o date_mod.o qvsat_mod.o
+windfields_mod.o: cmapf_mod.o point_mod.o class_gribfile_mod.o date_mod.o qvsat_mod.o \
+	pbl_profile_mod.o
 
 #4) 4th level dependencies
 verttransform_mod.o: par_mod.o com_mod.o qvsat_mod.o windfields_mod.o
 settling_mod.o: windfields_mod.o
-interpol_mod.o: windfields_mod.o particle_mod.o
+interpol_mod.o: windfields_mod.o particle_mod.o turbulence_mod.o
 oh_mod.o: windfields_mod.o particle_mod.o
 
 #5)
