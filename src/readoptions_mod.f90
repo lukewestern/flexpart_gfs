@@ -2802,10 +2802,18 @@ subroutine readspecies(id_spec,pos_spec)
       end select
 
       ! When using the shape option, dquer is the sphere equivalent diameter
+      
       f=psa/pia
       e=pia/pla
-      Fn(pos_spec)=f*f*e*((dquer(pos_spec))**3)/(psa*pia*pla) ! Newton's regime
-      Fs(pos_spec)=f*e**(1.3)*(dquer(pos_spec)**3/(psa*pia*pla)) ! Stokes' regime  
+
+      if ((shape(pos_spec).eq.2).or.((shape(pos_spec).eq.1).and.(pia.eq.psa).and.(pla.ge.20.0*pia))) then
+
+        Fn(pos_spec)=f*f*e  ! simplified equation, validated by experiments with fibers
+        Fs(pos_spec)=f*e**(1.3)   ! simplified equation, validated by experiments with fibers
+      else
+        Fn(pos_spec)=f*f*e*((dquer(pos_spec))**3)/(psa*pia*pla) ! Newton's regime  
+        Fs(pos_spec)=f*e**(1.3)*(dquer(pos_spec)**3/(psa*pia*pla)) ! Stokes' regime
+      endif
     else ! Spheres
       write(*,*) "Particle shape SPHERE for particle", id_spec
     endif
