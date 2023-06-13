@@ -2728,13 +2728,13 @@ subroutine readspecies(id_spec,pos_spec)
     ohcconst(pos_spec)=pohcconst
     ohdconst(pos_spec)=pohdconst
     ohnconst(pos_spec)=pohnconst
-    shape(pos_spec)=pshape
+    ishape(pos_spec)=pshape
     orient(pos_spec)=porient
 
 
     ! Daria Tatsii 2023: compute particle shape dimensions
-    if (shape(pos_spec).ge.1) then ! Compute shape according to given axes
-      select case (shape(pos_spec))
+    if (ishape(pos_spec).ge.1) then ! Compute shape according to given axes
+      select case (ishape(pos_spec))
         case (1)
           write(*,*) "Particle shape USER-DEFINED for particle", id_spec
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
@@ -2806,7 +2806,7 @@ subroutine readspecies(id_spec,pos_spec)
       f=psa/pia
       e=pia/pla
 
-      if ((shape(pos_spec).eq.2).or.((shape(pos_spec).eq.1).and.(pia.eq.psa).and.(pla.ge.20.0*pia))) then
+      if ((ishape(pos_spec).eq.2).or.((ishape(pos_spec).eq.1).and.(pia.eq.psa).and.(pla.ge.20.0*pia))) then
 
         Fn(pos_spec)=f*f*e  ! simplified equation, validated by experiments with fibers
         Fs(pos_spec)=f*e**(1.3)   ! simplified equation, validated by experiments with fibers

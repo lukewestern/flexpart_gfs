@@ -204,7 +204,7 @@ module com_mod
   real :: ohcconst(maxspec),ohdconst(maxspec),ohnconst(maxspec)
   ! Daria Tatsii: species shape properties
   real :: Fn(maxspec),Fs(maxspec) ! Newton and Stokes' regime
-  integer :: shape(maxspec),orient(maxspec)
+  integer :: ishape(maxspec),orient(maxspec)
 
   real :: area_hour(maxspec,24),point_hour(maxspec,24)
   real :: area_dow(maxspec,7),point_dow(maxspec,7)

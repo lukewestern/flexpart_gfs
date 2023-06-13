@@ -127,7 +127,7 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
 
   settling_old=vsetaver(nsp)    ! initialize iteration with Stokes' law to define settling velocity of a sphere, constant viscosity estimate
 
-  if (shape(nsp).eq.0) then
+  if (ishape(nsp).eq.0) then
     do i=1,20    ! do a few iterations Why 20???
 
       ! if (reynolds.lt.1.917) then

@@ -1282,7 +1282,7 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
     if (density(ic).gt.0.) then
       do j=1,ndia(ic)         ! loop over all diameter intervals
         if (ustar.gt.eps) then          
-          if (shape(ic).eq.0) then
+          if (ishape(ic).eq.0) then
                   
             ! Stokes number for each diameter interval
             !*****************************************
