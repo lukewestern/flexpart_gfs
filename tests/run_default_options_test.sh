@@ -34,15 +34,16 @@ warning "[$MM] $PWD"
 test -f ./src/FLEXPART
 report "[$MM] executable: ./src/FLEXPART" || exit 1
 ln -s ./src/FLEXPART .
-test -d ./default_options
-report "[$MM] default options: ./default_options" || exit 1
-cp -f ./default_options ./current
-mkdir ./output/
+test -d ./tests/default_options
+report "[$MM] default options: ./tests/default_options" || exit 1
+cp -f ./tests/default_options ./tests/current
+mkdir ./tests/output/
 #
 # Different options tests
 #
 STATUS=0
-sed "/LOUTRESTART=/c\ LOUTRESTART=   -1," ./default_options/COMMAND > ./current/COMMAND
+sed "/LOUTRESTART=/c\ LOUTRESTART=   -1," ./tests/default_options/COMMAND > ./tests/current/COMMAND
+cd ./tests/
 ./FLEXPART pathnames
 STATUS=$($STATUS + $?)
 exit $STATUS
