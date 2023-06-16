@@ -20,8 +20,6 @@ alma8-build:
     - export LIBRARY_PATH=/usr/lib64
     - export CPATH=/usr/include:/usr/lib64/gfortran/modules
     - make -j -C src -f makefile_gfortran
-    - ulimit -s unlimited
-    - ./src/FLEXPART
   artifacts:
     paths:
       - ./src/FLEXPART
