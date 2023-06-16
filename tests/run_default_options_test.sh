@@ -7,10 +7,6 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 MM='FLEXPART AUTOMATIC OPTIONS TEST'
 
-pause() {
-    read -n1 -rsp $'Press any key to continue or Ctrl+C to exit...\n'
-}
-
 warning() {
     printf "%-68s[$YELLOW%10s$NC]\n" "$@" "SKIPPED"
     return 0
@@ -25,25 +21,43 @@ report() {
         return 1
     fi
 }
-
 #
 # initial conditions
 #
 warning "[$MM] $PWD"
-
-test -f ./src/FLEXPART
-report "[$MM] executable: ./src/FLEXPART" || exit 1
-ln -s ./src/FLEXPART .
-test -d ./tests/default_options
-report "[$MM] default options: ./tests/default_options" || exit 1
-cp -f ./tests/default_options ./tests/current
-mkdir ./tests/output/
+#
+# Change to directory of this script
+#
+cd $(dirname $0)
+#
+# Check for Flexpart executable build before
+#
+test -f ../src/FLEXPART
+report "[$MM] executable: ../src/FLEXPART" || exit 1
+ln -s ../src/FLEXPART .
+test -d ./default_options
+report "[$MM] default options: ./default_options" || exit 1
+cp -rf ./default_options ./current
+mkdir -p ./output/
 #
 # Different options tests
 #
 STATUS=0
-sed "/LOUTRESTART=/c\ LOUTRESTART=   -1," ./tests/default_options/COMMAND > ./tests/current/COMMAND
-cd ./tests/
+TESTSRUN=0
+#
+# run Options test with restart output disabled
+#
+sed "/LOUTRESTART=/c\ LOUTRESTART=   -1," ./default_options/COMMAND > ./current/COMMAND
 ./FLEXPART pathnames
-STATUS=$($STATUS + $?)
+report "[$MM] TEST $TESTRUN (LOUTRESTART)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+
+#
+# FINAL
+#
+echo "[$MM] Tests failed: $STATUS / $TESTSRUN"
+#
+# Return collective error status
+#
 exit $STATUS
