@@ -418,8 +418,9 @@ subroutine output_particles(itime,initial_output)
 
     ! Fill the fields in parallel
     if (numpart.gt.0) then
-!$OMP PARALLEL PRIVATE(np,ns)
-!$OMP DO SCHEDULE(dynamic)
+    ! OpenMP output does not work on all systems depending on how they are set-up
+! !$OMP PARALLEL PRIVATE(np,ns)
+! !$OMP DO SCHEDULE(dynamic)
       do np=1,num_partopt
         !write(*,*) partopt(np)%name, output(np,1)
         if (.not. partopt(np)%print) cycle
@@ -453,8 +454,8 @@ subroutine output_particles(itime,initial_output)
           endif
         endif
       end do
-!$OMP END DO
-!$OMP END PARALLEL
+! !$OMP END DO
+! !$OMP END PARALLEL
     endif
     call close_partoutput_file(ncid)
     if (.not. init_out) then
