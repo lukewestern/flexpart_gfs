@@ -33,7 +33,7 @@ options-test:
 
   before_script:
     - microdnf install -y epel-release
-    - microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 eccodes-devel.x86_64 netcdf.x86_64
+    - microdnf install -y --enablerepo=powertools make netcdf-fortran.x86_64 eccodes.x86_64 netcdf.x86_64
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
