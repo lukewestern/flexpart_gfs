@@ -6,14 +6,14 @@ module flux_mod
   ! flux eastward, westward, northward, southward, upward and downward
   ! fluxes of all species and all ageclasses
   ! areaeast,areanorth [m2] side areas of each grid cell
-  use outg_mod
+  use outgrid_mod
   use par_mod
   use com_mod
   use windfields_mod
 
   implicit none
 
-  !Moved to outg_mod, because of dependencies
+  !Moved to outgrid_mod, because of dependencies
   ! real,allocatable, dimension (:,:,:,:,:,:,:) :: flux 
 
   !1 fluxw west - east
@@ -55,7 +55,7 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold,thread)
   !*****************************************************************************
   
   use particle_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
 
   implicit none
   integer, intent(in) :: thread ! for OMP, number of thread

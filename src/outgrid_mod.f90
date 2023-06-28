@@ -1,15 +1,17 @@
 ! SPDX-FileCopyrightText: FLEXPART 1998-2019, see flexpart_license.txt
 ! SPDX-License-Identifier: GPL-3.0-or-later
 
-module outg_mod
+module outgrid_mod
   !*****************************************************************************
   !  Module storing and initialising grids                                     *
   !                                                                            *
   !  Changes                                                                   *
   !     2022 L. Bakels: moved outgrid_init, outgrid_init_nest and              *
-  !                     initial_cond_calc to this module                       *
+  !                     initcond_calc to this module                       *
   !*****************************************************************************
-  use par_mod, only: dep_prec, sp
+  use par_mod
+  use com_mod
+  use windfields_mod
 
   implicit none
 
@@ -76,11 +78,8 @@ subroutine outgrid_init
   !                                                                            *
   !*****************************************************************************
 
-  use oh_mod
+  use ohr_mod
   use unc_mod
-  use par_mod
-  use com_mod
-  use windfields_mod
 
   implicit none
 
@@ -307,8 +306,10 @@ subroutine outgrid_init
   !     maxspec,maxpointspec_act,nclassunc,maxageclass
 
   if (lroot) then
-    write (*,*) 'Allocating fields for global output (x,y): ', numxgrid,numygrid
-    write (*,*) 'Allocating fields for nested output (x,y): ', numxgridn,numygridn 
+    write (*,*) 'Allocating fields for global output (x,y): ', &
+      numxgrid,numygrid
+    write (*,*) 'Allocating fields for nested output (x,y): ', &
+      numxgridn,numygridn 
   end if
 
   ! allocate fields for concoutput with maximum dimension of outgrid
@@ -454,9 +455,6 @@ subroutine outgrid_init_nest
   !*****************************************************************************
 
   use unc_mod
-  use par_mod
-  use com_mod
-  use windfields_mod
 
   implicit none
 
@@ -686,7 +684,7 @@ subroutine outgrid_init_nest
   end do
 end subroutine outgrid_init_nest
 
-subroutine initial_cond_calc(itime,i,thread)
+subroutine initcond_calc(itime,i,thread)
   !                               i   i
   !*****************************************************************************
   !                                                                            *
@@ -700,12 +698,9 @@ subroutine initial_cond_calc(itime,i,thread)
   !     2022 L. Bakels: OpenMP parallelisation                                 *
   !*****************************************************************************
 
-  use par_mod
-  use com_mod
   use interpol_mod, only: interpol_density,ix,jy,ixp,jyp
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use particle_mod
-  use windfields_mod
 
   implicit none
 
@@ -821,7 +816,8 @@ subroutine initial_cond_calc(itime,i,thread)
           do ks=1,nspec
 #ifdef _OPENMP
             init_cond_omp(ix,jy,kz,ks,nrelpointer,thread)= &
-                 init_cond_omp(ix,jy,kz,ks,nrelpointer,thread)+part(i)%mass(ks)/rhoi*w
+                 init_cond_omp(ix,jy,kz,ks,nrelpointer,thread) + &
+                 part(i)%mass(ks)/rhoi*w
 #else
             init_cond(ix,jy,kz,ks,nrelpointer)= &
                  init_cond(ix,jy,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
@@ -834,7 +830,8 @@ subroutine initial_cond_calc(itime,i,thread)
           do ks=1,nspec
 #ifdef _OPENMP
             init_cond_omp(ix,jyp,kz,ks,nrelpointer,thread)= &
-                 init_cond_omp(ix,jyp,kz,ks,nrelpointer,thread)+part(i)%mass(ks)/rhoi*w
+                 init_cond_omp(ix,jyp,kz,ks,nrelpointer,thread) + &
+                 part(i)%mass(ks)/rhoi*w
 #else
             init_cond(ix,jyp,kz,ks,nrelpointer)= &
                  init_cond(ix,jyp,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
@@ -850,7 +847,8 @@ subroutine initial_cond_calc(itime,i,thread)
           do ks=1,nspec
 #ifdef _OPENMP
             init_cond_omp(ixp,jyp,kz,ks,nrelpointer,thread)= &
-                 init_cond_omp(ixp,jyp,kz,ks,nrelpointer,thread)+part(i)%mass(ks)/rhoi*w
+                 init_cond_omp(ixp,jyp,kz,ks,nrelpointer,thread) + &
+                 part(i)%mass(ks)/rhoi*w
 #else
             init_cond(ixp,jyp,kz,ks,nrelpointer)= &
                  init_cond(ixp,jyp,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
@@ -863,7 +861,8 @@ subroutine initial_cond_calc(itime,i,thread)
           do ks=1,nspec
 #ifdef _OPENMP
             init_cond_omp(ixp,jy,kz,ks,nrelpointer,thread)= &
-                 init_cond_omp(ixp,jy,kz,ks,nrelpointer,thread)+part(i)%mass(ks)/rhoi*w
+                 init_cond_omp(ixp,jy,kz,ks,nrelpointer,thread) + &
+                 part(i)%mass(ks)/rhoi*w
 #else
             init_cond(ixp,jy,kz,ks,nrelpointer)= &
                  init_cond(ixp,jy,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
@@ -875,7 +874,7 @@ subroutine initial_cond_calc(itime,i,thread)
 
   endif
 
-end subroutine initial_cond_calc
+end subroutine initcond_calc
 
 
-end module outg_mod
+end module outgrid_mod

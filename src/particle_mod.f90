@@ -166,8 +166,7 @@ contains
 
     implicit none 
 
-    integer, intent(in)    :: &
-      ipart                     ! Particle index
+    integer, intent(in)    :: ipart   ! Particle index
     !logical :: is_particle_allocated
     
     if (ipart.gt.count%allocated) then
@@ -183,8 +182,7 @@ contains
     !**************************************************
     implicit none
 
-    integer, intent(inout) :: &
-      ipart                     ! First free index
+    integer, intent(inout) :: ipart   ! First free index
 
     ipart = count%spawned + 1
   end subroutine get_newpart_index
@@ -195,8 +193,7 @@ contains
     !********************************************
     implicit none 
 
-    integer, intent(inout) :: &
-      npart                     ! Number of particles
+    integer, intent(inout) :: npart   ! Number of particles
 
     npart = count%spawned
   end subroutine get_totalpart_num
@@ -207,8 +204,7 @@ contains
     !**********************************************
     implicit none 
 
-    integer, intent(inout) :: &
-      npart                     ! Number of particles
+    integer, intent(inout) :: npart   ! Number of particles
 
     npart = count%alive
   end subroutine get_alivepart_num
@@ -260,9 +256,7 @@ contains
 
     ! Check if new memory needs to be allocated 
     !*******************************************
-    if (.not. particle_allocated(ipart)) then
-      call alloc_particle(ipart)
-    endif
+    if (.not. particle_allocated(ipart)) call alloc_particle(ipart)
 
     if (part(ipart)%alive) error stop 'Attempting to overwrite existing particle'
 
@@ -288,8 +282,9 @@ contains
     !***************************************************** 
     implicit none
 
-    integer, intent(in) :: ipart ! to be terminated particle index
-    integer, intent(in) :: itime ! Time at which particle is terminated
+    integer, intent(in) :: &
+      ipart,               & ! to be terminated particle index
+      itime                  ! Time at which particle is terminated
 
     ! Flagging the particle as having been terminated
     !************************************************
@@ -309,13 +304,13 @@ contains
 
     implicit none 
 
-    integer, intent(in) :: nmpart
+    integer, intent(in)        :: nmpart
     type(particle),allocatable :: tmppart(:)
-    logical, allocatable :: tmpcount(:)
-    real, allocatable :: tmpxscav(:,:)
-    real, allocatable :: tmpxl(:),tmpyl(:),tmpzl(:)
-    integer, allocatable :: tmpnclust(:)
-    integer :: i
+    logical, allocatable       :: tmpcount(:)
+    real, allocatable          :: tmpxscav(:,:)
+    real, allocatable          :: tmpxl(:),tmpyl(:),tmpzl(:)
+    integer, allocatable       :: tmpnclust(:)
+    integer                    :: i
 
     if (nmpart.gt.100) write(*,*) 'Allocating ',nmpart,' particles'
 
@@ -442,10 +437,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real(kind=dp), intent(in) :: &
-      xchange
+    integer, intent(in)       :: ipart   ! particle index
+    real(kind=dp), intent(in) :: xchange
 
     part(ipart)%xlon = part(ipart)%xlon + xchange
   end subroutine update_xlon_dp
@@ -456,10 +449,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real, intent(in) :: &
-      xchange
+    integer, intent(in) :: ipart    ! particle index
+    real, intent(in)    :: xchange
 
     part(ipart)%xlon = part(ipart)%xlon + real(xchange,kind=dp)
   end subroutine update_xlon_sp
@@ -470,10 +461,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    integer, intent(in) :: &
-      xchange
+    integer, intent(in) :: ipart  ! particle index
+    integer, intent(in) :: xchange
 
     part(ipart)%xlon = part(ipart)%xlon + real(xchange,kind=dp)
   end subroutine update_xlon_int
@@ -486,10 +475,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real(kind=dp), intent(in) :: &
-      xvalue
+    integer, intent(in)       :: ipart  ! particle index
+    real(kind=dp), intent(in) :: xvalue
 
     part(ipart)%xlon = xvalue
   end subroutine set_xlon_dp
@@ -500,10 +487,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real, intent(in)       :: &
-      xvalue
+    integer, intent(in)    :: ipart   ! particle index
+    real, intent(in)       :: xvalue
 
     part(ipart)%xlon = real(xvalue,kind=dp)
   end subroutine set_xlon_sp
@@ -514,10 +499,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    integer, intent(in)    :: &
-      xvalue
+    integer, intent(in)    :: ipart  ! particle index
+    integer, intent(in)    :: xvalue
 
     part(ipart)%xlon = real(xvalue,kind=dp)
   end subroutine set_xlon_int
@@ -530,10 +513,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)       :: &
-      ipart                        ! particle index
-    real(kind=dp), intent(in) :: &
-      ychange
+    integer, intent(in)       :: ipart  ! particle index
+    real(kind=dp), intent(in) :: ychange
 
     part(ipart)%ylat = part(ipart)%ylat + ychange
   end subroutine update_ylat_dp
@@ -544,10 +525,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real, intent(in) :: &
-      ychange
+    integer, intent(in)    :: ipart  ! particle index
+    real, intent(in)       :: ychange
 
     part(ipart)%ylat = part(ipart)%ylat + real(ychange,kind=dp)
   end subroutine update_ylat_sp
@@ -558,10 +537,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    integer, intent(in)    :: &
-      ychange
+    integer, intent(in)    :: ipart ! particle index
+    integer, intent(in)    :: ychange
 
     part(ipart)%ylat = part(ipart)%ylat + real(ychange,kind=dp)
   end subroutine update_ylat_int
@@ -574,10 +551,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)       :: &
-      ipart                        ! particle index
-    real(kind=dp), intent(in) :: &
-      yvalue
+    integer, intent(in)       :: ipart  ! particle index
+    real(kind=dp), intent(in) :: yvalue
 
     part(ipart)%ylat = yvalue
   end subroutine set_ylat_dp
@@ -588,10 +563,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real, intent(in)       :: &
-      yvalue
+    integer, intent(in)    :: ipart  ! particle index
+    real, intent(in)       :: yvalue
 
     part(ipart)%ylat = real(yvalue,kind=dp)
   end subroutine set_ylat_sp
@@ -602,10 +575,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    integer, intent(in) :: &
-      yvalue
+    integer, intent(in)    :: ipart  ! particle index
+    integer, intent(in) :: yvalue
 
     part(ipart)%ylat = real(yvalue,kind=dp)
   end subroutine set_ylat_int
@@ -618,10 +589,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)        :: &
-      ipart                        ! particle index
-    real(kind=dp), intent(in)  :: &
-      zchange
+    integer, intent(in)        :: ipart  ! particle index
+    real(kind=dp), intent(in)  :: zchange
 
     part(ipart)%z = part(ipart)%z + zchange
     part(ipart)%meterupdate=.false.
@@ -634,10 +603,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real, intent(in)       :: &
-      zchange
+    integer, intent(in)    :: ipart  ! particle index
+    real, intent(in)       :: zchange
 
     part(ipart)%z = part(ipart)%z + real(zchange,kind=dp)
     part(ipart)%meterupdate=.false.
@@ -650,10 +617,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)        :: &
-      ipart                        ! particle index
-    real(kind=dp), intent(in)  :: &
-      zchange
+    integer, intent(in)        :: ipart  ! particle index
+    real(kind=dp), intent(in)  :: zchange
 
     part(ipart)%zeta = part(ipart)%zeta + zchange
     part(ipart)%etaupdate=.false.
@@ -666,10 +631,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real, intent(in)       :: &
-      zchange
+    integer, intent(in)    :: ipart  ! particle index
+    real, intent(in)       :: zchange
 
     part(ipart)%zeta = part(ipart)%zeta + real(zchange,kind=dp)
     part(ipart)%etaupdate=.false.
@@ -684,10 +647,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)        :: &
-      ipart                        ! particle index
-    real(kind=dp), intent(in)  :: &
-      zvalue
+    integer, intent(in)        :: ipart  ! particle index
+    real(kind=dp), intent(in)  :: zvalue
 
     part(ipart)%z = zvalue
     part(ipart)%meterupdate=.false.
@@ -700,10 +661,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real, intent(in)       :: &
-      zvalue
+    integer, intent(in)    :: ipart  ! particle index
+    real, intent(in)       :: zvalue
 
     part(ipart)%z = real(zvalue,kind=dp)
     part(ipart)%meterupdate=.false.
@@ -716,10 +675,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)        :: &
-      ipart                        ! particle index
-    real(kind=dp), intent(in)  :: &
-      zvalue
+    integer, intent(in)        :: ipart  ! particle index
+    real(kind=dp), intent(in)  :: zvalue
 
     part(ipart)%zeta = zvalue
     part(ipart)%etaupdate=.false.
@@ -732,10 +689,8 @@ contains
     !**************************************
     implicit none
 
-    integer, intent(in)    :: &
-      ipart                        ! particle index
-    real, intent(in)       :: &
-      zvalue
+    integer, intent(in)    :: ipart  ! particle index
+    real, intent(in)       :: zvalue
 
     part(ipart)%zeta = real(zvalue,kind=dp)
     part(ipart)%etaupdate=.false.

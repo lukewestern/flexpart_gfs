@@ -30,7 +30,7 @@ subroutine writeheader_txt
   !*****************************************************************************
 
   use point_mod
-  use outg_mod
+  use outgrid_mod
   use par_mod
   use com_mod
   use date_mod

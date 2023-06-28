@@ -1,6 +1,6 @@
 module restart_mod
   use particle_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use unc_mod
   use date_mod
 #ifdef USE_NCF

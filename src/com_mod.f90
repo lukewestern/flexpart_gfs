@@ -357,7 +357,7 @@ module com_mod
 
   !  if output for each releasepoint shall be created maxpointspec=number of releasepoints
   !  else maxpointspec is 1 -> moved to unc_mod
-  !  the OUTGRID is moved to the module outg_mod
+  !  the OUTGRID is moved to the module outgrid_mod
   !******************************************************************************
 
   ! gridunc,griduncn        uncertainty of outputted concentrations

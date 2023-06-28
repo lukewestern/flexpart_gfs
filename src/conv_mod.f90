@@ -156,7 +156,7 @@ subroutine convmix(itime)
   use flux_mod
   use par_mod
   use com_mod
-  use class_gribfile
+  use class_gribfile_mod
   use particle_mod
 
   implicit none
@@ -534,7 +534,7 @@ subroutine calcmatrix(lconv,delt,cbmf)
 
   use par_mod
   use com_mod
-  use class_gribfile
+  use class_gribfile_mod
   use qvsat_mod
 
   implicit none
@@ -678,7 +678,7 @@ subroutine redist(itime,ipart,ktop,ipconv)
   use random_mod
   use omp_lib
   use interpol_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use particle_mod
   use qvsat_mod
 

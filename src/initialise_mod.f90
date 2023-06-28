@@ -16,7 +16,10 @@ module initialise_mod
   use particle_mod
   use windfields_mod
   use random_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
+#ifdef USE_NCF
+  use netcdf_output_mod
+#endif
 
   implicit none
 
@@ -24,24 +27,24 @@ module initialise_mod
   ! Variables used for domain-filling trajectory calculations
   !**********************************************************
 
-  integer ::                            &
-    nx_we(2),                           & ! x indices of western and eastern boundary of domain-filling.
-    ny_sn(2),                           & ! y indices of southern and northern boundary of domain-filling.
-    numcolumn                             ! Maximum number of particles to be released within a single column.
+  integer ::    &
+    nx_we(2),   & ! x indices of western and eastern boundary of domain-filling.
+    ny_sn(2),   & ! y indices of southern and northern boundary of domain-filling.
+    numcolumn     ! Maximum number of particles to be released within a single column.
   integer,allocatable,dimension(:,:) :: &
-    numcolumn_we,                       & ! Number of particles to be released within one column
-                                          ! at the western and eastern boundary surfaces.
-    numcolumn_sn                          ! Same as numcolumn_we, but for southern and northern domain boundary.
+    numcolumn_we,   & ! Number of particles to be released within one column
+                      ! at the western and eastern boundary surfaces.
+    numcolumn_sn      ! Same as numcolumn_we, but for southern and northern domain boundary.
   real,allocatable,dimension(:,:,:) ::  &
-    zcolumn_we,                         & ! Altitudes where particles are to be released
-                                          ! at the western and eastern boundary surfaces.
-    zcolumn_sn,                         & ! Same as zcolumn_we, but for southern and northern domain boundary.
-    acc_mass_we,                        & ! Mass that has accumulated at the western and eastern boundary;
-                                          ! if it exceeds xmassperparticle, a particle is released and
-                                          ! acc_mass_we is reduced accordingly.
-    acc_mass_sn                           ! Same as acc_mass_we, but for southern and northern domain boundary
-  real ::                               &
-    xmassperparticle                      ! Air mass per particle in the domain-filling traj. option.
+    zcolumn_we,     & ! Altitudes where particles are to be released
+                      ! at the western and eastern boundary surfaces.
+    zcolumn_sn,     & ! Same as zcolumn_we, but for southern and northern domain boundary.
+    acc_mass_we,    & ! Mass that has accumulated at the western and eastern boundary;
+                      ! if it exceeds xmassperparticle, a particle is released and
+                      ! acc_mass_we is reduced accordingly.
+    acc_mass_sn       ! Same as acc_mass_we, but for southern and northern domain boundary
+  real ::           &
+    xmassperparticle  ! Air mass per particle in the domain-filling traj. option.
 
 contains
 
@@ -54,7 +57,8 @@ end subroutine alloc_domainfill
 
 subroutine dealloc_domainfill
   if (mdomainfill.lt.1) return
-  deallocate(numcolumn_we,numcolumn_sn,zcolumn_sn,zcolumn_we,acc_mass_sn,acc_mass_we)
+  deallocate(numcolumn_we,numcolumn_sn,zcolumn_sn,zcolumn_we,acc_mass_sn, &
+    acc_mass_we)
 end subroutine dealloc_domainfill
 
 subroutine releaseparticles(itime)
@@ -85,9 +89,6 @@ subroutine releaseparticles(itime)
 
   use point_mod
   use xmass_mod
-#ifdef USE_NCF
-  use netcdf_output_mod
-#endif
   use output_mod
 
   implicit none
@@ -116,14 +117,15 @@ subroutine releaseparticles(itime)
   eps=nxmax/3.e5
 
 
-  ! Determine the actual date and time in Greenwich (i.e., UTC + correction for daylight savings time)
-  !*****************************************************************************
+  ! Determine the actual date and time in Greenwich 
+  ! (i.e., UTC + correction for daylight savings time)
+  !***************************************************
 
   julmonday=juldate(19000101,0)          ! this is a Monday
   jul=bdate+real(itime,kind=dp)/86400._dp    ! this is the current day
   call caldate(jul,jjjjmmdd,ihmmss)
   mm=(jjjjmmdd-10000*(jjjjmmdd/10000))/100
-  if ((mm.ge.4).and.(mm.le.9)) jul=jul+1._dp/24._dp   ! daylight savings time in summer
+  if ((mm.ge.4).and.(mm.le.9)) jul=jul+1._dp/24._dp   ! daylight savings time
 
 
   ! For every release point, check whether we are in the release time interval
@@ -492,9 +494,6 @@ subroutine readpartpositions
   ! Variables:                                                                 *
   !                                                                            *
   !*****************************************************************************
-
-  use netcdf_output_mod
-
   implicit none
 
   integer :: ibdatein,ibtimein,nspecin,itimein,numpointin,i,j,lix,ios
@@ -784,10 +783,18 @@ subroutine init_particle(itime,ipart)
   !*****************************************
 
     if (turbswitch) then
-      part(ipart)%idt=int(min(tlw,h/max(2.*abs(part(ipart)%turbvel%w*sigw),1.e-5), &
-           0.5/abs(dsigwdz),600.)*ctl)
+      part(ipart)%idt = int( &
+        min(tlw, &
+          h/max(2.*abs(part(ipart)%turbvel%w*sigw),1.e-5), &
+          0.5/abs(dsigwdz), &
+          600.) &
+        *ctl)
     else
-      part(ipart)%idt=int(min(tlw,h/max(2.*abs(part(ipart)%turbvel%w),1.e-5),600.)*ctl)
+      part(ipart)%idt = int( &
+        min(tlw, &
+          h/max(2.*abs(part(ipart)%turbvel%w),1.e-5), &
+          600.) &
+        *ctl)
     endif
     part(ipart)%idt=max(part(ipart)%idt,mintime)
 
@@ -1039,8 +1046,7 @@ subroutine init_domainfill
   do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
     ylat=ylat0+real(ljy)*dy
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
-      ncolumn=nint(0.999*real(npart(1))*colmass(lix,ljy)/ &
-           colmasstotal)
+      ncolumn=nint(0.999*real(npart(1))*colmass(lix,ljy)/colmasstotal)
       if (ncolumn.eq.0) cycle
       if (ncolumn.gt.numcolumn) numcolumn=ncolumn
 
@@ -1079,10 +1085,11 @@ subroutine init_domainfill
             dz1=log(pnew_temp)-log(pp(kz))
             dz=1./log(pp(kz+1)/pp(kz))
 
-  ! Assign particle position
-  !*************************
-  ! Do the following steps only if particles are not read in from previous model run
-  !*****************************************************************************
+            ! Assign particle position
+            !*************************
+            ! Do the following steps only if particles are not read in 
+            ! from previous model run
+            !**********************************************************
             if (ipin.eq.0) then
               ! First spawn the particle into existence
               !****************************************
@@ -1100,12 +1107,12 @@ subroutine init_domainfill
               height_tmp=height(kz)+(height(kz+1)-height(kz))*dz*dz1
               call set_z(numpart+jj,height_tmp)
               if (real(part(numpart+jj)%z).gt.height(nz)-0.5) &
-                call set_z(numpart+jj,height(nz)-0.5)
+                call set_z(numpart+jj, height(nz)-0.5)
 
               call update_z_to_zeta(0, numpart+jj)
               
-  ! Interpolate PV to the particle position
-  !****************************************
+              ! Interpolate PV to the particle position
+              !****************************************
               ixm=int(part(numpart+jj)%xlon)
               jym=int(part(numpart+jj)%ylat)
               ixp=ixm+1
@@ -1119,7 +1126,7 @@ subroutine init_domainfill
               p3=rddx*ddy
               p4=ddx*ddy
 
-  !***************************************************************************
+              !***********************************************
               indzm=nz-1
               indzp=nz
               do i=2,nz
@@ -1135,24 +1142,25 @@ subroutine init_domainfill
               do ii=1,2
                 indzh=indzm+ii-1
                 y1(ii)=p1*pv(ixm,jym,indzh,1) &
-                     +p2*pv(ixp,jym,indzh,1) &
-                     +p3*pv(ixm,jyp,indzh,1) &
-                     +p4*pv(ixp,jyp,indzh,1)
+                     + p2*pv(ixp,jym,indzh,1) &
+                     + p3*pv(ixm,jyp,indzh,1) &
+                     + p4*pv(ixp,jyp,indzh,1)
               end do
               pvpart=(dz2*y1(1)+dz1*y1(2))*dz
               if (ylat.lt.0.) pvpart=-1.*pvpart
 
 
-  ! For domain-filling option 2 (stratospheric O3), do the rest only in the stratosphere
-  !*****************************************************************************
+              ! For domain-filling option 2 (stratospheric O3), 
+              ! do the rest only in the stratosphere
+              !************************************************
 
               if (((part(numpart+jj)%z.gt.3000.).and. &
                    (pvpart.gt.pvcrit)).or.(mdomainfill.eq.1)) then
 
-  ! Assign certain properties to the particle
-  !******************************************
-                part(numpart+jj)%nclass=min(int(ran1(idummy,0)* &
-                     real(nclassunc))+1,nclassunc)
+                ! Assign certain properties to the particle
+                !******************************************
+                part(numpart+jj)%nclass=min( &
+                  int(ran1(idummy,0)*real(nclassunc))+1,nclassunc)
                 numparticlecount=numparticlecount+1
                 part(numpart+jj)%npoint=numparticlecount
                 part(numpart+jj)%idt=mintime

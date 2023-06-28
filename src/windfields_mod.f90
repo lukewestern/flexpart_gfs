@@ -157,7 +157,7 @@ module windfields_mod
     convprec,                           & ! convective precipitation [mm/h]
     sshf,                               & ! surface sensible heat flux
     ssr,                                & ! surface solar radiation
-    surfstr,                            & ! surface stress
+    sfcstress,                            & ! surface stress
     ustar,                              & ! friction velocity [m/s]
     wstar,                              & ! convective velocity scale [m/s]
     hmix,                               & ! mixing height [m]
@@ -179,7 +179,7 @@ module windfields_mod
     convprecn,                              & ! convective precipitation [mm/h]
     sshfn,                                  & ! surface sensible heat flux
     ssrn,                                   & ! surface solar radiation
-    surfstrn,                               & ! surface stress
+    sfcstressn,                               & ! surface stress
     ustarn,                                 & ! friction velocity [m/s]
     wstarn,                                 & ! convective velocity scale [m/s]
     hmixn,                                  & ! mixing height [m]
@@ -263,7 +263,7 @@ subroutine detectformat
 
   use par_mod
   use com_mod
-  use class_gribfile
+  use class_gribfile_mod
 
 
   implicit none
@@ -811,7 +811,7 @@ subroutine gridcheck_ecmwf
   ! not done anymore in the standard version. However, this option can still be
   ! switched on by replacing the following lines with those below, that are
   ! currently commented out. For this, similar changes are necessary in
-  ! verttransform.f and verttranform_nests.f
+  ! verttransform.f and verttranform_nest.f
   !*****************************************************************************
 
   nz=nuvz
@@ -1330,7 +1330,7 @@ subroutine gridcheck_gfs
   ! not done anymore in the standard version. However, this option can still be
   ! switched on by replacing the following lines with those below, that are
   ! currently commented out. For this, similar changes are necessary in
-  ! verttransform.f and verttranform_nests.f
+  ! verttransform.f and verttranform_nest.f
   !*****************************************************************************
 
   nz=nuvz
@@ -1375,7 +1375,7 @@ subroutine gridcheck_gfs
 
 end subroutine gridcheck_gfs
 
-subroutine gridcheck_nests
+subroutine gridcheck_nest
 
   !*****************************************************************************
   !                                                                            *
@@ -1424,7 +1424,7 @@ subroutine gridcheck_nests
 
   !HSO  grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
-  character(len=20) :: gribFunction = 'gridcheck_nests'
+  character(len=20) :: gribFunction = 'gridcheck_nest'
 
   xresoln(0)=1.       ! resolution enhancement for mother grid
   yresoln(0)=1.       ! resolution enhancement for mother grid
@@ -1820,7 +1820,7 @@ subroutine gridcheck_nests
        '###### '
   error stop
 
-end subroutine gridcheck_nests
+end subroutine gridcheck_nest
 
 subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
@@ -2443,7 +2443,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
           nsss(i,j)=(nsss(i+1,j-1)+nsss(i+1,j)+nsss(i-1,j)+nsss(i,j-1)+nsss(i-1,j-1))/5.
         endif
       endif
-      surfstr(i,j,1,n)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
+      sfcstress(i,j,1,n)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
     end do
   end do
 
@@ -2468,7 +2468,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
         fflev1=sqrt(uuh(i,j,3)**2+vvh(i,j,3)**2)
         call pbl_profile(ps(i,j,1,n),td2(i,j,1,n),hlev1, &
              tt2(i,j,1,n),tth(i,j,3,n),ff10m,fflev1, &
-             surfstr(i,j,1,n),sshf(i,j,1,n))
+             sfcstress(i,j,1,n),sshf(i,j,1,n))
         if(sshf(i,j,1,n).gt.200.) sshf(i,j,1,n)=200.
         if(sshf(i,j,1,n).lt.-400.) sshf(i,j,1,n)=-400.
       end do
@@ -3195,7 +3195,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   ! Convert precip. from mm/s -> mm/hour
       convprec(i,j,1,n)=convprec(i,j,1,n)*3600.
       lsprec(i,j,1,n)=lsprec(i,j,1,n)*3600.
-      surfstr(i,j,1,n)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
+      sfcstress(i,j,1,n)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
     end do
   end do
 
@@ -3213,7 +3213,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         fflev1=sqrt(ulev1(i,j)**2+vlev1(i,j)**2)
         call pbl_profile(ps(i,j,1,n),td2(i,j,1,n),hlev1, &
              tt2(i,j,1,n),tlev1(i,j),ff10m,fflev1, &
-             surfstr(i,j,1,n),sshf(i,j,1,n))
+             sfcstress(i,j,1,n),sshf(i,j,1,n))
         if(sshf(i,j,1,n).gt.200.) sshf(i,j,1,n)=200.
         if(sshf(i,j,1,n).lt.-400.) sshf(i,j,1,n)=-400.
       end do
@@ -3235,7 +3235,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 
 end subroutine readwind_gfs
 
-subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
+subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
   !                           i   i  o    o    o
   !*****************************************************************************
   !                                                                            *
@@ -3294,7 +3294,7 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
 
   !HSO  grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
-  character(len=20) :: gribFunction = 'readwind_nests'
+  character(len=20) :: gribFunction = 'readwind_nest'
 
   do l=1,numbnests
     hflswitch=.false.
@@ -3608,7 +3608,7 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
 
     do i=0,nxn(l)-1
       do j=0,nyn(l)-1
-        surfstrn(i,j,1,n,l)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
+        sfcstressn(i,j,1,n,l)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
       end do
     end do
 
@@ -3633,7 +3633,7 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
           fflev1=sqrt(uuhn(i,j,3,l)**2+vvhn(i,j,3,l)**2)
           call pbl_profile(psn(i,j,1,n,l),td2n(i,j,1,n,l),hlev1, &
                tt2n(i,j,1,n,l),tthn(i,j,3,n,l),ff10m,fflev1, &
-               surfstrn(i,j,1,n,l),sshfn(i,j,1,n,l))
+               sfcstressn(i,j,1,n,l),sshfn(i,j,1,n,l))
           if(sshfn(i,j,1,n,l).gt.200.) sshfn(i,j,1,n,l)=200.
           if(sshfn(i,j,1,n,l).lt.-400.) sshfn(i,j,1,n,l)=-400.
         end do
@@ -3674,7 +3674,7 @@ subroutine readwind_nests(indj,n,uuhn,vvhn,wwhn)
   write(*,*) ' #### ',wfnamen(l,indj),'                    #### '
   write(*,*) ' #### CANNOT BE OPENED FOR NESTING LEVEL ',l,'####'
 
-end subroutine readwind_nests
+end subroutine readwind_nest
 
 subroutine shift_field_0(field,nxf,nyf)
   !                          i/o   i   i
@@ -3862,7 +3862,7 @@ subroutine alloc_windfields
   allocate(convprec(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(sshf(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(ssr(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(surfstr(0:nxmax-1,0:nymax-1,1,numwfmem))
+  allocate(sfcstress(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(ustar(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(wstar(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(hmix(0:nxmax-1,0:nymax-1,1,numwfmem))
@@ -3876,7 +3876,7 @@ subroutine alloc_windfields
     aknew(nzmax),bknew(nzmax))
 end subroutine alloc_windfields
 
-subroutine alloc_windfields_nests
+subroutine alloc_windfields_nest
   !*******************************************************************************    
   ! Dynamic allocation of arrays
   !
@@ -3947,7 +3947,7 @@ subroutine alloc_windfields_nests
   allocate(convprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(sshfn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(ssrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
-  allocate(surfstrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(sfcstressn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(ustarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(wstarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(hmixn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
@@ -3968,9 +3968,9 @@ subroutine alloc_windfields_nests
   ciwcn(:,:,:,:,:)=0.
   clwchn(:,:,:,:,:)=0.
   ciwchn(:,:,:,:,:)=0.
-end subroutine alloc_windfields_nests
+end subroutine alloc_windfields_nest
 
-subroutine dealloc_windfields_nests
+subroutine dealloc_windfields_nest
   
   deallocate(wfnamen,wfspecn)
 
@@ -3985,10 +3985,10 @@ subroutine dealloc_windfields_nests
     drhodzetan,etauvheightn,etawheightn)
 
   deallocate(psn,sdn,msln,tccn,u10n,v10n,tt2n,td2n,lsprecn,convprecn, &
-    sshfn,ssrn,surfstrn,ustarn,wstarn,hmixn,tropopausen,olin,vdepn)
+    sshfn,ssrn,sfcstressn,ustarn,wstarn,hmixn,tropopausen,olin,vdepn)
 
   deallocate(xresoln,yresoln,xln,yln,xrn,yrn)
-end subroutine dealloc_windfields_nests
+end subroutine dealloc_windfields_nest
 
 subroutine dealloc_windfields
   implicit none
@@ -4002,7 +4002,7 @@ subroutine dealloc_windfields
 
   deallocate(clwc,ciwc,clw,clwch,ciwch,ctwc,cloudsh,clouds)
 
-  deallocate(ps,sd,msl,tcc,u10,v10,tt2,td2,lsprec,convprec,sshf,ssr,surfstr, &
+  deallocate(ps,sd,msl,tcc,u10,v10,tt2,td2,lsprec,convprec,sshf,ssr,sfcstress, &
     ustar,wstar,hmix,tropopause,oli)
 
   deallocate(height,wheight,uvheight,akm,bkm,akz,bkz,aknew,bknew)

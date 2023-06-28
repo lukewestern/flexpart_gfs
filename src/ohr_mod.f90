@@ -1,7 +1,7 @@
 ! SPDX-FileCopyrightText: FLEXPART 1998-2019, see flexpart_license.txt
 ! SPDX-License-Identifier: GPL-3.0-or-later
 
-module oh_mod
+module ohr_mod
 
   !includes OH concentration field as well as the height information
   !for this field
@@ -449,4 +449,4 @@ subroutine gethourlyOH(itime)
   endif
 end subroutine gethourlyOH
 
-end module oh_mod
+end module ohr_mod

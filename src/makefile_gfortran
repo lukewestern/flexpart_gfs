@@ -86,12 +86,12 @@ MODOBJS = \
 advance_mod.o 		binary_output_mod.o \
 cbl_mod.o 		cmapf_mod.o \
 com_mod.o 		conv_mod.o \
-class_gribfile_mod.o 	coordinates_ecmwf_mod.o \
+class_gribfile_mod.o 	coord_ecmwf_mod.o \
 date_mod.o 		drydepo_mod.o \
 erf_mod.o 		flux_mod.o \
 getfields_mod.o 	initialise_mod.o \
 interpol_mod.o 		mean_mod.o \
-oh_mod.o 		outg_mod.o \
+ohr_mod.o 		outgrid_mod.o \
 output_mod.o 		par_mod.o \
 particle_mod.o 		pbl_profile_mod.o \
 plume_mod.o 		point_mod.o \
@@ -160,30 +160,30 @@ windfields_mod.o: cmapf_mod.o point_mod.o class_gribfile_mod.o date_mod.o qvsat_
 verttransform_mod.o: par_mod.o com_mod.o qvsat_mod.o windfields_mod.o
 settling_mod.o: windfields_mod.o
 interpol_mod.o: windfields_mod.o particle_mod.o turbulence_mod.o
-oh_mod.o: windfields_mod.o particle_mod.o
+ohr_mod.o: windfields_mod.o particle_mod.o
 
 #5)
-coordinates_ecmwf_mod.o: interpol_mod.o
+coord_ecmwf_mod.o: interpol_mod.o
 drydepo_mod.o: unc_mod.o interpol_mod.o erf_mod.o
 
 #6)
-advance_mod.o: coordinates_ecmwf_mod.o settling_mod.o drydepo_mod.o turbulence_mod.o
-plume_mod.o: mean_mod.o coordinates_ecmwf_mod.o
-outg_mod.o: oh_mod.o unc_mod.o coordinates_ecmwf_mod.o
-wetdepo_mod.o: coordinates_ecmwf_mod.o unc_mod.o
+advance_mod.o: coord_ecmwf_mod.o settling_mod.o drydepo_mod.o turbulence_mod.o
+plume_mod.o: mean_mod.o coord_ecmwf_mod.o
+outgrid_mod.o: ohr_mod.o unc_mod.o coord_ecmwf_mod.o
+wetdepo_mod.o: coord_ecmwf_mod.o unc_mod.o
 readoptions_mod.o: drydepo_mod.o xmass_mod.o
 
 #7)
 getfields_mod.o: wetdepo_mod.o verttransform_mod.o qvsat_mod.o
-flux_mod.o: outg_mod.o qvsat_mod.o
-txt_output_mod.o: outg_mod.o
-binary_output_mod.o: mean_mod.o outg_mod.o
-netcdf_output_mod.o: mean_mod.o outg_mod.o readoptions_mod.o drydepo_mod.o
+flux_mod.o: outgrid_mod.o qvsat_mod.o
+txt_output_mod.o: outgrid_mod.o
+binary_output_mod.o: mean_mod.o outgrid_mod.o
+netcdf_output_mod.o: mean_mod.o outgrid_mod.o readoptions_mod.o drydepo_mod.o
 
 #8)
 conv_mod.o: flux_mod.o class_gribfile_mod.o qvsat_mod.o
 output_mod.o: netcdf_output_mod.o binary_output_mod.o txt_output_mod.o
-restart_mod.o: coordinates_ecmwf_mod.o unc_mod.o netcdf_output_mod.o
+restart_mod.o: coord_ecmwf_mod.o unc_mod.o netcdf_output_mod.o
 
 #9)
 initialise_mod.o: xmass_mod.o output_mod.o turbulence_mod.o

@@ -37,7 +37,7 @@ module netcdf_output_mod
 
   use point_mod, only: ireleasestart,ireleaseend,kindz,dx,xlon0,dy,ylat0,&
                        xpoint1,ypoint1,xpoint2,ypoint2,zpoint1,zpoint2,npart,xmass
-  use outg_mod,  only: outheight,oroout,densityoutgrid,factor3d,volume,&
+  use outgrid_mod,  only: outheight,oroout,densityoutgrid,factor3d,volume,&
                        wetgrid,wetgridsigma,drygrid,drygridsigma,grid,gridsigma,&
                        area,arean,volumen,orooutn
   use par_mod,   only: dep_prec, sp, dp, maxspec, maxreceptor, nclassunc,&
@@ -117,8 +117,8 @@ module netcdf_output_mod
 
   private
 
-  public :: writeheader_netcdf,concoutput_surf_nest_netcdf,concoutput_netcdf,&
-       concoutput_nest_netcdf,concoutput_surf_netcdf,writeheader_partoutput,partoutput_netcdf,&
+  public :: writeheader_netcdf,concoutput_sfc_nest_netcdf,concoutput_netcdf,&
+       concoutput_nest_netcdf,concoutput_sfc_netcdf,writeheader_partoutput,partoutput_netcdf,&
        open_partoutput_file,close_partoutput_file,create_particles_initialoutput,&
        topo_written,mass_written,wrt_part_initialpos,partinit_netcdf,open_partinit_file, &
        readpartpositions_netcdf,readinitconditions_netcdf,partinitpointer1,tpointer
@@ -1214,7 +1214,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   gridunc(:,:,:,1:nspec,:,:,1:nageclass) = 0.  
 end subroutine concoutput_netcdf
 
-subroutine concoutput_surf_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+subroutine concoutput_sfc_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
 
   use unc_mod, only: gridunc,drygridunc,wetgridunc,drygridunc0,wetgridunc0
 
@@ -1226,7 +1226,7 @@ subroutine concoutput_surf_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,dryg
   real(dep_prec), intent(out)   :: wetgridtotalunc,drygridtotalunc
 
   print*,'Netcdf output for surface only not yet implemented'
-end subroutine concoutput_surf_netcdf
+end subroutine concoutput_sfc_netcdf
 
 subroutine concoutput_nest_netcdf(itime,outnum)
   !                               i     i 
@@ -1560,7 +1560,7 @@ subroutine concoutput_nest_netcdf(itime,outnum)
   griduncn(:,:,:,1:nspec,:,:,1:nageclass) = 0.  
 end subroutine concoutput_nest_netcdf
 
-subroutine concoutput_surf_nest_netcdf(itime,outnum)
+subroutine concoutput_sfc_nest_netcdf(itime,outnum)
 
   implicit none
 
@@ -1568,7 +1568,7 @@ subroutine concoutput_surf_nest_netcdf(itime,outnum)
   real, intent(in)    :: outnum
 
   print*,'Netcdf output for surface only not yet implemented'
-end subroutine concoutput_surf_nest_netcdf
+end subroutine concoutput_sfc_nest_netcdf
 
 subroutine create_particles_initialoutput(itime,idate,itime_start,idate_start)
 
@@ -2485,7 +2485,7 @@ subroutine readinitconditions_netcdf()
   use random_mod
   use particle_mod
   use date_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use readoptions_mod
   use drydepo_mod
 

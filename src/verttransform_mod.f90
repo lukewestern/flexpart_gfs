@@ -132,7 +132,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
   ! If north or south pole is in the domain, calculate wind velocities in polar
   ! stereographic coordinates
   !*******************************************************************
-  call verttransform_ecmwf_stereographic(n)
+  call verttransform_ecmwf_stereo(n)
 
   ! Create cloud fields
   !*********************
@@ -144,7 +144,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
     tt(0:nxmin1,0:nymin1,:,n),qv(0:nxmin1,0:nymin1,:,n),etauvheight(0:nxmin1,0:nymin1,:,n))
 end subroutine verttransform_ecmwf
 
-subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
+subroutine verttransform_nest(n,uuhn,vvhn,wwhn,pvhn)
   !                            i   i    i    i   i
   !*****************************************************************************
   !                                                                            *
@@ -221,7 +221,7 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
       rhohn(0:nxm1,0:nym1,:),pinmconv(0:nxm1,0:nym1,:), &
       etauvheightn(0:nxm1,0:nym1,:,n,l),etawheightn(0:nxm1,0:nym1,:,n,l))
 
-    call verttransform_ecmwf_nests_transform_windfields(l,n,uuhn,vvhn,wwhn,pvhn, &
+    call verttransform_ecmwf_windfields_nest(l,n,uuhn,vvhn,wwhn,pvhn, &
                                                         rhohn,prshn,pinmconv)
 
     ! Create cloud fields
@@ -236,7 +236,7 @@ subroutine verttransform_nests(n,uuhn,vvhn,wwhn,pvhn)
       qvn(0:nxm1,0:nym1,:,n,l), etauvheightn(0:nxm1,0:nym1,:,n,l))
       
   end do ! end loop over nests
-end subroutine verttransform_nests
+end subroutine verttransform_nest
 
 subroutine verttransform_init(n)
   implicit none
@@ -372,8 +372,8 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
 
   ! Levels, where u,v,t and q are given
   !************************************
-!$OMP PARALLEL PRIVATE(jy,ix,kz,dz1,dz2,dz,ix1,jy1,ixp,jyp,dzdx1,dzdx2,dzdx,dzdy1,dzdy2,dzdy, &
-!$OMP dpdeta)
+!$OMP PARALLEL PRIVATE(jy,ix,kz,dz1,dz2,dz,ix1,jy1,ixp,jyp,dzdx1,dzdx2,dzdx, &
+!$OMP dzdy1,dzdy2,dzdy,dpdeta)
 
 !$OMP DO
   do jy=0,nymin1
@@ -434,8 +434,9 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
           prs(ix,jy,iz,n)=prs(ix,jy,nz,n)   ! RLT
         else
           innuvz: do kz=idx(ix,jy),nuvz
-            if (idx(ix,jy) .le. kz .and. (height(iz).gt.etauvheight(ix,jy,kz-1,n)).and. &
-                 (height(iz).le.etauvheight(ix,jy,kz,n))) then
+            if ((idx(ix,jy).le.kz).and. &
+              (height(iz).gt.etauvheight(ix,jy,kz-1,n)).and. &
+              (height(iz).le.etauvheight(ix,jy,kz,n))) then
               idx(ix,jy)=kz
               exit innuvz
             endif
@@ -456,9 +457,10 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
             qv(ix,jy,iz,n)=(qvh(ix,jy,kz-1,n)*dz2+qvh(ix,jy,kz,n)*dz1)/dz
     !hg adding the cloud water
             if  (readclouds) then
-              clwc(ix,jy,iz,n)=(clwch(ix,jy,kz-1,n)*dz2+clwch(ix,jy,kz,n)*dz1)/dz
-              if (.not.sumclouds) &
-                   &ciwc(ix,jy,iz,n)=(ciwch(ix,jy,kz-1,n)*dz2+ciwch(ix,jy,kz,n)*dz1)/dz
+              clwc(ix,jy,iz,n)= &
+                (clwch(ix,jy,kz-1,n)*dz2+clwch(ix,jy,kz,n)*dz1)/dz
+              if (.not.sumclouds) ciwc(ix,jy,iz,n)= &
+                (ciwch(ix,jy,kz-1,n)*dz2+ciwch(ix,jy,kz,n)*dz1)/dz
             end if
     !hg
           endif
@@ -490,8 +492,9 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
       do ix=0,nxmin1
 
         inn: do kz=idx(ix,jy),nwz
-          if(idx(ix,jy) .le. kz .and. height(iz).gt.etawheight(ix,jy,kz-1,n).and. &
-               height(iz).le.etawheight(ix,jy,kz,n)) then
+          if((idx(ix,jy).le.kz) .and. &
+            (height(iz).gt.etawheight(ix,jy,kz-1,n)).and. &
+            (height(iz).le.etawheight(ix,jy,kz,n))) then
             idx(ix,jy)=kz
             exit inn
           endif
@@ -543,8 +546,9 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
         ! For gridpoint (ix,jy) and height (iz), this loop finds the first eta levels that is
         ! encompassing the height(iz) level and saves it in idx(ix,jy)
         inneta: do kz=idx(ix,jy),nz
-          if (idx(ix,jy) .le. kz .and. (height(iz).gt.etauvheight(ix,jy,kz-1,n)).and. &
-               (height(iz).le.etauvheight(ix,jy,kz,n))) then
+          if ((idx(ix,jy).le.kz).and. &
+            (height(iz).gt.etauvheight(ix,jy,kz-1,n)).and. &
+            (height(iz).le.etauvheight(ix,jy,kz,n))) then
             idx(ix,jy)=kz
             exit inneta
           endif
@@ -567,7 +571,8 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
         dzdy2=(etauvheight(ix,jyp,kz,n)-etauvheight(ix,jy1,kz,n))/2.
         dzdy=(dzdy1*dz2+dzdy2*dz1)/dz
 
-        ww(ix,jy,iz,n)=ww(ix,jy,iz,n)+(dzdx*uu(ix,jy,iz,n)*dxconst*cosf(jy)+dzdy*vv(ix,jy,iz,n)*dyconst)
+        ww(ix,jy,iz,n)=ww(ix,jy,iz,n) + dzdx*uu(ix,jy,iz,n)*dxconst*cosf(jy) &
+                                      + dzdy*vv(ix,jy,iz,n)*dyconst
       end do
     end do
 !$OMP END DO
@@ -588,11 +593,13 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
           pveta(ix,jy,kz,n) = pvh(ix,jy,kz)
           rhoeta(ix,jy,kz,n) = rhoh(ix,jy,kz)
           prseta(ix,jy,kz,n) = prsh(ix,jy,kz)
-          ! tvirtual(ix,jy,kz,n)=tteta(ix,jy,kz,n)* &  ! eq A11 from Mid-latitude atmospheric dynamics by Jonathan E. Martin
+          ! eq A11 from Mid-latitude atmospheric dynamics by Jonathan E. Martin
+          ! tvirtual(ix,jy,kz,n)=tteta(ix,jy,kz,n)* &  
           !   ((qv(ix,jy,kz,n)+0.622)/(0.622*qv(ix,jy,kz,n)+0.622))
           if ((kz.gt.1).and.(kz.lt.nz)) drhodzeta(ix,jy,kz,n)= &
                (rhoh(ix,jy,kz+1)-rhoh(ix,jy,kz-1))/ &
-               (height(kz+1)-height(kz-1)) ! Note that this is still in SI units and not in eta
+               (height(kz+1)-height(kz-1)) 
+               ! Note that this is still in SI units and not in eta
           if (readclouds) then
             clwc(ix,jy,kz,n)=clwch(ix,jy,kz,n)
             if (.not. sumclouds) ciwc(ix,jy,kz,n)=ciwch(ix,jy,kz,n)
@@ -624,7 +631,8 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
           endif
           wweta(ix,jy,kz,n)=wwh(ix,jy,kz)/dpdeta
         end do
-        wweta(ix,jy,nuvz,n)=wweta(ix,jy,nuvz-1,n) !What is the appropriate value for the top level???
+        wweta(ix,jy,nuvz,n)=wweta(ix,jy,nuvz-1,n) 
+        !What is the appropriate value for the top level???
       end do
     end do
 !$OMP END DO
@@ -633,7 +641,7 @@ subroutine verttransform_ecmwf_windfields(n,uuh,vvh,wwh,pvh,rhoh,prsh,pinmconv)
 
 end subroutine verttransform_ecmwf_windfields
 
-subroutine verttransform_ecmwf_stereographic(n)
+subroutine verttransform_ecmwf_stereo(n)
   implicit none
 
   integer, intent(in) :: n
@@ -900,7 +908,7 @@ subroutine verttransform_ecmwf_stereographic(n)
       end do
     endif
   endif
-end subroutine verttransform_ecmwf_stereographic
+end subroutine verttransform_ecmwf_stereo
 
 subroutine verttransform_ecmwf_cloud(n,lreadclouds,lsumclouds,nxlim,nylim,clouds_tmp,cloudsh_tmp,&
   clw_tmp,ctwc_tmp,clwc_tmp,ciwc_tmp,lsprec_tmp,convprec_tmp,rho_tmp,tt_tmp,qv_tmp,uvzlev)
@@ -958,13 +966,15 @@ subroutine verttransform_ecmwf_cloud(n,lreadclouds,lsumclouds,nxlim,nylim,clouds
                 (uvzlev(ix,jy,kz+1)-uvzlev(ix,jy,kz))
               cloudh_min=min(uvzlev(ix,jy,kz+1),uvzlev(ix,jy,kz))
             else
-              clw_tmp(ix,jy,kz)=(clwc_tmp(ix,jy,kz)*rho_tmp(ix,jy,kz))*(height(kz+1)-height(kz))
-  !           icloud_stats(ix,jy,3,n)= min(height(kz+1),height(kz))                     ! Cloud BOT height stats      [m]
+              clw_tmp(ix,jy,kz)=(clwc_tmp(ix,jy,kz)*rho_tmp(ix,jy,kz))* &
+              (height(kz+1)-height(kz))
+              ! Cloud BOT height stats [m]
+  !           icloud_stats(ix,jy,3,n)= min(height(kz+1),height(kz)) 
               cloudh_min=min(height(kz+1),height(kz))
             endif
   !            tot_cloud_h=tot_cloud_h+(height(kz+1)-height(kz)) 
-            
-  !            icloud_stats(ix,jy,4,n)= icloud_stats(ix,jy,4,n)+clw(ix,jy,kz,n)          ! Column cloud water [m3/m3]
+               ! Column cloud water [m3/m3]
+  !            icloud_stats(ix,jy,4,n)= icloud_stats(ix,jy,4,n)+clw(ix,jy,kz,n)
             ctwc_tmp(ix,jy) = ctwc_tmp(ix,jy)+clw_tmp(ix,jy,kz)
 
           endif
@@ -976,25 +986,27 @@ subroutine verttransform_ecmwf_cloud(n,lreadclouds,lsumclouds,nxlim,nylim,clouds
           do kz=nz,2,-1 !go Bottom up!
             if (clw_tmp(ix,jy,kz).gt. 0) then ! is in cloud
               if (wind_coord_type.eq.'ETA') then
-                cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+uvzlev(ix,jy,kz)-uvzlev(ix,jy,kz-1) 
+                cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy) + &
+                  uvzlev(ix,jy,kz)-uvzlev(ix,jy,kz-1)
               else
                 cloudsh_tmp(ix,jy)=cloudsh_tmp(ix,jy)+height(kz)-height(kz-1) 
               endif
-              clouds_tmp(ix,jy,kz)=1                               ! is a cloud
+              clouds_tmp(ix,jy,kz)=1        ! is a cloud
               if (lsp.ge.convp) then
-                clouds_tmp(ix,jy,kz)=3                            ! lsp in-cloud
+                clouds_tmp(ix,jy,kz)=3      ! lsp in-cloud
               else
-                clouds_tmp(ix,jy,kz)=2                             ! convp in-cloud
-              endif                                              ! convective or large scale
-            elseif((clw_tmp(ix,jy,kz).le.0) .and. (cloudh_min.ge.height(kz))) then ! is below cloud
+                clouds_tmp(ix,jy,kz)=2      ! convp in-cloud
+              endif                         ! convective or large scale
+            elseif((clw_tmp(ix,jy,kz).le.0) .and. (cloudh_min.ge.height(kz))) then 
+              ! is below cloud
               if (lsp.ge.convp) then
-                clouds_tmp(ix,jy,kz)=5                             ! lsp dominated washout
+                clouds_tmp(ix,jy,kz)=5      ! lsp dominated washout
               else
-                clouds_tmp(ix,jy,kz)=4                             ! convp dominated washout
-              endif                                              ! convective or large scale 
+                clouds_tmp(ix,jy,kz)=4      ! convp dominated washout
+              endif                         ! convective or large scale 
             endif
 
-            if (height(kz).ge. 19000) then                        ! set a max height for removal
+            if (height(kz).ge. 19000) then  ! set a max height for removal
               clouds_tmp(ix,jy,kz)=0
             endif !clw>0
           end do !nz
@@ -1542,21 +1554,22 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
           do kz=nz,2,-1 !go Bottom up!
             if (clw(ix,jy,kz,n).gt. 0) then ! is in cloud
               cloudsh(ix,jy,n)=cloudsh(ix,jy,n)+height(kz)-height(kz-1)
-              clouds(ix,jy,kz,n)=1                               ! is a cloud
+              clouds(ix,jy,kz,n)=1          ! is a cloud
               if (lsp.ge.convp) then
-                clouds(ix,jy,kz,n)=3                             ! lsp in-cloud
+                clouds(ix,jy,kz,n)=3        ! lsp in-cloud
               else
-                clouds(ix,jy,kz,n)=2                             ! convp in-cloud
-              endif                                              ! convective or large scale
-            elseif((clw(ix,jy,kz,n).le.0) .and. (cloudh_min.ge.height(kz))) then ! is below cloud
+                clouds(ix,jy,kz,n)=2        ! convp in-cloud
+              endif                         ! convective or large scale
+            elseif((clw(ix,jy,kz,n).le.0) .and. (cloudh_min.ge.height(kz))) then 
+              ! is below cloud
               if (lsp.ge.convp) then
-                clouds(ix,jy,kz,n)=5                             ! lsp dominated washout
+                clouds(ix,jy,kz,n)=5        ! lsp dominated washout
               else
-                clouds(ix,jy,kz,n)=4                             ! convp dominated washout
-              endif                                              ! convective or large scale
+                clouds(ix,jy,kz,n)=4        ! convp dominated washout
+              endif                         ! convective or large scale
             endif
 
-            if (height(kz).ge. 19000) then                        ! set a max height for removal
+            if (height(kz).ge. 19000) then  ! set a max height for removal
               clouds(ix,jy,kz,n)=0
             endif !clw>0
           end do !nz
@@ -1683,13 +1696,14 @@ subroutine verttransform_ecmwf_heights(nxlim,nylim, &
        (aknew(nz-1)+bknew(nz-1)*ps_tmp(:,:)))
 end subroutine verttransform_ecmwf_heights
 
-subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
+subroutine verttransform_ecmwf_windfields_nest(l,n, &
   uuhn,vvhn,wwhn,pvhn,rhohn,prshn,pinmconv)
 
   implicit none
 
   integer,intent(in) :: l,n
-  real,intent(in),dimension(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests) :: uuhn,vvhn,pvhn
+  real,intent(in),dimension(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests) :: &
+    uuhn,vvhn,pvhn
   real,intent(in),dimension(0:nxmaxn-1,0:nymaxn-1,nwzmax,maxnests) :: wwhn
   real,intent(in),dimension(0:nxmaxn-1,0:nymaxn-1,nuvzmax) :: rhohn
   real,intent(in),dimension(0:nxmaxn-1,0:nymaxn-1,nuvzmax) :: prshn
@@ -1712,8 +1726,8 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
 
   ! Levels, where u,v,t and q are given
   !************************************
-!$OMP PARALLEL PRIVATE(jy,ix,kz,dz1,dz2,dz,ix1,jy1,ixp,jyp,dzdx1,dzdx2,dzdx,dzdy1,dzdy2,dzdy, &
-!$OMP dpdeta)
+!$OMP PARALLEL PRIVATE(jy,ix,kz,dz1,dz2,dz,ix1,jy1,ixp,jyp,dzdx1,dzdx2,dzdx, &
+!$OMP dzdy1,dzdy2,dzdy,dpdeta)
 
 !$OMP DO
   do jy=0,nym1
@@ -1772,8 +1786,9 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
           prsn(ix,jy,iz,n,l)=prsn(ix,jy,nz,n,l)
         else
           innuvz: do kz=idx(ix,jy),nuvz
-            if (idx(ix,jy) .le. kz .and. (height(iz).gt.etauvheightn(ix,jy,kz-1,n,l)).and. &
-                 (height(iz).le.etauvheightn(ix,jy,kz,n,l))) then
+            if ((idx(ix,jy).le.kz).and. & 
+              (height(iz).gt.etauvheightn(ix,jy,kz-1,n,l)).and. &
+              (height(iz).le.etauvheightn(ix,jy,kz,n,l))) then
               idx(ix,jy)=kz
               exit innuvz
             endif
@@ -1796,8 +1811,8 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
             !hg adding the cloud water
             if (readclouds_nest(l)) then
               clwcn(ix,jy,iz,n,l)=(clwchn(ix,jy,kz-1,n,l)*dz2+clwchn(ix,jy,kz,n,l)*dz1)/dz
-              if (.not.sumclouds_nest(l)) &
-                   &ciwcn(ix,jy,iz,n,l)=(ciwchn(ix,jy,kz-1,n,l)*dz2+ciwchn(ix,jy,kz,n,l)*dz1)/dz
+              if (.not.sumclouds_nest(l)) ciwcn(ix,jy,iz,n,l) = &
+                (ciwchn(ix,jy,kz-1,n,l)*dz2+ciwchn(ix,jy,kz,n,l)*dz1)/dz
             end if
           endif
           rhon(ix,jy,iz,n,l)=(rhohn(ix,jy,kz-1)*dz2+rhohn(ix,jy,kz)*dz1)/dz
@@ -1828,8 +1843,9 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
       do ix=0,nxm1
 
         inn: do kz=idx(ix,jy),nwz
-          if(idx(ix,jy) .le. kz .and. height(iz).gt.etawheightn(ix,jy,kz-1,n,l).and. &
-               height(iz).le.etawheightn(ix,jy,kz,n,l)) then
+          if((idx(ix,jy).le.kz) .and. &
+            (height(iz).gt.etawheightn(ix,jy,kz-1,n,l)).and. &
+            (height(iz).le.etawheightn(ix,jy,kz,n,l))) then
             idx(ix,jy)=kz
             exit inn
           endif
@@ -1881,8 +1897,9 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
       do ix=1,nxn(l)-2
 
         inneta: do kz=idx(ix,jy),nz
-          if (idx(ix,jy) .le. kz .and. (height(iz).gt.etauvheightn(ix,jy,kz-1,n,l)).and. &
-               (height(iz).le.etauvheightn(ix,jy,kz,n,l))) then
+          if((idx(ix,jy).le.kz).and. &
+            (height(iz).gt.etauvheightn(ix,jy,kz-1,n,l)).and. &
+            (height(iz).le.etauvheightn(ix,jy,kz,n,l))) then
             idx(ix,jy)=kz
             exit inneta
           endif
@@ -1905,8 +1922,9 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
         dzdy2=(etauvheightn(ix,jyp,kz,n,l)-etauvheightn(ix,jy1,kz,n,l))/2.
         dzdy=(dzdy1*dz2+dzdy2*dz1)/dz
 
-        wwn(ix,jy,iz,n,l)=wwn(ix,jy,iz,n,l)+(dzdx*uun(ix,jy,iz,n,l)*dxconst*xresoln(l)*cosf(jy)+ &
-             dzdy*vvn(ix,jy,iz,n,l)*dyconst*yresoln(l))
+        wwn(ix,jy,iz,n,l)=wwn(ix,jy,iz,n,l) + &
+          (dzdx*uun(ix,jy,iz,n,l)*dxconst*xresoln(l)*cosf(jy)+ &
+          dzdy*vvn(ix,jy,iz,n,l)*dyconst*yresoln(l))
 
       end do
     end do
@@ -1928,7 +1946,8 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
           pvetan(ix,jy,kz,n,l) = pvhn(ix,jy,kz,l)
           rhoetan(ix,jy,kz,n,l) = rhohn(ix,jy,kz)
           prsetan(ix,jy,kz,n,l) = prshn(ix,jy,kz)
-          ! tvirtualn(ix,jy,kz,n,l)=ttetan(ix,jy,kz,n,l)* &  ! eq A11 from Mid-latitude atmospheric dynamics by Jonathan E. Martin
+          ! eq A11 from Mid-latitude atmospheric dynamics by Jonathan E. Martin
+          ! tvirtualn(ix,jy,kz,n,l)=ttetan(ix,jy,kz,n,l)* &  
           !   ((qvn(ix,jy,kz,n,l)+0.622)/(0.622*qvn(ix,jy,kz,n,l)+0.622))
           if ((kz.gt.1).and.(kz.lt.nz)) drhodzetan(ix,jy,kz,n,l)= &
             (rhohn(ix,jy,kz+1)-rhohn(ix,jy,kz-1))/(height(kz+1)-height(kz-1))
@@ -1949,6 +1968,7 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
         drhodzetan(ix,jy,nz,n,l)=drhodzetan(ix,jy,nz-1,n,l)
         ! tvirtualn(ix,jy,1,n,l)=tt2n(ix,jy,1,n,l)* &
         !   (1.+0.378*ew(td2n(ix,jy,1,n,l),psn(ix,jy,1,n,l))/ps(ix,jy,1,n,l))
+        
         ! Convert w from Pa/s to eta/s, following FLEXTRA
         !************************************************
         do kz=1,nuvz-1
@@ -1970,6 +1990,6 @@ subroutine verttransform_ecmwf_nests_transform_windfields(l,n, &
 !$OMP END DO
   endif
 !$OMP END PARALLEL
-end subroutine verttransform_ecmwf_nests_transform_windfields
+end subroutine verttransform_ecmwf_windfields_nest
 
 end module verttransform_mod

@@ -246,25 +246,25 @@ subroutine turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta
   r=exp(-2.*real(abs(lsynctime))/real(lwindinterv))
   rs=sqrt(1.-r**2)
   if (nrand+2.gt.maxrand) nrand=1
-  part(ipart)%mesovel%u=r*part(ipart)%mesovel%u+rs*rannumb(nrand)*usig*turbmesoscale
-  part(ipart)%mesovel%v=r*part(ipart)%mesovel%v+rs*rannumb(nrand+1)*vsig*turbmesoscale
+  part(ipart)%mesovel%u=r*part(ipart)%mesovel%u+rs*rannumb(nrand)*usig*fturbmeso
+  part(ipart)%mesovel%v=r*part(ipart)%mesovel%v+rs*rannumb(nrand+1)*vsig*fturbmeso
   dxsave=dxsave+part(ipart)%mesovel%u*real(lsynctime)
   dysave=dysave+part(ipart)%mesovel%v*real(lsynctime)
 
   select case (wind_coord_type)
     case ('ETA')
-      part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsigeta*turbmesoscale
+      part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsigeta*fturbmeso
       call update_zeta(ipart,part(ipart)%mesovel%w*real(lsynctime))
       if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
       if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
 
     case ('METER')
-      part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsig*turbmesoscale
+      part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsig*fturbmeso
       call update_z(ipart,part(ipart)%mesovel%w*real(lsynctime))
       if (part(ipart)%z.lt.0.) call set_z(ipart,-1.*part(ipart)%z)    ! if particle below ground -> refletion
 
     case default
-      part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsig*turbmesoscale
+      part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsig*fturbmeso
       call update_z(ipart,part(ipart)%mesovel%w*real(lsynctime))
       if (part(ipart)%z.lt.0.) call set_z(ipart,-1.*part(ipart)%z)    ! if particle below ground -> refletion
   end select

@@ -95,14 +95,16 @@ program flexpart
 
   if (numthreads.gt.1) then
     write(*,*)
-    write(*,*) "*********** WARNING  *********************************"
-    write(*,*) "* FLEXPART running in parallel mode                  *"
-    write(*,*) "* Number of uncertainty classes in                   *"
-    write(*,*) "* set to number of threads:", numthreads_grid, ".           *"
-    write(*,*) "* All other computations are done with               *"
-    write(*,*) "* ", numthreads, " threads.                                 *"
-    write(*,*) "******************************************************"
+    write(*,*) "*********** WARNING  **********************************"
+    write(*,*) "* FLEXPART running in parallel mode                   *"
+    write(*,*) "* Number of uncertainty classes in                    *"
+    write(*,901) " * set to number of threads:            ", &
+      numthreads_grid, "          *" 
+    write(*,901) " * All other computations are done with ",&
+      numthreads, " threads. *"
+    write(*,*) "*******************************************************"
     write(*,*)
+901 format (a,i5,a)
   endif
 
   ! Reading user specified options, allocating fields and checking bounds
@@ -162,7 +164,7 @@ subroutine read_options_and_initialise_flexpart
   use par_mod
   use com_mod
   use conv_mod
-  use class_gribfile
+  use class_gribfile_mod
   use readoptions_mod
   use windfields_mod
   use plume_mod
@@ -170,7 +172,7 @@ subroutine read_options_and_initialise_flexpart
   use drydepo_mod
   use getfields_mod
   use interpol_mod, only: alloc_interpol
-  use outg_mod
+  use outgrid_mod
   use binary_output_mod
 
   implicit none
@@ -210,7 +212,7 @@ subroutine read_options_and_initialise_flexpart
   if (numbnests.ge.1) then
     ! If nested wind fields are used, allocate arrays
     !************************************************
-    call alloc_windfields_nests
+    call alloc_windfields_nest
   endif
 
   ! Read, which wind fields are available within the modelling period
@@ -250,7 +252,7 @@ subroutine read_options_and_initialise_flexpart
   if (numbnests.ge.1) then
   ! If nested wind fields are used, allocate arrays
   !************************************************
-    call gridcheck_nests
+    call gridcheck_nest
   endif
 
   ! Read the output grid specifications if requested by user
@@ -279,7 +281,7 @@ subroutine read_options_and_initialise_flexpart
   ! For continuation of previous run or from user defined initial 
   ! conditions, read in particle positions
   !*************************************************************************
-  call flexpart_initialise_particles
+  call initialise_particles
 
   ! Convert the release point coordinates from geografical to grid coordinates
   !***************************************************************************
@@ -333,8 +335,7 @@ subroutine read_options_and_initialise_flexpart
   allocate(nan_count(numthreads))
 end subroutine read_options_and_initialise_flexpart
 
-
-subroutine flexpart_initialise_particles
+subroutine initialise_particles
 
   !*****************************************************************************
   !                                                                            *
@@ -400,4 +401,4 @@ subroutine flexpart_initialise_particles
     numparticlecount=0
   endif
 
-end subroutine flexpart_initialise_particles
+end subroutine initialise_particles

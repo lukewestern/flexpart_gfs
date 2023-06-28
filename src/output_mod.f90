@@ -42,27 +42,27 @@ subroutine init_output(itime,filesize)
       if (lnetcdfout.eq.1) then 
         call writeheader_netcdf(lnest=.false.)
       else 
-        call writeheader_binary
+        call writeheader_bin
       end if
 
       if (nested_output.eq.1) then
         if (lnetcdfout.eq.1) then
           call writeheader_netcdf(lnest=.true.)
         else if ((nested_output.eq.1).and.(surf_only.ne.1)) then
-          call writeheader_binary_nest
+          call writeheader_bin_nest
         else if ((nested_output.eq.1).and.(surf_only.eq.1)) then
-          call writeheader_binary_nest_surf
+          call writeheader_bin_sfc_nest
         else if ((nested_output.ne.1).and.(surf_only.eq.1)) then 
-          call writeheader_binary_surf
+          call writeheader_bin_sfc
         endif
       endif
 #else
-      call writeheader_binary
+      call writeheader_bin
 
       !if (nested_output.eq.1) call writeheader_nest
-      if ((nested_output.eq.1).and.(surf_only.ne.1)) call writeheader_binary_nest
-      if ((nested_output.eq.1).and.(surf_only.eq.1)) call writeheader_binary_nest_surf
-      if ((nested_output.ne.1).and.(surf_only.eq.1)) call writeheader_binary_surf
+      if ((nested_output.eq.1).and.(surf_only.ne.1)) call writeheader_bin_nest
+      if ((nested_output.eq.1).and.(surf_only.eq.1)) call writeheader_bin_sfc_nest
+      if ((nested_output.ne.1).and.(surf_only.eq.1)) call writeheader_bin_sfc
 #endif
     endif ! iout.ne.0
     ! FLEXPART 9.2 ticket ?? write header in ASCII format 
@@ -136,7 +136,7 @@ subroutine finalise_output(itime)
 
   if (linit_cond.ge.1) then
     do j=1,numpart
-      call initial_cond_calc(itime,j,1)
+      call initcond_calc(itime,j,1)
     end do
 #ifdef _OPENMP
     do ithread=1,numthreads
@@ -152,7 +152,7 @@ subroutine finalise_output(itime)
     if(linversionout.eq.1) then
       call initcond_output_inv(itime)   ! dump initial cond. field
     else
-      call initial_cond_output(itime)   ! dump initial cond. fielf
+      call initcond_output(itime)   ! dump initial cond. fielf
     endif
   endif
 end subroutine finalise_output
@@ -177,7 +177,7 @@ subroutine output_particles(itime,initial_output)
   !*****************************************************************************
 
   use interpol_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use particle_mod
 #ifdef USE_NCF
   use netcdf
@@ -471,13 +471,9 @@ end subroutine output_particles
 
 subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
   use unc_mod
-  use outg_mod
+  use outgrid_mod
   use par_mod
   use com_mod
-#ifdef USE_NCF
-  use netcdf_output_mod, only: concoutput_netcdf,concoutput_nest_netcdf,&
-       &concoutput_surf_netcdf,concoutput_surf_nest_netcdf
-#endif
   use binary_output_mod 
 
   implicit none
@@ -549,12 +545,12 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
 #endif
     else
 #ifdef USE_NCF
-      call concoutput_surf_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+      call concoutput_sfc_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
 #else
       if (linversionout.eq.1) then
         call concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
       else
-        call concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+        call concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
       endif
 #endif
     endif
@@ -564,7 +560,7 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
       if (surf_only.ne.1) then
         call concoutput_nest_netcdf(itime,outnum)
       else 
-        call concoutput_surf_nest_netcdf(itime,outnum)
+        call concoutput_sfc_nest_netcdf(itime,outnum)
       endif
 #else
       if (surf_only.ne.1) then
@@ -573,7 +569,7 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
         if(linversionout.eq.1) then
           call concoutput_inversion_nest(itime,outnum)
         else 
-          call concoutput_surf_nest(itime,outnum)
+          call concoutput_sfc_nest(itime,outnum)
         endif
       endif
 #endif
@@ -622,12 +618,12 @@ subroutine conccalc(itime,weight)
   !*****************************************************************************
 
   use unc_mod
-  use outg_mod
+  use outgrid_mod
   use par_mod
   use com_mod
   use omp_lib, only: OMP_GET_THREAD_NUM
   use interpol_mod, only: interpol_density
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use particle_mod
 
   implicit none
@@ -1232,7 +1228,7 @@ subroutine partpos_avg(itime,j)
   use par_mod
   use com_mod
   use interpol_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
 
   implicit none
 

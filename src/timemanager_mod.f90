@@ -84,11 +84,11 @@ subroutine timemanager
   use point_mod
   use xmass_mod
   use flux_mod
-  use outg_mod
-  use oh_mod
+  use outgrid_mod
+  use ohr_mod
   use par_mod
   use com_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use particle_mod
   use conv_mod
   use windfields_mod
@@ -213,7 +213,8 @@ subroutine timemanager
   ! In case of ETA coordinates being read from file, convert the z positions
   !*************************************************************************
     if (((ipin.eq.1).or.(ipin.eq.4)).and.(itime.eq.itime_init).and.(wind_coord_type.eq.'ETA')) then 
-      if (numpart.le.0) error stop 'Something is going wrong reading the old particle file! No particles found.'
+      if (numpart.le.0) error stop 'Something is going wrong reading the old particle file! &
+        &No particles found.'
 !$OMP PARALLEL PRIVATE(i)
 !$OMP DO
       do i=1,numpart
@@ -230,11 +231,11 @@ subroutine timemanager
     endif
 
     if (WETDEP .and. (itime.ne.0) .and. (numpart.gt.0)) then
-      call wetdepo(itime,lsynctime,loutnext) !OMP, wetdepo_mod.f90 (needs test)
+      call wetdepo(itime,lsynctime,loutnext)
     endif
 
     if (OHREA .and. (itime.ne.0) .and. (numpart.gt.0)) &
-      call ohreaction(itime,lsynctime,loutnext) !OMP, oh_mod.f90 (needs test)
+      call ohreaction(itime,lsynctime,loutnext)
 
   ! compute convection for backward runs
   !*************************************
@@ -246,16 +247,16 @@ subroutine timemanager
   ! Get hourly OH fields if not available 
   !****************************************************
     if (OHREA) then
-      call gethourlyOH(itime) !OMP, oh_mod.f90 (needs test)
+      call gethourlyOH(itime)
     endif
         
   ! Release particles
   !******************
     if (mdomainfill.ge.1) then
       if (itime.eq.itime_init) then   
-        call init_domainfill !OMP, initialise_mod.f90 (needs test)
+        call init_domainfill
       else 
-        call boundcond_domainfill(itime,loutend) !OMP, initialise_mod.f90 (needs test)
+        call boundcond_domainfill(itime,loutend)
       endif
     else if ((ipin.eq.3).or.(ipin.eq.4)) then
       ! If reading from user defined initial conditions, check which particles are 
@@ -474,7 +475,7 @@ subroutine timemanager
   ! If trajectory is terminated, mark it
   !**************************************
       if (part(j)%nstop) then
-        if (linit_cond.ge.1) call initial_cond_calc(itime,j,thread+1)
+        if (linit_cond.ge.1) call initcond_calc(itime,j,thread+1)
         call terminate_particle(j,itime)
         alive_tmp=alive_tmp-1
         terminated_tmp=terminated_tmp+1
@@ -543,7 +544,7 @@ subroutine timemanager
   !***************************************************************
 
         if ((part(j)%alive).and.(abs(itime-part(j)%tstart).ge.lage(nageclass))) then
-          if (linit_cond.ge.1) call initial_cond_calc(itime+lsynctime,j,thread+1)
+          if (linit_cond.ge.1) call initcond_calc(itime+lsynctime,j,thread+1)
           call terminate_particle(j,itime)
           alive_tmp=alive_tmp-1
           terminated_tmp=terminated_tmp+1
@@ -629,7 +630,7 @@ subroutine timemanager
   call dealloc_getfields
   call dealloc_interpol
   call dealloc_random
-  if (numbnests.ge.1) call dealloc_windfields_nests
+  if (numbnests.ge.1) call dealloc_windfields_nest
   if (iflux.eq.1) deallocate(flux)
   if (OHREA) deallocate(OH_field,OH_hourly,lonOH,latOH,altOH)
   if (ipin.ne.3 .and. ipin.ne.4) &

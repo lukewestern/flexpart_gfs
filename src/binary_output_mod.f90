@@ -17,7 +17,7 @@
 module binary_output_mod
 
   use point_mod
-  use outg_mod
+  use outgrid_mod
   use par_mod
   use com_mod
   use date_mod
@@ -27,7 +27,7 @@ module binary_output_mod
 
 contains
 
-subroutine writeheader_binary
+subroutine writeheader_bin
 
   !*****************************************************************************
   !                                                                            *
@@ -164,9 +164,9 @@ subroutine writeheader_binary
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
   error stop
 
-end subroutine writeheader_binary
+end subroutine writeheader_bin
 
-subroutine writeheader_binary_nest
+subroutine writeheader_bin_nest
 
   !*****************************************************************************
   !                                                                            *
@@ -303,9 +303,9 @@ subroutine writeheader_binary_nest
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
   error stop
 
-end subroutine writeheader_binary_nest
+end subroutine writeheader_bin_nest
 
-subroutine writeheader_binary_nest_surf
+subroutine writeheader_bin_sfc_nest
 
   !*****************************************************************************
   !                                                                            *
@@ -442,9 +442,9 @@ subroutine writeheader_binary_nest_surf
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
   error stop
 
-end subroutine writeheader_binary_nest_surf
+end subroutine writeheader_bin_sfc_nest
 
-subroutine writeheader_binary_surf
+subroutine writeheader_bin_sfc
 
   !*****************************************************************************
   !                                                                            *
@@ -581,7 +581,7 @@ subroutine writeheader_binary_surf
   write(*,*) ' #### THE PROGRAM AGAIN.                       #### '
   error stop
 
-end subroutine writeheader_binary_surf
+end subroutine writeheader_bin_sfc
 
 subroutine openreceptors
 
@@ -2951,7 +2951,7 @@ subroutine concoutput_inversion_nest(itime,outnum)
   end do
 end subroutine concoutput_inversion_nest
 
-subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
+subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
      drygridtotalunc)
   !                        i     i          o             o
   !       o
@@ -3017,7 +3017,7 @@ subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
 
   if (verbosity.eq.1) then
-    print*,'inside concoutput_surf '
+    print*,'inside concoutput_sfc '
     CALL SYSTEM_CLOCK(count_clock)
     WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
   endif
@@ -3056,7 +3056,7 @@ subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
 
   if (verbosity.eq.1) then
-    print*,'concoutput_surf 2'
+    print*,'concoutput_sfc 2'
     CALL SYSTEM_CLOCK(count_clock)
     WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
   endif
@@ -3133,7 +3133,7 @@ subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
   !*********************************************************************
 
   if (verbosity.eq.1) then
-    print*,'concoutput_surf 3 (sd)'
+    print*,'concoutput_sfc 3 (sd)'
     CALL SYSTEM_CLOCK(count_clock)
     WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
   endif
@@ -3243,7 +3243,7 @@ subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
   !*******************************************************************
 
         if (verbosity.eq.1) then
-          print*,'concoutput_surf 4 (output)'
+          print*,'concoutput_sfc 4 (output)'
           CALL SYSTEM_CLOCK(count_clock)
           WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
         endif
@@ -3254,7 +3254,7 @@ subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
         if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
 
           if (verbosity.eq.1) then
-            print*,'concoutput_surf (Wet deposition)'
+            print*,'concoutput_sfc (Wet deposition)'
             CALL SYSTEM_CLOCK(count_clock)
             WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
           endif
@@ -3295,7 +3295,7 @@ subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
           write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
 
           if (verbosity.eq.1) then
-            print*,'concoutput_surf (Dry deposition)'
+            print*,'concoutput_sfc (Dry deposition)'
             CALL SYSTEM_CLOCK(count_clock)
             WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
           endif
@@ -3335,7 +3335,7 @@ subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
           write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
 
           if (verbosity.eq.1) then
-            print*,'concoutput_surf (Concentrations)'
+            print*,'concoutput_sfc (Concentrations)'
             CALL SYSTEM_CLOCK(count_clock)
             WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
           endif
@@ -3613,9 +3613,9 @@ subroutine concoutput_surf(itime,outnum,gridtotalunc,wetgridtotalunc, &
       end do
     end do
   end do
-end subroutine concoutput_surf
+end subroutine concoutput_sfc
 
-subroutine concoutput_surf_nest(itime,outnum)
+subroutine concoutput_sfc_nest(itime,outnum)
   !                        i     i
   !*****************************************************************************
   !                                                                            *
@@ -4252,9 +4252,9 @@ subroutine concoutput_surf_nest(itime,outnum)
     end do
   end do
   end do
-end subroutine concoutput_surf_nest
+end subroutine concoutput_sfc_nest
 
-subroutine initial_cond_output(itime)
+subroutine initcond_output(itime)
   !                                 i
   !*****************************************************************************
   !                                                                            *
@@ -4377,7 +4377,7 @@ subroutine initial_cond_output(itime)
     close(97)
 
   end do
-end subroutine initial_cond_output
+end subroutine initcond_output
 
 subroutine initcond_output_inv(itime)
   !                                 i

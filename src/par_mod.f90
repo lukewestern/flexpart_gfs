@@ -74,9 +74,9 @@ module par_mod
   ! r_water                 specific gas constant for water vapor [J/kg/K]
 
   real,parameter :: karman=0.40, href=15., convke=2.0
-  real,parameter :: hmixmin=100., hmixmax=4500. !, turbmesoscale=0.16
+  real,parameter :: hmixmin=100., hmixmax=4500.
   !real,parameter :: d_trop=50., d_strat=0.1
-  real :: d_trop=50., d_strat=0.1, turbmesoscale=0.16 ! turbulence factors can change for different runs
+  real :: d_trop=50., d_strat=0.1, fturbmeso=0.16 ! turbulence factors can change for different runs
   real,parameter :: rho_water=1000. !ZHG 2015 [kg/m3]
   real,parameter :: incloud_ratio=6.2   !ZHG MAR2016
 
@@ -84,9 +84,9 @@ module par_mod
   ! href [m]          Reference height for dry deposition
   ! konvke            Relative share of kinetic energy used for parcel lifting
   ! hmixmin,hmixmax   Minimum and maximum allowed PBL height
-  ! turbmesoscale     the factor by which standard deviations of winds at grid
+  ! fturbmeso         the factor by which standard deviations of winds at grid
   !                   points surrounding the particle positions are scaled to
-  !                yield the scales for the mesoscale wind velocity fluctuations
+  !                   yield the scales for the mesoscale wind velocity fluctuations
   ! d_trop [m2/s]     Turbulent diffusivity for horiz components in the troposphere
   ! d_strat [m2/s]    Turbulent diffusivity for vertical component in the stratosphere
 
@@ -268,7 +268,7 @@ module par_mod
   integer,parameter :: unitreceptorout=2  
   integer,parameter :: unitoutgrid=97, unitoutgridppt=99, unitoutinfo=1
   integer,parameter :: unitspecies=1, unitoutrecept=91, unitoutreceptppt=92
-  integer,parameter :: unitlsm=1, unitsurfdata=1, unitland=1, unitwesely=1
+  integer,parameter :: unitlsm=1, unitsfcdata=1, unitland=1, unitwesely=1
   integer,parameter :: unitOH=1
   integer,parameter :: unitdates=94, unitheader=90,unitheader_txt=100
   integer,parameter :: unitshortpart=95, unitprecip=101

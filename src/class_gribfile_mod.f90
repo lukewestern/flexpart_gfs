@@ -1,4 +1,4 @@
-MODULE class_gribfile
+MODULE class_gribfile_mod
 
     !*****************************************************************
     !                                                                *
@@ -416,4 +416,4 @@ CONTAINS
 
     END FUNCTION gribfile_num_zlevel
 
-END MODULE class_gribfile
+END MODULE class_gribfile_mod

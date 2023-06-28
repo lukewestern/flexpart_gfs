@@ -52,7 +52,7 @@ subroutine plumetraj(itime)
   use com_mod
   use mean_mod
   use particle_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use windfields_mod
 
   implicit none

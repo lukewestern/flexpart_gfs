@@ -9,7 +9,7 @@
 !     Author: L. Bakels                                                      *
 !*****************************************************************************
 
-module coordinates_ecmwf_mod
+module coord_ecmwf_mod
 
   use par_mod
   use com_mod
@@ -472,4 +472,4 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
   ztout = real(ztemp1(1),kind=dp)*(1.-frac)+real(ztemp1(2),kind=dp)*frac
 end subroutine zeta_to_z_lin
 
-end module coordinates_ecmwf_mod
+end module coord_ecmwf_mod

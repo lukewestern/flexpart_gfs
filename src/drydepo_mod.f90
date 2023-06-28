@@ -1025,7 +1025,7 @@ subroutine getvdep(n,ix,jy,ust,temp,pa,L,gr,rh,rr,snow,vdepo)
   end do
 end subroutine getvdep
 
-subroutine getvdep_nests(n,ix,jy,ust,temp,pa, &
+subroutine getvdep_nest(n,ix,jy,ust,temp,pa, &
        L,gr,rh,rr,snow,vdepo,lnest)
   !                   i i  i   i   i   i  i i  i  i    i o i
   !*****************************************************************************
@@ -1203,7 +1203,7 @@ subroutine getvdep_nests(n,ix,jy,ust,temp,pa, &
       vdepo(i)=dryvel(i)
     endif
   end do
-end subroutine getvdep_nests
+end subroutine getvdep_nest
 
 subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
   !                   i     i      i     i    i   i    i    i  i, i, i/o

@@ -43,7 +43,7 @@ module getfields_mod
     vlev,                                 & !
     zlev                                    !
 
-  private :: obukhov,richardson,scalev,calcpar,calcpar_nests,calcpv,calcpv_nests
+  private :: obukhov,richardson,scalev,calcpar,calcpar_nest,calcpv,calcpv_nest
 
   public :: getfields
 contains
@@ -121,7 +121,7 @@ subroutine getfields(itime,nstop)
   !                                                                            *
   !*****************************************************************************
 
-  use class_gribfile
+  use class_gribfile_mod
   use wetdepo_mod
 
   implicit none
@@ -180,15 +180,15 @@ subroutine getfields(itime,nstop)
         else
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if
-        call readwind_nests(indj+1,memind(2),uuhn,vvhn,wwhn)
+        call readwind_nest(indj+1,memind(2),uuhn,vvhn,wwhn)
         call calcpar(memind(2))
-        call calcpar_nests(memind(2))
+        call calcpar_nest(memind(2))
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(2),uuh,vvh,wwh,pvh)
         else
           call verttransform_gfs(memind(2),uuh,vvh,wwh,pvh)
         end if
-        call verttransform_nests(memind(2),uuhn,vvhn,wwhn,pvhn)
+        call verttransform_nest(memind(2),uuhn,vvhn,wwhn,pvhn)
         memtime(2)=wftime(indj+1)
         nstop = 1
         exit
@@ -219,15 +219,15 @@ subroutine getfields(itime,nstop)
         else
           call readwind_gfs(indj,memind(1),uuh,vvh,wwh)
         end if
-        call readwind_nests(indj,memind(1),uuhn,vvhn,wwhn)
+        call readwind_nest(indj,memind(1),uuhn,vvhn,wwhn)
         call calcpar(memind(1))
-        call calcpar_nests(memind(1))
+        call calcpar_nest(memind(1))
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(1),uuh,vvh,wwh,pvh)
         else
           call verttransform_gfs(memind(1),uuh,vvh,wwh,pvh)
         end if
-        call verttransform_nests(memind(1),uuhn,vvhn,wwhn,pvhn)
+        call verttransform_nest(memind(1),uuhn,vvhn,wwhn,pvhn)
         memtime(1)=wftime(indj)
         memind(2)=2
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
@@ -239,15 +239,15 @@ subroutine getfields(itime,nstop)
         else
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if
-        call readwind_nests(indj+1,memind(2),uuhn,vvhn,wwhn)
+        call readwind_nest(indj+1,memind(2),uuhn,vvhn,wwhn)
         call calcpar(memind(2))
-        call calcpar_nests(memind(2))
+        call calcpar_nest(memind(2))
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(2),uuh,vvh,wwh,pvh)
         else
           call verttransform_gfs(memind(2),uuh,vvh,wwh,pvh)
         end if
-        call verttransform_nests(memind(2),uuhn,vvhn,wwhn,pvhn)
+        call verttransform_nest(memind(2),uuhn,vvhn,wwhn,pvhn)
         memtime(2)=wftime(indj+1)
         nstop = 1
         exit
@@ -579,7 +579,7 @@ subroutine calcpv(n)
   end if
 end subroutine calcpv
 
-subroutine calcpv_nests(l,n)
+subroutine calcpv_nest(l,n)
   !                     i i  i    i    o
   !*****************************************************************************
   !                                                                            *
@@ -819,7 +819,7 @@ subroutine calcpv_nests(l,n)
       end do
     end do
   end do
-end subroutine calcpv_nests
+end subroutine calcpv_nest
 
 subroutine calcpar(n)
   !                   i  i   i   o
@@ -864,7 +864,7 @@ subroutine calcpar(n)
   !                                                                            *
   !*****************************************************************************
 
-  use class_gribfile
+  use class_gribfile_mod
   use drydepo_mod
   use qvsat_mod
 
@@ -923,7 +923,7 @@ subroutine calcpar(n)
   !************************************
 
       ustar(ix,jy,1,n)=scalev(ps(ix,jy,1,n),tt2(ix,jy,1,n), &
-           td2(ix,jy,1,n),surfstr(ix,jy,1,n))
+           td2(ix,jy,1,n),sfcstress(ix,jy,1,n))
       if (ustar(ix,jy,1,n).le.1.e-8) ustar(ix,jy,1,n)=1.e-8
 
   ! 2) Calculation of inverse Obukhov length scale
@@ -1097,7 +1097,7 @@ subroutine calcpar(n)
   call calcpv(n)
 end subroutine calcpar
 
-subroutine calcpar_nests(n)
+subroutine calcpar_nest(n)
   !                         i  i    i    o
   !*****************************************************************************
   !                                                                            *
@@ -1189,7 +1189,7 @@ subroutine calcpar_nests(n)
   !************************************
 
       ustarn(ix,jy,1,n,l)=scalev(psn(ix,jy,1,n,l),tt2n(ix,jy,1,n,l), &
-           td2n(ix,jy,1,n,l),surfstrn(ix,jy,1,n,l))
+           td2n(ix,jy,1,n,l),sfcstressn(ix,jy,1,n,l))
       if (ustarn(ix,jy,1,n,l).le.1.e-8) ustarn(ix,jy,1,n,l)=1.e-8
 
   ! 2) Calculation of inverse Obukhov length scale
@@ -1221,7 +1221,7 @@ subroutine calcpar_nests(n)
            wstarn(ix,jy,1,n,l),hmixplus,ierr)
       if (ierr.lt.0) then
         write(*,9500) 'failure', ix, jy, l
-        error stop 'calcpar_nests: richardson computation failed'
+        error stop 'calcpar_nest: richardson computation failed'
       endif
 9500      format( 'calcparn - richardson ', a, ' - ix,jy=', 2i5 )
 
@@ -1250,7 +1250,7 @@ subroutine calcpar_nests(n)
   !***************************************
         rh=ew(td2n(ix,jy,1,n,l),psn(ix,jy,1,n,l))/ew(tt2n(ix,jy,1,n,l),psn(ix,jy,1,n,l))
 
-        call getvdep_nests(n,ix,jy,ustarn(ix,jy,1,n,l), &
+        call getvdep_nest(n,ix,jy,ustarn(ix,jy,1,n,l), &
              tt2n(ix,jy,1,n,l),psn(ix,jy,1,n,l),1./olin(ix,jy,1,n,l), &
              ssrn(ix,jy,1,n,l),rh,lsprecn(ix,jy,1,n,l)+ &
              convprecn(ix,jy,1,n,l),sdn(ix,jy,1,n,l),vd,l)
@@ -1324,10 +1324,10 @@ subroutine calcpar_nests(n)
   ! Calculation of potential vorticity on 3-d grid
   !***********************************************
 
-  call calcpv_nests(l,n)
+  call calcpv_nest(l,n)
 
   end do
-end subroutine calcpar_nests
+end subroutine calcpar_nest
 
 real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
 
@@ -1367,7 +1367,7 @@ real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
   !                                                                   *
   !********************************************************************
 
-  use class_gribfile
+  use class_gribfile_mod
   use qvsat_mod
 
   implicit none
@@ -1448,7 +1448,7 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
   !                                                                           *
   !****************************************************************************
 
-  use class_gribfile
+  use class_gribfile_mod
   use qvsat_mod
 
   implicit none

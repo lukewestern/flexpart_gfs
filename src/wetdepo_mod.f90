@@ -247,7 +247,7 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
 
   use interpol_mod
   use windfields_mod
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
 
   implicit none
 

@@ -15,7 +15,7 @@ module advance_mod
   use interpol_mod
   use cmapf_mod
   use random_mod, only: ran3,iseed1
-  use coordinates_ecmwf_mod
+  use coord_ecmwf_mod
   use particle_mod
   use turbulence_mod
   use settling_mod
@@ -51,16 +51,16 @@ subroutine advance(itime,ipart,thread)
   !  included file 'interpol_mod'. The following                               *
   !  interpolation routines are used:                                          *
   !                                                                            *
-  !  interpol_all(_nests)     interpolates everything (called inside the PBL)  *
-  !  interpol_misslev(_nests) if a particle moves vertically in the PBL,       *
+  !  interpol_all(_nest)     interpolates everything (called inside the PBL)  *
+  !  interpol_misslev(_nest) if a particle moves vertically in the PBL,       *
   !                           additional parameters are interpolated if it     *
   !                           crosses a model level                            *
-  !  interpol_wind(_nests)    interpolates the wind and determines the         *
+  !  interpol_wind(_nest)    interpolates the wind and determines the         *
   !                           standard deviation of the wind (called outside   *
   !                           PBL) also interpolates potential vorticity       *
-  !  interpol_wind_short(_nests) only interpolates the wind (needed for the    *
+  !  interpol_wind_short(_nest) only interpolates the wind (needed for the    *
   !                           Petterssen scheme)                               *
-  !  interpol_vdep(_nests)    interpolates deposition velocities               *
+  !  interpol_vdep(_nest)    interpolates deposition velocities               *
   !                                                                            *
   !                                                                            *
   !     Author: A. Stohl                                                       *
@@ -238,7 +238,7 @@ subroutine advance(itime,ipart,thread)
 
   ! Mesoscale wind velocity fluctuations are obtained by scaling
   ! with the standard deviation of the grid-scale winds surrounding
-  ! the particle location, multiplied by a factor turbmesoscale.
+  ! the particle location, multiplied by a factor fturbmeso.
   ! The autocorrelation time constant is taken as half the
   ! time interval between wind fields
   !****************************************************************

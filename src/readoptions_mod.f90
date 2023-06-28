@@ -44,7 +44,7 @@ subroutine readageclasses
   integer :: i
 
   ! namelist help variables
-  integer :: readerror
+  integer :: ios
 
   ! namelist declaration
   namelist /ageclass/ &
@@ -67,14 +67,16 @@ subroutine readageclasses
   ! open the AGECLASSSES file and read user options
   !************************************************
 
-  open(unitageclasses,file=path(1)(1:length(1))//'AGECLASSES',form='formatted',status='old',err=999)
+  open(unitageclasses,file=path(1)(1:length(1))//'AGECLASSES', &
+    form='formatted',status='old',err=999)
 
   ! try to read in as a namelist
-  read(unitageclasses,ageclass,iostat=readerror)
+  read(unitageclasses,ageclass,iostat=ios)
   close(unitageclasses)
 
-  if ((nageclass.lt.0).or.(readerror.ne.0)) then
-    open(unitageclasses,file=path(1)(1:length(1))//'AGECLASSES',status='old',err=999)
+  if ((nageclass.lt.0).or.(ios.ne.0)) then
+    open(unitageclasses,file=path(1)(1:length(1))//'AGECLASSES', &
+      status='old',err=999)
     do i=1,13
       read(unitageclasses,*)
     end do
@@ -90,7 +92,8 @@ subroutine readageclasses
 
   ! write ageclasses file in namelist format to output directory if requested
   if (nmlout.and.lroot) then
-    open(unitageclasses,file=path(2)(1:length(2))//'AGECLASSES.namelist',err=1000)
+    open(unitageclasses,file=path(2)(1:length(2))//'AGECLASSES.namelist', &
+      err=1000)
     write(unitageclasses,nml=ageclass)
     close(unitageclasses)
   endif
@@ -462,7 +465,7 @@ subroutine readcommand
 
   character(len=50) :: line
   logical :: old
-  integer :: readerror
+  integer :: ios
 
   namelist /command/ &
   ldirect, &
@@ -541,11 +544,12 @@ subroutine readcommand
   ! Open the command file and read user options
   ! Namelist input first: try to read as namelist file
   !**************************************************************************
-  open(unitcommand,file=path(1)(1:length(1))//'COMMAND',status='old',form='formatted',err=999)
+  open(unitcommand,file=path(1)(1:length(1))//'COMMAND',status='old', &
+    form='formatted',err=999)
 
   ! try namelist input (default)
-  read(unitcommand,command,iostat=readerror)
-  if (readerror.ne.0) then
+  read(unitcommand,command,iostat=ios)
+  if (ios.ne.0) then
         backspace(unitcommand)
         read(unitcommand,fmt='(A)') line
         if (lroot) write(*,*) &
@@ -555,10 +559,10 @@ subroutine readcommand
   close(unitcommand)
 
   ! distinguish namelist from fixed text input
-  if ((readerror.ne.0).or.(ldirect.eq.0)) then ! parse as text file format
+  if ((ios.ne.0).or.(ldirect.eq.0)) then ! parse as text file format
     if (lroot) write(*,*) 'COMMAND either having unrecognised entries, &
       &or in old format, please update to namelist format.'
-      error stop 'COMMAND has unrecognised entries'
+      error stop 'COMMAND has unrecognised entries or is not a namelist'
   endif ! input format
 
   ! write command file in namelist format to output directory if requested
@@ -572,9 +576,9 @@ subroutine readcommand
 
   ! Determine how Markov chain is formulated (for w or for w/sigw)
   !***************************************************************
-  if (cblflag.eq.1) then !---- added by mc to properly set parameters for CBL simulations 
+  if (cblflag.eq.1) then ! added by mc to properly set parameters for CBL simulations 
     turbswitch=.true.
-    if (lsynctime>maxtl) lsynctime=maxtl  !maxtl defined in com_mod.f90
+    if (lsynctime .gt. maxtl) lsynctime=maxtl  !maxtl defined in com_mod.f90
     if (ctl.lt.5) then
       print *,'WARNING: CBL flag active the ratio of TLu/dt has been set to 5'
       ctl=5.
@@ -582,7 +586,8 @@ subroutine readcommand
     if (ifine*ctl.lt.50) then
       ifine=int(50./ctl)+1
 
-      print *,'WARNING: CBL flag active the ratio of TLW/dt was < 50, ifine has been re-set to',ifine
+      print *,'WARNING: CBL flag active the ratio of TLW/dt was < 50, &
+        &ifine has been re-set to',ifine
   !pause
     endif
     print *,'WARNING: CBL flag active the ratio of TLW/dt is ',ctl*ifine
@@ -741,10 +746,10 @@ subroutine readcommand
     lnetcdfout = 1
     iout = iout - 8
 #ifndef USE_NCF
-    write(*,*) 'ERROR: netcdf output not activated during compile time'
-    write(*,*) 'but used in COMMAND file!'
-    write(*,*) 'Please recompile with netcdf library (`make [...] ncf=yes`)'
-    write(*,*) 'or use standard output format.'
+    write(*,*) 'ERROR: netcdf output not activated during compile time &
+      &but used in COMMAND file!'
+    write(*,*) 'Please recompile with netcdf library (`make [...] ncf=yes`) &
+      &or use standard output format.'
     error stop 'FLEXPART not compiled with NetCDF'
 #endif
   endif
@@ -760,7 +765,8 @@ subroutine readcommand
   !**********************************************************************
 
   if (iout.eq.0) then
-    write(*,*) 'WARNING: IOUT set to zero, no gridded information will be written to file'
+    write(*,*) 'WARNING: IOUT set to zero, no gridded information will be &
+      &written to file'
   else if ((iout.lt.0).or.(iout.gt.5)) then
     write(*,*) ' #### FLEXPART MODEL ERROR! FILE COMMAND:     #### '
     write(*,*) ' #### IOUT MUST BE 1, 2, 3, 4 OR 5 FOR        #### '
@@ -1051,7 +1057,7 @@ subroutine readdepo
 
   ! Read deposition constants related with landuse and seasonal category
   !*********************************************************************
-  open(unitwesely,file=path(1)(1:length(1))//'surfdepo.t', &
+  open(unitwesely,file=path(1)(1:length(1))//'sfcdepo.t', &
        status='old',err=999)
 
   do i=1,16
@@ -1129,7 +1135,7 @@ subroutine readdepo
   return
 
 999   write(*,*) '### FLEXPART ERROR! FILE              ###'
-  write(*,*) '### surfdepo.t DOES NOT EXIST.        ###'
+  write(*,*) '### sfcdepo.t DOES NOT EXIST.        ###'
   error stop
 end subroutine readdepo
 
@@ -1157,7 +1163,7 @@ subroutine readOHfield
   !                                                                            *
   !*****************************************************************************
 
-  use oh_mod
+  use ohr_mod
 
   implicit none
 
@@ -1176,7 +1182,8 @@ subroutine readOHfield
        form='UNFORMATTED', iostat=ierr, convert='little_endian')
 
   if(ierr.ne.0) then
-    write(*,*) 'Cannot read binary OH fields in ',trim(ohfields_path)//'OH_FIELDS/OH_variables.bin'
+    write(*,*) 'Cannot read binary OH fields in ', &
+      trim(ohfields_path)//'OH_FIELDS/OH_variables.bin'
     error stop
   endif
 
@@ -1234,15 +1241,15 @@ subroutine readlanduse
   ! LANDUSE CATEGORIES:                                                        *
   !                                                                            *
   ! 1   Urban land                                                             *
-  ! 2   Agricultural land                                  *
-  ! 3   Range land                                         *
-  ! 4   Deciduous forest                                           *
-  ! 5   Coniferous forest                                              *
+  ! 2   Agricultural land                                                      *
+  ! 3   Range land                                                             *
+  ! 4   Deciduous forest                                                       *
+  ! 5   Coniferous forest                                                      *
   ! 6   Mixed forest including wetland                                         *
   ! 7   water, both salt and fresh                                             *
   ! 8   barren land mostly desert                                              *
-  ! 9   nonforested wetland                                                *
-  ! 10  mixed agricultural and range land                              *
+  ! 9   nonforested wetland                                                    *
+  ! 10  mixed agricultural and range land                                      *
   ! 11  rocky open areas with low growing shrubs                               *
   ! 12  ice                                                                    *
   ! 13  rainforest                                                             *
@@ -1272,11 +1279,8 @@ subroutine readlanduse
   ! 2 1  percentage 2 = 2*6.25 => 13% landuse class 1
   ! 1 12 percentage 1 = 1*6.26 => 6.25% landuse class 12
 
-  open(unitland,file=path(1)(1:length(1)) &
-       //'IGBP_int1.dat',status='old', &
-  !    +form='UNFORMATTED', err=998)
-       form='UNFORMATTED', err=998, convert='little_endian')
-  !  print*,unitland
+  open(unitland,file=path(1)(1:length(1))//'IGBP_int1.dat',status='old', &
+    form='UNFORMATTED', err=998, convert='little_endian')
   read (unitland) (ilr_buffer(i),i=1,2160000)
   close(unitland)
 
@@ -1309,7 +1313,7 @@ subroutine readlanduse
         lu_perc=r2lr*16.
         landinvent(ix,jy,k)=lu_cat
         landinvent(ix,jy,k+3)=lu_perc
-  !       if ((jy.lt.10).and.(ix.lt.10)) write(*,*) 'reading: ' , ix, jy, lu_cat, lu_perc
+  ! if ((jy.lt.10).and.(ix.lt.10)) write(*,*) 'reading: ',ix,jy,lu_cat,lu_perc
       end do
     end do
   end do
@@ -1317,29 +1321,32 @@ subroutine readlanduse
   ! Read relation landuse,z0
   !*****************************
 
-  open(unitsurfdata,file=path(1)(1:length(1))//'surfdata.t', &
+  open(unitsfcdata,file=path(1)(1:length(1))//'sfcdata.t', &
        status='old',err=999)
 
   do i=1,4
-    read(unitsurfdata,*)
+    read(unitsfcdata,*)
   end do
   do i=1,numclass
-    read(unitsurfdata,'(45x,f15.3)') z0(i)
+    read(unitsfcdata,'(45x,f15.3)') z0(i)
   end do
-  close(unitsurfdata)
+  close(unitsfcdata)
 
   return
 
   ! Issue error messages
   !*********************
+998 write(*,*) ' #### FLEXPART ERROR! FILE                     ####'
+  write(*,*)   ' #### ', path(1)(1:length(1))//'IGBP_int1.dat'
+  write(*,*)   " #### (LANDUSE INVENTORY) COULD NOT BE OPENED  ####"
+  stop
 
-998   write(*,*) ' #### FLEXPART ERROR! FILE CONTAINING          ####'
-  write(*,*) ' #### LANDUSE INVENTORY DOES NOT EXIST         ####'
-  error stop
-
-999   write(*,*) ' #### FLEXPART ERROR! FILE CONTAINING          ####'
-  write(*,*) ' #### RELATION LANDUSE,z0 DOES NOT EXIST       ####'
-  error stop
+999 write(*,*) ' #### FLEXPART ERROR! FILE              ####'
+  write(*,*)   ' #### ', path(1)(1:length(1))//'sfcdata.txt'
+  write(*,*)   ' #### DOES NOT EXIST. Note that         ####'
+  write(*,*)   ' #### file was renamed from sfcdata.t  ####'
+  write(*,*)   ' #### to sfcdata.txt in v11             ####'
+  stop
 end subroutine readlanduse
 
 subroutine readoutgrid
@@ -1367,7 +1374,7 @@ subroutine readoutgrid
   !                                                                            *
   !*****************************************************************************
 
-  use outg_mod
+  use outgrid_mod
 
   implicit none
 
@@ -1377,7 +1384,7 @@ subroutine readoutgrid
 
   ! namelist variables
   integer, parameter :: maxoutlev=500
-  integer :: readerror
+  integer :: ios
   real,allocatable, dimension (:) :: outheights
 
   ! declare namelist
@@ -1398,15 +1405,16 @@ subroutine readoutgrid
   ! Open the OUTGRID file and read output grid specifications
   !**********************************************************
 
-  open(unitoutgrid,file=path(1)(1:length(1))//'OUTGRID',status='old',form='formatted',err=999)
+  open(unitoutgrid,file=path(1)(1:length(1))//'OUTGRID',status='old', &
+    form='formatted',err=999)
 
   ! try namelist input
-  read(unitoutgrid,outgrid,iostat=readerror)
+  read(unitoutgrid,outgrid,iostat=ios)
   close(unitoutgrid)
 
-  if ((dxout.le.0).or.(readerror.ne.0)) then
+  if ((dxout.le.0).or.(ios.ne.0)) then
 
-    readerror=1
+    ios=1
 
     open(unitoutgrid,file=path(1)(1:length(1))//'OUTGRID',status='old',err=999)
 
@@ -1451,7 +1459,7 @@ subroutine readoutgrid
   ! 2. Count Vertical levels of output grid
   !****************************************
 
-  if (readerror.ne.0) then
+  if (ios.ne.0) then
     j=0
 100 j=j+1
     do i=1,3
@@ -1476,7 +1484,7 @@ subroutine readoutgrid
   ! 2. Vertical levels of output grid
   !**********************************
 
-  if (readerror.ne.0) then
+  if (ios.ne.0) then
 
     rewind(unitoutgrid)
     call skplin(29,unitoutgrid)
@@ -1584,7 +1592,7 @@ subroutine readoutgrid_nest
   !                                                                            *
   !*****************************************************************************
 
-  use outg_mod
+  use outgrid_mod
 
   implicit none
 
@@ -1592,7 +1600,7 @@ subroutine readoutgrid_nest
   real :: xr,xr1,yr,yr1
   real,parameter :: eps=1.e-4
 
-  integer :: readerror
+  integer :: ios
 
   ! declare namelist
   namelist /outgridn/ &
@@ -1609,10 +1617,10 @@ subroutine readoutgrid_nest
   open(unitoutgrid,file=path(1)(1:length(1))//'OUTGRID_NEST',form='formatted',status='old',err=999)
 
   ! try namelist input
-  read(unitoutgrid,outgridn,iostat=readerror)
+  read(unitoutgrid,outgridn,iostat=ios)
   close(unitoutgrid)
 
-  if ((dxoutn.le.0).or.(readerror.ne.0)) then
+  if ((dxoutn.le.0).or.(ios.ne.0)) then
 
     open(unitoutgrid,file=path(1)(1:length(1))//'OUTGRID_NEST',status='old',err=999)
     call skplin(5,unitoutgrid)
@@ -1821,13 +1829,17 @@ subroutine readreceptors
   open (unitreceptor,file=trim(path(1))//'RECEPTORS',form='formatted', &
     status='old',err=999)
 
+  lon = -999.
+  lat = -999.
+
   ! try namelist input
   read(unitreceptor,receptors,iostat=ios)
+  close (unitreceptor)
 
   ! prepare namelist output if requested
   if (nmlout) open(unitreceptorout,file=trim(path(2))// &
     'RECEPTORS.namelist',err=1000)
-  close (unitreceptor)
+
 
   if (ios .ne. 0) then ! read as regular text file
 
@@ -1840,11 +1852,8 @@ subroutine readreceptors
     ! PS: reopen file otherwise first receptor is skipped!
     open (unitreceptor,file=trim(path(1))//'RECEPTORS',status='old',err=999)
 
-    call skplin(5,unitreceptor)
-
     ! Read the names and coordinates of the receptors
     !************************************************
-
     j=0
     do while (ios .eq. 0)
       j=j+1
@@ -2023,7 +2032,7 @@ subroutine readreleases
   logical :: old
 
   ! help variables for namelist reading
-  integer :: numpoints, parts, readerror
+  integer :: numpoints, parts, ios
   integer*2 :: zkind
   integer :: idate1, itime1, idate2, itime2
   real :: lon1,lon2,lat1,lat2,z1,z2
@@ -2062,11 +2071,12 @@ subroutine readreleases
   specnum_rel = 0
 
   !sec, read release to find how many releasepoints should be allocated
-  open(unitreleases,file=path(1)(1:length(1))//'RELEASES',status='old',form='formatted',err=999)
+  open(unitreleases,file=path(1)(1:length(1))//'RELEASES',status='old', &
+    form='formatted',err=999)
 
   ! check if namelist input provided
-  read(unitreleases,releases_ctrl,iostat=readerror)
-  if (readerror.ne.0) then
+  read(unitreleases,releases_ctrl,iostat=ios)
+  if (ios.ne.0) then
         backspace(unitreleases)
         read(unitreleases,fmt='(A)') line
         if (lroot) write(*,*) &
@@ -2077,26 +2087,27 @@ subroutine readreleases
     
   ! prepare namelist output if requested
   if (nmlout.and.lroot) then
-    open(unitreleasesout,file=path(2)(1:length(2))//'RELEASES.namelist',access='append',status='replace',err=1000)
+    open(unitreleasesout,file=path(2)(1:length(2))//'RELEASES.namelist', &
+      access='append',status='replace',err=1000)
   endif
 
-  if ((readerror.ne.0).or.(nspec.lt.0)) then
+  if ((ios.ne.0).or.(nspec.lt.0)) then
     if (lroot) write(*,*) 'RELEASE either having unrecognised entries, &
       &or in old format, please update to namelist format.'
       error stop
   else
     if ((ipin.ne.3).and.(ipin.ne.4)) then ! Not necessary to read releases when using part_ic.nc
-      readerror=0
-      do while (readerror.eq.0) 
+      ios=0
+      do while (ios.eq.0) 
         idate1=-1
-        read(unitreleases,release,iostat=readerror)
-        if ((idate1.lt.0).or.(readerror.ne.0)) then
-          readerror=1
+        read(unitreleases,release,iostat=ios)
+        if ((idate1.lt.0).or.(ios.ne.0)) then
+          ios=1
         else
           numpoint=numpoint+1
         endif
       end do
-      readerror=0
+      ios=0
     else
       numpoint=1
     endif
@@ -2287,7 +2298,7 @@ subroutine readreleases
   mass = 0
   parts = 0
   comment = ' '
-  read(unitreleases,release,iostat=readerror)
+  read(unitreleases,release,iostat=ios)
   id1=idate1
   it1=itime1
   id2=idate2
@@ -2566,7 +2577,7 @@ subroutine readspecies(id_spec,pos_spec)
   real :: pcrain_aero, pcsnow_aero, pccn_aero, pin_aero
   real :: parea_dow(7), parea_hour(24), ppoint_dow(7), ppoint_hour(24)
   integer :: pndia
-  integer :: readerror
+  integer :: ios
   integer :: pshape,porient
   ! Daria Tatsii: species shape properties
   real ::pla,pia,psa,f,e,paspectratio
@@ -2630,15 +2641,16 @@ subroutine readspecies(id_spec,pos_spec)
   !************************************************************
   specnum(pos_spec)=id_spec
   write(aspecnumb,'(i3.3)') specnum(pos_spec)
-  open(unitspecies,file=path(1)(1:length(1))//'SPECIES/SPECIES_'//aspecnumb,status='old',form='formatted',err=998)
+  open(unitspecies,file=path(1)(1:length(1))//'SPECIES/SPECIES_'//aspecnumb, &
+    status='old',form='formatted',err=998)
   write(*,*) 'reading SPECIES',specnum(pos_spec)
 
   ASSSPEC=.FALSE.
 
   ! try namelist input
-  read(unitspecies,species_params,iostat=readerror)
+  read(unitspecies,species_params,iostat=ios)
   !CGZ add check on which line of species file problem occurs
-  if (readerror.ne.0) then
+  if (ios.ne.0) then
     backspace(unitspecies)
     read(unitspecies,fmt='(A)') line
     if (lroot) write(*,*) &
@@ -2646,13 +2658,14 @@ subroutine readspecies(id_spec,pos_spec)
   end if
   close(unitspecies)
 
-  if ((len(trim(pspecies)).eq.0).or.(readerror.ne.0)) then ! no namelist found
+  if ((len(trim(pspecies)).eq.0).or.(ios.ne.0)) then ! no namelist found
     if (lroot) write(*,*) "SPECIES file not in NAMELIST format, attempting to &
          &read as fixed format"
 
-    readerror=1
+    ios=1
 
-    open(unitspecies,file=path(1)(1:length(1))//'SPECIES/SPECIES_'//aspecnumb,status='old',err=998)
+    open(unitspecies,file=path(1)(1:length(1))//'SPECIES/SPECIES_'//aspecnumb, &
+      status='old',err=998)
 
     do i=1,6
       read(unitspecies,*)
@@ -2775,8 +2788,10 @@ subroutine readspecies(id_spec,pos_spec)
         case (1)
           write(*,*) "Particle shape USER-DEFINED for particle", id_spec
           if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, but no valid axes are provided."
-            write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
+            write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, &
+              &but no valid axes are provided."
+            write(*,*) "#### SPECIES file requires SA, IA, and LA parameter &
+              &greater than zero."
             error stop
           endif
           write(*,*) "SA,IA,LA:",psa,pia,pla
@@ -2843,7 +2858,8 @@ subroutine readspecies(id_spec,pos_spec)
       f=psa/pia
       e=pia/pla
 
-      if ((ishape(pos_spec).eq.2).or.((ishape(pos_spec).eq.1).and.(pia.eq.psa).and.(pla.ge.20.0*pia))) then
+      if ((ishape(pos_spec).eq.2).or.((ishape(pos_spec).eq.1).and. &
+        (pia.eq.psa).and.(pla.ge.20.0*pia))) then
 
         Fn(pos_spec)=f*f*e  ! simplified equation, validated by experiments with fibers
         Fs(pos_spec)=f*e**(1.3)   ! simplified equation, validated by experiments with fibers
@@ -3056,7 +3072,7 @@ subroutine readpartoptions
   integer :: i,np
 
   ! namelist help variables
-  integer :: readerror
+  integer :: ios
 
   logical ::                      &
     longitude=.false.,            &
@@ -3138,10 +3154,10 @@ subroutine readpartoptions
   open(unitpartoptions,file=path(1)(1:length(1))//'PARTOPTIONS',form='formatted',status='old',err=9999)
 
   ! try to read in as a namelist
-  read(unitpartoptions,partoptions,iostat=readerror)
+  read(unitpartoptions,partoptions,iostat=ios)
   close(unitpartoptions)
 
-  if (readerror.ne.0) then
+  if (ios.ne.0) then
     write(*,*) 'Namelist error in PARTOPTIONS file', trim(path(1)(1:length(1))//'PARTOPTIONS')
     error stop
   endif
