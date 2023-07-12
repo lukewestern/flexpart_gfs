@@ -35,4 +35,5 @@
  CBLFLAG=               0, ! Skewed, not Gaussian turbulence in the convective ABL, need large CTL and IFINE
  OHFIELDS_PATH= "../../flexin/", ! Default path for OH file
  NXSHIFT=             359, ! Shift of the global meteorological data. Default 359 for ECMWF and 0 for GFS if not given
+ BCSCHEME=              1, ! Below-cloud scheme; [1] Laakso & Kyro [2] Wang et al [3] modified Wang et al
  /

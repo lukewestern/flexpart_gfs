@@ -11,6 +11,8 @@
 !                                                                              *
 !        Update 15 August 2013 IP                                              *
 !                                                                              *
+!        Anne Tipka, Petra Seibert, 2021-02: implement new interpolation       *
+!           for precipitation according to #295 using 2 additional fields      *
 !                                                                              *
 !*******************************************************************************
 
@@ -78,7 +80,8 @@ module par_mod
   !real,parameter :: d_trop=50., d_strat=0.1
   real :: d_trop=50., d_strat=0.1, fturbmeso=0.16 ! turbulence factors can change for different runs
   real,parameter :: rho_water=1000. !ZHG 2015 [kg/m3]
-  real,parameter :: incloud_ratio=6.2   !ZHG MAR2016
+  real,parameter :: ratio_incloud=6.2   !ZHG MAR2016
+  real,parameter :: wet_a=1.e-5, wet_b=0.8 !AT
 
   ! karman            Karman's constant
   ! href [m]          Reference height for dry deposition
@@ -89,6 +92,8 @@ module par_mod
   !                   yield the scales for the mesoscale wind velocity fluctuations
   ! d_trop [m2/s]     Turbulent diffusivity for horiz components in the troposphere
   ! d_strat [m2/s]    Turbulent diffusivity for vertical component in the stratosphere
+  ! ratio_incloud     ZHG MAR2016
+  ! wet_a, wet_b      for wetscav=wet_a*prec**wet_b if no cloud found, but precipitation occurs
 
   
   real,parameter :: xmwml=18.016/28.960
@@ -155,7 +160,7 @@ module par_mod
   ! Maximum dimensions of the nested input grids
   !*********************************************
 
-  integer,parameter :: maxnests=1,nxmaxn=201,nymaxn=201
+  integer,parameter :: maxnests=0,nxmaxn=0,nymaxn=0
 
   ! nxmax,nymax        maximum dimension of wind fields in x and y
   !                    direction, respectively
@@ -201,7 +206,7 @@ module par_mod
   !**************************************************
 
   !integer,parameter :: maxpart=5000000
-  integer,parameter :: maxspec=1
+  integer,parameter :: maxspec=5
 
   real,parameter :: minmassfrac=0.0
 
@@ -216,6 +221,7 @@ module par_mod
   ! ---------
   ! Sabine Eckhardt: change of landuse inventary numclass=13
   integer,parameter :: maxwf=1000000, maxtable=1000, numclass=13, maxndia=100
+  integer,parameter :: numpf=1 ! number of precip fields original =1, new=3(AT and PS, #295)
   integer,parameter :: numwfmem=2 ! Serial version/MPI with 2 fields
   !integer,parameter :: numwfmem=3 ! MPI with 3 fields
 
@@ -223,6 +229,7 @@ module par_mod
   ! maxtable     Maximum number of chemical species that can be tabulated 
   ! numclass     Number of landuse classes available to FLEXPART
   ! maxndia      Maximum number of diameter classes of particles
+  ! numpf        Number of precipitation fields (1 standard, 3 #295)
   ! numwfmem     Number of windfields kept in memory. 2 for serial version, 
   !              2 or 3 for MPI version
 
@@ -231,6 +238,39 @@ module par_mod
   !**************************************************************************
   
   integer,parameter :: maxxOH=72, maxyOH=46, maxzOH=7
+  
+  !**************************************************************************
+  ! aerosol below-cloud scavenging removal polynomial constants for rain & snow
+  !**************************************************************************
+
+  ! for bcscheme = 1
+  ! rain (Laakso et al 2003)
+  real, parameter :: bclr(6) = &
+      (/274.35758, 332839.59273, 226656.57259, 58005.91340, 6588.38582, 0.244984/)
+  ! snow (Kyro et al 2009)
+  real, parameter :: bcls(6) = (/22.7, 0.0, 0.0, 1321.0, 381.0, 0.0/) 
+  
+  ! for bcscheme = 2 & 3
+  ! AT (after Wang et al 2014)
+  ! rain
+  real, parameter :: bclr_a(4) = &
+      (/-6.2609, 0.682, 0.8676, 0.1282/)
+  real, parameter :: bclr_b(7) = &
+      (/-14.707, 51.043, -97.306, 97.946, -53.923, 15.311, -1.751/)
+  real, parameter :: bclr_c(2) = &
+      (/0.723, 0.0303/)
+  real, parameter :: bclr_e(7) = &
+      (/-0.6492, 9.3483, -21.929, 25.317, -15.395, 4.7242, -0.5766/)
+  ! snow 
+  real, parameter :: bcls_a(7) = &
+      (/-4.426, 1.394, -1.202, -3.2942, -1.9521, -0.4904, -0.0457/)
+  real, parameter :: bcls_b(7) = &
+      (/-4.3521, -0.7828, 12.768, -19.864, 13.618, -4.4350, 0.5551/)
+  real, parameter :: bcls_c(7) = &
+      (/0.5664, 0.0085, -0.1948, -0.6532, -0.5462, -0.1778, -0.0201/) 
+  real, parameter :: bcls_e(7) = &
+      (/0.5689, -0.0923, 0.0402, 1.4523, -2.078, 1.05, -0.1821/)
+
 
   !**************************************************************************
   ! Maximum number of particles to be released in a single atmospheric column
@@ -300,8 +340,8 @@ module par_mod
   ! Throughout the code there will be SELECT CASE statements or IFDEFs
   !*******************************************************************
   
-  character(len=256),parameter :: wind_coord_type='ETA'
-  !character(len=256),parameter :: wind_coord_type='METER'
+  !character(len=256),parameter :: wind_coord_type='ETA'
+  character(len=256),parameter :: wind_coord_type='METER'
 
   ! This flag sets all vertical interpolation to logarithmic instead of linear
   !***************************************************************************

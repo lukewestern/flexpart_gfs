@@ -833,7 +833,7 @@ subroutine calcpar(n)
   !                                                                            *
   !     21 May 1995                                                            *
   !                                                                            *
-  ! ------------------------------------------------------------------         *
+  !*****************************************************************************
   !     Petra Seibert, Feb 2000:                                               *
   !     convection scheme:                                                     *
   !     new variables in call to richardson                                    *
@@ -848,7 +848,9 @@ subroutine calcpar(n)
   !     - Merged calcpar and calcpar_gfs into one routine using if-then        *
   !       for meteo-type dependent code                                        *
   !*****************************************************************************
-
+  !  Changes Anne Tipka June 2023:                                             *
+  !    sum up precipitation fields over number of available fields in a single *
+  !    time interval (newWetDepoScheme)                                        *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -1009,7 +1011,7 @@ subroutine calcpar(n)
 
         call getvdep(n,ix,jy,ustar(ix,jy,1,n), &
              tt2(ix,jy,1,n),ps(ix,jy,1,n),1./oli(ix,jy,1,n), &
-             ssr(ix,jy,1,n),rh,lsprec(ix,jy,1,n)+convprec(ix,jy,1,n), &
+             ssr(ix,jy,1,n),rh,sum(lsprec(ix,jy,1,:,n))+sum(convprec(ix,jy,1,:,n)), &
              sd(ix,jy,1,n),vd)
 
         do i=1,nspec
@@ -1110,7 +1112,7 @@ subroutine calcpar_nest(n)
   !                                                                            *
   !     8 February 1999                                                        *
   !                                                                            *
-  ! ------------------------------------------------------------------         *
+  !*****************************************************************************
   !     Petra Seibert, Feb 2000:                                               *
   !     convection scheme:                                                     *
   !     new variables in call to richardson                                    *
@@ -1121,6 +1123,10 @@ subroutine calcpar_nest(n)
   !                                                                            *
   !   Unified ECMWF and GFS builds                                             *
   !   Marian Harustak, 12.5.2017                                               *
+  !*****************************************************************************
+  !  Changes Anne Tipka June 2023:                                             *
+  !    sum up precipitation fields over number of available fields in a single *
+  !    time interval (newWetDepoScheme)                                        *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -1252,8 +1258,8 @@ subroutine calcpar_nest(n)
 
         call getvdep_nest(n,ix,jy,ustarn(ix,jy,1,n,l), &
              tt2n(ix,jy,1,n,l),psn(ix,jy,1,n,l),1./olin(ix,jy,1,n,l), &
-             ssrn(ix,jy,1,n,l),rh,lsprecn(ix,jy,1,n,l)+ &
-             convprecn(ix,jy,1,n,l),sdn(ix,jy,1,n,l),vd,l)
+             ssrn(ix,jy,1,n,l),rh,sum(lsprecn(ix,jy,1,:,n,l))+ &
+             sum(convprecn(ix,jy,1,:,n,l)),sdn(ix,jy,1,n,l),vd,l)
 
         do i=1,nspec
           vdepn(ix,jy,i,n,l)=vd(i)

@@ -176,12 +176,11 @@ subroutine readavailable
 
   integer :: i,idiff,ldat,ltim,wftime1(maxwf),numbwfn(maxnests),k
   integer :: wftime1n(maxnests,maxwf),wftimen(maxnests,maxwf)
-  logical :: lwarntd=.true.
   real(kind=dp) :: jul,beg,endl
   character(len=255) :: fname,spec,wfname1(maxwf),wfspec1(maxwf)
   character(len=255) :: wfname1n(maxnests,maxwf)
-  character(len=40) :: wfspec1n(maxnests,maxwf)
-
+  character(len=255) :: wfspec1n(maxnests,maxwf)
+  logical :: lwarntd=.true.
 
   ! Windfields are only used, if they are within the modelling period.
   ! However, 1 additional day at the beginning and at the end is used for
@@ -415,6 +414,9 @@ subroutine readcommand
   !     18 May 1996                                                            *
   !     HSO, 1 July 2014                                                       *
   !     Added optional namelist input                                          *
+  !                                                                            * 
+  !     June 2023 Anne Tipka                                                   * 
+  !     Added new parameter bcscheme for selcting below cloud scheme           *
   !                                                                            *
   !*****************************************************************************
   !                                                                            *
@@ -500,7 +502,8 @@ subroutine readcommand
   ohfields_path, &
   d_trop, &
   d_strat, &
-  nxshift
+  nxshift, &
+  bcscheme
 
   ! Presetting namelist command
   ldirect=0
@@ -536,6 +539,7 @@ subroutine readcommand
   linversionout=0
   ohfields_path="../../flexin/"
   nxshift=-9999
+  bcscheme=2
 
   !Af set release-switch
   WETBKDEP=.false.
@@ -1838,8 +1842,7 @@ subroutine readreceptors
 
   ! prepare namelist output if requested
   if (nmlout) open(unitreceptorout,file=trim(path(2))// &
-    'RECEPTORS.namelist',err=1000)
-
+    'RECEPTORS.namelist',status='replace',err=1000)  
 
   if (ios .ne. 0) then ! read as regular text file
 

@@ -85,24 +85,17 @@ module windfields_mod
     rho_dry                                 ! dry air density RLT Only printed out in binary mode???
 
   ! Cloud properties
-  ! clouds:   no cloud, no precipitation   0
-  !      cloud, no precipitation      1
-  !      rainout  conv/lsp dominated  2/3
-  !      washout  conv/lsp dominated  4/5
-  ! PS 2013
   !*****************************************
   real, allocatable,dimension(:,:,:,:) :: &
     clwc,                                 & ! liquid   [kg/kg] ZHG
     ciwc,                                 & ! ice      [kg/kg] ZHG
-    clw,                                  & ! combined [m3/m3] ZHG
     clwch,                                & ! original eta level liquid [kg/kg] ZHG
     ciwch                                   ! original eta level ice [kg/kg] ZHG
   real, allocatable,dimension(:,:,:) ::   &
     ctwc                                    ! ESO: =icloud_stats(:,:,4,:) total cloud water content
-  integer(kind=1),allocatable,dimension(:,:,:,:) :: &
-    clouds                                  ! scavenging NIK, PS
-  integer,allocatable,dimension(:,:,:) :: &
-    cloudsh                                 ! scavenging NIK, PS
+  integer,allocatable,dimension(:,:,:) :: & ! new scavenging AT 2021
+    icloudbot,                            & ! cloud bottom height [m]
+	  icloudthck                              ! cloud thickness [m]
 
   ! 3d nested fields
   !*****************
@@ -132,15 +125,13 @@ module windfields_mod
   real,allocatable,dimension(:,:,:,:,:) :: &
     clwcn,                                 & ! liquid   [kg/kg] ZHG
     ciwcn,                                 & ! ice      [kg/kg] ZHG
-    clwn,                                  & ! combined [m3/m3] ZHG
     clwchn,                                & ! original eta level liquid [kg/kg] ZHG
     ciwchn                                   ! original eta level ice [kg/kg] ZHG
   real,allocatable,dimension(:,:,:,:) ::   &
     ctwcn                                    ! ESO: =icloud_stats(:,:,4,:) total cloud water content
-  integer(kind=1),allocatable,dimension(:,:,:,:,:) :: &
-    cloudsn                                  ! scavenging NIK, PS
-  integer,allocatable,dimension(:,:,:,:) :: &
-    cloudshn                                 ! scavenging NIK, PS
+  integer,allocatable,dimension(:,:,:,:) :: & ! new scavenging AT 2021
+    icloudbotn,                             & ! cloud bottom height [m]
+  	icloudthckn                               ! cloud thickness [m]
 
   ! 2d fields
   !**********
@@ -153,17 +144,21 @@ module windfields_mod
     v10,                                & ! 10 meter v
     tt2,                                & ! 2 meter temperature
     td2,                                & ! 2 meter dew point
-    lsprec,                             & ! large scale total precipitation [mm/h]
-    convprec,                           & ! convective precipitation [mm/h]
     sshf,                               & ! surface sensible heat flux
     ssr,                                & ! surface solar radiation
-    sfcstress,                            & ! surface stress
+    sfcstress,                          & ! surface stress
     ustar,                              & ! friction velocity [m/s]
     wstar,                              & ! convective velocity scale [m/s]
     hmix,                               & ! mixing height [m]
     tropopause,                         & ! altitude of thermal tropopause [m]
     oli                                   ! inverse Obukhov length (1/L) [m]
 
+  ! 2d fields
+  !**********	
+  real, allocatable,dimension(:,:,:,:,:) :: & ! newWetDepoScheme, extra precip dimension AT 2021
+    lsprec,                                 & ! large scale total precipitation [mm/h]
+    convprec                                  ! convective precipitation [mm/h]
+	
   ! 2d nested fields
   !*******************
   real, allocatable,dimension(:,:,:,:,:) :: &
@@ -175,11 +170,9 @@ module windfields_mod
     v10n,                                   & ! 10 meter v
     tt2n,                                   & ! 2 meter temperature
     td2n,                                   & ! 2 meter dew point
-    lsprecn,                                & ! large scale total precipitation [mm/h]
-    convprecn,                              & ! convective precipitation [mm/h]
     sshfn,                                  & ! surface sensible heat flux
     ssrn,                                   & ! surface solar radiation
-    sfcstressn,                               & ! surface stress
+    sfcstressn,                             & ! surface stress
     ustarn,                                 & ! friction velocity [m/s]
     wstarn,                                 & ! convective velocity scale [m/s]
     hmixn,                                  & ! mixing height [m]
@@ -187,6 +180,12 @@ module windfields_mod
     olin,                                   & ! inverse Obukhov length (1/L) [m]
     vdepn                                     !
 
+  ! 2d fields
+  !**********	
+  real, allocatable,dimension(:,:,:,:,:,:) :: & ! newWetDepoScheme, extra precip dimension AT 2021
+    lsprecn,                                 & ! large scale total precipitation [mm/h]
+    convprecn                                  ! convective precipitation [mm/h]
+	
   integer :: metdata_format  ! storing the input data type (ECMWF/NCEP)
 
   !****************************************************************************
@@ -307,6 +306,10 @@ subroutine gridcheck_ecmwf
   !   Marian Harustak, 12.5.2017                                        *
   !     - Renamed from gridcheck to gridcheck_ecmwf                     *
   !                                                                     *
+  !                                                                     *  
+  !  Anne Tipka, Petra Seibert 2021-02: implement new interpolation     *
+  !    for precipitation according to #295 using 2 additional fields    *
+  !                                                                     *
   !**********************************************************************
   !                                                                     *
   ! DESCRIPTION:                                                        *
@@ -343,18 +346,22 @@ subroutine gridcheck_ecmwf
 
   implicit none
 
-  !HSO  parameters for grib_api
   integer :: ifile
   integer :: iret
   integer :: igrib
   integer :: gotGrid
+  integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl,parId
+ 
   real(kind=4) :: xaux1,xaux2,yaux1,yaux2
   real(kind=8) :: xaux1in,xaux2in,yaux1in,yaux2in
-  integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl,parId
-  !HSO  end
-  integer :: ix,jy,i,ifn,ifield,j,k,iumax,iwmax,numskip
-  real :: sizesouth,sizenorth,xauxa,conversion_factor
+  
+  integer :: ix,jy,i,ifn,ifield,j,iumax,iwmax,numskip
+  integer :: k ! (as k, is the level in ECWMF notation, top->bot)
+  real :: sizesouth,sizenorth,xauxa
 
+  integer :: istep, ipf ! istep=stepRange for precip field identification
+  integer :: pcount ! counter for precipitation fields
+  
   ! VARIABLES AND ARRAYS NEEDED FOR GRIB DECODING
 
   ! dimension of isec2 at least (22+n), where n is the number of parallels or
@@ -363,17 +370,28 @@ subroutine gridcheck_ecmwf
   ! dimension of zsec2 at least (10+nn), where nn is the number of vertical
   ! coordinate parameters
 
-  integer :: isec1(56),isec2(22+nxmax+nymax)
+  ! integer  :: isec1(56),isec2(22+nxmax+nymax)
+  ! AT PS replace isec1, isec2 arrays by scalar values because we don't need
+  !    arrays anymore. isec1(X) -> isX, isec2(X) -> jsX  
+  integer :: is6, js2, js3, js12
+
   real(kind=4) :: zsec2(60+2*nuvzmax),zsec4(jpunp)
   character(len=1) :: opt
 
   !HSO  grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
-  character(len=20) :: gribFunction = 'gridcheck'
-
+  character(len=20) :: thisSubr = 'gridcheck_ecmwf'
+  
+  logical :: lstep(0:2), luseprec
 
   iumax=0
   iwmax=0
+  
+  ! AT defaults to identify precipitation interpolation algorithm
+  luseprec=.false.
+  lprecint=.false.
+  lstep(:)=.false.
+  pcount=0
 
   if(ideltas.gt.0) then
     ifn=1
@@ -383,11 +401,9 @@ subroutine gridcheck_ecmwf
   !
   ! OPENING OF DATA FILE (GRIB CODE)
   !
-5 call grib_open_file(ifile,path(3)(1:length(3)) &
-       //trim(wfname(ifn)),'r',iret)
-  if (iret.ne.GRIB_SUCCESS) then
-    goto 999   ! ERROR DETECTED
-  endif
+  call grib_open_file(ifile,path(3)(1:length(3))//trim(wfname(ifn)),'r',iret)
+  if (iret.ne.GRIB_SUCCESS) goto 999   ! ERROR DETECTED
+  
   !turn on support for multi fields messages
   !call grib_multi_support_on
 
@@ -395,9 +411,10 @@ subroutine gridcheck_ecmwf
   ifield=0
   do while(.true.)
     ifield=ifield+1
-    !
-    ! GET NEXT FIELDS
-    !
+    
+    ! reading messages from GRIB file
+    !--------------------------------
+    
     call grib_new_from_file(ifile,igrib,iret)
     if (iret.eq.GRIB_END_OF_FILE ) then
       exit   ! EOF DETECTED
@@ -407,178 +424,195 @@ subroutine gridcheck_ecmwf
 
     !first see if we read GRIB1 or GRIB2
     call grib_get_int(igrib,'editionNumber',gribVer,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
+    ! AT stepRange is used to identify additional precip fields
+    call grib_get_int(igrib,'stepRange',istep,iret)
+    call grib_check(iret,thisSubr,gribErrorMsg)
 
     if (gribVer.eq.1) then ! GRIB Edition 1
 
-      !print*,'GRiB Edition 1'
-      !read the grib2 identifiers
-      call grib_get_int(igrib,'indicatorOfParameter',isec1(6),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'level',isec1(8),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      ! read the grib1 identifiers
+      call grib_get_int(igrib,'indicatorOfParameter',is6,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+    
+      call grib_get_int(igrib,'level',k,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
 
       !change code for etadot to code for omega
-      if (isec1(6).eq.77) then
-        isec1(6)=135
-      endif
+      if (is6 .eq. 77) is6=135
 
-      !print*,isec1(6),isec1(8)
+    else  ! GRiB Edition 2
 
-    else
-
-      !print*,'GRiB Edition 2'
       !read the grib2 identifiers
       call grib_get_int(igrib,'discipline',discipl,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+	  
       call grib_get_int(igrib,'parameterCategory',parCat,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+	  
       call grib_get_int(igrib,'parameterNumber',parNum,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+	  
       call grib_get_int(igrib,'typeOfFirstFixedSurface',typSurf,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'level',valSurf,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+	  
+      call grib_get_int(igrib,'level',k,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+	  
       call grib_get_int(igrib,'paramId',parId,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-
-      !print*,discipl,parCat,parNum,typSurf,valSurf
+      call grib_check(iret,thisSubr,gribErrorMsg)
 
       !convert to grib1 identifiers
-      isec1(6)=-1
-      isec1(7)=-1
-      isec1(8)=-1
-      isec1(8)=valSurf     ! level
-      if ((parCat.eq.0).and.(parNum.eq.0).and.(typSurf.eq.105)) then ! T
-        isec1(6)=130         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSurf.eq.105)) then ! U
-        isec1(6)=131         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSurf.eq.105)) then ! V
-        isec1(6)=132         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.0).and.(typSurf.eq.105)) then ! Q
-        isec1(6)=133         ! indicatorOfParameter
-        !ZHG FOR CLOUDS FROM GRIB
-      elseif ((parCat.eq.1).and.(parNum.eq.83).and.(typSurf.eq.105)) then ! clwc
-        isec1(6)=246         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.84).and.(typSurf.eq.105)) then ! ciwc
-        isec1(6)=247         ! indicatorOfParameter
-        !ZHG end
-        ! ESO qc(=clwc+ciwc)
-      elseif ((parCat.eq.201).and.(parNum.eq.31).and.(typSurf.eq.105)) then ! qc
-        isec1(6)=201031      ! indicatorOfParameter
-      elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSurf.eq.1)) then !SP
-        isec1(6)=134         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.32)) then ! W, actually eta dot
-        isec1(6)=135         ! indicatorOfParameter
-      elseif ((parCat.eq.128).and.(parNum.eq.77)) then ! W, actually eta dot
-        isec1(6)=135         ! indicatorOfParameter
-      elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSurf.eq.101)) then !SLP
-        isec1(6)=151         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSurf.eq.103)) then ! 10U
-        isec1(6)=165         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSurf.eq.103)) then ! 10V
-        isec1(6)=166         ! indicatorOfParameter
-      elseif ((parCat.eq.0).and.(parNum.eq.0).and.(typSurf.eq.103)) then ! 2T
-        isec1(6)=167         ! indicatorOfParameter
-      elseif ((parCat.eq.0).and.(parNum.eq.6).and.(typSurf.eq.103)) then ! 2D
-        isec1(6)=168         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.11).and.(typSurf.eq.1)) then ! SD
-        isec1(6)=141         ! indicatorOfParameter
-      elseif ((parCat.eq.6).and.(parNum.eq.1) .or. parId .eq. 164) then ! CC
-        isec1(6)=164         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.9) .or. parId .eq. 142) then ! LSP
-        isec1(6)=142         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.10)) then ! CP
-        isec1(6)=143         ! indicatorOfParameter
-      elseif ((parCat.eq.0).and.(parNum.eq.11).and.(typSurf.eq.1)) then ! SHF
-        isec1(6)=146         ! indicatorOfParameter
-      elseif ((parCat.eq.4).and.(parNum.eq.9).and.(typSurf.eq.1)) then ! SR
-        isec1(6)=176         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.17) .or. parId .eq. 180) then ! EWSS
-        isec1(6)=180         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.18) .or. parId .eq. 181) then ! NSSS
-        isec1(6)=181         ! indicatorOfParameter
-      elseif ((parCat.eq.3).and.(parNum.eq.4)) then ! ORO
-        isec1(6)=129         ! indicatorOfParameter
-      elseif ((parCat.eq.3).and.(parNum.eq.7) .or. parId .eq. 160) then ! SDO
-        isec1(6)=160         ! indicatorOfParameter
-      elseif ((discipl.eq.2).and.(parCat.eq.0).and.(parNum.eq.0).and. &
-           (typSurf.eq.1)) then ! LSM
-        isec1(6)=172         ! indicatorOfParameter
+      is6=-1
+      if (parCat .eq. 0 .and. parNum .eq. 0 .and. typSurf .eq. 105) then ! T
+        is6=130 
+      elseif (parCat .eq. 2 .and. parNum .eq. 2 .and. typSurf .eq. 105) then ! U
+        is6=131 
+      elseif (parCat .eq. 2 .and. parNum .eq. 3 .and. typSurf .eq. 105) then ! V
+        is6=132 
+      elseif (parCat .eq. 1 .and. parNum .eq. 0 .and. typSurf .eq. 105) then ! Q
+        is6=133 
+      ! ESO Cloud water is in a) fields CLWC and CIWC, *or* b) field QC 
+      elseif (parCat .eq. 1 .and. parNum .eq. 83 .and. typSurf .eq. 105) then ! clwc
+        is6=246 
+      elseif (parCat .eq. 1 .and. parNum .eq. 84 .and. typSurf .eq. 105) then ! ciwc
+        is6=247 
+      ! ESO qc(=clwc+ciwc):
+      elseif (parCat .eq. 201 .and. parNum .eq. 31 .and. typSurf .eq. 105) then ! qc
+        is6=201031 
+      elseif (parCat .eq. 3 .and. parNum .eq. 0 .and. typSurf .eq. 1) then !SP
+        is6=134 
+      elseif (parCat .eq. 2 .and. parNum .eq. 32) then ! W, actually eta dot
+        is6=135 
+      elseif (parCat .eq. 128 .and. parNum .eq. 77) then ! W, actually eta dot
+        is6=135 
+      elseif (parCat .eq. 3 .and. parNum .eq. 0 .and. typSurf .eq. 101) then ! SLP
+        is6=151 
+      elseif (parCat .eq. 2 .and. parNum .eq. 2 .and. typSurf .eq. 103) then ! 10U
+        is6=165 
+      elseif (parCat .eq. 2 .and. parNum .eq. 3 .and. typSurf .eq. 103) then ! 10V
+        is6=166 
+      elseif (parCat .eq. 0 .and. parNum .eq. 0 .and. typSurf .eq. 103) then ! 2T
+        is6=167 
+      elseif (parCat .eq. 0 .and. parNum .eq. 6 .and. typSurf .eq. 103) then ! 2D
+        is6=168 
+      elseif (parCat .eq. 1 .and. parNum .eq. 11 .and. typSurf .eq. 1) then ! SD
+        is6=141 
+      elseif (parCat .eq. 6 .and. parNum .eq. 1 .or. parId .eq. 164) then ! CC
+        is6=164 
+      elseif (parCat .eq. 1 .and. parNum .eq. 9 .or. parId .eq. 142) then ! LSP
+        is6=142 
+      elseif (parCat .eq. 1 .and. parNum .eq. 10) then ! CP
+        is6=143 
+      elseif (parCat .eq. 0 .and. parNum .eq. 11 .and. typSurf .eq. 1) then ! SHF
+        is6=146 
+      elseif (parCat .eq. 4 .and. parNum .eq. 9 .and. typSurf .eq. 1) then ! SR
+        is6=176 
+      elseif (parCat .eq. 2 .and. parNum .eq. 38 .or. parId .eq. 180) then ! EWSS --correct
+        is6=180 
+      elseif (parCat .eq. 2 .and. parNum .eq. 37 .or. parId .eq. 181) then ! NSSS --correct
+        is6=181 
+      elseif (parCat .eq. 3 .and. parNum .eq. 4) then ! ORO
+        is6=129 
+      elseif (parCat .eq. 3 .and. parNum .eq. 7 .or. parId .eq. 160) then ! SDO
+        is6=160 
+      elseif (discipl .eq. 2 .and. parCat .eq. 0 .and. parNum .eq. 0 .and. &
+         typSurf .eq. 1) then ! LSM
+        is6=172 
+      elseif (parNum .eq. 152) then 
+        is6=152         ! avoid warning for lnsp    
       else
-        print*,'***ERROR: undefined GRiB2 message found!',discipl, &
+        print*,'***WARNING: undefined GRiB2 message found!',discipl, &
              parCat,parNum,typSurf
       endif
-      if(parId .ne. isec1(6) .and. parId .ne. 77) then
-        write(*,*) 'parId',parId, 'isec1(6)',isec1(6)
-        !    stop
+      if (parId .ne. is6 .and. parId .ne. 77) write(*,*) 'parId',parId, 'is6',is6
+
+    endif !gribVer
+
+!    call grib_get_int(igrib,'numberOfPointsAlongAParallel',js2,iret)
+!    if (js2 .gt. nxmax) THEN
+!      write(*,*) 'FLEXPART error: Too many grid points in x direction.'
+!      write(*,*) 'Reduce resolution of wind fields.'
+!      write(*,*) 'Or change parameter settings in file par_mod.f90'
+!      write(*,*) js2,nxmax
+!      stop
+!    endif
+
+    ! AT, PS
+    ! Identify how many precip fields are available per input time step 
+    if (is6 .eq. 142 .or. is6 .eq. 143) then ! PRECIPITATION
+      pcount=pcount+1
+      lstep(istep)=.true.
+      ipf=istep+1
+      if (pcount .gt. 2) then ! additional precip field found
+        if (numpf .eq. 1) then
+          write(*,*) '*** ERROR: additional precip fields available        ***'
+          write(*,*) '*** You must use them, set numpf=3 and recompile     ***'
+          stop 'readwind_ecmwf: set numpf to 3 in par_mod.f90'
+        elseif (ipf .le. numpf) then
+          luseprec=.true.
+        else
+          write(*,*) '*** ERROR: unexpected value of numpf=',numpf,'         ***'
+          write(*,*) '*** Set to 1 or 3 and recompile                        ***'
+          stop 'readwind_ecmwf: numpf too small'
+        endif
+      else ! regular precip field
+        luseprec=.true.
       endif
-
     endif
-
-    call grib_get_int(igrib,'numberOfPointsAlongAParallel', &
-         isec2(2),iret)
-    ! ! nx=isec2(2)
-    ! ! WRITE(*,*) nx,nxmax
-    ! if (isec2(2).gt.nxmax) then
-    !   WRITE(*,*) 'FLEXPART error: Too many grid points in x direction.'
-    !   WRITE(*,*) 'Reduce resolution of wind fields.'
-    !   WRITE(*,*) 'Or change parameter settings in file ecmwf_mod.'
-    !   WRITE(*,*) isec2(2),nxmax
-    ! !    STOP
-    ! endif
 
     !get the size and data of the values array
-    if (isec1(6).ne.-1) then
+    if (is6.ne.-1) then
       call grib_get_real4_array(igrib,'values',zsec4,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
     endif
 
-    if (ifield.eq.1) then
+    if (ifield .eq. 1) then
 
-      !HSO  get the required fields from section 2 in a gribex compatible manner
-      call grib_get_int(igrib,'numberOfPointsAlongAParallel', &
-           isec2(2),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'numberOfPointsAlongAMeridian', &
-           isec2(3),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_real8(igrib,'longitudeOfFirstGridPointInDegrees', &
-           xaux1in,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'numberOfVerticalCoordinateValues', &
-           isec2(12),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_get_int(igrib,'numberOfPointsAlongAParallel',js2,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
 
-      nxfield=isec2(2)
-      ny=isec2(3)
-      nlev_ec=isec2(12)/2-1
+      call grib_get_int(igrib,'numberOfPointsAlongAMeridian',js3,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      call grib_get_int(igrib,'numberOfVerticalCoordinateValues',js12)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      call grib_get_real8(igrib,'longitudeOfFirstGridPointInDegrees',xaux1in,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      nxfield=js2
+      ny=js3
+      nlev_ec=js12/2-1
 
       !  get the size and data of the vertical coordinate array
       call grib_get_real4_array(igrib,'pv',zsec2,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-    endif
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
+    endif  ! ifield
 
     !HSO  get the second part of the grid dimensions only from GRiB1 messages
-    if (isec1(6) .eq. 167 .and. (gotGrid.eq.0)) then
-      call grib_get_real8(igrib,'longitudeOfLastGridPointInDegrees', &
-           xaux2in,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_real8(igrib,'latitudeOfLastGridPointInDegrees', &
-           yaux1in,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_real8(igrib,'latitudeOfFirstGridPointInDegrees', &
-           yaux2in,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+    if (is6 .eq. 167 .and. gotGrid .eq. 0) then
+
+      call grib_get_real8(igrib,'longitudeOfLastGridPointInDegrees',xaux2in,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      call grib_get_real8(igrib,'latitudeOfLastGridPointInDegrees',yaux1in,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      call grib_get_real8(igrib,'latitudeOfFirstGridPointInDegrees',yaux2in,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
       xaux1=xaux1in
       xaux2=xaux2in
       yaux1=yaux1in
       yaux2=yaux2in
-      if (xaux1.gt.180.) xaux1=xaux1-360.0
-      if (xaux2.gt.180.) xaux2=xaux2-360.0
-      if (xaux1.lt.-180.) xaux1=xaux1+360.0
-      if (xaux2.lt.-180.) xaux2=xaux2+360.0
-      if (xaux2.lt.xaux1) xaux2=xaux2+360.0
+      if (xaux1.gt.180.) xaux1=xaux1-360.
+      if (xaux2.gt.180.) xaux2=xaux2-360.
+      if (xaux1.lt.-180.) xaux1=xaux1+360.
+      if (xaux2.lt.-180.) xaux2=xaux2+360.
+      if (xaux2.lt.xaux1) xaux2=xaux2+360.
       xlon0=xaux1
       ylat0=yaux1
       dx=(xaux2-xaux1)/real(nxfield-1)
@@ -586,10 +620,12 @@ subroutine gridcheck_ecmwf
       dxconst=180./(dx*r_earth*pi)
       dyconst=180./(dy*r_earth*pi)
       gotGrid=1
+      
+      !-------------------------------------------------------------
       ! Check whether fields are global
       ! If they contain the poles, specify polar stereographic map
       ! projections using the stlmbr- and stcm2p-calls
-      !***********************************************************
+      !-------------------------------------------------------------
 
       xauxa=abs(xaux2+dx-360.-xaux1)
       if (xauxa.lt.0.001) then
@@ -656,11 +692,10 @@ subroutine gridcheck_ecmwf
       error stop
     endif
 
-    k=isec1(8)
-    if(isec1(6).eq.131) iumax=max(iumax,nlev_ec-k+1)
-    if(isec1(6).eq.135) iwmax=max(iwmax,nlev_ec-k+1)
+    if (is6 .eq. 131) iumax=max(iumax,nlev_ec-k+1)
+    if (is6 .eq. 135) iwmax=max(iwmax,nlev_ec-k+1)
 
-    if (isec1(6) .eq. 167) then
+    if (is6 .eq. 167) then
       ! ! Assing grid values and allocate memory to read windfields
       ! nxmax=nxfield
       ! if (xglobal) then
@@ -676,21 +711,21 @@ subroutine gridcheck_ecmwf
       call fixedfields_allocate
     endif
 
-    if(isec1(6).eq.129) then
+    if(is6.eq.129) then
       do jy=0,ny-1
         do ix=0,nxfield-1
           oro(ix,jy)=zsec4(nxfield*(ny-jy-1)+ix+1)/ga
         end do
       end do
     endif
-    if(isec1(6).eq.172) then
+    if(is6.eq.172) then
       do jy=0,ny-1
         do ix=0,nxfield-1
           lsm(ix,jy)=zsec4(nxfield*(ny-jy-1)+ix+1)
         end do
       end do
     endif
-    if(isec1(6).eq.160) then
+    if(is6.eq.160) then
       do jy=0,ny-1
         do ix=0,nxfield-1
           excessoro(ix,jy)=zsec4(nxfield*(ny-jy-1)+ix+1)
@@ -699,18 +734,26 @@ subroutine gridcheck_ecmwf
     endif
 
     call grib_release(igrib)
-  end do                      !! READ NEXT LEVEL OR PARAMETER
+  end do                      !! READ NEXT GRIB MESSAGE (LEVEL OR PARAMETER)
   !
   ! CLOSING OF INPUT DATA FILE
   !
   call grib_close_file(ifile)
+  
+  if (luseprec .eqv. .false.) &
+     error stop "Conditions for precipitation interpolation not fulfilled! &
+       Please check number of precipitation fields per type in GRIB files and &
+       numpf parameter in par_mod.f90."
+  
+  ! save info for type of precipitation interpolation
+  ! true if new interpolation / false for old interpolation 
+  if ( all(lstep) ) lprecint=.true.
 
   ! call windfields_allocate
 
   !error message if no fields found with correct first longitude in it
   if (gotGrid.eq.0) then
-    print*,'***ERROR: input file needs to contain GRiB1 formatted'// &
-         'messages'
+    print*,'***ERROR: input file needs to contain GRIB1 formatted messages'
     error stop
   endif
 
@@ -718,23 +761,22 @@ subroutine gridcheck_ecmwf
   nwz =iwmax
   if(nuvz.eq.nlev_ec) nwz=nlev_ec+1
 
-  ! if (nuvz+1.gt.nuvzmax) then
-  !   write(*,*) 'FLEXPART error: Too many u,v grid points in z '// &
-  !        'direction.'
-  !   write(*,*) 'Reduce resolution of wind fields.'
-  !   write(*,*) 'Or change parameter settings in file par_mod.'
-  !   write(*,*) nuvz+1,nuvzmax
-  !   stop
-  ! endif
+  if (nuvz+1 .gt. nuvzmax) then
+    write(*,*) 'FLEXPART error: Too many u,v grid points in z direction.'
+    write(*,*) 'Reduce resolution of wind fields.'
+    write(*,*) 'Or change parameter settings in file par_mod.f90'
+    write(*,*) nuvz+1,nuvzmax
+    stop
+  endif
 
-  ! if (nwz.gt.nwzmax) then
-  !   write(*,*) 'FLEXPART error: Too many w grid points in z '// &
-  !        'direction.'
-  !   write(*,*) 'Reduce resolution of wind fields.'
-  !   write(*,*) 'Or change parameter settings in file par_mod.'
-  !   write(*,*) nwz,nwzmax
-  !   stop
-  ! endif
+ if (nwz .gt. nwzmax) then
+    write(*,*) 'FLEXPART error: Too many w grid points in z direction.'
+    write(*,*) 'Reduce resolution of wind fields.'
+    write(*,*) 'Or change parameter settings in file par_mod.f90'
+    write(*,*) nwz,nwzmax
+    stop
+  endif
+
 
   ! If desired, shift all grids by nxshift grid cells
   !**************************************************
@@ -747,56 +789,40 @@ subroutine gridcheck_ecmwf
 
   ! Output of grid info
   !********************
+  write(*,'(a,2i7)') ' Vertical levels in ECMWF data: ', nuvz+1,nwz
+  write(*,*)
+  write(*,'(a)') ' Mother domain:'
+  write(*,'(a,f10.5,a,f10.5,a,f10.5)') '  Longitude range: ', &
+        xlon0,' to ',xlon0+(nx-1)*dx,'   Grid distance: ',dx
+  write(*,'(a,f10.5,a,f10.5,a,f10.5)') '  Latitude range : ', &
+        ylat0,' to ',ylat0+(ny-1)*dy,'   Grid distance: ',dy
+  write(*,*)
 
-  if (lroot) then
-    write(*,'(a,2i7)') ' Vertical levels in ECMWF data: ', &
-         nuvz+1,nwz
-    write(*,*)
-    write(*,'(a)') ' Mother domain:'
-    write(*,'(a,f10.5,a,f10.5,a,f10.5)') '  Longitude range: ', &
-         xlon0,' to ',xlon0+(nx-1)*dx,'   Grid distance: ',dx
-    write(*,'(a,f10.5,a,f10.5,a,f10.5)') '  Latitude range : ', &
-         ylat0,' to ',ylat0+(ny-1)*dy,'   Grid distance: ',dy
-    write(*,*)
-  end if
-
-  ! CALCULATE VERTICAL DISCRETIZATION OF ECMWF MODEL
-  ! PARAMETER akm,bkm DESCRIBE THE HYBRID "ETA" COORDINATE SYSTEM
+  ! Calculate vertical discretization of ECMWF model 
+  ! Parameters akm,bkm describe the hybrid "ETA" coordinate system
 
   numskip=nlev_ec-nuvz  ! number of ecmwf model layers not used
-  ! by trajectory model
-  !do 8940 i=1,244
-  !   write (*,*) 'zsec2:',i,ifield,zsec2(i),numskip
-  !940  continue
-  !   stop
-  ! SEC SEC SEC
-  ! for unknown reason zsec 1 to 10 is filled in this version
-  ! compared to the old one
-  ! SEC SEC SE
+ 
   akm=0
   bkm=0
   akz=0
   bkz=0
-  do i=0,nwz ! LB: should start counting fom 0 to get the top level
-    j=numskip+i
-    k=nlev_ec+1+numskip+i
-    akm(nwz-i+1)=zsec2(j)
+  do i=0,nwz ! LB: should start counting from 0 to get the top level
+    akm(nwz-i+1)=zsec2(numskip+i)
     !   write (*,*) 'ifield:',ifield,k,j,zsec2(10+j)
-    bkm(nwz-i+1)=zsec2(k)
+    bkm(nwz-i+1)=zsec2(nlev_ec+1+numskip+i)
     wheight(nwz-i+1)=akm(nwz-i+1)/101325.+bkm(nwz-i+1) ! From FLEXTRA
   end do
 
-  !
-  ! CALCULATION OF AKZ, BKZ
-  ! AKZ,BKZ: model discretization parameters at the center of each model
-  !     layer
+  ! Calculation of AKZ, BKZ
+  ! AKZ,BKZ: model discretization parameters at the center of each model layer
   !
   ! Assign the 10 m winds to an artificial model level with akz=0 and bkz=1.0,
   ! i.e. ground level
   !*****************************************************************************
 
   akz(1)=0.
-  bkz(1)=1.0
+  bkz(1)=1.
   uvheight(1)=1.
   do i=1,nuvz
     uvheight(i+1)=0.5*(wheight(i+1)+wheight(i)) ! From FLEXTRA
@@ -821,38 +847,14 @@ subroutine gridcheck_ecmwf
     bknew(i)=bkz(i)
   end do
 
-  ! Switch on following lines to use doubled vertical resolution
-  !*************************************************************
-  !nz=nuvz+nwz-1
-  !if (nz.gt.nzmax) stop 'nzmax too small'
-  !do 100 i=1,nwz
-  !  aknew(2*(i-1)+1)=akm(i)
-  !00     bknew(2*(i-1)+1)=bkm(i)
-  !do 110 i=2,nuvz
-  !  aknew(2*(i-1))=akz(i)
-  !10     bknew(2*(i-1))=bkz(i)
-  ! End doubled vertical resolution
   return
 
 999 write(*,*)
-  write(*,*) ' ###########################################'// &
-       '###### '
-  write(*,*) '       TRAJECTORY MODEL SUBROUTINE GRIDCHECK:'
+  write(*,*) ' ################################################# '
+  write(*,*) ' SUBROUTINE GRIDCHECK:'
   write(*,*) ' CAN NOT OPEN INPUT DATA FILE '//wfname(ifn)
-  write(*,*) ' ###########################################'// &
-       '###### '
-  write(*,*)
-  write(*,'(a)') '!!! PLEASE INSERT A NEW CD-ROM AND   !!!'
-  write(*,'(a)') '!!! PRESS ANY KEY TO CONTINUE...     !!!'
-  write(*,'(a)') '!!! ...OR TERMINATE FLEXPART PRESSING!!!'
-  write(*,'(a)') '!!! THE "X" KEY...                   !!!'
-  write(*,*)
-  read(*,'(a)') opt
-  if(opt.eq.'X') then
-    error stop
-  else
-    goto 5
-  endif
+  write(*,*) ' ################################################# '
+
 end subroutine gridcheck_ecmwf
 
 subroutine gridcheck_gfs
@@ -877,6 +879,10 @@ subroutine gridcheck_gfs
   !   Unified ECMWF and GFS builds                                      *
   !   Marian Harustak, 12.5.2017                                        *
   !     - Renamed routine from gridcheck to gridcheck_gfs               *
+  !                                                                     *
+  !                                                                     *  
+  !  Anne Tipka, Petra Seibert 2021-02: implement new interpolation     *
+  !    for precipitation according to #295 using 2 additional fields    *
   !                                                                     *
   !**********************************************************************
   !                                                                     *
@@ -1387,29 +1393,33 @@ subroutine gridcheck_nest
   !                                                                            *
   !     8 February 1999                                                        *
   !                                                                            *
+  !                                                                            *  
+  !  Anne Tipka, Petra Seibert 2021-02: implement new interpolation            *
+  !    for precipitation according to #295 using 2 additional fields           *
+  !                                                                            *
   !*****************************************************************************
   !  CHANGE: 11/01/2008, Harald Sodemann, GRIB1/2 input with ECMWF grib_api    *
   !  CHANGE: 03/12/2008, Harald Sodemann, change to f90 grib_api               *
+  !  Petra Seibert, Anne Tipka, 2021-02: implement new interpolation           *
+  !    for precipitation according to #295 using 2 additional fields           *
   !*****************************************************************************
 
   use grib_api
 
   implicit none
 
-  !HSO  parameters for grib_api
   integer :: ifile
   integer :: iret
   integer :: igrib
-  integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl
-  integer :: parID !added by mc for making it consistent with new gridcheck.f90
+  integer :: istep, ipf, npf ! istep=stepRange for precip field identification
+  integer :: gribVer,parCat,parNum,typSfc,discipl,parId
   integer :: gotGrib
-  !HSO  end
-  integer :: i,j,k,l,ifn,ifield,iumax,iwmax,numskip,nlev_ecn
+
+  integer :: i,j,l,ifn,ifield,iumax,iwmax,numskip,nlev_ecn
   integer :: nuvzn,nwzn
   real :: akmn(nwzmax),bkmn(nwzmax),akzn(nuvzmax),bkzn(nuvzmax)
   real(kind=4) :: xaux1,xaux2,yaux1,yaux2
   real(kind=8) :: xaux1in,xaux2in,yaux1in,yaux2in
-  real :: conversion_factor !added by mc to make it consistent with new gridchek.f90
 
   ! VARIABLES AND ARRAYS NEEDED FOR GRIB DECODING
 
@@ -1419,12 +1429,22 @@ subroutine gridcheck_nest
   ! dimension of zsec2 at least (10+nn), where nn is the number of vertical
   ! coordinate parameters
 
-  integer :: isec1(56),isec2(22+nxmaxn+nymaxn)
-  real(kind=4) :: zsec2(60+2*nuvzmax),zsec4(jpunp)
+  !  integer :: isec1(56),isec2(22+nxmaxn+nymaxn)
+  !  real(kind=4) :: zsec2(60+2*nuvzmax),zsec4(jpunp)
+  !  integer :: isec1(56),isec2(22+nxmaxn+nymaxn)
+  ! PS replace isec1, isec2 arrays by scalar values because we don't need
+  !    arrays anymore. isec1(X) -> isX, isec2(X) -> jsX  
+  integer :: is6, js2, js3, js12
+  integer :: k ! (as k, is the level in ECWMF notation, top->bot)
+  integer :: kz, kz1 ! (level in FLEXPART notation, bot->top)
+  integer :: jy ! y index in FLEXPART notation (S->N)
+  integer :: ij ! 2D index unrolled to 1D
+  real(kind=4) :: zsec4(jpunp),zsec2(60+2*nuvzmax)
+  real(kind=4),parameter :: eps=1.e-4
 
   !HSO  grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
-  character(len=20) :: gribFunction = 'gridcheck_nest'
+  character(len=20) :: thisSubr  = 'gridcheck_nest'
 
   xresoln(0)=1.       ! resolution enhancement for mother grid
   yresoln(0)=1.       ! resolution enhancement for mother grid
@@ -1449,11 +1469,9 @@ subroutine gridcheck_nest
   igrib=0
   iret=0
 
-5   call grib_open_file(ifile,path(numpath+2*(l-1)+1) &
+  call grib_open_file(ifile,path(numpath+2*(l-1)+1) &
          (1:length(numpath+2*(l-1)+1))//trim(wfnamen(l,ifn)),'r',iret)
-  if (iret.ne.GRIB_SUCCESS) then
-    goto 999   ! ERROR DETECTED
-  endif
+  if (iret .ne. GRIB_SUCCESS) goto 999   ! ERROR DETECTED
   !turn on support for multi fields messages
   !call grib_multi_support_on
 
@@ -1462,9 +1480,9 @@ subroutine gridcheck_nest
   do
     ifield=ifield+1
 
-    !
-    ! GET NEXT FIELDS
-    !
+    ! reading messages from GRIB file
+    !--------------------------------
+
     call grib_new_from_file(ifile,igrib,iret)
     if (iret.eq.GRIB_END_OF_FILE)  then
       exit    ! EOF DETECTED
@@ -1472,140 +1490,134 @@ subroutine gridcheck_nest
       goto 999   ! ERROR DETECTED
     endif
 
-    !first see if we read GRIB1 or GRIB2
+    !first see whether we read GRIB1 or GRIB2
     call grib_get_int(igrib,'editionNumber',gribVer,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_check(iret,thisSubr,gribErrorMsg)
 
-    if (gribVer.eq.1) then ! GRIB Edition 1
-
-      !print*,'GRiB Edition 1'
-      !read the grib2 identifiers
-      call grib_get_int(igrib,'indicatorOfParameter',isec1(6),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'level',isec1(8),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+    if (gribVer .eq. 1) then ! GRIB Edition 1
+    
+      call grib_get_int(igrib,'indicatorOfParameter',is6,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
+      call grib_get_int(igrib,'level',k,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
 
       !change code for etadot to code for omega
-      if (isec1(6).eq.77) then
-        isec1(6)=135
-      endif
+      if (is6 .eq. 77) is6=135
 
-      !print*,isec1(6),isec1(8)
+    else ! GRiB Edition 2
 
-    else
-
-      !print*,'GRiB Edition 2'
-      !read the grib2 identifiers
       call grib_get_int(igrib,'discipline',discipl,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
       call grib_get_int(igrib,'parameterCategory',parCat,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
       call grib_get_int(igrib,'parameterNumber',parNum,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'typeOfFirstFixedSurface',typSurf,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'level',valSurf,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'paramId',parId,iret) !added by mc to make it consisitent with new grid_check.f90
-      call grib_check(iret,gribFunction,gribErrorMsg) !added by mc to make it consisitent with new  grid_check.f90
-
-      !print*,discipl,parCat,parNum,typSurf,valSurf
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
+      call grib_get_int(igrib,'typeOfFirstFixedSurface',typSfc,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
+      call grib_get_int(igrib,'level',k,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
+      call grib_get_int(igrib,'paramId',parId,iret) 
+      call grib_check(iret,thisSubr,gribErrorMsg) 
 
       !convert to grib1 identifiers
-      isec1(6)=-1
-      isec1(7)=-1
-      isec1(8)=-1
-      isec1(8)=valSurf     ! level
-      if ((parCat.eq.0).and.(parNum.eq.0).and.(typSurf.eq.105)) then ! T
-        isec1(6)=130         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSurf.eq.105)) then ! U
-        isec1(6)=131         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSurf.eq.105)) then ! V
-        isec1(6)=132         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.0).and.(typSurf.eq.105)) then ! Q
-        isec1(6)=133         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.83).and.(typSurf.eq.105)) then ! clwc
-        isec1(6)=246         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.84).and.(typSurf.eq.105)) then ! ciwc
-        isec1(6)=247         ! indicatorOfParameter
-      !ZHG end
-      ! ESO qc(=clwc+ciwc)
-      elseif ((parCat.eq.201).and.(parNum.eq.31).and.(typSurf.eq.105)) then ! qc
-        isec1(6)=201031      ! indicatorOfParameter
-      elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSurf.eq.1)) then !SP
-        isec1(6)=134         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.32)) then ! W, actually eta dot
-        isec1(6)=135         ! indicatorOfParameter
-      elseif ((parCat.eq.128).and.(parNum.eq.77)) then ! W, actually eta dot !added bymc to make it consistent with new gridcheck.f90
-        isec1(6)=135         ! indicatorOfParameter    !
-      elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSurf.eq.101)) then !SLP
-        isec1(6)=151         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSurf.eq.103)) then ! 10U
-        isec1(6)=165         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSurf.eq.103)) then ! 10V
-        isec1(6)=166         ! indicatorOfParameter
-      elseif ((parCat.eq.0).and.(parNum.eq.0).and.(typSurf.eq.103)) then ! 2T
-        isec1(6)=167         ! indicatorOfParameter
-      elseif ((parCat.eq.0).and.(parNum.eq.6).and.(typSurf.eq.103)) then ! 2D
-        isec1(6)=168         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.11).and.(typSurf.eq.1)) then ! SD
-        isec1(6)=141         ! indicatorOfParameter
-      elseif ((parCat.eq.6).and.(parNum.eq.1) .or. parId .eq. 164) then ! CC !added by mc to make it consistent with new gridchek.f90
-        isec1(6)=164         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.9) .or. parId .eq. 142) then ! LSP !added by mc to make it consistent with new gridchek.f90
-        isec1(6)=142         ! indicatorOfParameter
-      elseif ((parCat.eq.1).and.(parNum.eq.10)) then ! CP
-        isec1(6)=143         ! indicatorOfParameter
-      elseif ((parCat.eq.0).and.(parNum.eq.11).and.(typSurf.eq.1)) then ! SHF
-        isec1(6)=146         ! indicatorOfParameter
-      elseif ((parCat.eq.4).and.(parNum.eq.9).and.(typSurf.eq.1)) then ! SR
-        isec1(6)=176         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.17) .or. parId .eq. 180) then ! EWSS !added by mc to make it consistent with new gridchek.f90
-        isec1(6)=180         ! indicatorOfParameter
-      elseif ((parCat.eq.2).and.(parNum.eq.18) .or. parId .eq. 181) then ! NSSS !added by mc to make it consistent with new gridchek.f90
-        isec1(6)=181         ! indicatorOfParameter
-      elseif ((parCat.eq.3).and.(parNum.eq.4)) then ! ORO
-        isec1(6)=129         ! indicatorOfParameter
-      elseif ((parCat.eq.3).and.(parNum.eq.7) .or. parId .eq. 160) then ! SDO !added by mc to make it consistent with new gridchek.f90
-        isec1(6)=160         ! indicatorOfParameter
-      elseif ((discipl.eq.2).and.(parCat.eq.0).and.(parNum.eq.0).and. &
-           (typSurf.eq.1)) then ! LSM
-        isec1(6)=172         ! indicatorOfParameter
+      is6=-1
+      if (parCat .eq. 0 .and. parNum .eq. 0 .and. typSfc .eq. 105) then ! T
+        is6=130 
+      elseif (parCat .eq. 2 .and. parNum .eq. 2 .and. typSfc .eq. 105) then ! U
+        is6=131 
+      elseif (parCat .eq. 2 .and. parNum .eq. 3 .and. typSfc .eq. 105) then ! V
+        is6=132 
+      elseif (parCat .eq. 1 .and. parNum .eq. 0 .and. typSfc .eq. 105) then ! Q
+        is6=133 
+      ! ESO Cloud water is in a) fields CLWC and CIWC, *or* b) field QC 
+      elseif (parCat .eq. 1 .and. parNum .eq. 83 .and. typSfc .eq. 105) then ! clwc
+        is6=246 
+      elseif (parCat .eq. 1 .and. parNum .eq. 84 .and. typSfc .eq. 105) then ! ciwc
+        is6=247 
+      ! ESO qc(=clwc+ciwc):
+      elseif (parCat .eq. 201 .and. parNum .eq. 31 .and. typSfc .eq. 105) then ! qc
+        is6=201031 
+      elseif (parCat .eq. 3 .and. parNum .eq. 0 .and. typSfc .eq. 1) then !SP
+        is6=134 
+      elseif (parCat .eq. 2 .and. parNum .eq. 32) then ! W, actually eta dot
+        is6=135 
+      elseif (parCat .eq. 128 .and. parNum .eq. 77) then ! W, actually eta dot
+        is6=135 
+      elseif (parCat .eq. 3 .and. parNum .eq. 0 .and. typSfc .eq. 101) then ! SLP
+        is6=151 
+      elseif (parCat .eq. 2 .and. parNum .eq. 2 .and. typSfc .eq. 103) then ! 10U
+        is6=165 
+      elseif (parCat .eq. 2 .and. parNum .eq. 3 .and. typSfc .eq. 103) then ! 10V
+        is6=166 
+      elseif (parCat .eq. 0 .and. parNum .eq. 0 .and. typSfc .eq. 103) then ! 2T
+        is6=167 
+      elseif (parCat .eq. 0 .and. parNum .eq. 6 .and. typSfc .eq. 103) then ! 2D
+        is6=168 
+      elseif (parCat .eq. 1 .and. parNum .eq. 11 .and. typSfc .eq. 1) then ! SD
+        is6=141 
+      elseif (parCat .eq. 6 .and. parNum .eq. 1 .or. parId .eq. 164) then ! CC
+        is6=164 
+      elseif (parCat .eq. 1 .and. parNum .eq. 9 .or. parId .eq. 142) then ! LSP
+        is6=142 
+      elseif (parCat .eq. 1 .and. parNum .eq. 10) then ! CP
+        is6=143 
+      elseif (parCat .eq. 0 .and. parNum .eq. 11 .and. typSfc .eq. 1) then ! SHF
+        is6=146 
+      elseif (parCat .eq. 4 .and. parNum .eq. 9 .and. typSfc .eq. 1) then ! SR
+        is6=176 
+      elseif (parCat .eq. 2 .and. parNum .eq. 38 .or. parId .eq. 180) then ! EWSS --correct
+        is6=180 
+      elseif (parCat .eq. 2 .and. parNum .eq. 37 .or. parId .eq. 181) then ! NSSS --correct
+        is6=181 
+      elseif (parCat .eq. 3 .and. parNum .eq. 4) then ! ORO
+        is6=129 
+      elseif (parCat .eq. 3 .and. parNum .eq. 7 .or. parId .eq. 160) then ! SDO
+        is6=160 
+      elseif (discipl .eq. 2 .and. parCat .eq. 0 .and. parNum .eq. 0 .and. &
+           typSfc .eq. 1) then ! LSM
+        is6=172 
+      elseif (parNum .eq. 152) then 
+        is6=152         ! avoid warning for lnsp    
       else
-        print*,'***ERROR: undefined GRiB2 message found!',discipl, &
-             parCat,parNum,typSurf
+        print*,'***WARNING: undefined GRiB2 message found!',discipl, &
+          parCat,parNum,typSfc       
       endif
-      if(parId .ne. isec1(6) .and. parId .ne. 77) then !added by mc to make it consistent with new gridchek.f90
-        write(*,*) 'parId',parId, 'isec1(6)',isec1(6)
-      !    stop
-      endif
-
-    endif
+      if (parId .ne. is6 .and. parId .ne. 77) write(*,*) 'parId',parId, 'is6',is6
+    endif !gribVer
 
     !get the size and data of the values array
-    if (isec1(6).ne.-1) then
+    if (is6.ne.-1) then
       call grib_get_real4_array(igrib,'values',zsec4,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
     endif
 
     !HSO  get the required fields from section 2 in a gribex compatible manner
     if (ifield.eq.1) then
-      call grib_get_int(igrib,'numberOfPointsAlongAParallel', &
-           isec2(2),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'numberOfPointsAlongAMeridian', &
-           isec2(3),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'numberOfVerticalCoordinateValues', &
-           isec2(12),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-    !HSO    get the size and data of the vertical coordinate array
-      call grib_get_real4_array(igrib,'pv',zsec2,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_get_int(igrib,'numberOfPointsAlongAParallel',js2,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
 
-      nxn(l)=isec2(2)
-      nyn(l)=isec2(3)
-      nlev_ecn=isec2(12)/2-1
+      call grib_get_int(igrib,'numberOfPointsAlongAMeridian',js3,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      call grib_get_int(igrib,'numberOfVerticalCoordinateValues',js12)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      call grib_get_real8(igrib,'longitudeOfFirstGridPointInDegrees',xaux1in,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      !HSO    get the size and data of the vertical coordinate array
+      call grib_get_real4_array(igrib,'pv',zsec2,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      nxn(l)=js2
+      nyn(l)=js3
+      nlev_ecn=js12/2-1
     endif ! ifield
 
     if (nxn(l).gt.nxmaxn) then
@@ -1627,59 +1639,63 @@ subroutine gridcheck_nest
     endif
 
     !HSO  get the second part of the grid dimensions only from GRiB1 messages
-    if (isec1(6) .eq. 167 .and. (gotGrib.eq.0)) then !added by mc to make it consistent with new gridchek.f90 note that gotGrid must be changed in gotGrib!!
+    if (is6 .eq. 167 .and. gotGrib .eq. 0) then !added by mc to make it consistent with new gridchek.f90 note that gotGrid must be changed in gotGrib!!
+      
       call grib_get_real8(igrib,'longitudeOfFirstGridPointInDegrees', & !comment by mc: note that this was in the (if (ifield.eq.1) ..end above in gridchek.f90 see line 257
            xaux1in,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
       call grib_get_real8(igrib,'longitudeOfLastGridPointInDegrees', &
            xaux2in,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
       call grib_get_real8(igrib,'latitudeOfLastGridPointInDegrees', &
-           yaux1in,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+           yaux1in,iret)     
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
       call grib_get_real8(igrib,'latitudeOfFirstGridPointInDegrees', &
-           yaux2in,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+           yaux2in,iret)           
+      call grib_check(iret,thisSubr,gribErrorMsg)
+      
       xaux1=xaux1in
       xaux2=xaux2in
       yaux1=yaux1in
       yaux2=yaux2in
-      if(xaux1.gt.180.) xaux1=xaux1-360.0
-      if(xaux2.gt.180.) xaux2=xaux2-360.0
-      if(xaux1.lt.-180.) xaux1=xaux1+360.0
-      if(xaux2.lt.-180.) xaux2=xaux2+360.0
-      if (xaux2.lt.xaux1) xaux2=xaux2+360.0
+      if (xaux1 .gt. 180.) xaux1=xaux1-360.
+      if (xaux2 .gt. 180.) xaux2=xaux2-360.
+      if (xaux1 .lt. -180.) xaux1=xaux1+360.
+      if (xaux2 .lt. -180.) xaux2=xaux2+360.
+      if (xaux2 .lt. xaux1) xaux2=xaux2+360.
       xlon0n(l)=xaux1
       ylat0n(l)=yaux1
       dxn(l)=(xaux2-xaux1)/real(nxn(l)-1)
       dyn(l)=(yaux2-yaux1)/real(nyn(l)-1)
-      gotGrib=1 !commetn by mc note tahthere gotGRIB is used instead of gotGrid!!!
+      gotGrib=1 !comment by mc note tahthere gotGRIB is used instead of gotGrid!!!
     endif ! ifield.eq.1
 
-    k=isec1(8)
-    if(isec1(6).eq.131) iumax=max(iumax,nlev_ec-k+1)
-    if(isec1(6).eq.135) iwmax=max(iwmax,nlev_ec-k+1)
+    if(is6.eq.131) iumax=max(iumax,nlev_ec-k+1)
+    if(is6.eq.135) iwmax=max(iwmax,nlev_ec-k+1)
 
-    if(isec1(6).eq.129) then
+    if(is6.eq.129) then
       do j=0,nyn(l)-1
         do i=0,nxn(l)-1
           oron(i,j,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)/ga
-        end do
-      end do
+        enddo
+      enddo
     endif
-    if(isec1(6).eq.172) then
+    if(is6.eq.172) then
       do j=0,nyn(l)-1
         do i=0,nxn(l)-1
           lsmn(i,j,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)/ga
-        end do
-      end do
+        enddo
+      enddo
     endif
-    if(isec1(6).eq.160) then
+    if(is6.eq.160) then
       do j=0,nyn(l)-1
         do i=0,nxn(l)-1
           excessoron(i,j,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)/ga
-        end do
-      end do
+        enddo
+      enddo
     endif
 
     call grib_release(igrib)
@@ -1692,16 +1708,15 @@ subroutine gridcheck_nest
 
   !error message if no fields found with correct first longitude in it
   if (gotGrib.eq.0) then
-    print*,'***ERROR: input file needs to contain GRiB1 formatted'// &
-         'messages'
+    print*,'***ERROR: input file needs to contain GRiB1 formatted messages'
     error stop
   endif
 
   nuvzn=iumax
   nwzn=iwmax
-  if(nuvzn.eq.nlev_ec) nwzn=nlev_ecn+1
+  if (nuvzn .eq. nlev_ec) nwzn=nlev_ecn+1
 
-  if ((nuvzn.gt.nuvzmax).or.(nwzn.gt.nwzmax)) then
+  if ((nuvzn .gt. nuvzmax).or.(nwzn .gt. nwzmax)) then
     write(*,*) 'FLEXPART error: Nested wind fields have too many'// &
          'vertical levels.'
     write(*,*) 'Problem was encountered for nesting level ',l
@@ -1755,28 +1770,25 @@ subroutine gridcheck_nest
   endif
 
 
-  ! CALCULATE VERTICAL DISCRETIZATION OF ECMWF MODEL
-  ! PARAMETER akm,bkm DESCRIBE THE HYBRID "ETA" COORDINATE SYSTEM
+  ! Calculate vertical discretization of ECMWF model 
+  ! Parameters akm,bkm describe the hybrid "ETA" coordinate system
 
   numskip=nlev_ecn-nuvzn ! number of ecmwf model layers not used by FLEXPART
   do i=1,nwzn
-    j=numskip+i
-    k=nlev_ecn+1+numskip+i
-    akmn(nwzn-i+1)=zsec2(j)
-    bkmn(nwzn-i+1)=zsec2(k)
+    akmn(nwzn-i+1)=zsec2(numskip+i)
+    bkmn(nwzn-i+1)=zsec2(nlev_ecn+1+numskip+i)
   end do
 
   !
-  ! CALCULATION OF AKZ, BKZ
-  ! AKZ,BKZ: model discretization parameters at the center of each model
-  !     layer
+  ! Calculation of AKZ, BKZ
+  ! AKZ,BKZ: model discretization parameters at the center of each model layer
   !
   ! Assign the 10 m winds to an artificial model level with akz=0 and bkz=1.0,
   ! i.e. ground level
   !*****************************************************************************
 
     akzn(1)=0.
-    bkzn(1)=1.0
+    bkzn(1)=1.
     do i=1,nuvzn
       akzn(i+1)=0.5*(akmn(i+1)+akmn(i))
       bkzn(i+1)=0.5*(bkmn(i+1)+bkmn(i))
@@ -1838,15 +1850,19 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   !             CHANGE: 03/12/2008, Harald Sodemann, update to f90 with *
   !                                 ECMWF grib_api                      *
   !                                                                     *
-  !**********************************************************************
-  !  Changes, Bernd C. Krueger, Feb. 2001:
-  !   Variables tth and qvh (on eta coordinates) in common block
-  !
-  !   Unified ECMWF and GFS builds                                      
-  !   Marian Harustak, 12.5.2017                                        
-  !     - Renamed from readwind to readwind_ecmwf                     
-  !
-  !  L. Bakels, 2021: OpenMP parallelisation (following CTM version)
+  !  Changes, Bernd C. Krueger, Feb. 2001:                              *
+  !   Variables tth and qvh (on eta coordinates) in common block        *
+  !                                                                     *
+  !   Unified ECMWF and GFS builds                                      *
+  !   Marian Harustak, 12.5.2017                                        *
+  !     - Renamed from readwind to readwind_ecmwf                       *
+  !                                                                     *
+  !  L. Bakels, 2021: OpenMP parallelisation (following CTM version)    * 
+  !                                                                     *  
+  !  Anne Tipka, Petra Seibert 2021-02: implement new interpolation     *
+  !    for precipitation according to #295 using 2 additional fields    *
+  !    change some double loops in wrong order to forall constructs     *
+  !                                                                     *
   !**********************************************************************
   !                                                                     *
   ! DESCRIPTION:                                                        *
@@ -1873,22 +1889,21 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
   implicit none
 
-  !  include 'grib_api.h'
-
   !HSO  parameters for grib_api
   integer :: ifile
   integer :: iret
   integer, dimension(:), allocatable   :: igrib
   integer :: nfield, ii, arsize
-  integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl,parId
+  integer :: istep, ipf, npf ! istep=stepRange for precip field identification
+  integer :: gribVer,parCat,parNum,typSfc,discipl,parId
   integer :: gotGrid
   ! HSO  end
 
-  real(kind=4) :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real(kind=4) :: vvh(0:nxmax-1,0:nymax-1,nuvzmax)
-  real(kind=4) :: wwh(0:nxmax-1,0:nymax-1,nwzmax)
-  integer :: indj,i,j,k,n,levdiff2,iumax,iwmax!,ifield
-  integer :: kz
+  real(kind=4), intent(inout) :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
+  real(kind=4), intent(inout) :: vvh(0:nxmax-1,0:nymax-1,nuvzmax)
+  real(kind=4), intent(inout) :: wwh(0:nxmax-1,0:nymax-1,nwzmax)
+  integer, intent(in) :: indj,n
+  integer :: i,j,ifield,iumax,iwmax
 
   ! VARIABLES AND ARRAYS NEEDED FOR GRIB DECODING
 
@@ -1898,7 +1913,14 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   ! dimension of zsec2 at least (10+nn), where nn is the number of vertical
   ! coordinate parameters
 
-  integer :: isec1(56),isec2(22+nxmax+nymax)
+  ! integer  :: isec1(56),isec2(22+nxmax+nymax)
+  ! AT replace isec1, isec2 arrays by scalar values because we don't need
+  !    arrays anymore. isec1(X) -> isX, isec2(X) -> jsX  
+  integer :: is6, js2, js3, js12
+  integer :: k ! (as k, is the level in ECWMF notation, top->bot)
+  integer :: kz, kz1 ! (level in FLEXPART notation, bot->top)
+  integer :: jy ! y index in FLEXPART notation (S->N)
+
   real(kind=4), allocatable, dimension(:) :: zsec4
   !  real(kind=4) :: zsec4(jpunp)
   real(kind=4) :: xaux,yaux,xaux0,yaux0
@@ -1908,30 +1930,26 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   real :: plev1,pmean,tv,fu,hlev1,ff10m,fflev1,conversion_factor
   integer :: stat
 
-  logical :: hflswitch,strswitch!,readcloud
+  logical :: hflswitch,strswitch,lstep(0:2)
 
   !HSO  grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
-  character(len=20) :: gribFunction = 'readwind'
+  character(len=20) :: thisSubr  = 'readwind_ecmwf'
 
   hflswitch=.false.
   strswitch=.false.
-  !ZHG test the grib fields that have lcwc without using them
-  !  readcloud=.false.
-
-  levdiff2=nlev_ec-nwz+1
+  
   iumax=0
   iwmax=0
 
   !
   ! OPENING OF DATA FILE (GRIB CODE)
   !
-  call grib_open_file(ifile,path(3)(1:length(3)) &
-       //trim(wfname(indj)),'r',iret)
-  if (iret.ne.GRIB_SUCCESS) then
-    goto 888   ! ERROR DETECTED
-  endif
+  call grib_open_file(ifile,path(3)(1:length(3))//trim(wfname(indj)),'r',iret)
+  if (iret .ne. GRIB_SUCCESS) goto 888   ! ERROR DETECTED
 
+  ! COUNT NUMBER OF MESSAGES IN FILE 
+  !
   call grib_count_in_file(ifile,nfield)
 
   ! allocate memory for grib handles
@@ -1939,11 +1957,15 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   if (stat.ne.0) error stop "Could not allocate igrib"
   ! initialise
   igrib(:) = -1
-
+ 
+  ! LOAD ALL MESSAGES FROM FILE
+  !
   do ii = 1,nfield
     call grib_new_from_file(ifile, igrib(ii), iret)
   end do
-
+  
+  ! CLOSE FILE 
+  !
   call grib_close_file(ifile)
 
   !turn on support for multi fields messages */
@@ -1952,14 +1974,17 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   gotGrid=0
 
 !$OMP PARALLEL DEFAULT(none) &
-!$OMP SHARED (nfield, igrib, gribFunction, nxfield, ny, nlev_ec, dx, xlon0, ylat0, &
+!$OMP SHARED (nfield, igrib, thisSubr, nxfield, ny, nlev_ec, dx, xlon0, ylat0, &
 !$OMP   n, tth, uuh, vvh, iumax, qvh, ps, wwh, iwmax, sd, msl, tcc, u10, v10, tt2, &
 !$OMP   td2, lsprec, convprec, sshf, hflswitch, ssr, ewss, nsss, strswitch, oro,   &
-!$OMP   excessoro, lsm, nymin1,ciwch,clwch,readclouds,sumclouds, nxshift) & 
-!$OMP PRIVATE(ii, gribVer, iret, isec1, discipl, parCat, parNum, parId,typSurf, valSurf, &
-!$OMP   zsec4, isec2, gribErrorMsg, xauxin, yauxin, xaux, yaux, xaux0,  &
-!$OMP   yaux0, k, arsize, stat, conversion_factor)  &
+!$OMP   excessoro, lsm, nymin1,ciwch,clwch, nxshift, &
+!$OMP   lprecint, lcw, lcwsum) & 
+!$OMP PRIVATE(ii, gribVer, iret, is6, discipl, parCat, parNum, parId, typSfc, &
+!$OMP   zsec4, js2, js3, js12, gribErrorMsg, xauxin, yauxin, xaux, yaux, xaux0,  &
+!$OMP   yaux0, k, arsize, stat, conversion_factor,&
+!$OMP   istep, ipf, npf, kz, kz1, jy)  &
 !$OMP REDUCTION(+:gotGrid)
+
   !
   ! GET NEXT FIELDS
   !
@@ -1973,157 +1998,159 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
   !first see if we read GRIB1 or GRIB2
   call grib_get_int(igrib(ii),'editionNumber',gribVer,iret)
-  call grib_check(iret,gribFunction,gribErrorMsg)
+  call grib_check(iret,thisSubr,gribErrorMsg)
+  
+  ! AT stepRange is used to identify additional precip fields
+  call grib_get_int(igrib(ii),'stepRange',istep,iret)
+  call grib_check(iret,thisSubr,gribErrorMsg)
+  ipf=istep+1
 
   if (gribVer.eq.1) then ! GRIB Edition 1
 
-    !print*,'GRiB Edition 1'
     !read the grib2 identifiers
-    call grib_get_int(igrib(ii),'indicatorOfParameter',isec1(6),iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'level',isec1(8),iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_get_int(igrib(ii),'indicatorOfParameter',is6,iret)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
+    call grib_get_int(igrib(ii),'level',k,iret)
+    call grib_check(iret,thisSubr,gribErrorMsg)
 
-  !change code for etadot to code for omega
-    if (isec1(6).eq.77) then
-      isec1(6)=135
-    endif
-
+    ! change code for etadot to code for omega
+    if (is6.eq.77) is6=135
+    
     conversion_factor=1.
 
-  else
+  else ! GRiB Edition 2
 
-  !print*,'GRiB Edition 2'
-  !read the grib2 identifiers
+    !read the grib2 identifiers
     call grib_get_int(igrib(ii),'discipline',discipl,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
     call grib_get_int(igrib(ii),'parameterCategory',parCat,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
     call grib_get_int(igrib(ii),'parameterNumber',parNum,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'typeOfFirstFixedSurface',typSurf,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'level',valSurf,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
+    call grib_get_int(igrib(ii),'typeOfFirstFixedSurface',typSfc,iret)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
+    call grib_get_int(igrib(ii),'level',k,iret)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
     call grib_get_int(igrib(ii),'paramId',parId,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_check(iret,thisSubr,gribErrorMsg)
 
-  !print*,discipl,parCat,parNum,typSurf,valSurf
-
-  !convert to grib1 identifiers
-    isec1(6)=-1
-    isec1(7)=-1
-    isec1(8)=-1
-    isec1(8)=valSurf     ! level
+    !convert to grib1 identifiers
+    is6=-1
     conversion_factor=1.
-    if ((parCat.eq.0).and.(parNum.eq.0).and.(typSurf.eq.105)) then ! T
-      isec1(6)=130         ! indicatorOfParameter
-    elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSurf.eq.105)) then ! U
-      isec1(6)=131         ! indicatorOfParameter
-    elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSurf.eq.105)) then ! V
-      isec1(6)=132         ! indicatorOfParameter
-    elseif ((parCat.eq.1).and.(parNum.eq.0).and.(typSurf.eq.105)) then ! Q
-      isec1(6)=133         ! indicatorOfParameter
-  ! ESO Cloud water is in a) fields CLWC and CIWC, *or* b) field QC 
-    elseif ((parCat.eq.1).and.(parNum.eq.83).and.(typSurf.eq.105)) then ! clwc
-      isec1(6)=246         ! indicatorOfParameter
-    elseif ((parCat.eq.1).and.(parNum.eq.84).and.(typSurf.eq.105)) then ! ciwc
-      isec1(6)=247         ! indicatorOfParameter
-  ! ESO qc(=clwc+ciwc):
-    elseif ((parCat.eq.201).and.(parNum.eq.31).and.(typSurf.eq.105)) then ! qc
-      isec1(6)=201031         ! indicatorOfParameter
-    elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSurf.eq.1)) then !SP
-      isec1(6)=134         ! indicatorOfParameter
-    elseif ((parCat.eq.2).and.(parNum.eq.32)) then ! W, actually eta dot
-      isec1(6)=135         ! indicatorOfParameter
-    elseif ((parCat.eq.128).and.(parNum.eq.77)) then ! W, actually eta dot
-      isec1(6)=135         ! indicatorOfParameter
-    elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSurf.eq.101)) then !SLP
-      isec1(6)=151         ! indicatorOfParameter
-    elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSurf.eq.103)) then ! 10U
-      isec1(6)=165         ! indicatorOfParameter
-    elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSurf.eq.103)) then ! 10V
-      isec1(6)=166         ! indicatorOfParameter
-    elseif ((parCat.eq.0).and.(parNum.eq.0).and.(typSurf.eq.103)) then ! 2T
-      isec1(6)=167         ! indicatorOfParameter
-    elseif ((parCat.eq.0).and.(parNum.eq.6).and.(typSurf.eq.103)) then ! 2D
-      isec1(6)=168         ! indicatorOfParameter
-    elseif ((parCat.eq.1).and.(parNum.eq.11).and.(typSurf.eq.1)) then ! SD
-      isec1(6)=141         ! indicatorOfParameter
+    if (parCat .eq. 0 .and. parNum .eq. 0 .and. typSfc .eq. 105) then ! T
+      is6=130 
+    elseif (parCat .eq. 2 .and. parNum .eq. 2 .and. typSfc .eq. 105) then ! U
+      is6=131 
+    elseif (parCat .eq. 2 .and. parNum .eq. 3 .and. typSfc .eq. 105) then ! V
+      is6=132 
+    elseif (parCat .eq. 1 .and. parNum .eq. 0 .and. typSfc .eq. 105) then ! Q
+      is6=133 
+    ! ESO Cloud water is in a) fields CLWC and CIWC, *or* b) field QC 
+    elseif (parCat .eq. 1 .and. parNum .eq. 83 .and. typSfc .eq. 105) then ! clwc
+      is6=246 
+    elseif (parCat .eq. 1 .and. parNum .eq. 84 .and. typSfc .eq. 105) then ! ciwc
+      is6=247 
+    ! ESO qc(=clwc+ciwc):
+    elseif (parCat .eq. 201 .and. parNum .eq. 31 .and. typSfc .eq. 105) then ! qc
+      is6=201031 
+    elseif (parCat .eq. 3 .and. parNum .eq. 0 .and. typSfc .eq. 1) then !SP
+      is6=134 
+    elseif (parCat .eq. 2 .and. parNum .eq. 32) then ! W, actually eta dot
+      is6=135 
+    elseif (parCat .eq. 128 .and. parNum .eq. 77) then ! W, actually eta dot
+      is6=135 
+    elseif (parCat .eq. 3 .and. parNum .eq. 0 .and. typSfc .eq. 101) then ! SLP
+      is6=151 
+    elseif (parCat .eq. 2 .and. parNum .eq. 2 .and. typSfc .eq. 103) then ! 10U
+      is6=165 
+    elseif (parCat .eq. 2 .and. parNum .eq. 3 .and. typSfc .eq. 103) then ! 10V
+      is6=166 
+    elseif (parCat .eq. 0 .and. parNum .eq. 0 .and. typSfc .eq. 103) then ! 2T
+      is6=167 
+    elseif (parCat .eq. 0 .and. parNum .eq. 6 .and. typSfc .eq. 103) then ! 2D
+      is6=168 
+    elseif (parCat .eq. 1 .and. parNum .eq. 11 .and. typSfc .eq. 1) then ! SD
+      is6=141 
       conversion_factor=1000.
-    elseif ((parCat.eq.6).and.(parNum.eq.1) .or. parId .eq. 164) then ! CC
-      isec1(6)=164         ! indicatorOfParameter
-    elseif ((parCat.eq.1).and.(parNum.eq.9) .or. parId .eq. 142) then ! LSP
-      isec1(6)=142         ! indicatorOfParameter
-    elseif ((parCat.eq.1).and.(parNum.eq.10)) then ! CP
-      isec1(6)=143         ! indicatorOfParameter
+    elseif (parCat .eq. 6 .and. parNum .eq. 1 .or. parId .eq. 164) then ! CC
+      is6=164 
+    elseif (parCat .eq. 1 .and. parNum .eq. 9 .or. parId .eq. 142) then ! LSP
+      is6=142 
+    elseif (parCat .eq. 1 .and. parNum .eq. 10) then ! CP
+      is6=143 
       conversion_factor=1000.
-    elseif ((parCat.eq.0).and.(parNum.eq.11).and.(typSurf.eq.1)) then ! SHF
-      isec1(6)=146         ! indicatorOfParameter
-    elseif ((parCat.eq.4).and.(parNum.eq.9).and.(typSurf.eq.1)) then ! SR
-      isec1(6)=176         ! indicatorOfParameter
-  !    elseif ((parCat.eq.2).and.(parNum.eq.17) .or. parId .eq. 180) then ! EWSS --wrong
-    elseif ((parCat.eq.2).and.(parNum.eq.38) .or. parId .eq. 180) then ! EWSS --correct
-      isec1(6)=180         ! indicatorOfParameter
-  !    elseif ((parCat.eq.2).and.(parNum.eq.18) .or. parId .eq. 181) then ! NSSS --wrong
-    elseif ((parCat.eq.2).and.(parNum.eq.37) .or. parId .eq. 181) then ! NSSS --correct
-      isec1(6)=181         ! indicatorOfParameter
-    elseif ((parCat.eq.3).and.(parNum.eq.4)) then ! ORO
-      isec1(6)=129         ! indicatorOfParameter
-    elseif ((parCat.eq.3).and.(parNum.eq.7) .or. parId .eq. 160) then ! SDO
-      isec1(6)=160         ! indicatorOfParameter
-    elseif ((discipl.eq.2).and.(parCat.eq.0).and.(parNum.eq.0).and. &
-         (typSurf.eq.1)) then ! LSM
-      isec1(6)=172         ! indicatorOfParameter
-    elseif (parNum.eq.152) then 
-      isec1(6)=152         ! avoid warning for lnsp    
+    elseif (parCat .eq. 0 .and. parNum .eq. 11 .and. typSfc .eq. 1) then ! SHF
+      is6=146 
+    elseif (parCat .eq. 4 .and. parNum .eq. 9 .and. typSfc .eq. 1) then ! SR
+      is6=176 
+    elseif (parCat .eq. 2 .and. parNum .eq. 38 .or. parId .eq. 180) then ! EWSS --correct
+      is6=180 
+    elseif (parCat .eq. 2 .and. parNum .eq. 37 .or. parId .eq. 181) then ! NSSS --correct
+      is6=181 
+    elseif (parCat .eq. 3 .and. parNum .eq. 4) then ! ORO
+      is6=129 
+    elseif (parCat .eq. 3 .and. parNum .eq. 7 .or. parId .eq. 160) then ! SDO
+      is6=160 
+    elseif (discipl .eq. 2 .and. parCat .eq. 0 .and. parNum .eq. 0 .and. &
+         typSfc .eq. 1) then ! LSM
+      is6=172 
+    elseif (parNum .eq. 152) then 
+      is6=152         ! avoid warning for lnsp    
     else
-      print*,'***WARNING: undefined GRiB2 message found!',discipl, &
-           parCat,parNum,typSurf
+      print*,'***WARNING: undefined GRiB2 message found!',discipl,parCat,parNum,typSfc
     endif
-    if(parId .ne. isec1(6) .and. parId .ne. 77) then
-      write(*,*) 'parId',parId, 'isec1(6)',isec1(6)
-  !    stop
-    endif
-
-  endif
+    if (parId .ne. is6 .and. parId .ne. 77) write(*,*) 'parId',parId, 'is6',is6
+  
+  endif ! grib Version conversion
 
   !HSO  get the size and data of the values array
-  if (isec1(6).ne.-1) then
+  if (is6.ne.-1) then
     call grib_get_real4_array(igrib(ii),'values',zsec4,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_check(iret,thisSubr,gribErrorMsg)
   endif
 
   !HSO  get the required fields from section 2 in a gribex compatible manner
   if (ii.eq.1) then
-    call grib_get_int(igrib(ii),'numberOfPointsAlongAParallel',isec2(2),iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'numberOfPointsAlongAMeridian',isec2(3),iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
-    call grib_get_int(igrib(ii),'numberOfVerticalCoordinateValues',isec2(12))
-    call grib_check(iret,gribFunction,gribErrorMsg)
-  ! CHECK GRID SPECIFICATIONS
-    if(isec2(2).ne.nxfield) error stop 'READWIND: NX NOT CONSISTENT'
-    if(isec2(3).ne.ny) error stop 'READWIND: NY NOT CONSISTENT'
-    if(isec2(12)/2-1.ne.nlev_ec) &
+    call grib_get_int(igrib(ii),'numberOfPointsAlongAParallel',js2,iret)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+
+    call grib_get_int(igrib(ii),'numberOfPointsAlongAMeridian',js3,iret)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+
+    call grib_get_int(igrib(ii),'numberOfVerticalCoordinateValues',js12)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+
+    ! CHECK GRID SPECIFICATIONS
+    if(js2.ne.nxfield) error stop 'READWIND: NX NOT CONSISTENT'
+    if(js3.ne.ny) error stop 'READWIND: NY NOT CONSISTENT'
+    if(js12/2-1.ne.nlev_ec) &
       error stop 'READWIND: VERTICAL DISCRETIZATION NOT CONSISTENT'
   endif ! ifield
 
 !$OMP CRITICAL
   !HSO  get the second part of the grid dimensions only from GRiB1 messages
-  if (isec1(6) .eq. 167 .and. (gotGrid.eq.0)) then
+  if (is6 .eq. 167 .and. gotGrid.eq.0) then
+  
     call grib_get_real8(igrib(ii),'longitudeOfFirstGridPointInDegrees', &
          xauxin,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
     call grib_get_real8(igrib(ii),'latitudeOfLastGridPointInDegrees', &
          yauxin,iret)
-    call grib_check(iret,gribFunction,gribErrorMsg)
-    if (xauxin.gt.180.) xauxin=xauxin-360.0
-    if (xauxin.lt.-180.) xauxin=xauxin+360.0
+    call grib_check(iret,thisSubr,gribErrorMsg)
+    
+    if (xauxin.gt.180.) xauxin=xauxin-360.
+    if (xauxin.lt.-180.) xauxin=xauxin+360.
 
     xaux=xauxin+real(nxshift)*dx
     yaux=yauxin
-    if (xaux.gt.180.) xaux=xaux-360.0
+    if (xaux.gt.180.) xaux=xaux-360.
     if(abs(xaux-xlon0).gt.eps) &
       error stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT'
     if(abs(yaux-ylat0).gt.eps) &
@@ -2132,39 +2159,42 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   endif ! gotGrid
 !$OMP END CRITICAL
 
-  k=isec1(8)
-  select case(isec1(6)) 
+
+  kz=nlev_ec-k+2  ! used for all 3D fields except W
+  kz1=nlev_ec-k+1 ! used for W
+
+  select case(is6) 
   !! TEMPERATURE
     case(130) 
       do j=0,nymin1
         do i=0,nxfield-1
-          tth(i,j,nlev_ec-k+2,n) = zsec4(nxfield*(ny-j-1)+i+1)
+          tth(i,j,kz,n) = zsec4(nxfield*(ny-j-1)+i+1)
         end do 
       end do 
   !! U VELOCITY
     case(131) 
       do j=0,nymin1
         do i=0,nxfield-1
-          uuh(i,j,nlev_ec-k+2) = zsec4(nxfield*(ny-j-1)+i+1)
+          uuh(i,j,kz) = zsec4(nxfield*(ny-j-1)+i+1)
         end do 
       end do 
 !$OMP CRITICAL
-      iumax=max(iumax,nlev_ec-k+1)
+      iumax=max(iumax,kz1)
 !$OMP END CRITICAL
   !! V VELOCITY
     case(132)
       do j=0,nymin1
         do i=0,nxfield-1
-          vvh(i,j,nlev_ec-k+2) = zsec4(nxfield*(ny-j-1)+i+1)
+          vvh(i,j,kz) = zsec4(nxfield*(ny-j-1)+i+1)
         end do 
       end do
   !! SPEC. HUMIDITY
     case(133)
       do j=0,nymin1
         do i=0,nxfield-1
-          qvh(i,j,nlev_ec-k+2,n) = zsec4(nxfield*(ny-j-1)+i+1)
-          if (qvh(i,j,nlev_ec-k+2,n) .lt. 0.) &
-               qvh(i,j,nlev_ec-k+2,n) = 0.
+          qvh(i,j,kz,n) = zsec4(nxfield*(ny-j-1)+i+1)
+          if (qvh(i,j,kz,n) .lt. 0.) &
+               qvh(i,j,kz,n) = 0.
     !        this is necessary because the gridded data may contain
     !        spurious negative values
         end do 
@@ -2180,11 +2210,11 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     case(135)
       do j=0,nymin1
         do i=0,nxfield-1
-          wwh(i,j,nlev_ec-k+1) = zsec4(nxfield*(ny-j-1)+i+1)
+          wwh(i,j,kz1) = zsec4(nxfield*(ny-j-1)+i+1)
         end do 
       end do 
 !$OMP CRITICAL
-      iwmax=max(iwmax,nlev_ec-k+1)
+      iwmax=max(iwmax,kz1)
 !$OMP END CRITICAL
   !! SNOW DEPTH
     case(141) 
@@ -2239,16 +2269,16 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     case(142)
       do j=0,nymin1
         do i=0,nxfield-1
-          lsprec(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)
-          if (lsprec(i,j,1,n).lt.0.) lsprec(i,j,1,n)=0.
+          lsprec(i,j,1,ipf,n)=zsec4(nxfield*(ny-j-1)+i+1)
+          if (lsprec(i,j,1,ipf,n).lt.0.) lsprec(i,j,1,ipf,n)=0.
         end do 
       end do
   !! CONVECTIVE PREC.
     case(143)
       do j=0,nymin1
         do i=0,nxfield-1
-          convprec(i,j,1,n)=zsec4(nxfield*(ny-j-1)+i+1)/conversion_factor
-          if (convprec(i,j,1,n).lt.0.) convprec(i,j,1,n)=0.
+          convprec(i,j,1,ipf,n)=zsec4(nxfield*(ny-j-1)+i+1)/conversion_factor
+          if (convprec(i,j,1,ipf,n).lt.0.) convprec(i,j,1,ipf,n)=0.
         end do 
       end do
   !! SENS. HEAT FLUX
@@ -2311,22 +2341,26 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
           lsm(i,j) = zsec4(nxfield*(ny-j-1)+i+1)
         end do 
       end do
+! ZHG add reading of cloud water fields
+! ESO add reading of total cloud water fields
+! ESO TODO: add check whether either CLWC or CIWC is missing (->error)
+!           if all 3 cw fields exist, use QC and disregard the others
   !! CLWC  Cloud liquid water content [kg/kg]
     case(246)    
       do j=0,nymin1
         do i=0,nxfield-1
-          clwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
+          clwch(i,j,kz,n)=zsec4(nxfield*(ny-j-1)+i+1)
         end do
       end do
 !$OMP CRITICAL
-      readclouds=.true.
-      sumclouds=.false.
+      lcw=.true.
+      lcwsum=.false.
 !$OMP END CRITICAL
   !! CIWC  Cloud ice water content
     case(247)
       do j=0,nymin1
         do i=0,nxfield-1
-          ciwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
+          ciwch(i,j,kz,n)=zsec4(nxfield*(ny-j-1)+i+1)
         end do
       end do
   !ZHG end
@@ -2335,12 +2369,12 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     case(201031)
       do j=0,nymin1
         do i=0,nxfield-1      
-          clwch(i,j,nlev_ec-k+2,n)=zsec4(nxfield*(ny-j-1)+i+1)
+          clwch(i,j,kz,n)=zsec4(nxfield*(ny-j-1)+i+1)
         end do
       end do
 !$OMP CRITICAL
-      readclouds=.true.
-      sumclouds=.false.
+      lcw=.true.
+      lcwsum=.true.
 !$OMP END CRITICAL
 
   end select
@@ -2361,18 +2395,13 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
   !error message if no fields found with correct first longitude in it
   if (gotGrid.eq.0) then
-    print*,'***ERROR: input file needs to contain GRiB1 formatted'// &
-         'messages'
+    print*,'***ERROR: input file needs to contain GRiB1 formatted messages'
     error stop
   endif
 
-  if(levdiff2.eq.0) then
+  if(nlev_ec-nwz+1 .eq. 0) then
     iwmax=nlev_ec+1
-    do i=0,nxmin1
-      do j=0,nymin1
-        wwh(i,j,nlev_ec+1)=0.
-      end do
-    end do
+    wwh(:,:,iwmax)=0.
   endif
 
   ! For global fields, assign the leftmost data column also to the rightmost
@@ -2385,26 +2414,33 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     call shift_field_0(oro,nxfield,ny)
     call shift_field_0(excessoro,nxfield,ny)
     call shift_field_0(lsm,nxfield,ny)
-    call shift_field(ps,nxfield,ny,1,1,2,n)
-    call shift_field(sd,nxfield,ny,1,1,2,n)
-    call shift_field(msl,nxfield,ny,1,1,2,n)
-    call shift_field(tcc,nxfield,ny,1,1,2,n)
-    call shift_field(u10,nxfield,ny,1,1,2,n)
-    call shift_field(v10,nxfield,ny,1,1,2,n)
-    call shift_field(tt2,nxfield,ny,1,1,2,n)
-    call shift_field(td2,nxfield,ny,1,1,2,n)
-    call shift_field(lsprec,nxfield,ny,1,1,2,n)
-    call shift_field(convprec,nxfield,ny,1,1,2,n)
-    call shift_field(sshf,nxfield,ny,1,1,2,n)
-    call shift_field(ssr,nxfield,ny,1,1,2,n)
-    call shift_field(tth,nxfield,ny,nuvzmax,nuvz,2,n)
-    call shift_field(qvh,nxfield,ny,nuvzmax,nuvz,2,n)
+    call shift_field(ps,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(sd,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(msl,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(tcc,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(u10,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(v10,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(tt2,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(td2,nxfield,ny,1,1,numwfmem,n)
+    if (lprecint) then
+      npf=numpf
+    else
+      npf=1
+    endif
+    do ipf=1,npf
+      call shift_field(lsprec(:,:,:,ipf,n),nxfield,ny,1,1,1,1)
+      call shift_field(convprec(:,:,:,ipf,n),nxfield,ny,1,1,1,1)
+    enddo
+    call shift_field(sshf,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(ssr,nxfield,ny,1,1,numwfmem,n)
+    call shift_field(tth,nxfield,ny,nuvzmax,nuvz,numwfmem,n)
+    call shift_field(qvh,nxfield,ny,nuvzmax,nuvz,numwfmem,n)
     call shift_field(uuh,nxfield,ny,nuvzmax,nuvz,1,1)
     call shift_field(vvh,nxfield,ny,nuvzmax,nuvz,1,1)
     call shift_field(wwh,nxfield,ny,nwzmax,nwz,1,1)
   !ZHG
-    call shift_field(clwch,nxfield,ny,nuvzmax,nuvz,2,n)
-    if (.not.sumclouds) call shift_field(ciwch,nxfield,ny,nuvzmax,nuvz,2,n)
+    call shift_field(clwch,nxfield,ny,nuvzmax,nuvz,numwfmem,n)
+    if (.not.lcwsum) call shift_field(ciwch,nxfield,ny,nuvzmax,nuvz,numwfmem,n)
   !ZHG end
 
   endif
@@ -2447,9 +2483,8 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     end do
   end do
 
-  if ((.not.hflswitch).or.(.not.strswitch)) then
-    write(*,*) 'WARNING: No flux data contained in GRIB file ', &
-         wfname(indj)
+  if (.not.hflswitch .or. .not.strswitch) then
+    write(*,*) 'WARNING: No flux data contained in GRIB file ', wfname(indj)
 
   ! CALCULATE USTAR AND SSHF USING THE PROFILE METHOD
   ! As ECMWF has increased the model resolution, such that now the first model
@@ -2457,8 +2492,8 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   ! (3rd model level in FLEXPART) for the profile method
   !***************************************************************************
 
-    do i=0,nxmin1
-      do j=0,nymin1
+    do j=0,nymin1
+      do i=0,nxmin1
         plev1=akz(3)+bkz(3)*ps(i,j,1,n)
         pmean=0.5*(ps(i,j,1,n)+plev1)
         tv=tth(i,j,3,n)*(1.+0.61*qvh(i,j,3,n))
@@ -2482,14 +2517,12 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   ! Temperature is taken as 2 m temperature
   !**************************************************************************
 
-  do i=0,nxmin1
-    do j=0,nymin1
+  forall (i=0:nxmin1, j=0:nymin1)
       uuh(i,j,1)=u10(i,j,1,n)
       vvh(i,j,1)=v10(i,j,1,n)
       qvh(i,j,1,n)=qvh(i,j,2,n)
       tth(i,j,1,n)=tt2(i,j,1,n)
-    end do
-  end do
+  end forall
 
   if(iumax.ne.nuvz-1) error stop 'READWIND: NUVZ NOT CONSISTENT'
   if(iwmax.ne.nwz)    error stop 'READWIND: NWZ NOT CONSISTENT'
@@ -2506,26 +2539,35 @@ end subroutine readwind_ecmwf
 subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 
   !***********************************************************************
-  !*                                                                     *
-  !*             TRAJECTORY MODEL SUBROUTINE READWIND                    *
-  !*                                                                     *
+  !                                                                      *
+  !              TRAJECTORY MODEL SUBROUTINE READWIND                    *
+  !                                                                      *
   !***********************************************************************
-  !*                                                                     *
-  !*             AUTHOR:      G. WOTAWA                                  *
-  !*             DATE:        1997-08-05                                 *
-  !*             LAST UPDATE: 2000-10-17, Andreas Stohl                  *
-  !*             CHANGE: 01/02/2001, Bernd C. Krueger, Variables tth and *
-  !*                     qvh (on eta coordinates) in common block        *
-  !*             CHANGE: 16/11/2005, Caroline Forster, GFS data          *
-  !*             CHANGE: 11/01/2008, Harald Sodemann, Input of GRIB1/2   *
-  !*                     data with the ECMWF grib_api library            *
-  !*             CHANGE: 03/12/2008, Harald Sodemann, update to f90 with *
-  !*                                 ECMWF grib_api                      *
+  !                                                                      *
+  !              AUTHOR:      G. WOTAWA                                  *
+  !              DATE:        1997-08-05                                 *
+  !              LAST UPDATE: 2000-10-17, Andreas Stohl                  *
+  !              CHANGE: 01/02/2001, Bernd C. Krueger, Variables tth and *
+  !                      qvh (on eta coordinates) in common block        *
+  !              CHANGE: 16/11/2005, Caroline Forster, GFS data          *
+  !              CHANGE: 11/01/2008, Harald Sodemann, Input of GRIB1/2   *
+  !                      data with the ECMWF grib_api library            *
+  !              CHANGE: 03/12/2008, Harald Sodemann, update to f90 with *
+  !                                  ECMWF grib_api                      *
   !                                                                      *
   !   Unified ECMWF and GFS builds                                       *
   !   Marian Harustak, 12.5.2017                                         *
   !     - Renamed routine from readwind to readwind_gfs                  *
-  !*                                                                     *
+  !                                                                      *
+  !   Petra Seibert, Anne Tipka, 2021-02: implement new interpolation    *
+  !   just catch numpf>1 and produce error msg, adjust rank of precip    *
+  !   and correct some loops in bad order                                *
+  !                                                                      *
+  !                                                                      *  
+  !  Anne Tipka, Petra Seibert 2021-02: implement new interpolation      *
+  !    for precipitation according to #295 using 2 additional fields     *
+  !    change some double loops in wrong order to forall constructs      *
+  !                                                                      *
   !***********************************************************************
   !*                                                                     *
   !* DESCRIPTION:                                                        *
@@ -2557,6 +2599,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   integer :: ifile
   integer :: iret
   integer :: igrib
+  integer :: ipf 
   integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl
   !HSO end edits
   real :: uuh(0:nxmax-1,0:nymax-1,nuvzmax)
@@ -2592,7 +2635,8 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   character(len=20) :: gribFunction = 'readwind_gfs'
   character(len=20) :: shortname
 
-
+  if (numpf .gt. 1) goto 777 ! additional precip fields not implemented in GFS
+ 
   hflswitch=.false.
   strswitch=.false.
   levdiff2=nlev_ec-nwz+1
@@ -2960,18 +3004,18 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
     ! LARGE SCALE PREC.
           help=zsec4(nxfield*(ny-j-1)+i+1)
           if(i.le.i180) then
-            lsprec(i179+i,j,1,n)=help
+            lsprec(i179+i,j,1,1,n)=help
           else
-            lsprec(i-i181,j,1,n)=help
+            lsprec(i-i181,j,1,1,n)=help
           endif
         endif
         if((isec1(6).eq.063).and.(isec1(7).eq.001)) then
     ! CONVECTIVE PREC.
           help=zsec4(nxfield*(ny-j-1)+i+1)
           if(i.le.i180) then
-            convprec(i179+i,j,1,n)=help
+            convprec(i179+i,j,1,1,n)=help
           else
-            convprec(i-i181,j,1,n)=help
+            convprec(i-i181,j,1,1,n)=help
           endif
         endif
         if((isec1(6).eq.007).and.(isec1(7).eq.001)) then
@@ -3053,10 +3097,8 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
           else
             clwch(i-i181,j,numpclwch,n)=help
           endif
-          readclouds=.true.
-          sumclouds=.true.
-    !        readclouds=.false.
-    !       sumclouds=.false.
+          lcw=.true.
+          lcwsum=.true.
         endif
 
 
@@ -3095,18 +3137,18 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
     do j=0,nymin1
     do i=0,nxfield-1
      if(i.le.i180) then
-     if (convprec(i179+i,j,1,n).lt.lsprec(i179+i,j,1,n)) then ! neg precip would occur
-         lsprec(i179+i,j,1,n)= &
-              lsprec(i179+i,j,1,n)-convprec(i179+i,j,1,n)
+     if (convprec(i179+i,j,1,1,n).lt.lsprec(i179+i,j,1,1,n)) then ! neg precip would occur
+         lsprec(i179+i,j,1,1,n)= &
+              lsprec(i179+i,j,1,1,n)-convprec(i179+i,j,1,1,n)
      else
-         lsprec(i179+i,j,1,n)=0
+         lsprec(i179+i,j,1,1,n)=0
      endif
      else
-     if (convprec(i-i181,j,1,n).lt.lsprec(i-i181,j,1,n)) then
-          lsprec(i-i181,j,1,n)= &
-               lsprec(i-i181,j,1,n)-convprec(i-i181,j,1,n)
+     if (convprec(i-i181,j,1,1,n).lt.lsprec(i-i181,j,1,1,n)) then
+          lsprec(i-i181,j,1,1,n)= &
+               lsprec(i-i181,j,1,1,n)-convprec(i-i181,j,1,1,n)
      else
-          lsprec(i-i181,j,1,n)=0
+          lsprec(i-i181,j,1,1,n)=0
      endif
      endif
     enddo
@@ -3176,8 +3218,10 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
     call shift_field(v10,nxfield,ny,1,1,2,n)
     call shift_field(tt2,nxfield,ny,1,1,2,n)
     call shift_field(td2,nxfield,ny,1,1,2,n)
-    call shift_field(lsprec,nxfield,ny,1,1,2,n)
-    call shift_field(convprec,nxfield,ny,1,1,2,n)
+    do ipf=1,numpf
+      call shift_field(lsprec(:,:,:,ipf,n),nxfield,ny,1,1,1,1)
+      call shift_field(convprec(:,:,:,ipf,n),nxfield,ny,1,1,1,1)
+    enddo
     call shift_field(sshf,nxfield,ny,1,1,2,n)
     call shift_field(ssr,nxfield,ny,1,1,2,n)
     call shift_field(hmix,nxfield,ny,1,1,2,n)
@@ -3193,8 +3237,8 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   do i=0,nxmin1
     do j=0,nymin1
   ! Convert precip. from mm/s -> mm/hour
-      convprec(i,j,1,n)=convprec(i,j,1,n)*3600.
-      lsprec(i,j,1,n)=lsprec(i,j,1,n)*3600.
+      convprec(i,j,1,1,n)=convprec(i,j,1,1,n)*3600.
+      lsprec(i,j,1,1,n)=lsprec(i,j,1,1,n)*3600.
       sfcstress(i,j,1,n)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
     end do
   end do
@@ -3206,8 +3250,8 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   ! CALCULATE USTAR AND SSHF USING THE PROFILE METHOD
   !***************************************************************************
 
-    do i=0,nxmin1
-      do j=0,nymin1
+    do j=0,nymin1
+      do i=0,nxmin1
         hlev1=30.0                     ! HEIGHT OF FIRST MODEL SIGMA LAYER
         ff10m= sqrt(u10(i,j,1,n)**2+v10(i,j,1,n)**2)
         fflev1=sqrt(ulev1(i,j)**2+vlev1(i,j)**2)
@@ -3224,10 +3268,19 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   if(iumax.ne.nwz) error stop 'READWIND: NWZ NOT CONSISTENT'
 
   return
+  
+777 continue
+  write(*,*) ' #### FLEXPART MODEL ERROR!                       ####'
+  write(*,*) ' #### Additional precip fields not implemented in ####'
+  write(*,*) ' #### GFS version                                 ####'
+  write(*,*) ' #### Set numpf=1 in par_mod.f90 and recompile!   ####'
+  stop 'Execution terminated'
+  
 888   write(*,*) ' #### FLEXPART MODEL ERROR! WINDFIELD         #### '
   write(*,*) ' #### ',wfname(indj),'                    #### '
   write(*,*) ' #### IS NOT GRIB FORMAT !!!                  #### '
   error stop 'Execution terminated'
+
 999   write(*,*) ' #### FLEXPART MODEL ERROR! WINDFIELD         #### '
   write(*,*) ' #### ',wfname(indj),'                    #### '
   write(*,*) ' #### CANNOT BE OPENED !!!                    #### '
@@ -3236,7 +3289,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 end subroutine readwind_gfs
 
 subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
-  !                           i   i  o    o    o
+  !                       i   i  o    o    o
   !*****************************************************************************
   !                                                                            *
   !     This routine reads the wind fields for the nested model domains.       *
@@ -3247,6 +3300,11 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
   !     8 February 1999                                                        *
   !                                                                            *
   !     Last update: 17 October 2000, A. Stohl                                 *
+  !                                                                            *
+  !                                                                            *  
+  !  Anne Tipka, Petra Seibert 2021-02: implement new interpolation            *
+  !    for precipitation according to #295 using 2 additional fields           *
+  !    change some double loops in wrong order to forall constructs            *
   !                                                                            *
   !*****************************************************************************
   !  Changes, Bernd C. Krueger, Feb. 2001:                                     *
@@ -3259,47 +3317,52 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
 
   implicit none
 
-  !HSO  parameters for grib_api
   integer :: ifile
   integer :: iret
   integer :: igrib
-  integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl
-  integer :: parId !!added by mc for making it consistent with new readwind.f90
+  integer :: istep, ipf, npf ! istep=stepRange for precip field identification
+  integer :: gribVer,parCat,parNum,typSfc,discipl,parId
   integer :: gotGrid
-  !HSO  end
 
   real :: uuhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
   real :: vvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,maxnests)
   real :: wwhn(0:nxmaxn-1,0:nymaxn-1,nwzmax,maxnests)
-  integer :: indj,i,j,k,n,levdiff2,ifield,iumax,iwmax,l
+  integer :: indj,i,j,l,n,ifield,iumax,iwmax
 
-  ! VARIABLES AND ARRAYS NEEDED FOR GRIB DECODING
+! VARIABLES AND ARRAYS NEEDED FOR GRIB DECODING
 
-  ! dimension of isec2 at least (22+n), where n is the number of parallels or
-  ! meridians in a quasi-regular (reduced) Gaussian or lat/long grid
+! dimension of isec2 at least (22+n), where n is the number of parallels or
+! meridians in a quasi-regular (reduced) Gaussian or lat/long grid
 
-  ! dimension of zsec2 at least (10+nn), where nn is the number of vertical
-  ! coordinate parameters
+! dimension of zsec2 at least (10+nn), where nn is the number of vertical
+! coordinate parameters
 
-  integer :: isec1(56),isec2(22+nxmaxn+nymaxn)
+!  integer :: isec1(56),isec2(22+nxmaxn+nymaxn)
+! PS replace isec1, isec2 arrays by scalar values because we don't need
+!    arrays anymore. isec1(X) -> isX, isec2(X) -> jsX  
+  integer :: is6, js2, js3, js12
+  integer :: k ! (as k, is the level in ECWMF notation, top->bot)
+  integer :: kz, kz1 ! (level in FLEXPART notation, bot->top)
+  integer :: jy ! y index in FLEXPART notation (S->N)
+  integer :: ij ! 2D index unrolled to 1D
   real(kind=4) :: zsec4(jpunp)
   real(kind=4) :: xaux,yaux
   real(kind=8) :: xauxin,yauxin
-  real,parameter :: eps=1.e-4
+  real(kind=4),parameter :: eps=1.e-4
+
   real :: ewss(0:nxmaxn-1,0:nymaxn-1),nsss(0:nxmaxn-1,0:nymaxn-1)
   real :: plev1,pmean,tv,fu,hlev1,ff10m,fflev1
-  real :: conversion_factor !added by mc to make it consistent with new gridchek.f90
+  real :: conversion_factor 
 
   logical :: hflswitch,strswitch
 
   !HSO  grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
-  character(len=20) :: gribFunction = 'readwind_nest'
+  character(len=20) :: thisSubr  = 'readwind_nest'
 
-  do l=1,numbnests
+  l_loop: do l=1,numbnests
     hflswitch=.false.
     strswitch=.false.
-    levdiff2=nlev_ec-nwz+1
     iumax=0
     iwmax=0
 
@@ -3307,15 +3370,12 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
     igrib=0
     iret=0
 
-  !
-  ! OPENING OF DATA FILE (GRIB CODE)
-  !
-
-5   call grib_open_file(ifile,path(numpath+2*(l-1)+1) &
+    !
+    ! OPENING OF DATA FILE (GRIB CODE)
+    !
+    call grib_open_file(ifile,path(numpath+2*(l-1)+1) &
          (1:length(numpath+2*(l-1)+1))//trim(wfnamen(l,indj)),'r')
-    if (iret.ne.GRIB_SUCCESS) then
-      goto 888   ! ERROR DETECTED
-    endif
+    if (iret .ne. GRIB_SUCCESS) goto 888   ! ERROR DETECTED
     !turn on support for multi fields messages */
     !call grib_multi_support_on
 
@@ -3335,250 +3395,239 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
 
       !first see if we read GRIB1 or GRIB2
       call grib_get_int(igrib,'editionNumber',gribVer,iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,thisSubr,gribErrorMsg)
+
+      ! AT stepRange is used to identify additional precip fields
+      call grib_get_int(igrib,'stepRange',istep,iret)
+      call grib_check(iret,thisSubr,gribErrorMsg)
 
       if (gribVer.eq.1) then ! GRIB Edition 1
 
-        !print*,'GRiB Edition 1'
-        !read the grib2 identifiers
-        call grib_get_int(igrib,'indicatorOfParameter',isec1(6),iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-        call grib_get_int(igrib,'level',isec1(8),iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
+        call grib_get_int(igrib,'indicatorOfParameter',is6,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+        
+        call grib_get_int(igrib,'level',k,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
 
-        !change code for etadot to code for omega
-        if (isec1(6).eq.77) then
-          isec1(6)=135
-        endif
-
+        ! change code for etadot to code for omega
+        if (is6 .eq. 77) is6=135
         conversion_factor=1.
 
+      else ! GRIB Edition 2
 
-      else
-
-        !print*,'GRiB Edition 2'
-        !read the grib2 identifiers
         call grib_get_int(igrib,'discipline',discipl,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-        call grib_get_int(igrib,'parameterCategory',parCat,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-        call grib_get_int(igrib,'parameterNumber',parNum,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-        call grib_get_int(igrib,'typeOfFirstFixedSurface',typSurf,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-        call grib_get_int(igrib,'level',valSurf,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-        call grib_get_int(igrib,'paramId',parId,iret) !added by mc to make it consisitent with new readwind.f90
-        call grib_check(iret,gribFunction,gribErrorMsg) !added by mc to make it consisitent with new readwind.f90
+        call grib_check(iret,thisSubr,gribErrorMsg)
 
-        !print*,discipl,parCat,parNum,typSurf,valSurf
+        call grib_get_int(igrib,'parameterCategory',parCat,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+
+        call grib_get_int(igrib,'parameterNumber',parNum,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+
+        call grib_get_int(igrib,'typeOfFirstFixedSurface',typSfc,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+
+        call grib_get_int(igrib,'level',k,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+
+        call grib_get_int(igrib,'paramId',parId,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
 
         !convert to grib1 identifiers
-        isec1(6)=-1
-        isec1(7)=-1
-        isec1(8)=-1
-        isec1(8)=valSurf     ! level
-         conversion_factor=1.
-        if ((parCat.eq.0).and.(parNum.eq.0).and.(typSurf.eq.105)) then ! T
-          isec1(6)=130         ! indicatorOfParameter
-        elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSurf.eq.105)) then ! U
-          isec1(6)=131         ! indicatorOfParameter
-        elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSurf.eq.105)) then ! V
-          isec1(6)=132         ! indicatorOfParameter
-        elseif ((parCat.eq.1).and.(parNum.eq.0).and.(typSurf.eq.105)) then ! Q
-          isec1(6)=133         ! indicatorOfParameter
+        is6=-1
+        conversion_factor=1.
+        if (parCat .eq. 0 .and. parNum .eq. 0 .and. typSfc .eq. 105) then ! T
+          is6=130 
+        elseif (parCat .eq. 2 .and. parNum .eq. 2 .and. typSfc .eq. 105) then ! U
+          is6=131 
+        elseif (parCat .eq. 2 .and. parNum .eq. 3 .and. typSfc .eq. 105) then ! V
+          is6=132 
+        elseif (parCat .eq. 1 .and. parNum .eq. 0 .and. typSfc .eq. 105) then ! Q
+          is6=133 
         ! ESO Cloud water is in a) fields CLWC and CIWC, *or* b) field QC 
-        elseif ((parCat.eq.1).and.(parNum.eq.83).and.(typSurf.eq.105)) then ! clwc
-            isec1(6)=246         ! indicatorOfParameter
-        elseif ((parCat.eq.1).and.(parNum.eq.84).and.(typSurf.eq.105)) then ! ciwc
-            isec1(6)=247         ! indicatorOfParameter
+        elseif (parCat .eq. 1 .and. parNum .eq. 83 .and. typSfc .eq. 105) then ! clwc
+          is6=246 
+        elseif (parCat .eq. 1 .and. parNum .eq. 84 .and. typSfc .eq. 105) then ! ciwc
+          is6=247 
         ! ESO qc(=clwc+ciwc):
-        elseif ((parCat.eq.201).and.(parNum.eq.31).and.(typSurf.eq.105)) then ! qc
-            isec1(6)=201031         ! indicatorOfParameter
-        elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSurf.eq.1)) then !SP
-          isec1(6)=134         ! indicatorOfParameter
-        elseif ((parCat.eq.2).and.(parNum.eq.32)) then ! W, actually eta dot !
-          isec1(6)=135         ! indicatorOfParameter
-        elseif ((parCat.eq.128).and.(parNum.eq.77)) then ! W, actually eta dot !added by mc to make it consisitent with new readwind.f90
-          isec1(6)=135         ! indicatorOfParameter    !added by mc to make it consisitent with new readwind.f90
-        elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSurf.eq.101)) then !SLP
-          isec1(6)=151         ! indicatorOfParameter
-        elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSurf.eq.103)) then ! 10U
-          isec1(6)=165         ! indicatorOfParameter
-        elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSurf.eq.103)) then ! 10V
-          isec1(6)=166         ! indicatorOfParameter
-        elseif ((parCat.eq.0).and.(parNum.eq.0).and.(typSurf.eq.103)) then ! 2T
-          isec1(6)=167         ! indicatorOfParameter
-        elseif ((parCat.eq.0).and.(parNum.eq.6).and.(typSurf.eq.103)) then ! 2D
-          isec1(6)=168         ! indicatorOfParameter
-        elseif ((parCat.eq.1).and.(parNum.eq.11).and.(typSurf.eq.1)) then ! SD
-          isec1(6)=141         ! indicatorOfParameter
-          conversion_factor=1000. !added by mc to make it consisitent with new readwind.f90
-        elseif ((parCat.eq.6).and.(parNum.eq.1) .or. parId .eq. 164) then ! CC !added by mc to make it consisitent with new readwind.f90
-          isec1(6)=164         ! indicatorOfParameter
-        elseif ((parCat.eq.1).and.(parNum.eq.9) .or. parId .eq. 142) then ! LSP !added by mc to make it consisitent with new readwind.f90
-          isec1(6)=142         ! indicatorOfParameter
-        elseif ((parCat.eq.1).and.(parNum.eq.10)) then ! CP
-          isec1(6)=143         ! indicatorOfParameter
-          conversion_factor=1000. !added by mc to make it consisitent with new readwind.f90
-        elseif ((parCat.eq.0).and.(parNum.eq.11).and.(typSurf.eq.1)) then ! SHF
-          isec1(6)=146         ! indicatorOfParameter
-        elseif ((parCat.eq.4).and.(parNum.eq.9).and.(typSurf.eq.1)) then ! SR
-          isec1(6)=176         ! indicatorOfParameter
-        elseif ((parCat.eq.2).and.(parNum.eq.38) .or. parId .eq. 180) then ! EWSS !added by mc to make it consisitent with new readwind.f90
-          isec1(6)=180         ! indicatorOfParameter
-        elseif ((parCat.eq.2).and.(parNum.eq.37) .or. parId .eq. 181) then ! NSSS !added by mc to make it consisitent with new readwind.f90
-          isec1(6)=181         ! indicatorOfParameter
-        elseif ((parCat.eq.3).and.(parNum.eq.4)) then ! ORO
-          isec1(6)=129         ! indicatorOfParameter
-        elseif ((parCat.eq.3).and.(parNum.eq.7) .or. parId .eq. 160) then ! SDO !added by mc to make it consisitent with new readwind.f90
-          isec1(6)=160         ! indicatorOfParameter
-        elseif ((discipl.eq.2).and.(parCat.eq.0).and.(parNum.eq.0).and. &
-             (typSurf.eq.1)) then ! LSM
-          isec1(6)=172         ! indicatorOfParameter
-        elseif (parNum.eq.152) then 
-            isec1(6)=152         ! avoid warning for lnsp       
+        elseif (parCat .eq. 201 .and. parNum .eq. 31 .and. typSfc .eq. 105) then ! qc
+          is6=201031 
+        elseif (parCat .eq. 3 .and. parNum .eq. 0 .and. typSfc .eq. 1) then !SP
+          is6=134 
+        elseif (parCat .eq. 2 .and. parNum .eq. 32) then ! W, actually eta dot
+          is6=135 
+        elseif (parCat .eq. 128 .and. parNum .eq. 77) then ! W, actually eta dot
+          is6=135 
+        elseif (parCat .eq. 3 .and. parNum .eq. 0 .and. typSfc .eq. 101) then ! SLP
+          is6=151 
+        elseif (parCat .eq. 2 .and. parNum .eq. 2 .and. typSfc .eq. 103) then ! 10U
+          is6=165 
+        elseif (parCat .eq. 2 .and. parNum .eq. 3 .and. typSfc .eq. 103) then ! 10V
+          is6=166 
+        elseif (parCat .eq. 0 .and. parNum .eq. 0 .and. typSfc .eq. 103) then ! 2T
+          is6=167 
+        elseif (parCat .eq. 0 .and. parNum .eq. 6 .and. typSfc .eq. 103) then ! 2D
+          is6=168 
+        elseif (parCat .eq. 1 .and. parNum .eq. 11 .and. typSfc .eq. 1) then ! SD
+          is6=141 
+          conversion_factor=1000.
+        elseif (parCat .eq. 6 .and. parNum .eq. 1 .or. parId .eq. 164) then ! CC
+          is6=164 
+        elseif (parCat .eq. 1 .and. parNum .eq. 9 .or. parId .eq. 142) then ! LSP
+          is6=142 
+        elseif (parCat .eq. 1 .and. parNum .eq. 10) then ! CP
+          is6=143 
+          conversion_factor=1000.
+        elseif (parCat .eq. 0 .and. parNum .eq. 11 .and. typSfc .eq. 1) then ! SHF
+          is6=146 
+        elseif (parCat .eq. 4 .and. parNum .eq. 9 .and. typSfc .eq. 1) then ! SR
+          is6=176 
+        elseif (parCat .eq. 2 .and. parNum .eq. 38 .or. parId .eq. 180) then ! EWSS --correct
+          is6=180 
+        elseif (parCat .eq. 2 .and. parNum .eq. 37 .or. parId .eq. 181) then ! NSSS --correct
+          is6=181 
+        elseif (parCat .eq. 3 .and. parNum .eq. 4) then ! ORO
+          is6=129 
+        elseif (parCat .eq. 3 .and. parNum .eq. 7 .or. parId .eq. 160) then ! SDO
+          is6=160 
+        elseif (discipl .eq. 2 .and. parCat .eq. 0 .and. parNum .eq. 0 .and. &
+             typSfc .eq. 1) then ! LSM
+          is6=172 
+        elseif (parNum .eq. 152) then 
+          is6=152         ! avoid warning for lnsp    
         else
           print*,'***WARNING: undefined GRiB2 message found!',discipl, &
-               parCat,parNum,typSurf
+               parCat,parNum,typSfc
         endif
-        if(parId .ne. isec1(6) .and. parId .ne. 77) then !added by mc to make it consisitent with new readwind.f90
-          write(*,*) 'parId',parId, 'isec1(6)',isec1(6)  !
-        !    stop
-        endif
+        if (parId .ne. is6 .and. parId .ne. 77) &
+          write(*,*) 'parId',parId, 'is6',is6
 
-      endif
-
+      endif ! grib Version conversion
+      
       !HSO  get the size and data of the values array
-      if (isec1(6).ne.-1) then
+      if (is6 .ne. -1) then
         call grib_get_real4_array(igrib,'values',zsec4,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
+        call grib_check(iret,thisSubr,gribErrorMsg)
       endif
 
       !HSO  get the required fields from section 2 in a gribex compatible manner
-      if(ifield.eq.1) then
-      call grib_get_int(igrib,'numberOfPointsAlongAParallel', &
-           isec2(2),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'numberOfPointsAlongAMeridian', &
-           isec2(3),iret)
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      call grib_get_int(igrib,'numberOfVerticalCoordinateValues', &
-           isec2(12))
-      call grib_check(iret,gribFunction,gribErrorMsg)
-      ! CHECK GRID SPECIFICATIONS
-      if(isec2(2).ne.nxn(l)) error stop &
-      'READWIND: NX NOT CONSISTENT FOR A NESTING LEVEL'
-      if(isec2(3).ne.nyn(l)) error stop &
-      'READWIND: NY NOT CONSISTENT FOR A NESTING LEVEL'
-      if(isec2(12)/2-1.ne.nlev_ec) error stop 'READWIND: VERTICAL DISCRET&
-           &IZATION NOT CONSISTENT FOR A NESTING LEVEL'
+      if (ifield .eq. 1) then
+        call grib_get_int(igrib,'numberOfPointsAlongAParallel',js2,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+        
+        call grib_get_int(igrib,'numberOfPointsAlongAMeridian',js3,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+        
+        call grib_get_int(igrib,'numberOfVerticalCoordinateValues',js12)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+        
+        ! CHECK GRID SPECIFICATIONS
+        if (js2 .ne. nxn(l)) &
+          stop 'READWIND: NX NOT CONSISTENT FOR A NESTING LEVEL'
+        if (js3 .ne. nyn(l)) &
+          stop 'READWIND: NY NOT CONSISTENT FOR A NESTING LEVEL'
+        if (js12/2-1 .ne. nlev_ec) stop 'READWIND: VERTICAL DISCRETIZATION NOT&
+          &CONSISTENT FOR A NESTING LEVEL'
       endif ! ifield
 
       !HSO  get the second part of the grid dimensions only from GRiB1 messages
-      if (isec1(6) .eq. 167 .and. (gotGrid.eq.0)) then ! !added by mc to make it consisitent with new readwind.f90
+      if (is6 .eq. 167 .and. gotGrid .eq. 0) then
+      
         call grib_get_real8(igrib,'longitudeOfFirstGridPointInDegrees', &
-             xauxin,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-        call grib_get_real8(igrib,'latitudeOfLastGridPointInDegrees', &
-             yauxin,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-        if (xauxin.gt.180.) xauxin=xauxin-360.0
-        if (xauxin.lt.-180.) xauxin=xauxin+360.0
-
+          xauxin,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+        
+        call grib_get_real8(igrib,'latitudeOfLastGridPointInDegrees',yauxin,iret)
+        call grib_check(iret,thisSubr,gribErrorMsg)
+        
+        if (xauxin .gt. 180.) xauxin=xauxin-360.0
+        if (xauxin .lt. -180.) xauxin=xauxin+360.0
+        
         xaux=xauxin
         yaux=yauxin
         if (abs(xaux-xlon0n(l)).gt.eps) &
-        error stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT FOR A NESTING LEVEL'
+        stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT FOR A NESTING LEVEL'
         if (abs(yaux-ylat0n(l)).gt.eps) &
-        error stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT FOR A NESTING LEVEL'
+        stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT FOR A NESTING LEVEL'
         gotGrid=1
-      endif
+        
+      endif ! gotGrid
+      
+      kz=nlev_ec-k+2  ! used for all 3D fields except W
+      kz1=nlev_ec-k+1 ! used for W
 
       do j=0,nyn(l)-1
+        jy=nyn(l)-j-1
         do i=0,nxn(l)-1
-          k=isec1(8)
-          if(isec1(6).eq.130) tthn(i,j,nlev_ec-k+2,n,l)= &!! TEMPERATURE
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.131) uuhn(i,j,nlev_ec-k+2,l)= &!! U VELOCITY
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.132) vvhn(i,j,nlev_ec-k+2,l)= &!! V VELOCITY
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.133) then                         !! SPEC. HUMIDITY
-            qvhn(i,j,nlev_ec-k+2,n,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-            if (qvhn(i,j,nlev_ec-k+2,n,l) .lt. 0.) &
-                 qvhn(i,j,nlev_ec-k+2,n,l) = 0.
-    !          this is necessary because the gridded data may contain
-    !          spurious negative values
-          endif
-          if(isec1(6).eq.134) psn(i,j,1,n,l)= &!! SURF. PRESS.
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.135) wwhn(i,j,nlev_ec-k+1,l)= &!! W VELOCITY
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.141) sdn(i,j,1,n,l)= &!! SNOW DEPTH
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)/conversion_factor !added by mc to make it consisitent with new readwind.f90!
-          if(isec1(6).eq.151) msln(i,j,1,n,l)= &!! SEA LEVEL PRESS.
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.164) tccn(i,j,1,n,l)= &!! CLOUD COVER
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.165) u10n(i,j,1,n,l)= &!! 10 M U VELOCITY
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.166) v10n(i,j,1,n,l)= &!! 10 M V VELOCITY
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.167) tt2n(i,j,1,n,l)= &!! 2 M TEMPERATURE
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.168) td2n(i,j,1,n,l)= &!! 2 M DEW POINT
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.142) then                         !! LARGE SCALE PREC.
-            lsprecn(i,j,1,n,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-            if (lsprecn(i,j,1,n,l).lt.0.) lsprecn(i,j,1,n,l)=0.
-          endif
-          if(isec1(6).eq.143) then                         !! CONVECTIVE PREC.
-            convprecn(i,j,1,n,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)/conversion_factor !added by mc to make it consisitent with new readwind.f90
-            if (convprecn(i,j,1,n,l).lt.0.) convprecn(i,j,1,n,l)=0.
-          endif
-          if(isec1(6).eq.146) sshfn(i,j,1,n,l)= &!! SENS. HEAT FLUX
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if((isec1(6).eq.146).and. &
-               (zsec4(nxn(l)*(nyn(l)-j-1)+i+1).ne.0.)) hflswitch=.true.    ! Heat flux available
-          if(isec1(6).eq.176) then                         !! SOLAR RADIATION
-            ssrn(i,j,1,n,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
+          ij=nxn(l)*jy + i+1
+          if (is6 .eq. 130) then ! TEMPERATURE
+            tthn(i,j,kz,n,l)=zsec4(ij)
+          elseif (is6 .eq. 131) then ! U VELOCITY
+            uuhn(i,j,kz,l)=zsec4(ij)
+            iumax=max(iumax,kz1)
+          elseif (is6 .eq. 132) then ! V VELOCITY
+            vvhn(i,j,kz,l)=zsec4(ij)
+          elseif (is6 .eq. 133) then ! SPEC. HUMIDITY
+            qvhn(i,j,kz,n,l)=zsec4(ij)
+            if (qvhn(i,j,kz,n,l) .lt. 0.) qvhn(i,j,kz,n,l) = 0.
+  !        necessary because the gridded data may contain spurious negative values
+          elseif (is6 .eq. 134) then ! SURF. PRESS.
+            psn(i,j,1,n,l)=zsec4(ij)
+          elseif (is6 .eq. 135) then ! W VELOCITY
+            wwhn(i,j,kz1,l)=zsec4(ij)
+            iwmax=max(iwmax,kz1)
+          elseif (is6 .eq. 141) then ! SNOW DEPTH
+            sdn(i,j,1,n,l)=zsec4(ij)/conversion_factor 
+          elseif (is6 .eq. 151) then ! SEA LEVEL PRESS.
+            msln(i,j,1,n,l)=zsec4(ij)
+          elseif (is6 .eq. 164) then ! CLOUD COVER
+            tccn(i,j,1,n,l)=zsec4(ij)
+          elseif (is6 .eq. 165) then ! 10 M U VELOCITY
+            u10n(i,j,1,n,l)=zsec4(ij)
+          elseif (is6 .eq. 166) then ! 10 M V VELOCITY
+            v10n(i,j,1,n,l)=zsec4(ij)
+          elseif (is6 .eq. 167) then ! 2 M TEMPERATURE
+            tt2n(i,j,1,n,l)=zsec4(ij)
+          elseif (is6 .eq. 168) then ! 2 M DEW POINT
+            td2n(i,j,1,n,l)=zsec4(ij)
+          elseif (is6 .eq. 142) then ! LARGE SCALE PREC.
+              lsprecn(i,j,1,ipf,n,l)=zsec4(ij)
+              if (lsprecn(i,j,1,ipf,n,l).lt.0.) lsprecn(i,j,1,ipf,n,l)=0.
+          elseif (is6 .eq. 143) then ! CONVECTIVE PREC.
+              convprecn(i,j,1,ipf,n,l)=zsec4(ij)/conversion_factor
+              if (convprecn(i,j,1,ipf,n,l).lt.0.) convprecn(i,j,1,ipf,n,l)=0.
+          elseif (is6 .eq. 146) then ! SENS. HEAT FLUX
+            sshfn(i,j,1,n,l)=zsec4(ij)
+            if (zsec4(ij).ne.0.) hflswitch=.true. ! Heat flux available
+          elseif (is6 .eq. 176) then ! SOLAR RADIATION
+            ssrn(i,j,1,n,l)=zsec4(ij)            
             if (ssrn(i,j,1,n,l).lt.0.) ssrn(i,j,1,n,l)=0.
+          elseif (is6 .eq. 180) then ! EW SURFACE STRESS
+            ewss(i,j)=zsec4(ij)
+          elseif (is6 .eq. 181) then ! NS SURFACE STRESS
+            nsss(i,j)=zsec4(ij)
+            if (zsec4(ij).ne.0.) strswitch=.true.  ! stress available
+          elseif (is6 .eq. 129) then ! ECMWF OROGRAPHY
+            oron(i,j,l)=zsec4(ij)/ga
+          elseif (is6 .eq. 160) then ! STANDARD DEVIATION OF OROGRAPHY
+            excessoron(i,j,l)=zsec4(ij)
+          elseif (is6 .eq. 172) then ! ECMWF LAND SEA MASK
+            lsmn(i,j,l)=zsec4(ij)
+          ! ZHG add reading of cloud water fields
+          ! ESO add reading of total cloud water fields
+          ! ESO TODO: add check whether either CLWC or CIWC is missing (->error)
+          !           if all 3 cw fields exist, use QC and disregard the others
+          elseif (is6 .eq. 246) then ! CLWC  Cloud liquid water content [kg/kg]
+            clwchn(i,j,kz,n,l)=zsec4(ij)
+            lcw_nest(l)=.true.
+            lcwsum_nest(l)=.false.
+          elseif (is6 .eq. 247) then ! CIWC  Cloud ice water content
+            ciwchn(i,j,kz,n,l)=zsec4(ij)
+          elseif (is6 .eq. 201031) then ! QC Cloud water content (liq+ice) [kg/kg]
+            clwchn(i,j,kz,n,l)=zsec4(ij)
+            lcw_nest(l)=.true.
+            lcwsum_nest(l)=.true.
           endif
-          if(isec1(6).eq.180) ewss(i,j)= &!! EW SURFACE STRESS
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.181) nsss(i,j)= &!! NS SURFACE STRESS
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(((isec1(6).eq.180).or.(isec1(6).eq.181)).and. &
-               (zsec4(nxn(l)*(nyn(l)-j-1)+i+1).ne.0.)) strswitch=.true.    ! stress available
-          if(isec1(6).eq.129) oron(i,j,l)= &!! ECMWF OROGRAPHY
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)/ga
-          if(isec1(6).eq.160) excessoron(i,j,l)= &!! STANDARD DEVIATION OF OROGRAPHY
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.172) lsmn(i,j,l)= &!! ECMWF LAND SEA MASK
-               zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          if(isec1(6).eq.131) iumax=max(iumax,nlev_ec-k+1)
-          if(isec1(6).eq.135) iwmax=max(iwmax,nlev_ec-k+1)
-
-    ! ESO TODO:
-    ! -add check for if one of clwc/ciwc missing (error),
-    !    also if all 3 cw fields present, use qc and disregard the others
-          if(isec1(6).eq.246) then  !! CLWC  Cloud liquid water content [kg/kg]
-            clwchn(i,j,nlev_ec-k+2,n,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-            readclouds_nest(l)=.true.
-            sumclouds_nest(l)=.false.
-          endif
-          if(isec1(6).eq.247) then  !! CIWC  Cloud ice water content
-            ciwchn(i,j,nlev_ec-k+2,n,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-          endif
-    !ZHG end
-    !ESO read qc (=clwc+ciwc)
-          if(isec1(6).eq.201031) then  !! QC  Cloud liquid water content [kg/kg]
-            clwchn(i,j,nlev_ec-k+2,n,l)=zsec4(nxn(l)*(nyn(l)-j-1)+i+1)
-            readclouds_nest(l)=.true.
-            sumclouds_nest(l)=.true.
-          endif
-
 
         end do
       end do
@@ -3590,27 +3639,25 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
   !
     call grib_close_file(ifile)
 
-    !error message if no fields found with correct first longitude in it
-    if (gotGrid.eq.0) then
-      print*,'***ERROR: input file needs to contain GRiB1 formatted'// &
-           'messages'
-      error stop
+    !error message if no field found with correct first longitude in it
+    if (gotGrid .eq. 0) then
+      print*,'***ERROR: input file needs to contain GRiB1-formatted messages'
+      stop
     endif
 
-    if(levdiff2.eq.0) then
+    if (nlev_ec-nwz+1 .eq. 0) then
       iwmax=nlev_ec+1
-      do i=0,nxn(l)-1
-        do j=0,nyn(l)-1
-          wwhn(i,j,nlev_ec+1,l)=0.
-        end do
-      end do
+      wwhn(:,:,iwmax,l)=0.
     endif
 
-    do i=0,nxn(l)-1
-      do j=0,nyn(l)-1
+    ! Assign 10 m wind to model level at eta=1.0 to have one additional model
+    ! level at the ground
+    ! Specific humidity is taken the same as at one level above
+    ! Temperature is taken as 2 m temperature
+    !**************************************************************************
+    forall (i=0:nxn(l)-1,j=0:nyn(l)-1) &
         sfcstressn(i,j,1,n,l)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
-      end do
-    end do
+
 
     if ((.not.hflswitch).or.(.not.strswitch)) then
       write(*,*) 'WARNING: No flux data contained in GRIB file ', &
@@ -3622,46 +3669,45 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
     ! (3rd model level in FLEXPART) for the profile method
     !***************************************************************************
 
-      do i=0,nxn(l)-1
-        do j=0,nyn(l)-1
+      do j=0,nyn(l)-1
+        do i=0,nxn(l)-1
           plev1=akz(3)+bkz(3)*psn(i,j,1,n,l)
           pmean=0.5*(psn(i,j,1,n,l)+plev1)
           tv=tthn(i,j,3,n,l)*(1.+0.61*qvhn(i,j,3,n,l))
           fu=-r_air*tv/ga/pmean
-          hlev1=fu*(plev1-psn(i,j,1,n,l))   ! HEIGTH OF FIRST MODEL LAYER
+          hlev1=fu*(plev1-psn(i,j,1,n,l)) ! HEIGHT OF FIRST MODEL LAYER
           ff10m= sqrt(u10n(i,j,1,n,l)**2+v10n(i,j,1,n,l)**2)
           fflev1=sqrt(uuhn(i,j,3,l)**2+vvhn(i,j,3,l)**2)
           call pbl_profile(psn(i,j,1,n,l),td2n(i,j,1,n,l),hlev1, &
                tt2n(i,j,1,n,l),tthn(i,j,3,n,l),ff10m,fflev1, &
                sfcstressn(i,j,1,n,l),sshfn(i,j,1,n,l))
-          if(sshfn(i,j,1,n,l).gt.200.) sshfn(i,j,1,n,l)=200.
-          if(sshfn(i,j,1,n,l).lt.-400.) sshfn(i,j,1,n,l)=-400.
+          if (sshfn(i,j,1,n,l) .gt. +200.) sshfn(i,j,1,n,l)=+200.
+          if (sshfn(i,j,1,n,l) .lt. -400.) sshfn(i,j,1,n,l)=-400.
         end do
-      end do
+      enddo
+
     endif
+    
+    ! Assign 10 m wind to model level at eta=1.0 to have one additional model
+    ! level at the ground
+    ! Specific humidity is taken the same as at one level above
+    ! Temperature is taken as 2 m temperature
+    !**************************************************************************
 
+    forall (i=0:nxn(l)-1, j=0:nyn(l)-1)
+      uuhn(i,j,1,l)=u10n(i,j,1,n,l)
+      vvhn(i,j,1,l)=v10n(i,j,1,n,l)
+      qvhn(i,j,1,n,l)=qvhn(i,j,2,n,l)
+      tthn(i,j,1,n,l)=tt2n(i,j,1,n,l)
+    end forall
 
-  ! Assign 10 m wind to model level at eta=1.0 to have one additional model
-  ! level at the ground
-  ! Specific humidity is taken the same as at one level above
-  ! Temperature is taken as 2 m temperature
-  !**************************************************************************
-
-    do i=0,nxn(l)-1
-      do j=0,nyn(l)-1
-        uuhn(i,j,1,l)=u10n(i,j,1,n,l)
-        vvhn(i,j,1,l)=v10n(i,j,1,n,l)
-        qvhn(i,j,1,n,l)=qvhn(i,j,2,n,l)
-        tthn(i,j,1,n,l)=tt2n(i,j,1,n,l)
-      end do
-    end do
 
     if(iumax.ne.nuvz-1) error stop &
          'READWIND: NUVZ NOT CONSISTENT FOR A NESTING LEVEL'
     if(iwmax.ne.nwz) error stop &
          'READWIND: NWZ NOT CONSISTENT FOR A NESTING LEVEL'
 
-  end do
+  end do l_loop
 
   return
 888   write(*,*) ' #### FLEXPART MODEL ERROR! WINDFIELD         #### '
@@ -3836,17 +3882,16 @@ subroutine alloc_windfields
   !***********
   allocate(clwc(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(ciwc(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(clw(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
   allocate(clwch(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
   allocate(ciwch(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
   clwc=0.0
   ciwc=0.0
-  clw=0.0
   clwch=0.0
   ciwch=0.0
   allocate(ctwc(0:nxmax-1,0:nymax-1,numwfmem))
-  allocate(cloudsh(0:nxmax-1,0:nymax-1,numwfmem))
-  allocate(clouds(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+  allocate(icloudbot(0:nxmax-1,0:nymax-1,numwfmem))
+  allocate(icloudthck(0:nxmax-1,0:nymax-1,numwfmem))
+
 
   ! 2d fields
   !**********
@@ -3858,8 +3903,8 @@ subroutine alloc_windfields
   allocate(v10(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(tt2(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(td2(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(lsprec(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(convprec(0:nxmax-1,0:nymax-1,1,numwfmem))
+  allocate(lsprec(0:nxmax-1,0:nymax-1,1,numpf,numwfmem))
+  allocate(convprec(0:nxmax-1,0:nymax-1,1,numpf,numwfmem))
   allocate(sshf(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(ssr(0:nxmax-1,0:nymax-1,1,numwfmem))
   allocate(sfcstress(0:nxmax-1,0:nymax-1,1,numwfmem))
@@ -3907,7 +3952,6 @@ subroutine alloc_windfields_nest
   allocate(pvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(clwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(ciwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(clwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
 
   ! ETA equivalents
   allocate(uuetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
@@ -3922,8 +3966,6 @@ subroutine alloc_windfields_nest
   allocate(etauvheightn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
   allocate(etawheightn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
 
-  allocate(cloudsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(cloudshn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
   allocate(prsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(rhon(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
   allocate(drhodzn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
@@ -3932,6 +3974,8 @@ subroutine alloc_windfields_nest
   allocate(clwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
   allocate(ciwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
   allocate(ctwcn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
+  allocate(icloudbotn(0:nxmax-1,0:nymax-1,numwfmem,numbnests))
+  allocate(icloudthckn(0:nxmax-1,0:nymax-1,numwfmem,numbnests))
 
   ! 2d fields
   !***********
@@ -3943,8 +3987,8 @@ subroutine alloc_windfields_nest
   allocate(v10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(tt2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(td2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
-  allocate(lsprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
-  allocate(convprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
+  allocate(lsprecn(0:nxmaxn-1,0:nymaxn-1,1,numpf,numwfmem,maxnests))
+  allocate(convprecn(0:nxmaxn-1,0:nymaxn-1,1,numpf,numwfmem,maxnests))
   allocate(sshfn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(ssrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
   allocate(sfcstressn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,maxnests))
@@ -3978,8 +4022,8 @@ subroutine dealloc_windfields_nest
 
   deallocate(oron,excessoron,lsmn)
 
-  deallocate(uun,vvn,wwn,ttn,qvn,pvn,clwcn,ciwcn,clwn,cloudsn, &
-    cloudshn,rhon,prsn,drhodzn,tthn,qvhn,clwchn,ciwchn,ctwcn)
+  deallocate(uun,vvn,wwn,ttn,qvn,pvn,clwcn,ciwcn, &
+    rhon,prsn,drhodzn,tthn,qvhn,clwchn,ciwchn,ctwcn)
 
   deallocate(uuetan,vvetan,wwetan,ttetan,pvetan,prsetan,rhoetan, &
     drhodzetan,etauvheightn,etawheightn)
@@ -4000,7 +4044,7 @@ subroutine dealloc_windfields
 
   deallocate(uu,vv,ww,uupol,vvpol,tt,tth,qv,qvh,pv,rho,drhodz,pplev,prs,rho_dry)
 
-  deallocate(clwc,ciwc,clw,clwch,ciwch,ctwc,cloudsh,clouds)
+  deallocate(clwc,ciwc,clwch,ciwch,ctwc)
 
   deallocate(ps,sd,msl,tcc,u10,v10,tt2,td2,lsprec,convprec,sshf,ssr,sfcstress, &
     ustar,wstar,hmix,tropopause,oli)

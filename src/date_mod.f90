@@ -23,6 +23,9 @@ subroutine caldate(juliandate,yyyymmdd,hhmiss)
   !                                                                            *
   !     AUTHOR: Andreas Stohl (21 January 1994), adapted from Numerical Recipes*
   !                                                                            *
+  !     PS 2020-07-27: add a check to avoid giving back 240000 for hhmiss      *
+  !                                                                            *
+  !                                                                            *
   !     Variables:                                                             *
   !     dd             Day                                                     *
   !     hh             Hour                                                    *
@@ -50,6 +53,7 @@ subroutine caldate(juliandate,yyyymmdd,hhmiss)
   integer,parameter :: igreg=2299161
 
   julday=int(juliandate)
+  ! PS check to avoid 240000 as hhmiss:  
   if ((juliandate-julday)*86400._dp .ge. 86399.5_dp) then
     juliandate = juliandate + juliandate-julday-86399.5_dp/86400._dp
     julday=int(juliandate)

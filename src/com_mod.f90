@@ -6,7 +6,10 @@
 !                                                                              *
 !        June 1996                                                             *
 !                                                                              *
-!        Last update:15 August 2013 IP                                         *
+!        Update: 15 August 2013 IP                                             *
+!        PS 19 Nov 2020: correct comment about lcw                             *
+!        Anne Tipka, Petra Seibert 2021-02: implement new interpolation        *
+!           for precipitation according to #295 using 2 additional fields      *
 !                                                                              *
 !*******************************************************************************
 
@@ -14,7 +17,7 @@ module com_mod
 
   use par_mod, only: dp, numpath, maxnests, maxageclass, maxspec, maxndia, &
        numclass, maxcolumn, maxwf, nxmaxn, nymaxn, &
-       maxreceptor, maxrand, numwfmem
+       maxreceptor, maxrand, numwfmem, numpf
 
   implicit none
 
@@ -152,25 +155,33 @@ module com_mod
   ! nageclass               number of ageclasses for the age spectra calculation
   ! lage [s]                ageclasses for the age spectra calculation
 
+ !ESO: Disable settling if more than 1 species per release point
+  logical :: lsettling=.true.
 
   logical :: gdomainfill
   ! gdomainfill             .T., if domain-filling is global, .F. if not
 
-!ZHG SEP 2015 wheather or not to read clouds from GRIB
-  logical :: readclouds=.false.
-!ESO DEC 2015 whether or not both clwc and ciwc are present (if so they are summed)
-  logical :: sumclouds=.false.
-
-!ESO: Disable settling if more than 1 species per release point
-  logical :: lsettling=.true.
-
-  logical,dimension(maxnests) :: readclouds_nest, sumclouds_nest
+  logical :: lcw=.false. ! ZHG Sep 2015 ! AT renamed
+  ! whether or not cloud water data found in GRIB, overwritten if CW is found
   
+  logical :: lcwsum=.false. ! ESO Dec 2015 ! AT renamed
+  ! whether or not both clwc and ciwc are present (if so they are summed)
 
-!NIK 16.02.2015
-  integer(selected_int_kind(16)), dimension(maxspec) :: tot_blc_count=0, &
-       &tot_inc_count=0
+  logical :: lprecint ! AT, PS 2021
+  ! true if new interpolation using additional precip fields is used
+    
+  logical,dimension(maxnests) :: lcw_nest=.false.
+  logical,dimension(maxnests) :: lcwsum_nest=.false.
+  logical,dimension(maxnests) :: lprecintn
+ 
+  !NIK 16.02.2015
+  integer(selected_int_kind(16)), dimension(maxspec) :: icnt_belowcld=0, &
+       &icnt_incld=0
 
+  integer :: bcscheme ! AT 2021
+  ! = 1 for below cloud scheme of Grythe et al 2017 (based on Laakso and Kyro)
+  ! = 2 for below-cloud scheme of Tipka et al 2023 (based on Wang et al 2014)
+  ! = 3 for below-cloud scheme of Tipka et al 2023 (based on modified Wang et al 2014)
 
   !*********************************************************************
   ! Variables defining the release locations, released species and their

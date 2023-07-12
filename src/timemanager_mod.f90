@@ -135,7 +135,7 @@ subroutine timemanager
     decfact,                & ! radioactive decay factor
     wetscav,                & ! wet scavenging
     xmassfract,             & ! dry deposition related
-    grfraction(3)             ! wet deposition related
+    gridfrac                  ! wet deposition related
   real(dep_prec) ::         &
     drydeposit(maxspec)       ! dry deposition related
   real(kind=dp) :: zhier,zetahier

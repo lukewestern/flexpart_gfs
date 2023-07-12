@@ -35,6 +35,9 @@ subroutine wetdepo(itime,ltsample,loutnext)
   !                                                                            *
   ! 2021 Andreas Plach: - moved backward wet depo. calc. here from timemanager *
   !                     - bugfix in-cloud scavenging                           *
+  !                                                                            *
+  ! PS, AP 2021: followed up on some variable renaming and                     *
+  !                corrected get_wetscav subroutine parameter list             *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -62,10 +65,9 @@ subroutine wetdepo(itime,ltsample,loutnext)
   integer :: jpart,itime,ltsample,loutnext,ldeltat
   integer :: itage,nage,inage,ithread,thread
   integer :: ks, kp
-  integer(selected_int_kind(16)), dimension(nspec) :: blc_count, inc_count
-  real :: grfraction(3),wetscav
+  real :: gridfract,wetscav
   real :: wetdeposit(maxspec),restmass
-  real,parameter :: smallnum = tiny(0.0) ! smallest number that can be handled
+  real,parameter :: smallnum = tiny(0.) ! smallest number that can be handled
 
   ! Compute interval since radioactive decay of deposited mass was computed
   !************************************************************************
@@ -78,14 +80,12 @@ subroutine wetdepo(itime,ltsample,loutnext)
 
   ! Loop over all particles
   !************************
-  blc_count(:)=0
-  inc_count(:)=0
 
 #ifdef _OPENMP
   call omp_set_num_threads(numthreads_grid)
 #endif
 !$OMP PARALLEL PRIVATE(jpart,itage,nage,inage,ks,kp,thread,wetscav,wetdeposit, &
-!$OMP restmass, grfraction) REDUCTION(+:blc_count,inc_count)
+!$OMP restmass, gridfract) 
 
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM() ! Starts with 0
@@ -113,19 +113,19 @@ subroutine wetdepo(itime,ltsample,loutnext)
 
     do ks=1,nspec      ! loop over species
 
-      if (WETDEPSPEC(ks).eqv..false.) cycle 
+      if (.not. WETDEPSPEC(ks)) cycle 
 
   !**************************************************
   ! CALCULATE DEPOSITION 
   !**************************************************
 
-      call get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc_count,wetscav) ! OMP carefully check
+      call get_wetscav(itime,ltsample,loutnext,jpart,ks,gridfract,wetscav) ! OMP carefully check
 
       if (WETBKDEP) then
         if ((xscav_frac1(jpart,ks).lt.-0.1)) then   ! particle marked as starting particle
           if (wetscav.gt.0.) then
              xscav_frac1(jpart,ks)=wetscav*(zpoint2(part(jpart)%npoint)-&
-             zpoint1(part(jpart)%npoint))*grfraction(1)
+               zpoint1(part(jpart)%npoint))*gridfract
           else
             part(jpart)%mass(ks)=0.
             xscav_frac1(jpart,ks)=0.
@@ -135,7 +135,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
 
       if (wetscav.gt.0.) then
         wetdeposit(ks)=part(jpart)%mass(ks)* &
-             (1.-exp(-wetscav*abs(ltsample)))*grfraction(1)  ! wet deposition
+             (1.-exp(-wetscav*abs(ltsample)))*gridfract  ! wet deposition
       else ! if no scavenging
         wetdeposit(ks)=0.
       endif
@@ -148,24 +148,23 @@ subroutine wetdepo(itime,ltsample,loutnext)
       endif
       if (restmass .gt. smallnum) then
         part(jpart)%mass(ks)=restmass
-  !   depostatistic
-  !   wetdepo_sum(ks,kp)=wetdepo_sum(ks,kp)+wetdeposit(ks)
-  !   depostatistic
+  !   depo_statistics
+  !     wetdepo_sum(ks,kp)=wetdepo_sum(ks,kp)+wetdeposit(ks)
+  !   depo_statistics
       else
         part(jpart)%mass(ks)=0.
       endif
   !   Correct deposited mass to the last time step when radioactive decay of
   !   gridded deposited mass was calculated
-      if (decay(ks).gt.0.) then
+      if (decay(ks).gt.0.) &
         wetdeposit(ks)=wetdeposit(ks)*exp(abs(ldeltat)*decay(ks))
-      endif
 
-  !    endif ! no deposition
     end do ! loop over species
 
-  ! Sabine Eckhardt, June 2008 create deposition runs only for forward runs
-  ! Add the wet deposition to accumulated amount on output grid and nested output grid
-  !*****************************************************************************
+    !************************************************************************
+    ! Sabine Eckhardt, June 2008 create deposition only for forward runs
+    ! Add the wet deposition to accumulated amount on output grid 
+    !                                      and nested output grid
 
     if ((ldirect.eq.1).and.(iout.ne.0)) then !OMP reduction necessary for wetgridunc
       call wetdepokernel(part(jpart)%nclass,wetdeposit,real(part(jpart)%xlon), &
@@ -197,14 +196,11 @@ subroutine wetdepo(itime,ltsample,loutnext)
       endif
     endif
 #endif
-  !write(*,*) 'WETGRIDUNC:',sum(wetgridunc),wetgridunc(20,270,1,1,1,1),wetgridunc(19,269,1,1,1,1)
-  ! count the total number of below-cloud and in-cloud occurences:
-  tot_blc_count(1:nspec)=tot_blc_count(1:nspec)+blc_count(1:nspec)
-  tot_inc_count(1:nspec)=tot_inc_count(1:nspec)+inc_count(1:nspec)
+
 end subroutine wetdepo
 
-subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc_count,wetscav)
-  !                          i      i        i     i   i    o           o          o       o
+subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,gridfract,wetscav)
+  !                      i      i        i       i    i    o         o
   !*****************************************************************************
   !                                                                            *
   ! Calculation of wet deposition using the concept of scavenging coefficients.*
@@ -222,6 +218,16 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   ! use centred precipitation data for integration                             *
   ! Code may not be correct for decay of deposition!                           *
   !                                                                            *
+  ! ZHG, for v10: use below-cloud scavenging according to Laakso et al (2003)  *
+  !   and Kyro et al (2009) as described in Grytte et al (2017, GMD)           *
+  !                                                                            *
+  ! PS, AP 04/2019: - put back temporal interpolation of rain, from v10.01     *
+  !                 - tansferred BCSCHEME parameters to par_mod.f90            *
+  !                 - added call to rain interpolation subroutine with new     *
+  !                    interpolation for rain and all cloud params             *
+  !                 - cleaned up scavenging determination algorithm            *
+  !                 - added new below-cloud scavenging scheme                  *
+  !                                                                            *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -235,7 +241,7 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   !                    and convective precipitation (dependent on prec. rate)  *
   ! loutnext [s]       time for which gridded deposition is next output        *
   ! loutstep [s]       interval at which gridded deposition is output          *
-  ! lsp [mm/h]         large scale precipitation rate                          *
+  ! lsp [mm/h]         large-scale precipitation rate                          *
   ! ltsample [s]       interval over which mass is deposited                   *
   ! prec [mm/h]        precipitation rate in subgrid, where precipitation occurs*
   ! wetgrid            accumulated deposited mass on output grid               *
@@ -250,45 +256,30 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   use coord_ecmwf_mod
 
   implicit none
+  
+  real, parameter :: smallnum = tiny(0.) ! smallest number that can be handled
+  real, parameter :: lfr(5) = (/ 0.5, 0.65, 0.8, 0.9, 0.95/)
+  real, parameter :: cfr(5) = (/ 0.4, 0.55, 0.7, 0.8, 0.9 /)
+  real, parameter :: precsub = 0.01 ! minimum precip rate (mm/h)
 
-  integer :: jpart,itime,ltsample,loutnext,i,j
-  integer :: hz,il,interp_time, n
-  integer(kind=1) :: clouds_v
-  integer :: ks, kp
-  integer(selected_int_kind(16)), dimension(nspec) :: blc_count, inc_count
-
-  !  integer :: n1,n2, icbot,ictop, indcloud !TEST
-  real :: S_i, act_temp, cl, cle ! in cloud scavenging
-  real :: clouds_h ! cloud height for the specific grid point
-  real :: lsp,convp,cc,grfraction(3),prec(3),wetscav,totprec
+  integer :: jpart,itime,ltsample,loutnext,i,j,k,kz
+  integer :: interp_time, n
+  integer :: ks, kp, n1,n2, icbot,ictop, indcloud
+  
+  real :: si, t_particle, cl, cle ! in cloud scavenging
+  real :: lsp,convp,cc,gridfract,prec,wetscav,wetscavlim,f
   real :: restmass
-  real,parameter :: smallnum = tiny(0.0) ! smallest number that can be handled
-  !save lfr,cfr
+  real :: frac_act, frac_liq, frac_ice, dquer_m, ldquer, logAd, B
   real :: xts,yts
-
-  real, parameter :: lfr(5) = (/ 0.5,0.65,0.8,0.9,0.95/)
-  real, parameter :: cfr(5) = (/ 0.4,0.55,0.7,0.8,0.9 /)
-
-  !ZHG aerosol below-cloud scavenging removal polynomial constants for rain and snow
-  real, parameter :: bclr(6) = (/274.35758, 332839.59273, 226656.57259, 58005.91340, 6588.38582, 0.244984/) !rain (Laakso et al 2003)
-  real, parameter :: bcls(6) = (/22.7, 0.0, 0.0, 1321.0, 381.0, 0.0/) !now (Kyro et al 2009)
-  real :: frac_act, liq_frac, ice_frac, dquer_m
-
-  real    :: Si_dummy, wetscav_dummy
-  logical :: readclouds_this_nest
-
-
+  real :: Si_dummy, wetscav_dummy
+  
   wetscav=0.
 
-  ! Interpolate large scale precipitation, convective precipitation and
-  ! total cloud cover
-  ! Note that interpolated time refers to itime-0.5*ltsample [PS]
+  ! Interpolate large-scale precipitation, convective precipitation,
+  ! total cloud cover, particle temperature, cloud water content, 
+  ! cloud bottom and top 
   !********************************************************************
-  interp_time=nint(itime-0.5*ltsample) 
-
-  n=memind(2)
-  if (abs(memtime(1)-interp_time).lt.abs(memtime(2)-interp_time)) &
-       n=memind(1)
+  interp_time=itime
 
   xts=real(part(jpart)%xlon)
   yts=real(part(jpart)%ylat)
@@ -309,41 +300,62 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
 
   call find_grid_indices(xts,yts)
   call find_grid_distances(xts,yts)
-
-  if (ngrid.le.0) then
-    ! No temporal interpolation to stay consistent with clouds
-    call hor_interpol(lsprec,lsp,1,n,1) ! large scale total precipitation
-    call hor_interpol(convprec,convp,1,n,1) ! convective precipitation
-    call hor_interpol(tcc,cc,1,n,1) ! total cloud cover
-  else
-    call hor_interpol_nest(lsprecn,lsp,1,n,1) ! large scale total precipitation
-    call hor_interpol_nest(convprecn,convp,1,n,1) ! convective precipitation
-    call hor_interpol_nest(tccn,cc,1,n,1) ! total cloud cover
-  endif
-
-  !  If total precipitation is less than 0.01 mm/h - no scavenging occurs
-  if ((lsp.lt.0.01).and.(convp.lt.0.01)) return
-
+  
   if (wind_coord_type.eq.'ETA') then
     call find_z_level_eta_uv(real(part(jpart)%zeta))
-    hz=induv
+    kz=induv
   else
     call find_z_level_meters(real(part(jpart)%z))
-    hz=indz
+    kz=indz
   endif
-
+  
   if (ngrid.le.0) then
-    clouds_v=clouds(ix,jy,hz,n)
-    clouds_h=cloudsh(ix,jy,n)
+	call interpol_rain(lsprec,convprec,tcc,tt,ctwc, &
+         icloudbot,icloudthck,nxmax,nymax,1,nzmax,nx,ny, &
+         memind,xts,yts,1,kz,memtime(1), &
+         memtime(2),interp_time,lsp,convp,cc,t_particle,cl,icbot,ictop,icmv)
   else
-    clouds_v=cloudsn(ix,jy,hz,n,ngrid)
-    clouds_h=cloudshn(ix,jy,n,ngrid)
+	call interpol_rain_nests(lsprecn,convprecn,tccn,ttn,ctwcn, &
+         icloudbotn,icloudthckn,nxmaxn,nymaxn,1,nzmax, &
+         maxnests,ngrid,nxn,nyn,memind,xtn,ytn,1,kz,memtime(1), &
+         memtime(2),interp_time,lsp,convp,cc,t_particle,cl,icbot,ictop,icmv)
   endif
 
-  ! if there is no precipitation or the particle is above the clouds no
-  ! scavenging is done
+! If total precipitation is less than precsub=0.01 mm/h - no scavenging
+! Note: original PS version (in order avoid step at 0.01)
+!-----------------------------------------------------------------------
+  prec = lsp+convp
+  if (prec .le. precsub) then
+    return
+  else
+    f = (prec-precsub)/prec
+    lsp   = f*lsp
+    convp = f*convp
+  endif
 
-  if (clouds_v.le.1) return
+  if (abs(memtime(1)-interp_time) .lt. abs(memtime(2)-interp_time)) then
+    n=memind(1)
+  else
+    n=memind(2)
+  endif
+
+! if particle is above the clouds no scavenging is done
+!------------------------------------------------------
+! PS: part of 2011/2012 fix 
+! NOTE this is just for z coordinate
+! TODO convert for ETA coordinate too
+  if   (part(jpart)%z .le. float(ictop)) then
+    if (part(jpart)%z .gt. float(icbot)) then
+      indcloud = 2 ! in-cloud
+    else
+      indcloud = 1 ! below-cloud
+    endif
+  elseif (ictop .eq. icmv) then
+    indcloud = 0 ! no cloud found, use old scheme
+  else
+    return ! above cloud
+  endif
+
 
   ! 1) Parameterization of the the area fraction of the grid cell where the
   !    precipitation occurs: the absolute limit is the total cloud cover, but
@@ -377,144 +389,293 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   endif
 
 
-  !ZHG oct 2014 : Calculated for 1) both 2) lsp 3) convp - 2 and 3 not used removed by SE
-  ! Tentatively differentiate the grfraction for lsp and convp for treating differently the two forms
-  ! for now they are treated the same
-  grfraction(1)=max(0.05,cc*(lsp*lfr(i)+convp*cfr(j))/(lsp+convp))
+! In the future, we may differentiate the gridfract for lsp and convp
+! for now they are still mixed
+  gridfract=max( 0.05, cc* (lsp*lfr(i) + convp*cfr(j)) / (lsp+convp))
+
 
   ! 2) Computation of precipitation rate in sub-grid cell
   !******************************************************
-  prec(1)=(lsp+convp)/grfraction(1)
+  prec=(lsp+convp)/gridfract
 
   ! 3) Computation of scavenging coefficients for all species
-  !    Computation of wet deposition
   !**********************************************************
 
-  if (ngrid.gt.0) then
-    if (wind_coord_type.eq.'ETA') then
-      act_temp=ttetan(ix,jy,hz,n,ngrid)
-    else
-      act_temp=ttn(ix,jy,hz,n,ngrid)
-    endif
-  else
-    if (wind_coord_type.eq.'ETA') then
-      act_temp=tteta(ix,jy,hz,n)
-    else
-      act_temp=tt(ix,jy,hz,n)
-    endif
-  endif
+!-------------------------------------------------------
+  if (indcloud .eq. 0) then ! NO CLOUD FOUND
+!-------------------------------------------------------
+! Note: more complex formulation using H or particle diametre
+!       may be introduced later      
 
-  !***********************
-  ! BELOW CLOUD SCAVENGING
-  !***********************  
-  if (clouds_v.ge.4) then !below cloud
+    wetscav=wet_a*prec**wet_b
 
-  ! For gas: if positive below-cloud parameters (A or B), and dquer<=0
-  !******************************************************************
-    if ((dquer(ks).le.0.).and.(weta_gas(ks).gt.0..or.wetb_gas(ks).gt.0.)) then
-      blc_count(ks)=blc_count(ks)+1
-      wetscav=weta_gas(ks)*prec(1)**wetb_gas(ks)
+!-------------------------------------------------------
+  else if (indcloud .eq. 1) then ! BELOW CLOUD SCAVENGING
+!-------------------------------------------------------
+      if (dquer(ks).le.0. .and. &
+        weta_gas(ks).gt.0. .and. wetb_gas(ks).gt.0.) then
 
-  ! For aerosols: if positive below-cloud parameters (Crain/Csnow or B), and dquer>0
-  !*********************************************************************************
-    else if ((dquer(ks).gt.0.).and.(crain_aero(ks).gt.0..or.csnow_aero(ks).gt.0.)) then
-      blc_count(ks)=blc_count(ks)+1
+! gas: if positive below-cloud parameters (A or B), and dquer<=0
 
-  !NIK 17.02.2015
-  ! For the calculation here particle size needs to be in meter and not um as dquer is
-  ! changed in readreleases
-  ! For particles larger than 10 um use the largest size defined in the parameterizations (10um)
-      dquer_m=min(10.,dquer(ks))/1000000. !conversion from um to m
+          icnt_belowcld(ks)=icnt_belowcld(ks)+1
+          wetscav=weta_gas(ks)*prec**wetb_gas(ks)
 
-  ! Rain:
-      if (act_temp .ge. 273. .and. crain_aero(ks).gt.0.)  then
+      else if (dquer(ks).gt.0. .and. &
+        (crain_aero(ks).gt.0. .or. csnow_aero(ks).gt.0.)) then
 
-  ! ZHG 2014 : Particle RAIN scavenging coefficient based on Laakso et al 2003, 
-  ! the below-cloud scavenging (rain efficienty) parameter Crain (=crain_aero) from SPECIES file
-        wetscav=crain_aero(ks)*10**(bclr(1)+(bclr(2)*(log10(dquer_m))**(-4))+ &
-             & (bclr(3)*(log10(dquer_m))**(-3))+ (bclr(4)*(log10(dquer_m))**(-2))+&
-             &(bclr(5)*(log10(dquer_m))**(-1))+bclr(6)* (prec(1))**(0.5))
+! aerosols: if positive below-cloud parameters (Crain/Csnow or B), and dquer>0
 
-  ! Snow:
-      elseif (act_temp .lt. 273. .and. csnow_aero(ks).gt.0.)  then 
-  ! ZHG 2014 : Particle SNOW scavenging coefficient based on Kyro et al 2009, 
-  ! the below-cloud scavenging (Snow efficiency) parameter Csnow (=csnow_aero) from SPECIES file
-        wetscav=csnow_aero(ks)*10**(bcls(1)+(bcls(2)*(log10(dquer_m))**(-4))+&
-             &(bcls(3)*(log10(dquer_m))**(-3))+ (bcls(4)*(log10(dquer_m))**(-2))+&
-             &(bcls(5)*(log10(dquer_m))**(-1))+ bcls(6)* (prec(1))**(0.5))
+        icnt_belowcld(ks)=icnt_belowcld(ks)+1
 
-      endif
+!NIK 17.02.2015: For the calculation here, the particle diametre needs to be in
+! metre and not um; the SPECIES file, however contains m.
+! In readspecies, dquer is converted from m to um (for settling calculation)
+! Now here we convert back to a local variable dquer_m.
+        dquer_m = dquer(ks)*1.e-6
+
+! The parameterizations used by HG scheme are valid only for d < 10 um
+! Therefore, locally the diametre is clipped. However, settling and dry dep
+! are still calculated with the original diametre
+! TODO check whether warning is written by readrelease for d > 10 um
+        dquer_m = min( 10.e-6, dquer_m )
+
+        if (t_particle .ge. 273. .and. crain_aero(ks).gt.0.) then ! Rain:
+! PS note that solid precip is usually expected for T<Tf, not T<273
+! also, if freezing/melting point is desired, why not 273.2?
+
+          if (bcscheme .eq. 1) then
+! ZHG 2014: Particle rain scavenging coefficient based on Laakso et al 2003, 
+! scaling factor Crain (=crain_aero) is read from SPECIES file
+
+            wetscav = &
+              crain_aero(ks)*10**( &
+                bclr(1) + &
+                bclr(2) * log10(dquer_m)**(-4) + &
+                bclr(3) * log10(dquer_m)**(-3) + &
+                bclr(4) * log10(dquer_m)**(-2) + &
+                bclr(5) * log10(dquer_m)**(-1) + &
+                bclr(6) * prec**0.5 &
+                )
+                  
+          elseif (bcscheme .eq. 2 .or. bcscheme .eq. 3) then
+! AT parameterization after WANG ET AL 2014   
+!    unit of dquer is in um
+!    unit of precip is in mm/h
+             ldquer = log10(dquer(ks))
+             if (dquer(ks) .le. 2.) then   
+               logAd = bclr_a(1)              + &
+                       bclr_a(2) * ldquer     + &
+                       bclr_a(3) * ldquer**2. + & 
+                       bclr_a(4) * ldquer**3.
+                 
+               B     = bclr_c(1) + bclr_c(2)*ldquer
+                
+             else ! dquer .gt. 2.
+               logAd = bclr_b(1)              + &
+                       bclr_b(2) * ldquer     + &
+                       bclr_b(3) * ldquer**2. + &
+                       bclr_b(4) * ldquer**3. + &
+                       bclr_b(5) * ldquer**4. + &
+                       bclr_b(6) * ldquer**5. + &
+                       bclr_b(7) * ldquer**6.
+                        
+               B    = bclr_e(1)              + &
+                      bclr_e(2) * ldquer     + &
+                      bclr_e(3) * ldquer**2. + &
+                      bclr_e(4) * ldquer**3. + &
+                      bclr_e(5) * ldquer**4. + &
+                      bclr_e(6) * ldquer**5. + &
+                      bclr_e(7) * ldquer**6.
+
+             endif ! dquer
+             
+             wetscav = 10**(logAd+B*log10(prec))
+              
+             if (bcscheme .eq. 3) then
+             ! this is a fix to avoid the scavenging gap
+               ldquer = log10(2.)
+               logAd = bclr_a(1)              + &
+                       bclr_a(2) * ldquer     + &
+                       bclr_a(3) * ldquer**2. + & 
+                       bclr_a(4) * ldquer**3.
+                 
+               B     = bclr_c(1) + bclr_c(2)*ldquer
+               
+               wetscavlim = 10**(logAd+B*log10(prec))
+               
+               wetscav = max(wetscav, wetscavlim)
+               
+             endif
+           
+          endif ! bcscheme Laakso or Wang                  
+
+        elseif (t_particle .lt. 273. .and. csnow_aero(ks).gt.0.) then ! Snow:
+          
+          if (bcscheme .eq. 1) then
+! ZHG 2014 : Particle snow scavenging coefficient based on Kyro et al 2009, 
+! scaling factor Csnow (=csnow_aero) is read from SPECIES file
+
+            wetscav = &
+              csnow_aero(ks) * 10**( &
+                bcls(1) + &
+                bcls(2) * log10(dquer_m)**(-4) + &
+                bcls(3) * log10(dquer_m)**(-3) + &
+                bcls(4) * log10(dquer_m)**(-2) + &
+                bcls(5) * log10(dquer_m)**(-1) + &
+                bcls(6) * prec**0.5 &
+                )
+                  
+          elseif (bcscheme .eq. 2) then
+! AT parameterization after WANG ET AL 2014   
+!    unit of dquer is in um
+!    unit of precip is in mm/h
+             ldquer = log10(dquer(ks))
+             if (dquer(ks) .le. 1.44) then   
+               logAd = bcls_a(1)               + &
+                       bcls_a(2)  * ldquer     + &
+                       bcls_a(3)  * ldquer**2. + &
+                       bcls_a(4)  * ldquer**3. + &
+                       bcls_a(5)  * ldquer**4. + &
+                       bcls_a(6)  * ldquer**5. + &
+                       bcls_a(7)  * ldquer**6.
+                 
+               B     = bcls_c(1)              + &
+                       bcls_c(2) * ldquer     + &
+                       bcls_c(3) * ldquer**2. + &
+                       bcls_c(4) * ldquer**3. + &
+                       bcls_c(5) * ldquer**4. + &
+                       bcls_c(6) * ldquer**5. + &
+                       bcls_c(7) * ldquer**6.
+                 
+             else ! dquer .gt. 1.44
+               logAd = bcls_b(1)              + &
+                       bcls_b(2) * ldquer     + &
+                       bcls_b(3) * ldquer**2. + &
+                       bcls_b(4) * ldquer**3. + &
+                       bcls_b(5) * ldquer**4. + &
+                       bcls_b(6) * ldquer**5. + &
+                       bcls_b(7) * ldquer**6.
+                         
+               B    = bcls_e(1)              + &
+                      bcls_e(2) * ldquer     + &
+                      bcls_e(3) * ldquer**2. + &
+                      bcls_e(4) * ldquer**3. + &
+                      bcls_e(5) * ldquer**4. + &
+                      bcls_e(6) * ldquer**5. + &
+                      bcls_e(7) * ldquer**6.
+               
+             endif ! dquer
+             
+             wetscav = 10**(logAd+B*log10(prec))
+             
+             if (bcscheme .eq. 3) then
+               ldquer = log10(1.44)
+               logAd = bcls_a(1)               + &
+                       bcls_a(2)  * ldquer     + &
+                       bcls_a(3)  * ldquer**2. + &
+                       bcls_a(4)  * ldquer**3. + &
+                       bcls_a(5)  * ldquer**4. + &
+                       bcls_a(6)  * ldquer**5. + &
+                       bcls_a(7)  * ldquer**6.
+                 
+               B     = bcls_c(1)              + &
+                       bcls_c(2) * ldquer     + &
+                       bcls_c(3) * ldquer**2. + &
+                       bcls_c(4) * ldquer**3. + &
+                       bcls_c(5) * ldquer**4. + &
+                       bcls_c(6) * ldquer**5. + &
+                       bcls_c(7) * ldquer**6.
+               
+               wetscavlim = 10**(logAd+B*log10(prec))
+               wetscav = max(wetscav, wetscavlim)
+             endif
+               
+           endif ! bcscheme Laakso or Wang
             
-    endif ! gas or particle
-  !      endif ! positive below-cloud scavenging parameters given in Species file
-  endif !end BELOW
-
-  !********************
-  ! IN CLOUD SCAVENGING
-  !********************
-  if (clouds_v.lt.4) then ! In-cloud
-  ! NIK 13 may 2015: only do incloud if positive in-cloud scavenging parameters are
-  ! given in species file, or if gas and positive Henry's constant
-    if ((ccn_aero(ks).gt.0. .or. in_aero(ks).gt.0.).or.(henry(ks).gt.0.and.dquer(ks).le.0)) then 
-      inc_count(ks)=inc_count(ks)+1
-  ! if negative coefficients (turned off) set to zero for use in equation
-      if (ccn_aero(ks).lt.0.) ccn_aero(ks)=0.
-      if (in_aero(ks).lt.0.) in_aero(ks)=0.
-
-  !ZHG 2015 Cloud liquid & ice water (CLWC+CIWC) from ECMWF
-  ! nested fields
-      if (ngrid.gt.0.and.readclouds_this_nest) then
-        cl=ctwcn(ix,jy,n,ngrid)*(grfraction(1)/cc)
-      else if (ngrid.eq.0.and.readclouds) then
-         ! cl=ctwc(ix,jy,n)*(grfraction(1)/cc)
-         ! A.Plach 2021 cl should not become too small
-         cl=max(1E6*2E-7*prec(1)**0.36, ctwc(ix,jy,n)*(grfraction(1)/cc))
-      else                                  !parameterize cloudwater m2/m3
-  !ZHG updated parameterization of cloud water to better reproduce the values coming from ECMWF
-  ! sec test
-  !           cl=1E6*1E-7*prec(1)**0.3 !Sec GFS new
-        cl=1E6*2E-7*prec(1)**0.36 !Sec ECMWF new, is also suitable for GFS
-  !           cl=2E-7*prec(1)**0.36 !Andreas
-  !           cl=1.6E-6*prec(1)**0.36 !Henrik
-      endif
-
-  !ZHG: Calculate the partition between liquid and water phase water. 
-      if (act_temp .le. 253.) then
-        liq_frac=0
-        ice_frac=1
-      else if (act_temp .ge. 273.) then
-        liq_frac=1
-        ice_frac=0
-      else
-  ! sec bugfix after FLEXPART paper review, liq_frac was 1-liq_frac
-  ! IP bugfix v10.4, calculate ice_frac and liq_frac
-        ice_frac= ((act_temp-273.)/(273.-253.))**2.
-        !liq_frac = 1-ice_frac   !((act_temp-253.)/(273.-253.))**2.
-        liq_frac=max(0.,1.-ice_frac)
-      end if
-  ! ZHG: Calculate the aerosol partition based on cloud phase and Ai and Bi
-  !         frac_act = liq_frac*ccn_aero(ks) +(1-liq_frac)*in_aero(ks)
-  ! IP, use ice_frac and liq_frac 
-      frac_act = liq_frac*ccn_aero(ks) + ice_frac*in_aero(ks)
-
-  !ZHG Use the activated fraction and the liqid water to calculate the washout
-
-  ! AEROSOL
-  !********
-      if (dquer(ks).gt.0.) then
-        S_i= frac_act/cl
-  ! GAS
-  !****
-      else
-        cle=(1-cl)/(henry(ks)*(r_air/3500.)*act_temp)+cl
-        S_i=1/cle
+        endif ! rain or snow
+          
       endif ! gas or particle
+    ! positive below-cloud scavenging parameters given in Species file
+    ! end below cloud scavening
+!---------------------------------------------------------
+  elseif (indcloud .eq. 2) then !  IN CLOUD SCAVENGING
+!---------------------------------------------------------
 
-  ! scavenging coefficient based on Hertel et al 1995 - using the S_i for either gas or aerosol
-  !SEC wetscav fix, the cloud height is no longer needed, it gives wrong results
-      wetscav=incloud_ratio*S_i*(prec(1)/3.6E6)
-    endif ! positive in-cloud scavenging parameters given in Species file
-  endif !incloud
+   ! NIK 13 may 2015: do only if in-cloud aerosol scavenging parameters > 0
+   ! or if gas and Henry's constant > 0 (all defined in SPECIES)
+
+    if (ccn_aero(ks).gt.0. .or. in_aero(ks).gt.0. .or.&
+      henry(ks).gt.0. .and. dquer(ks).le.0.) then 
+        icnt_incld(ks)=icnt_incld(ks)+1
+
+    ! if negative coefficients (turned off) set to zero for use in equation
+    if (ccn_aero(ks).lt.0.) ccn_aero(ks)=0.
+    if (in_aero(ks).lt.0.) in_aero(ks)=0.
+	  
+    !ZHG 2015 use cloud liquid & ice water (CLWC+CIWC) from ECMWF
+    if (ngrid.eq.0 .and. lcw .or. & ! mother grid
+        ngrid.gt.0 .and. lcw_nest(ngrid)) & ! nested grid
+      then 
+        cl=cl*(gridfract/cc)
+		! A.Plach 2021 cl should not become too small
+!       cl=max(0.2*prec**0.36, cl*(gridfract/cc))
+    else ! no cloud water available, use parameterisation for cloud water [m2/m3]
+      cl= 0.2*prec**0.36
+      ! ZHG updated parameterization to better reproduce the values from ECMWF
+      ! cl = 1.E6*2E-7*prec**0.36 ! SEC ECMWF new, is also suitable for GFS
+      ! SEC test:
+      ! cl=1.E6*1.E-7*prec**0.3  ! SEC GFS new
+      ! cl=     2.E-7*prec**0.36 ! Andreas
+      ! cl=    1.6E-6*prec**0.36 ! Henrik
+    endif
+	 
+	! AT use of correct Kelvin temperature for T_ice; after ECMWF
+    if (t_particle .le. 250.16) then ! ice 
+      frac_liq=0.
+      frac_ice=1.
+    ! AT use of correct Kelvin temperature for T_liquid; after ECMWF        
+    elseif (t_particle .ge. 273.16) then ! liquid
+      frac_liq=1.
+      frac_ice=0.
+    else ! mixed cloud
+! AT ! SEC bugfix after FLEXPART paper review, frac_liq was 1-frac_liq
+! AT ! IP bugfix v10.4, calculate frac_ice and frac_liq
+! AT         frac_ice= ((t_particle-273.)/(273.-253.))**2
+! AT         ! was wrong frac_liq = 1-frac_ice   
+! AT         ! ((t_particle-253.)/(273.-253.))**2.
+! AT         frac_liq=max( 0., 1.-frac_ice )
+! AT this version is correct and after definition in the official 
+!    FLEXPART 10.4 paper version
+!    use exact value for the melting point and ice threshold as in ECMWF/IFS            
+      frac_liq= ((t_particle-250.16)/(273.16-250.16))**2.
+      frac_ice = max(0., 1. - frac_liq)
+    endif
+
+    ! ZHG: Calculate the aerosol partition based on cloud phase and Ai and Bi
+    ! IP, use frac_ice and frac_liq (bug corr.)
+    ! AT the above equation was actually correct, but the frac_* values were wrong
+    frac_act = frac_liq*ccn_aero(ks) + frac_ice*in_aero(ks)
+
+
+    !ZHG Use the activated fraction and the liqid water to calculate the washout
+    if (dquer(ks).gt.0.) then ! aerosol
+      si= frac_act/cl
+    else ! gas
+      cle=(1.-cl)/(henry(ks)*(r_air/3500.)*t_particle) + cl
+      si=1./cle
+    endif ! gas or particle
+
+    ! scavenging coefficient based on Hertel et al 1995 - 
+    ! using si (S_i in paper) for both gas and aerosol
+
+    !SEC wetscav fix, the cloud height is no longer needed, it gives wrong results
+    wetscav=ratio_incloud*si* prec/3.6E6 ! mm/h -> m/s
+    endif ! in-cloud scavenging parameters >0 
+
+!---------------------------------------------------------
+  endif ! incloud
+!---------------------------------------------------------
+
 end subroutine get_wetscav
 
 subroutine wetdepokernel(nunc,deposit,x,y,nage,kp,thread)
@@ -815,12 +976,13 @@ subroutine writeprecip(itime,imem)
   do i=1,numpoint
     xp1=xpoint1(i)*dx+xlon0 !lat, long (real) coord
     yp1=ypoint1(i)*dy+ylat0 !lat, long (real) coord
-    ix=int((xpoint1(i)+xpoint2(i))/2.)
-    jy=int((ypoint1(i)+ypoint2(i))/2.)
-    write(unitprecip,*)  jjjjmmdd, ihmmss, & 
-           xp1,yp1,lsprec(ix,jy,1,imem),convprec(ix,jy,1,imem) !time is the same as in the ECMWF windfield
+    ix=int((xpoint1(i)+xpoint2(i))*0.5)
+    jy=int((ypoint1(i)+ypoint2(i))*0.5)
+    write(unitprecip,*)  jjjjmmdd, ihmmss,xp1,yp1, & 
+      sum(lsprec(ix,jy,1,:,imem)),sum(convprec(ix,jy,1,:,imem))
+ !time is the same as in the ECMWF windfield
 ! units mm/h, valid for the time given in the windfield
-  end do
+  enddo
 
   close(unitprecip)
 

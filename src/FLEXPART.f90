@@ -41,19 +41,18 @@ program flexpart
 
   implicit none
 
+  integer :: i
   real :: s_timemanager
-  character(len=256) ::   &
-    inline_options          ! pathfile, flexversion, arg2
+  character(len=256) :: inline_options ! pathfile, flexversion, arg2
 
   ! Keeping track of the total running time of FLEXPART, printed out at the end.
   !*****************************************************************************
   CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
   s_total = (count_clock - count_clock0)/real(count_rate)
 
-
   ! FLEXPART version string
-  flexversion_major = '10' ! Major version number, also used for species file names
-  flexversion='Version '//trim(flexversion_major)//'.4 (2019-11-12)'
+  flexversion_major = '11' ! Major version number, also used for species file names
+  flexversion='Version '//trim(flexversion_major)//'.0 (2023-07-11)'
   verbosity=0
 
   ! Read the pathnames where input/output files are stored
@@ -136,6 +135,21 @@ program flexpart
   CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
   s_total = (count_clock - count_clock0)/real(count_rate) - s_total
   
+  if (verbosity.gt.0) then
+! NIK 16.02.2005 
+    do i=1,nspec
+      if (icnt_incld(i).gt.0) then
+         write(*,*) '**********************************************'
+         write(*,*) 'Scavenging statistics for species ', species(i), ':'
+         write(*,*) 'Total number of occurences of below-cloud scavenging', &
+           & icnt_belowcld(i)
+         write(*,*) 'Total number of occurences of in-cloud    scavenging', &
+           & icnt_incld(i)
+         write(*,*) '**********************************************'
+      endif
+    end do
+  endif
+  
   write(*,*) 'Read wind fields: ', s_readwind, ' seconds'
   write(*,*) 'Timemanager: ', s_timemanager, ' seconds,', 'first timestep: ',s_firstt, 'seconds'
   write(*,*) 'Write particle files: ', s_writepart, ' seconds'
@@ -196,7 +210,7 @@ subroutine read_options_and_initialise_flexpart
   ! Read pathnames from file in working director that specify I/O directories
   !**************************************************************************
   call readpaths
-
+  
   ! Read the user specifications for the current model run
   !*******************************************************
   call readcommand
@@ -204,7 +218,6 @@ subroutine read_options_and_initialise_flexpart
   ! Read the age classes to be used
   !********************************
   call readageclasses
-
 
   ! Allocate memory for windfields
   !*******************************
@@ -214,11 +227,11 @@ subroutine read_options_and_initialise_flexpart
     !************************************************
     call alloc_windfields_nest
   endif
-
+  
   ! Read, which wind fields are available within the modelling period
   !******************************************************************
   call readavailable
-
+  
   if (ipout.ne.0) call readpartoptions
 
   ! Detect metdata format
