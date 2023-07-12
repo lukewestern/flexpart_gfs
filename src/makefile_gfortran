@@ -97,6 +97,7 @@ particle_mod.o 		pbl_profile_mod.o \
 plume_mod.o 		point_mod.o \
 random_mod.o 		readoptions_mod.o \
 restart_mod.o 		settling_mod.o \
+sort_mod.o
 timemanager_mod.o 	turbulence_mod.o \
 txt_output_mod.o 	unc_mod.o \
 verttransform_mod.o 	wetdepo_mod.o \
@@ -145,6 +146,7 @@ com_mod.o: par_mod.o
 date_mod.o: par_mod.o
 erf_mod.o: par_mod.o
 mean_mod.o: par_mod.o
+sort_mod.o: par_mod.o
 particle_mod.o: com_mod.o par_mod.o
 point_mod.o: com_mod.o par_mod.o
 unc_mod.o: par_mod.o com_mod.o
@@ -181,7 +183,7 @@ binary_output_mod.o: mean_mod.o outgrid_mod.o
 netcdf_output_mod.o: mean_mod.o outgrid_mod.o readoptions_mod.o drydepo_mod.o
 
 #8)
-conv_mod.o: flux_mod.o class_gribfile_mod.o qvsat_mod.o
+conv_mod.o: flux_mod.o class_gribfile_mod.o qvsat_mod.o sort_mod.o
 output_mod.o: netcdf_output_mod.o binary_output_mod.o txt_output_mod.o
 restart_mod.o: coord_ecmwf_mod.o unc_mod.o netcdf_output_mod.o
 

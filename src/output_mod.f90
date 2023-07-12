@@ -630,7 +630,7 @@ subroutine conccalc(itime,weight)
 
   integer,intent(in) :: itime
   real,intent(in) :: weight
-  integer :: itage,i,kz,ks,n,nage,inage,thread,ithread
+  integer :: itage,i,j,kz,ks,n,nage,inage,thread,ithread
   integer :: il,ind,indz,indzp,nrelpointer
   integer :: ix,jy,ixp,jyp
   real :: ddx,ddy
@@ -658,8 +658,9 @@ subroutine conccalc(itime,weight)
 #endif
 
 !$OMP DO
-  do i=1,numpart
-    if (.not.part(i)%alive) cycle
+  do j=1,count%alive
+
+    i=count%ialive(j)
 
   ! Determine age class of the particle
     itage=abs(itime-part(i)%tstart)
@@ -1180,23 +1181,24 @@ subroutine conccalc(itime,weight)
   ! Estimate concentration at receptor
   !***********************************
 
-    do i=1,numpart
+    do j=1,count%alive
 
-      if (.not. part(i)%alive) cycle
+      i=count%ialive(j)
+
       itage=abs(itime-part(i)%tstart)
 
       hz=min(50.+0.3*sqrt(real(itage)),hzmax)
-      zd=part(i)%z/hz
+      zd=real(part(i)%z)/hz
       if (zd.gt.1.) cycle          ! save computing time, leave loop
 
       hx=min((0.29+2.222e-3*sqrt(real(itage)))*dx+ &
            real(itage)*1.2e-5,hxmax)                     ! 80 km/day
-      xd=(part(i)%xlon-xreceptor(n))/hx
+      xd=(real(part(i)%xlon)-xreceptor(n))/hx
       if (xd*xd.gt.1.) cycle       ! save computing time, leave loop
 
       hy=min((0.18+1.389e-3*sqrt(real(itage)))*dy+ &
            real(itage)*7.5e-6,hymax)                     ! 80 km/day
-      yd=(part(i)%ylat-yreceptor(n))/hy
+      yd=(real(part(i)%ylat)-yreceptor(n))/hy
       if (yd*yd.gt.1.) cycle       ! save computing time, leave loop
       hxyz=hx*hy*hz
 

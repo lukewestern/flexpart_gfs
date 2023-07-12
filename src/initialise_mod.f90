@@ -1184,21 +1184,21 @@ subroutine init_domainfill
   allocated_tmp=count%allocated
   terminated_tmp=count%terminated
 
-!$OMP PARALLEL PRIVATE(j) REDUCTION(+:alive_tmp,spawned_tmp,allocated_tmp,terminated_tmp)
+! !$OMP PARALLEL PRIVATE(j) REDUCTION(+:alive_tmp,spawned_tmp,allocated_tmp,terminated_tmp)
  
   ! Make sure that all particles are within domain
   !***********************************************
-!$OMP DO
+! !$OMP DO
   do j=1,numpart
     if ((part(j)%xlon.lt.0.).or.(part(j)%xlon.ge.real(nxmin1,kind=dp)).or. &
          (part(j)%ylat.lt.0.).or.(part(j)%ylat.ge.real(nymin1,kind=dp))) then
-      call terminate_particle(j,0)
+      call terminate_particle(j,0) ! Cannot be within an OMP region
       alive_tmp=alive_tmp-1
       terminated_tmp=terminated_tmp+1
     endif
   end do
-!$OMP END DO
-!$OMP END PARALLEL
+! !$OMP END DO
+! !$OMP END PARALLEL
 
   count%alive=alive_tmp
   count%spawned=spawned_tmp
