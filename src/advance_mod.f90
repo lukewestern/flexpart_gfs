@@ -391,17 +391,14 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
       ! LB change to eta coords?
       if (density(nsp).gt.0.) then
         call get_settling(itime,xts,yts,zts,nsp,part(ipart)%settling)
-        select case (wind_coord_type)
-          case ('ETA')
-            call update_zeta_to_z(itime,ipart)
-            call w_to_weta(itime,dt,part(ipart)%xlon,part(ipart)%ylat, &
-              part(ipart)%z,part(ipart)%zeta,part(ipart)%settling,weta_settling)
+        if (wind_coord_type.eq.'ETA') then
+          call update_zeta_to_z(itime,ipart)
+          call w_to_weta(itime,dt,part(ipart)%xlon,part(ipart)%ylat, &
+            part(ipart)%z,part(ipart)%zeta,part(ipart)%settling,weta_settling)
             weta=weta+weta_settling
-          case ('METER')
+        else
             w=w+part(ipart)%settling
-          case default
-            w=w+part(ipart)%settling
-        end select
+        endif
       end if
     endif
   end if
@@ -410,11 +407,8 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
   !************************************************
   dxsave=dxsave+(u+ux)*dt
   dysave=dysave+(v+vy)*dt
- 
-  select case (wind_coord_type)
 
-    case ('ETA')
-
+  if (wind_coord_type.eq.'ETA') then
       if (wp.ne.0.) then
         call update_zeta_to_z(itime,ipart)
         call update_z(ipart,wp*dt*real(ldirect))
@@ -425,18 +419,10 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
       call update_zeta(ipart,weta*dt*real(ldirect))
       if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
       if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
-
-    case ('METER')
-
+  else
       call update_z(ipart,(w+wp)*dt*real(ldirect))
       if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))
-
-    case default
-
-      call update_z(ipart,(w+wp)*dt*real(ldirect))
-      if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))
-
-  end select
+  endif
 
 end subroutine adv_above_pbl
 
@@ -596,10 +582,7 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
     dcwsave=dcwsave+part(ipart)%turbvel%v*dt
     ! How can I change the w to w(eta) efficiently?
 
-    select case (wind_coord_type)
-
-      case ('ETA')
-
+    if (wind_coord_type.eq.'ETA') then
         call update_z(ipart,w*dt*real(ldirect))
         zts=real(part(ipart)%z)
         ! HSO/AL: Particle managed to go over highest level -> interpolation
@@ -607,13 +590,11 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
         !          alias interpol_wind (division by zero)
         if (zts.ge.height(nz)) call set_z(ipart,height(nz)-100.*eps) 
          ! Manually for z instead
-
-      case ('METER')
-
+    else
         call update_z(ipart,w*dt*real(ldirect))
         call pushpartdown(ipart)
-
-    end select
+    endif
+    ! end select
     zts=real(part(ipart)%z)
     
     if (zts.gt.h) then
@@ -671,14 +652,11 @@ subroutine petterssen_corr(itime,ipart)
   uold=u
   vold=v
 
-  select case (wind_coord_type)
-    case ('ETA')
+  if (wind_coord_type.eq.'ETA') then
       woldeta=weta
-    case ('METER')
+  else
       wold=w
-    case default
-      wold=w
-  end select
+  endif
 
   ! Interpolate wind at new position and time
   !******************************************
@@ -695,36 +673,24 @@ subroutine petterssen_corr(itime,ipart)
         nsp=1
       endif
       if (density(nsp).gt.0.) then
-        select case (wind_coord_type)
-
-          case ('ETA')
-
-            call update_zeta_to_z(itime+part(ipart)%idt,ipart)
-            call update_z_to_zeta(itime+part(ipart)%idt,ipart)
-            zts=real(part(ipart)%z)
-            call get_settling( &
-             itime+part(ipart)%idt,xts,yts,zts,nsp,part(ipart)%settling) !bugfix
-            call w_to_weta( &
-              itime+part(ipart)%idt, real(part(ipart)%idt), part(ipart)%xlon, &
-              part(ipart)%ylat, part(ipart)%z, part(ipart)%zeta, &
-              part(ipart)%settling, weta_settling)
-            weta=weta+weta_settling
+        if (wind_coord_type.eq.'ETA') then
+          call update_zeta_to_z(itime+part(ipart)%idt,ipart)
+          call update_z_to_zeta(itime+part(ipart)%idt,ipart)
+          zts=real(part(ipart)%z)
+          call get_settling( &
+           itime+part(ipart)%idt,xts,yts,zts,nsp,part(ipart)%settling) !bugfix
+          call w_to_weta( &
+            itime+part(ipart)%idt, real(part(ipart)%idt), part(ipart)%xlon, &
+            part(ipart)%ylat, part(ipart)%z, part(ipart)%zeta, &
+            part(ipart)%settling, weta_settling)
+          weta=weta+weta_settling
            !woldeta=
      !real(part(ipart)%zeta-part(ipart)%zeta_prev)/real(part(ipart)%idt*ldirect)
-
-          case ('METER')
-
-            call get_settling( &
-              itime+part(ipart)%idt,xts,yts,zts,nsp,part(ipart)%settling)
-            w=w+part(ipart)%settling
-
-          case default 
-
-            call get_settling( &
-              itime+part(ipart)%idt,xts,yts,zts,nsp,part(ipart)%settling)
-            w=w+part(ipart)%settling
-
-        end select            
+        else
+          call get_settling( &
+            itime+part(ipart)%idt,xts,yts,zts,nsp,part(ipart)%settling)
+          w=w+part(ipart)%settling
+        endif          
       end if
     endif
   end if
@@ -736,28 +702,16 @@ subroutine petterssen_corr(itime,ipart)
   u=(u-uold)*0.5
   v=(v-vold)*0.5
 
-  select case (wind_coord_type)
-
-    case ('ETA')
-
+  if (wind_coord_type.eq.'ETA') then
       weta=(weta-woldeta)/2.
       call update_zeta(ipart,weta*real(part(ipart)%idt*ldirect))
       if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
       if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
-
-    case ('METER')
-
+  else
       w=(w-wold)/2.
       call update_z(ipart,w*real(part(ipart)%idt*ldirect))
       if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))          ! if particle below ground -> reflection
-
-    case default 
-
-      w=(w-wold)/2.
-      call update_z(ipart,w*real(part(ipart)%idt*ldirect))
-      if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z)) 
-
-  end select  
+  endif
 
   ! Finally, correct the old position
   !**********************************
@@ -874,24 +828,13 @@ subroutine pushpartdown(ipart)
 
   eps=nxmax/3.e5
 
-  select case (wind_coord_type)
-  
-    case ('ETA')
-    
+  if (wind_coord_type.eq.'ETA') then
       if (part(ipart)%zeta.le.real(uvheight(nz),kind=dp)) &
         call set_zeta(ipart,uvheight(nz)+eps_eta)
-
-    case ('METER')
-    
+  else
       if (part(ipart)%z.ge.real(height(nz),kind=dp)) &
         call set_z(ipart,height(nz)-100.*eps)
-
-    case default
-
-      if (part(ipart)%z.ge.real(height(nz),kind=dp)) &
-      call set_z(ipart,height(nz)-100.*eps)
-
-  end select
+  endif
   
 end subroutine pushpartdown
 

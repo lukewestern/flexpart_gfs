@@ -251,23 +251,18 @@ subroutine turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta
   dxsave=dxsave+part(ipart)%mesovel%u*real(lsynctime)
   dysave=dysave+part(ipart)%mesovel%v*real(lsynctime)
 
-  select case (wind_coord_type)
-    case ('ETA')
+  if (wind_coord_type.eq.'ETA') then
       part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsigeta*fturbmeso
       call update_zeta(ipart,part(ipart)%mesovel%w*real(lsynctime))
       if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
       if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
 
-    case ('METER')
+  else ! METER
       part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsig*fturbmeso
       call update_z(ipart,part(ipart)%mesovel%w*real(lsynctime))
       if (part(ipart)%z.lt.0.) call set_z(ipart,-1.*part(ipart)%z)    ! if particle below ground -> refletion
 
-    case default
-      part(ipart)%mesovel%w=r*part(ipart)%mesovel%w+rs*rannumb(nrand+2)*wsig*fturbmeso
-      call update_z(ipart,part(ipart)%mesovel%w*real(lsynctime))
-      if (part(ipart)%z.lt.0.) call set_z(ipart,-1.*part(ipart)%z)    ! if particle below ground -> refletion
-  end select
+  endif
 end subroutine turbulence_mesoscale
 
 subroutine hanna(z)

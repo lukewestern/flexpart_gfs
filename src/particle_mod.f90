@@ -90,7 +90,9 @@ module particle_mod
       allocated=0,                & ! Number of total allocated particle spaces
       ninmem=0                      ! Number of particles currently in memory
     logical,allocatable  ::       &
-      inmem(:)
+      inmem(:)                      ! Logical to keep track which particle numbers are allocated
+    integer,allocatable  ::       &                  
+      ialive(:)                     ! Array that stores alive particle numbers up to count%alive for OMP loops 
   end type
 
   type(particle), allocatable ::  &
@@ -221,20 +223,32 @@ contains
     integer, intent(in) :: &
       itime,               &  ! spawning time
       nmpart                  ! number of particles that are being spawned
+    integer ::             &
+      i ,j                    ! loop variable
 
     ! Check if new memory needs to be allocated 
     !*******************************************
     if (nmpart+count%spawned.gt.count%allocated) then
       call alloc_particles( (nmpart+count%spawned) - count%allocated )
     endif
-    ! Update the number of particles that are currently alive
-    !********************************************************
-    count%alive = count%alive + nmpart
 
     ! Set the spawning time for each new particle and mark it as alive
     !*****************************************************************
     part(count%spawned+1:count%spawned+nmpart)%tstart = itime
     part(count%spawned+1:count%spawned+nmpart)%alive = .true.
+
+    ! Updating the list with alive particle numbers that is used to
+    ! loop over when doing particle computations
+    !*************************************************************
+    j=count%spawned+1
+    do i=count%alive+1,count%alive+nmpart
+      count%ialive(i)=j
+      j = j+1
+    end do
+
+    ! Update the number of particles that are currently alive
+    !********************************************************
+    count%alive = count%alive + nmpart
 
     ! Update the total number of spawned particles
     !*********************************************
@@ -269,6 +283,11 @@ contains
     part(ipart)%tstart = itime
     part(ipart)%alive = .true.
 
+    ! Updating the list with alive particle numbers that is used to
+    ! loop over when doing particle computations
+    !*************************************************************
+    count%ialive(count%alive) = ipart
+
     ! Update the total number of spawned particles
     !*********************************************
     count%spawned = count%spawned + 1
@@ -285,15 +304,23 @@ contains
     integer, intent(in) :: &
       ipart,               & ! to be terminated particle index
       itime                  ! Time at which particle is terminated
+    integer ::             &
+      iloc                   ! location of ipart in count%ialive
 
     ! Flagging the particle as having been terminated
     !************************************************
-    part(ipart)%alive=.false.
+    part(ipart)%alive=.false.  
     part(ipart)%tend=itime
 
     ! Update the number of current particles that are alive
     !******************************************************
     count%alive = count%alive - 1
+    ! And remove from the ialive array
+    !*********************************
+    iloc=findloc(count%ialive,ipart,1)
+    if (iloc.ne.count%allocated) then
+      count%ialive(iloc:count%allocated-1)=count%ialive(iloc+1:count%allocated)
+    endif
 
     ! Update the total number of terminated particles during the whole run
     !**********************************************************************
@@ -312,7 +339,8 @@ contains
     integer, allocatable       :: tmpnclust(:)
     integer                    :: i
 
-    if (nmpart.gt.100) write(*,*) 'Allocating ',nmpart,' particles'
+    !if (nmpart.gt.100) 
+    write(*,*) 'Allocating ',nmpart,' particles', count%allocated, count%terminated, count%spawned
 
     ! Keeping track of the allocated memory in case 
     ! there is a reason for deallocating some of it
@@ -320,6 +348,10 @@ contains
     allocate( tmpcount(count%allocated+nmpart) )
     if (count%allocated.gt.0) tmpcount(1:count%allocated) = count%inmem
     call move_alloc(tmpcount,count%inmem)
+    allocate( tmpnclust(count%allocated+nmpart) )
+    if (count%allocated.gt.0) tmpnclust(1:count%allocated) = count%ialive
+    call move_alloc(tmpnclust,count%ialive)
+
     count%inmem(count%allocated+1:count%allocated+nmpart) = .true.
 
     ! Allocating new particle spaces
@@ -417,6 +449,7 @@ contains
     endif
     deallocate( part )
     deallocate( count%inmem )
+    deallocate( count%ialive )
 
     if (WETBKDEP.or.DRYBKDEP) then
       deallocate( xscav_frac1 )

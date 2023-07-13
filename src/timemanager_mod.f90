@@ -210,24 +210,20 @@ subroutine timemanager
     call getfields(itime,nstop1) !OMP on verttransform_ecmwf and readwind_ecmwf, getfields_mod.f90
     if (nstop1.gt.1) error stop 'NO METEO FIELDS AVAILABLE'
 
-  ! In case of ETA coordinates being read from file, convert the z positions
-  !*************************************************************************
-    if (((ipin.eq.1).or.(ipin.eq.4)).and.(itime.eq.itime_init).and.(wind_coord_type.eq.'ETA')) then 
+  ! In case of ETA coordinates being read from file, convert the z positions to zeta
+  !*********************************************************************************
+    if ((itime.eq.itime_init).and.((ipin.eq.1).or.(ipin.eq.3).or.(ipin.eq.4)).and. &
+      (wind_coord_type.eq.'ETA')) then 
+      
       if (numpart.le.0) error stop 'Something is going wrong reading the old particle file! &
         &No particles found.'
 !$OMP PARALLEL PRIVATE(i)
 !$OMP DO
-      do i=1,numpart
+      do i=1,count%allocated ! Also includes particles that are not spawned yet
         call update_z_to_zeta(itime, i)
       end do
 !$OMP END DO
 !$OMP END PARALLEL
-    endif
-
-    if ((ipin.eq.3).and.(itime.eq.itime_init).and.(wind_coord_type.eq.'ETA')) then
-      do i=1,count%allocated
-        call update_z_to_zeta(itime, i)
-      end do
     endif
 
     if (WETDEP .and. (itime.ne.0) .and. (numpart.gt.0)) then
@@ -357,7 +353,7 @@ subroutine timemanager
   ! openmp change
   ! LB, openmp following CTM version, need to be very careful due to big differences
   ! between the openmp loop in this and the CTM version
-!$OMP PARALLEL PRIVATE(prob_rec,inage,nage,itage,ks,kp,thread,j,xmassfract,drydeposit)
+!$OMP PARALLEL PRIVATE(prob_rec,inage,nage,itage,ks,kp,thread,j,i,xmassfract,drydeposit)
 
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM() ! Starts with 0
@@ -368,12 +364,12 @@ subroutine timemanager
 !$OMP DO 
 ! SCHEDULE(dynamic, max(1,numpart/1000))
 !max(1,int(real(numpart)/numthreads/20.)))
-    do j=1,numpart
+    do i=1,count%alive
+
+      j=count%ialive(i)
 
   ! If integration step is due, do it
   !**********************************
-      if (.not. part(j)%alive) cycle
-
   ! Determine age class of the particle
   !************************************
       itage=abs(itime-part(j)%tstart)
@@ -439,10 +435,16 @@ subroutine timemanager
   call omp_set_num_threads(numthreads_grid)
 #endif
 
-  alive_tmp=count%alive
-  terminated_tmp=count%terminated
+  ! Terminating particles flagged in advance call
+  do i=1,count%alive
+    j=count%ialive(i)
+    if (part(j)%nstop) then
+      call terminate_particle(j,itime)
+    endif
+  end do
 
-!$OMP PARALLEL PRIVATE(prob_rec,nage,inage,itage,ks,kp,thread,j,xmassfract,drydeposit) &
+
+!$OMP PARALLEL PRIVATE(prob_rec,nage,inage,itage,ks,kp,thread,i,j,xmassfract,drydeposit) &
 !$OMP REDUCTION(+:alive_tmp,terminated_tmp) 
 
 !num_threads(numthreads_grid)
@@ -456,12 +458,12 @@ subroutine timemanager
 !$OMP DO 
 ! SCHEDULE(dynamic, max(1,numpart/1000))
 !max(1,int(real(numpart)/numthreads/20.)))
-    do j=1,numpart
+    do i=1,count%alive
+
+      j=count%ialive(i)
 
   ! If integration step is due, do it
   !**********************************
-      if (.not. part(j)%alive) cycle
-
   ! Determine age class of the particle
   !************************************
       itage=abs(itime-part(j)%tstart)
@@ -470,16 +472,6 @@ subroutine timemanager
         nage=inage
         if (itage.lt.lage(nage)) exit
       end do
-
-  ! Determine, when next time step is due
-  ! If trajectory is terminated, mark it
-  !**************************************
-      if (part(j)%nstop) then
-        if (linit_cond.ge.1) call initcond_calc(itime,j,thread+1)
-        call terminate_particle(j,itime)
-        alive_tmp=alive_tmp-1
-        terminated_tmp=terminated_tmp+1
-      else
 
 ! Dry deposition and radioactive decay for each species
 ! Also check maximum (of all species) of initial mass remaining on the particle;
@@ -517,10 +509,8 @@ subroutine timemanager
         end do
         
         if (xmassfract.le.minmassfrac) then 
-          ! terminate all particles carrying less mass
-          call terminate_particle(j,itime)
-          alive_tmp=alive_tmp-1
-          terminated_tmp=terminated_tmp+1
+          ! flag all particles carrying less mass for termination after parallel region
+          part(j)%nstop=.true.
         endif
 
 !        Sabine Eckhardt, June 2008
@@ -545,19 +535,22 @@ subroutine timemanager
 
         if ((part(j)%alive).and.(abs(itime-part(j)%tstart).ge.lage(nageclass))) then
           if (linit_cond.ge.1) call initcond_calc(itime+lsynctime,j,thread+1)
-          call terminate_particle(j,itime)
-          alive_tmp=alive_tmp-1
-          terminated_tmp=terminated_tmp+1
+          ! flag all particles for termination after parallel region
+          part(j)%nstop=.true.
         endif
-      endif
-
     end do !loop over particles
 
 !$OMP END DO
 !$OMP END PARALLEL
 
-  count%alive=alive_tmp
-  count%terminated=terminated_tmp
+  ! Terminating particles flagged due to insufficient mass or exceeded max age
+  do i=1,count%alive
+    j=count%ialive(i)
+    if (part(j)%nstop) then
+      call terminate_particle(j,itime)
+    endif
+  end do
+
 
 #ifdef _OPENMP
   call omp_set_num_threads(numthreads)

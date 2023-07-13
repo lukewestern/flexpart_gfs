@@ -110,8 +110,8 @@ subroutine find_grid_indices(xt,yt)
   else
     ix=int(xt)
     jy=int(yt)
-    nix=nint(xt)
-    njy=nint(yt)
+    nix=ix!nint(xt)
+    njy=jy!nint(yt)
     ixp=ix+1
     jyp=jy+1
   endif
@@ -167,15 +167,12 @@ subroutine find_z_level(zt,zteta)
     zt,                   & ! height in meters
     zteta                   ! height in eta
 
-  select case (wind_coord_type)
-    case('ETA')
-      call find_z_level_meters(zt)
-      call find_z_level_eta(zteta)
-    case('METER')
-      call find_z_level_meters(zt)
-    case default
-      call find_z_level_meters(zt)
-  end select
+  if (wind_coord_type.eq.'ETA') then
+    call find_z_level_meters(zt)
+    call find_z_level_eta(zteta)
+  else ! METER
+    call find_z_level_meters(zt)
+  endif
 
 end subroutine find_z_level
 
@@ -898,20 +895,15 @@ subroutine interpol_mesoscale(itime,xt,yt,zt,zteta)
   call find_z_level_meters(zt)
   iw(:)=(/ indz, indzp /)
   
-  select case (wind_coord_type)
-    case ('ETA')  
-      call find_z_level_eta(zteta)
-      iuv(:)=(/ induv, indpuv /)
-      iweta(:)=(/ indzeta, indzpeta /)
-      call stdev_eta(iw,iuv,iweta)
-    case ('METER')
-      iw(:)=(/ indz, indzp /)
-      call stdev_meter(iw)
-    case default
-      write(*,*) 'ERROR: wind_coord_type is not allowed ', wind_coord_type
-      write(*,*) 'Choose ETA or METER.'
-      stop
-  end select
+  if (wind_coord_type.eq.'ETA') then
+    call find_z_level_eta(zteta)
+    iuv(:)=(/ induv, indpuv /)
+    iweta(:)=(/ indzeta, indzpeta /)
+    call stdev_eta(iw,iuv,iweta)
+  else
+    iw(:)=(/ indz, indzp /)
+    call stdev_meter(iw)
+  endif
 
 end subroutine interpol_mesoscale
 
@@ -968,30 +960,24 @@ subroutine interpol_wind(itime,xt,yt,zt,zteta,pp)
   ! Interpolate over the windfields depending on the prefered
   ! coordinate system
   !**********************************************************
-  select case (wind_coord_type)
-    case ('ETA')
-      ! Same for eta coordinates
-      !*************************
-      call find_z_level_eta(zteta)
+  if (wind_coord_type.eq.'ETA') then
+    ! Same for eta coordinates
+    !*************************
+    call find_z_level_eta(zteta)
 
-      iuv(:)  = (/ induv, indpuv /)
-      iweta(:)= (/ indzeta, indzpeta /)
-      call interpol_wind_eta(zteta,iuv,iweta)
-      !call stdev_wind_eta(iw,iuv,iweta)
-    case ('METER')
-      ! Determine the level below the current position for u,v
-      !*******************************************************
-      call find_z_level_meters(zt)
+    iuv(:)  = (/ induv, indpuv /)
+    iweta(:)= (/ indzeta, indzpeta /)
+    call interpol_wind_eta(zteta,iuv,iweta)
+    !call stdev_wind_eta(iw,iuv,iweta)
+  else
+    ! Determine the level below the current position for u,v
+    !*******************************************************
+    call find_z_level_meters(zt)
 
-      iw(:)=(/ indz, indzp /)
-      call interpol_wind_meter(zt,iw)
-      !call stdev_wind_meter(iw)
-
-    case default
-      write(*,*) 'ERROR: wind_coord_type is not allowed ', wind_coord_type
-      write(*,*) 'Choose ETA or METER.'
-      stop
-  end select
+    iw(:)=(/ indz, indzp /)
+    call interpol_wind_meter(zt,iw)
+    !call stdev_wind_meter(iw)
+  endif
 
 end subroutine interpol_wind
 
@@ -1042,30 +1028,25 @@ subroutine interpol_wind_short(itime,xt,yt,zt,zteta)
   ! Interpolate over the windfields depending on the prefered
   ! coordinate system
   !**********************************************************
-  select case (wind_coord_type)
-    case ('ETA')
-      ! Determine the level below the current position for eta coordinates
-      !*******************************************************************
-      call find_z_level_eta(zteta)
+  if (wind_coord_type.eq.'ETA') then
+    ! Determine the level below the current position for eta coordinates
+    !*******************************************************************
+    call find_z_level_eta(zteta)
 
-      iuv(:)=(/ induv, indpuv /)
-      iweta(:)=(/ indzeta, indzpeta /)
-      ! Interpolate the u, v, weta windfields
-      !**************************************
-      call interpol_wind_eta(zteta,iuv,iweta)
-    case ('METER')
+    iuv(:)=(/ induv, indpuv /)
+    iweta(:)=(/ indzeta, indzpeta /)
+    ! Interpolate the u, v, weta windfields
+    !**************************************
+    call interpol_wind_eta(zteta,iuv,iweta)
+  else ! METER
 
-      ! Determine the level below the current position for u,v
-      !*******************************************************
-      call find_z_level_meters(zt)
+    ! Determine the level below the current position for u,v
+    !*******************************************************
+    call find_z_level_meters(zt)
 
-      iw(:)=(/ indz, indzp /)
-      call interpol_wind_meter(zt,iw)
-    case default
-      write(*,*) 'ERROR: wind_coord_type is not allowed ', wind_coord_type
-      write(*,*) 'Choose ETA or METER.'
-      stop
-  end select
+    iw(:)=(/ indz, indzp /)
+    call interpol_wind_meter(zt,iw)
+  endif
 
 end subroutine interpol_wind_short
 
@@ -1077,14 +1058,11 @@ subroutine interpol_partoutput_val(fieldname,output,j)
   ! Interpolate over the windfields depending on the prefered
   ! coordinate system
   !**********************************************************
-  select case (wind_coord_type)
-    case ('ETA')
-      call interpol_partoutput_val_eta(fieldname,output,j)
-    case ('METER')
-      call interpol_partoutput_val_meter(fieldname,output,j)
-    case default
-      call interpol_partoutput_val_meter(fieldname,output,j)
-  end select
+  if (wind_coord_type.eq.'ETA') then
+    call interpol_partoutput_val_eta(fieldname,output,j)
+  else ! METER
+    call interpol_partoutput_val_meter(fieldname,output,j)
+  endif
 end subroutine interpol_partoutput_val
 
 subroutine interpol_htropo_hmix(tropop,h)
@@ -1146,37 +1124,34 @@ subroutine interpol_density(itime,ipart,output)
   !(accurate enough, no time interpolation needed)
   !***********************************************
   
-  select case (wind_coord_type)
-    case ('ETA')
-      call find_z_level_eta(real(part(ipart)%zeta))
-      call find_vert_vars(uvheight,real(part(ipart)%zeta),induv, &
-        dz1,dz2,lbounds_uv,.false.)
-      if (ngrid.le.0) then
-        do ind=induv,indpuv
-          call hor_interpol(rhoeta,rhoprof(ind-induv+1),ind,memind(2),nzmax)
-        end do
-      else
-        do ind=induv,indpuv
-          call hor_interpol_nest(rhoetan,rhoprof(ind-induv+1),ind,memind(2), &
-            nzmax)
-        end do
-      endif
-    case ('METER')
-      call find_z_level_meters(real(part(ipart)%z))
-      call find_vert_vars(height,real(part(ipart)%z),indz, &
-        dz1,dz2,lbounds,.false.)
-      if (ngrid.le.0) then
-        do ind=indz,indzp
-          call hor_interpol(rho,rhoprof(ind-indz+1),ind,memind(2),nzmax)
-        end do
-      else
-        do ind=indz,indzp
-          call hor_interpol_nest(rhon,rhoprof(ind-indz+1),ind,memind(2),nzmax)
-        end do
-      endif
-    case default
-      stop 'wind_coord_type not defined in conccalc.f90'
-  end select
+  if (wind_coord_type.eq.'ETA') then
+    call find_z_level_eta(real(part(ipart)%zeta))
+    call find_vert_vars(uvheight,real(part(ipart)%zeta),induv, &
+      dz1,dz2,lbounds_uv,.false.)
+    if (ngrid.le.0) then
+      do ind=induv,indpuv
+        call hor_interpol(rhoeta,rhoprof(ind-induv+1),ind,memind(2),nzmax)
+      end do
+    else
+      do ind=induv,indpuv
+        call hor_interpol_nest(rhoetan,rhoprof(ind-induv+1),ind,memind(2), &
+          nzmax)
+      end do
+    endif
+  else ! METER
+    call find_z_level_meters(real(part(ipart)%z))
+    call find_vert_vars(height,real(part(ipart)%z),indz, &
+      dz1,dz2,lbounds,.false.)
+    if (ngrid.le.0) then
+      do ind=indz,indzp
+        call hor_interpol(rho,rhoprof(ind-indz+1),ind,memind(2),nzmax)
+      end do
+    else
+      do ind=indz,indzp
+        call hor_interpol_nest(rhon,rhoprof(ind-indz+1),ind,memind(2),nzmax)
+      end do
+    endif
+  endif
   call vert_interpol(rhoprof(1),rhoprof(2),dz1,dz2,output)
 end subroutine interpol_density
 
