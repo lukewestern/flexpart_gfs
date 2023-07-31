@@ -97,7 +97,7 @@ particle_mod.o 		pbl_profile_mod.o \
 plume_mod.o 		point_mod.o \
 random_mod.o 		readoptions_mod.o \
 restart_mod.o 		settling_mod.o \
-sort_mod.o
+sort_mod.o \
 timemanager_mod.o 	turbulence_mod.o \
 txt_output_mod.o 	unc_mod.o \
 verttransform_mod.o 	wetdepo_mod.o \

@@ -1346,9 +1346,9 @@ subroutine readlanduse
   stop
 
 999 write(*,*) ' #### FLEXPART ERROR! FILE              ####'
-  write(*,*)   ' #### ', path(1)(1:length(1))//'sfcdata.txt'
+  write(*,*)   ' #### ', path(1)(1:length(1))//'sfcdata.t'
   write(*,*)   ' #### DOES NOT EXIST. Note that         ####'
-  write(*,*)   ' #### file was renamed from sfcdata.t  ####'
+  write(*,*)   ' #### file was renamed from surfdata.t  ####'
   write(*,*)   ' #### to sfcdata.txt in v11             ####'
   stop
 end subroutine readlanduse
