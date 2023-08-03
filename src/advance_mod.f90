@@ -366,7 +366,7 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
   dt=real(part(ipart)%idt)
 
   if (.not.turboff) then
-    call turbulence_stratosphere(dt,nrand,ux,vy,wp,tropop,zts)
+    call turbulence_above_pbl(dt,nrand,ux,vy,wp,tropop,zts)
   else
     !sec switch off turbulence
     ux=0.0

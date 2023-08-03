@@ -185,7 +185,7 @@ subroutine turbulence_pbl(ipart,nrand,dt,zts,rhoa,rhograd,thread)
     if (cblflag.ne.1) nrand=nrand+i
 end subroutine turbulence_pbl
 
-subroutine turbulence_stratosphere(dt,nrand,ux,vy,wp,tropop,zts)
+subroutine turbulence_above_pbl(dt,nrand,ux,vy,wp,tropop,zts)
 
   implicit none
   
@@ -225,7 +225,7 @@ subroutine turbulence_stratosphere(dt,nrand,ux,vy,wp,tropop,zts)
     wp=rannumb(nrand)*wpscale
     nrand=nrand+1
   endif
-end subroutine turbulence_stratosphere
+end subroutine turbulence_above_pbl
 
 subroutine turbulence_mesoscale(nrand,dxsave,dysave,ipart,usig,vsig,wsig,wsigeta,eps_eta)
   
@@ -270,6 +270,8 @@ subroutine hanna(z)
   !*****************************************************************************
   !                                                                            *
   !   Computation of \sigma_i and \tau_L based on the scheme of Hanna (1982)   *
+  !   Source: 'Atmospheric Turbulence and Air Polution', chapter 4 and 7,      *
+  !   J.A. Businger, edited by F.T.M. Nieuwstadt and H. van Dop                *            *
   !                                                                            *
   !   Author: A. Stohl                                                         *
   !                                                                            *
@@ -298,14 +300,28 @@ subroutine hanna(z)
   ! 1. Neutral conditions
   !**********************
 
+
+  ! The addition of 1.e-2 in sigu,sigv,sigw comes from ???
+
   if (h/abs(ol).lt.1.) then
     ust=max(1.e-4,ust)
     corr=z/ust
+
+    ! Eq. 7.25 Hanna 1982: sigu/ust=2.0*exp(-3*f*z/ust),
+    ! where f, the Coriolis parameter, is set to 1e-4
     sigu=1.e-2+2.0*ust*exp(-3.e-4*corr)
+
+    ! Eq. 7.26 Hanna 1982: sigv/ust=sigw/ust=1.3*exp(-2*f*z/ust),
+    ! where f, the Coriolis parameter, is set to 1e-4
     sigw=1.3*ust*exp(-2.e-4*corr)
+
+    ! ???      
     dsigwdz=-2.e-4*sigw
     sigw=sigw+1.e-2
     sigv=sigw
+
+    ! Eq.7.27 Hanna 1982: TL=0.5*z/sigw/(1+15*f*z/ust) assumed to be valid
+    ! for all three components
     tlu=0.5*z/sigw/(1.+1.5e-3*corr)
     tlv=tlu
     tlw=tlu
@@ -321,10 +337,14 @@ subroutine hanna(z)
   ! Determine sigmas
   !*****************
 
+    ! Eq. 4.15 Caughey 1982
     sigu=1.e-2+ust*(12.-0.5*h/ol)**0.33333
     sigv=sigu
+
+    ! Ryall & Maryon 1998
     sigw=sqrt(1.2*wst**2*(1.-.9*zeta)*zeta**0.66666+ &
          (1.8-1.4*zeta)*ust**2)+1.e-2
+    ! ???
     dsigwdz=0.5/sigw/h*(-1.4*ust**2+wst**2* &
          (0.8*max(zeta,1.e-3)**(-.33333)-1.8*zeta**0.66666))
 
@@ -332,6 +352,7 @@ subroutine hanna(z)
   ! Determine average Lagrangian time scale
   !****************************************
 
+    ! Eq. 7.17 Hanna  1982
     tlu=0.15*h/sigu
     tlv=tlu
     if (z.lt.abs(ol)) then
@@ -348,13 +369,13 @@ subroutine hanna(z)
   !*********************
 
   else
-    sigu=1.e-2+2.*ust*(1.-zeta)
-    sigv=1.e-2+1.3*ust*(1.-zeta)
+    sigu=1.e-2+2.*ust*(1.-zeta)   ! Eq. 7.20 Hanna 1982
+    sigv=1.e-2+1.3*ust*(1.-zeta)  ! Eq. 7.19 Hanna 1982
     sigw=sigv
-    dsigwdz=-1.3*ust/h
-    tlu=0.15*h/sigu*(sqrt(zeta))
-    tlv=0.467*tlu
-    tlw=0.1*h/sigw*zeta**0.8
+    dsigwdz=-1.3*ust/h            ! ???
+    tlu=0.15*h/sigu*(sqrt(zeta))  ! Eq. 7.22 Hanna 1982
+    tlv=0.467*tlu                 ! Eq. 7.23 Hanna 1982
+    tlw=0.1*h/sigw*zeta**0.8      ! Eq. 7.24 Hanna 1982
   endif
 
 
@@ -370,6 +391,8 @@ subroutine hanna1(z)
   !*****************************************************************************
   !                                                                            *
   !   Computation of \sigma_i and \tau_L based on the scheme of Hanna (1982)   *
+  !   Source: 'Atmospheric Turbulence and Air Polution', chapter 4 and 7,      *
+  !   J.A. Businger, edited by F.T.M. Nieuwstadt and H. van Dop                * 
   !                                                                            *
   !   Author: A. Stohl                                                         *
   !                                                                            *
@@ -402,12 +425,23 @@ subroutine hanna1(z)
   if (h/abs(ol).lt.1.) then
 
     ust=max(1.e-4,ust)
+
+    ! Eq. 7.25 Hanna 1982: sigu/ust=2.0*exp(-3*f*z/ust),
+    ! where f, the Coriolis parameter, is set to 1e-4
     sigu=2.0*ust*exp(-3.e-4*z/ust)
     sigu=max(sigu,1.e-5)
+
+    ! Eq. 7.26 Hanna 1982: sigv/ust=sigw/ust=1.3*exp(-2*f*z/ust),
+    ! where f, the Coriolis parameter, is set to 1e-4
     sigv=1.3*ust*exp(-2.e-4*z/ust)
     sigv=max(sigv,1.e-5)
     sigw=sigv
+
+    ! ???
     dsigw2dz=-6.76e-4*ust*exp(-4.e-4*z/ust)
+
+    ! Eq.7.27 Hanna 1982: TL=0.5*z/sigw/(1+15*f*z/ust) assumed to be valid
+    ! for all three components
     tlu=0.5*z/sigw/(1.+1.5e-3*z/ust)
     tlv=tlu
     tlw=tlu
@@ -423,10 +457,12 @@ subroutine hanna1(z)
   ! Determine sigmas
   !*****************
 
+    ! Eq. 4.15 Caughey 1982
     sigu=ust*(12.-0.5*h/ol)**0.33333
     sigu=max(sigu,1.e-6)
     sigv=sigu
 
+    ! Eq. 7.15 Hanna 1982
     if (zeta.lt.0.03) then
       sigw=0.96*wst*(3*zeta-ol/h)**0.33333
       dsigw2dz=1.8432*wst*wst/h*(3*zeta-ol/h)**(-0.33333)
@@ -453,6 +489,7 @@ subroutine hanna1(z)
   ! Determine average Lagrangian time scale
   !****************************************
 
+    ! Eq. 7.17 Hanna  1982
     tlu=0.15*h/sigu
     tlv=tlu
     if (z.lt.abs(ol)) then
