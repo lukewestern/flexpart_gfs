@@ -1272,7 +1272,7 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
   real :: stokes,vdepj,rdp,alpha
   real :: & ! Variables related to shape
     dfdr, alpha1, alpha2, beta1, beta2, ks, kn, c_d, &
-    settling, settling_old, reynolds, ks1, ks2, kn1, kn2
+    settling, settling_old, reynolds, kn1
 
   real,parameter :: eps=1.e-5
   integer :: ic,j,nc,i
@@ -1303,7 +1303,6 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
 
           else ! Daria Tatsii: Drag coefficient scheme by Bagheri & Bonadonna 2016
                ! Settling velocities of other shapes
-            dfdr=density(ic)/rhoa
 
             reynolds=dquer(ic)/1.e6*vset(ic,j)/nyl
             settling_old=-1.0*vset(ic,j)
@@ -1312,28 +1311,25 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
             !*************************
             if (orient(ic).eq.0) then
               ! Horizontal orientation
-              alpha2=0.77 ! B&B: eq. 32
-              beta2=0.63
-              ks=0.5*((Fs(ic)**0.05)+(Fs(ic)**(-0.36)))  ! B&B Figure 12 k_(s,max)
-              kn=10.**(alpha2*(-log10(Fn(ic)))**beta2)
+              ks=ks2(ic)  ! B&B Figure 12 k_(s,max)
+              kn=kn2(ic)
             else if (orient(ic).eq.1) then 
               ! Random orientation
+              dfdr=density(ic)/rhoa
+
               alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
               beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
-              ks=(Fs(ic)**(1./3.) + Fs(ic)**(-1./3))/2.
+              ks=ks1(ic)
               kn=10.**(alpha1*(-log10(Fn(ic)))**beta1)
             else
               ! The average of random and horizontal orientation
+              dfdr=density(ic)/rhoa
+
               alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
               beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
-              alpha2=0.77 ! B&B: eq. 32
-              beta2=0.63
-              ks1=(Fs(ic)**(1./3.) + Fs(ic)**(-1./3))/2.
               kn1=10.**(alpha1*(-log10(Fn(ic)))**beta1)
-              ks2=0.5*((Fs(ic)**0.05)+(Fs(ic)**(-0.36)))  ! B&B Figure 12 k_(s,max)
-              kn2=10.**(alpha2*(-log10(Fn(ic)))**beta2)
-              ks=(ks1+ks2)/2.
-              kn=(kn1+kn2)/2.
+              ks=(ks1(ic)+ks2(ic))/2.
+              kn=(kn1+kn2(ic))/2.
             endif
 
             do i=1,20

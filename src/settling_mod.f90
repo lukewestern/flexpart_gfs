@@ -71,7 +71,7 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
   integer :: i,n,nix,njy,indzh
 
   ! Variables needed for drag coefficient calculation
-  real :: dfdr,f,e,kn,ks,alpha1,alpha2,beta1,beta2,ks1,ks2,kn1,kn2
+  real :: dfdr,f,e,kn,ks,alpha1,alpha2,beta1,beta2,kn1
 
   !*****************************************************************************
   ! 1. Interpolate temperature and density: nearest neighbor interpolation sufficient
@@ -128,7 +128,7 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
   settling_old=vsetaver(nsp)    ! initialize iteration with Stokes' law to define settling velocity of a sphere, constant viscosity estimate
 
   if (ishape(nsp).eq.0) then
-    do i=1,20    ! do a few iterations Why 20???
+    do i=1,20    ! do a few iterations
 
       ! if (reynolds.lt.1.917) then
       !   c_d=24./reynolds
@@ -140,8 +140,42 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
 
       ! Clift and Guavin 1971 model
  
-      c_d=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
-              0.42/(1.0+42500.0/(reynolds**1.16))
+      ! c_d=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
+      !         0.42/(1.0+42500.0/(reynolds**1.16))
+
+      ! Numerically faster
+      ! c_d = A + B
+
+      ! A = (24./reynolds) + (3.6/reynolds**0.313)
+      ! B = 0.42/(1.0+42500.0/(reynolds**1.16))
+
+      ! B=0.01*A: reynolds<288.63: c_d = A
+      ! B=0.1*A: reynolds<1377.23: c_d = A + Blin0
+      ! B=0.3*A: reynolds<3151.65: c_d = A + Blin1
+      ! B=0.5*A: reynolds<4842.17: c_d = A + Blin2
+      ! B=0.7*A: reynolds<4842.17: c_d = A + Blin2
+      ! B=0.8*A: reynolds<7540.06: c_d = A + Blin4
+
+      ! Blin = a1*reynolds + b2
+      ! Alin = a2*reynolds + b2
+
+      if (reynolds.lt.0.2) then ! (3.6/reynolds**0.313) + 0.42/(1.0+42500.0/(reynolds**1.16)) less than 5 percent of c_d
+        c_d=(24./reynolds)
+      else if (reynolds.lt.288.63) then ! B is less than 1 percent of A
+        c_d=(24./reynolds) + (3.6/reynolds**0.313)
+      else if (reynolds.lt.1377.23) then ! B is less than 10 percent of A
+        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (2.9651e-5*reynolds - 0.00161403)
+      else if (reynolds.lt.3152.65) then ! B is less than 30 percent of A and can be described by the following linear fit
+        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (2.8084e-5*reynolds + 0.00054399)
+      else if (reynolds.lt.4842.17) then ! B is less than 50 percent of A and can be described by the following linear fit
+        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (2.3574e-5*reynolds + 0.0147596)
+      else if (reynolds.lt.6607.45) then ! B is less than 70 percent of A and can be described by the following linear fit
+        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (1.9389e-5*reynolds + 0.0350241)
+      else if (reynolds.lt.7540.06) then ! B is less than 80 percent of A and can be described by the following linear fit
+        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (1.6637e-5*reynolds + 0.0532110)
+      else ! Full equation
+        c_d=(24./reynolds) + (3.6/reynolds**0.313) + 0.42/(1.0+42500.0/(reynolds**1.16))
+      endif
 
       settling=-1.* &
            sqrt(4*ga*dquer(nsp)/1.e6*density(nsp)*cunningham(nsp)/ &
@@ -154,34 +188,30 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
     end do
 
   else ! Drag coefficient scheme by Bagheri & Bonadonna, 2016 to define settling velocities of other shapes (by D.Tatsii)
-    dfdr=density(nsp)/airdens
 
     ! Orientation of particles
     !*************************
     if (orient(nsp).eq.0) then
       ! Horizontal orientation
-      alpha2=0.77 ! B&B: eq. 32
-      beta2=0.63
-      ks=0.5*((Fs(nsp)**0.05)+(Fs(nsp)**(-0.36)))  ! B&B Figure 12 k_(s,max)
-      kn=10.**(alpha2*(-log10(Fn(nsp)))**beta2)
+      ks=ks2(nsp)  ! B&B Figure 12 k_(s,max)
+      kn=kn2(nsp)
     else if (orient(nsp).eq.1) then 
       ! Random orientation
+      dfdr=density(nsp)/airdens
+
       alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
       beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
-      ks=(Fs(nsp)**(1./3.) + Fs(nsp)**(-1./3))/2.
+      ks=ks1(nsp)
       kn=10.**(alpha1*(-log10(Fn(nsp)))**beta1)
     else
       ! The average of random and horizontal orientation
+      dfdr=density(nsp)/airdens
+
       alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
       beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
-      alpha2=0.77 ! B&B: eq. 32
-      beta2=0.63
-      ks1=(Fs(nsp)**(1./3.) + Fs(nsp)**(-1./3))/2.
       kn1=10.**(alpha1*(-log10(Fn(nsp)))**beta1)
-      ks2=0.5*((Fs(nsp)**0.05)+(Fs(nsp)**(-0.36)))  ! B&B Figure 12 k_(s,max)
-      kn2=10.**(alpha2*(-log10(Fn(nsp)))**beta2)
-      ks=(ks1+ks2)/2.
-      kn=(kn1+kn2)/2.
+      ks=(ks1(nsp+ks2(nsp))/2.
+      kn=(kn1+kn2(nsp))/2.
     endif
 
     do i=1,20

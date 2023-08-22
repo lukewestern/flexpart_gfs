@@ -105,6 +105,10 @@ module par_mod
   ! pvcrit                  PV level of the tropopause
 
 
+  !****************************************************
+  ! Shape parameters from Bagheri & Bonadonna, 2016
+  !****************************************************
+  real, parameter :: alpha2=0.77,beta2=0.63 ! eq.32
 
   !********************
   ! Some time constants

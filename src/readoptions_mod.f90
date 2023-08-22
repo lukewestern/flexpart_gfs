@@ -2857,7 +2857,7 @@ subroutine readspecies(id_spec,pos_spec)
       
       f=psa/pia
       e=pia/pla
-
+      ! Drag coefficient scheme by Bagheri & Bonadonna, 2016 to define settling velocities of other shapes (by D.Tatsii)
       if ((ishape(pos_spec).eq.2).or.((ishape(pos_spec).eq.1).and. &
         (pia.eq.psa).and.(pla.ge.20.0*pia))) then
 
@@ -2867,6 +2867,11 @@ subroutine readspecies(id_spec,pos_spec)
         Fn(pos_spec)=f*f*e*((dquer(pos_spec))**3)/(psa*pia*pla) ! Newton's regime  
         Fs(pos_spec)=f*e**(1.3)*(dquer(pos_spec)**3/(psa*pia*pla)) ! Stokes' regime
       endif
+      ! Pre-compute ks and kn values needed for horizontal and average orientation (B&B Figure 12 k_(s,max))
+      ks1(pos_spec)=(Fs(pos_spec)**(1./3.) + Fs(pos_spec)**(-1./3.))/2.
+      ks2(pos_spec)=0.5*((Fs(pos_spec)**0.05)+(Fs(pos_spec)**(-0.36)))
+      kn2(pos_spec)=10.**(alpha2*(-log10(Fn(nsp)))**beta2)
+
     else ! Spheres
       write(*,*) "Particle shape SPHERE for particle", id_spec
     endif
