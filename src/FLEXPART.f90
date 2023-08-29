@@ -52,9 +52,8 @@ program flexpart
 
 
   ! FLEXPART version string
-  flexversion_major = '10' ! Major version number, also used for species file names
-  flexversion='Version '//trim(flexversion_major)//'.4 (2019-11-12)'
-  flexversion=trim(flexversion)//' Git: '//trim(git_version)
+  flexversion_major = '11' ! Major version number, also used for species file names
+  flexversion='Version '//trim(flexversion_major)
   verbosity=0
 
   ! Read the pathnames where input/output files are stored
@@ -81,6 +80,7 @@ program flexpart
   ! Print the GPL License statement
   !*******************************************************
   print*,'Welcome to FLEXPART ', trim(flexversion)
+  print*,"Git: ", trim(git_version)
   print*,'FLEXPART is free software released under the GNU General Public License.'
   write(*,*) 'FLEXPART is running with ', trim(wind_coord_type), 'coordinates.'
   ! Reading the number of threads available and print them for user

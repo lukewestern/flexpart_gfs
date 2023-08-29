@@ -321,9 +321,4 @@ module par_mod
   !**********************************************************************
   real,parameter :: d_thresheqv=20
 
-  !
-  ! Git version
-  !
-  character(len=256),parameter :: git_version='undefined'
-  
 end module par_mod
