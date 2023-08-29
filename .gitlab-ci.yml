@@ -28,3 +28,16 @@ options-test:
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
+  
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/output
+
+comparison:
+  image: harbor.wolke.img.univie.ac.at/flexpart/comparison:latest
+  stage: compare
+  when: manual
+  needs:
+    - options-test
+  
