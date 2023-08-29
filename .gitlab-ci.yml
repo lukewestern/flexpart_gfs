@@ -13,12 +13,15 @@ alma8-build:
 
   before_script:
     - microdnf install -y epel-release
-    - microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 eccodes-devel.x86_64 netcdf.x86_64
+    - microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 netcdf.x86_64 cmake tar gcc-c++ perl
+    - curl https://confluence.ecmwf.int/download/attachments/45757960/eccodes-2.31.0-Source.tar.gz | tar xz
+    - mkdir build && cd build && cmake -DENABLE_ECCODES_OMP_THREADS=ON ../eccodes-*/
+    - make -j8 && make install
 
   script:
     - export FC=gfortran
-    - export LIBRARY_PATH=/usr/lib64
-    - export CPATH=/usr/include:/usr/lib64/gfortran/modules
+    - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
+    - export CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules
     - make -j -C src -f makefile_gfortran
     - ulimit -s unlimited
     - ./src/FLEXPART
