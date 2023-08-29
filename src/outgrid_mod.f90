@@ -76,13 +76,6 @@ subroutine alloc_grid
   !write (*,*) 'Dimensions for fields', numxgrid,numygrid, &
   !     maxspec,maxpointspec_act,nclassunc,maxageclass
 
-  if (lroot) then
-    write (*,*) 'Allocating fields for global output (x,y): ', &
-      numxgrid,numygrid
-    write (*,*) 'Allocating fields for nested output (x,y): ', &
-      numxgridn,numygridn 
-  end if
-
   ! allocate fields for concoutput with maximum dimension of outgrid
   ! and outgrid_nest
 
@@ -418,8 +411,6 @@ subroutine outgrid_init_nest
   real :: eps
 
   eps=nxmax/3.e5
-
-  call alloc_grid_unc_nest
 
   ! Compute surface area and volume of each grid cell: area, volume;
   ! and the areas of the northward and eastward facing walls: areaeast, areanorth

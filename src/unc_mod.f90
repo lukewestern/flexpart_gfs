@@ -108,6 +108,12 @@ subroutine alloc_grid_unc()
       allocate(drygridunc0(1,1,1,1,1,1),stat=stat)
     end if
   end if
+
+  if (lroot) then
+    write (*,*) 'Allocating fields for global output (x,y): ', &
+      numxgrid,numygrid
+  end if
+
 end subroutine alloc_grid_unc
 
 subroutine alloc_grid_unc_nest()
@@ -130,10 +136,10 @@ subroutine alloc_grid_unc_nest()
   if (ldirect.gt.0) then
     allocate(wetgriduncn(0:numxgridn-1,0:numygridn-1,maxspec, &
          maxpointspec_act,nclassunc,maxageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested wetgridunc'
     allocate(drygriduncn(0:numxgridn-1,0:numygridn-1,maxspec, &
          maxpointspec_act,nclassunc,maxageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested drygridunc'
 #ifdef _OPENMP
     allocate(wetgriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
          maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
@@ -172,7 +178,13 @@ subroutine alloc_grid_unc_nest()
       allocate(wetgriduncn0(1,1,1,1,1,1),stat=stat)
       allocate(drygriduncn0(1,1,1,1,1,1),stat=stat)
     end if
-  end if  
+  end if
+
+  if (lroot) then
+    write (*,*) 'Allocating fields for nested output (x,y): ', &
+      numxgridn,numygridn
+  end if
+
 end subroutine alloc_grid_unc_nest
 
 subroutine deposit_decay()
