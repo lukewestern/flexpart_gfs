@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - compare
 
 default:
   tags:
@@ -28,3 +29,17 @@ options-test:
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
+  
+  #artifacts:
+  #  when: on_success
+  #  paths:
+  #    - ./tests/output
+
+comparison:
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  stage: compare
+  when: manual
+  needs:
+    - options-test
+  script:
+    - uptime
