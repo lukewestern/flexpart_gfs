@@ -44,6 +44,7 @@ program flexpart
   real :: s_timemanager
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
+  character(len=256) :: gitversion_tmp="901911f HEAD -> optimise, origin/optimise Tue Aug 29 17:23:41 2023 +0200"
 
   ! Keeping track of the total running time of FLEXPART, printed out at the end.
   !*****************************************************************************
@@ -56,6 +57,7 @@ program flexpart
   flexversion='Version '//trim(flexversion_major)
   verbosity=0
 
+  call update_gitversion(gitversion_tmp)
   ! Read the pathnames where input/output files are stored
   !*******************************************************
 
@@ -76,11 +78,11 @@ program flexpart
   case (0)
     write(pathfile,'(a11)') './pathnames'
   end select
-  
+
   ! Print the GPL License statement
-  !*******************************************************
+  !******************************************************
   print*,'Welcome to FLEXPART ', trim(flexversion)
-  print*,"Git: ", trim(git_version)
+  print*,"Git: ", trim(gitversion)
   print*,'FLEXPART is free software released under the GNU General Public License.'
   write(*,*) 'FLEXPART is running with ', trim(wind_coord_type), 'coordinates.'
   ! Reading the number of threads available and print them for user

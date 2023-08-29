@@ -59,7 +59,7 @@ module netcdf_output_mod
                        ioutputforeachrelease, iflux, mdomainfill, mquasilag, & 
                        nested_output, ipout, surf_only, linit_cond, &
                        flexversion,mpi_mode,DRYBKDEP,WETBKDEP,numpart,numpoint, &
-                       partopt,num_partopt
+                       partopt,num_partopt,gitversion
   use windfields_mod, only: oro,rho,nxmax,height,nxmin1,nymin1,nz,nx,ny,hmix, &
                        ! for concoutput_netcdf and concoutput_nest_netcdf 
                        tropopause,oron,rhon,xresoln,yresoln,xrn,xln,yrn,yln,nxn,nyn
@@ -72,7 +72,6 @@ module netcdf_output_mod
   ! parameter for data compression (1-9, 9 = most aggressive)
   integer, parameter :: deflate_level = 5
   logical, parameter :: min_size = .false.   ! if set true, redundant fields (topography) are not written to minimize file size
-  character(len=255), parameter :: institution = 'NILU'
 
   integer            :: tpointer=0,tpointer_part=0,ppointer_part=0,partinitpointer=0,partinitpointer1=0
   character(len=255) :: ncfname, ncfnamen, ncfname_part, ncfname_partinit!(maxpoint)
@@ -188,7 +187,7 @@ subroutine writemetadata(ncid,lnest)
   ! hes CF convention requires these attributes
   call nf90_err(nf90_put_att(ncid, nf90_global, 'Conventions', 'CF-1.6'))
   call nf90_err(nf90_put_att(ncid, nf90_global, 'title', 'FLEXPART model output'))
-  call nf90_err(nf90_put_att(ncid, nf90_global, 'institution', trim(institution)))
+  call nf90_err(nf90_put_att(ncid, nf90_global, 'git', trim(gitversion)))
   call nf90_err(nf90_put_att(ncid, nf90_global, 'source', trim(flexversion)//' model output'))
   call nf90_err(nf90_put_att(ncid, nf90_global, 'history', date(1:4)//'-'//date(5:6)// &
        '-'//date(7:8)//' '//time(1:2)//':'//time(3:4)//' '//zone//'  created by '//  &

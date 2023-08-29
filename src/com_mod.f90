@@ -40,6 +40,7 @@ module com_mod
   integer :: length(numpath+2*maxnests)
   character(len=256) :: pathfile, flexversion, flexversion_major, arg1, arg2
   character(len=256) :: ohfields_path
+  character(len=256) :: gitversion
   
   ! path                    path names needed for trajectory model
   ! length                  length of path names needed for trajectory model
@@ -525,4 +526,8 @@ contains
 
   end subroutine mpi_alloc_part
 
+  subroutine update_gitversion(gitversion_tmp)
+    character(len=256) :: gitversion_tmp
+    gitversion=gitversion_tmp
+  end subroutine
 end module com_mod

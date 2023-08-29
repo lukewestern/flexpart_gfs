@@ -136,17 +136,27 @@ cleanall:
 
 .SUFFIXES = $(SUFFIXES) .f90
 
+#GIT
+GIT_VERSION := "$(shell git log --pretty=format:"%h %D %ad" -n 1)"
+file_git := gitversion.txt
+
+ifneq ("$(wildcard $(file_git))","")
+GIT_OLD := "$(shell cat ${file_git})"
+else
+GIT_OLD := ""
+endif
+
+gitversion:
+	@echo Added Gitversion: $(GIT_VERSION)
+	@echo Old Gitversion: $(GIT_OLD)
+
+	sed -i '0,/gitversion_tmp/s;gitversion_tmp.*;gitversion_tmp=$(GIT_VERSION);' FLEXPART.f90
+	@echo $(GIT_VERSION) > gitversion.txt
+
 ## DEPENDENCIES
 
-# GIT_VERSION := $(shell git rev-parse --short HEAD)
-#GIT_VERSION := "$(shell git log --pretty=format:"%h %D (%s %at)" -n 1)"
-GIT_VERSION := "$(shell git log --pretty=format:"%h %D %ad" -n 1)"
-gitversion.o:
-	@echo Added Gitversion: $(GIT_VERSION)
-	sed -i 's;git_version=.*;git_version=$(GIT_VERSION);' gitversion.f90
-	@cat gitversion.f90 | grep git_version
-
 #1) Independent modules: par_mod.o, com_mod.o, qvsat_mod.o class_gribfile_mod.o
+
 #2) Modules that are only dependent on independent modules
 cmapf_mod.o: par_mod.o
 com_mod.o: par_mod.o
@@ -187,12 +197,19 @@ getfields_mod.o: wetdepo_mod.o verttransform_mod.o qvsat_mod.o
 flux_mod.o: outgrid_mod.o qvsat_mod.o
 txt_output_mod.o: outgrid_mod.o
 binary_output_mod.o: mean_mod.o outgrid_mod.o
+ifneq ($(ncf), no)
 netcdf_output_mod.o: mean_mod.o outgrid_mod.o readoptions_mod.o drydepo_mod.o
+endif
 
 #8)
 conv_mod.o: flux_mod.o class_gribfile_mod.o qvsat_mod.o sort_mod.o
+ifeq ($(ncf), no)
+output_mod.o: binary_output_mod.o txt_output_mod.o
+restart_mod.o: coord_ecmwf_mod.o unc_mod.o outgrid_mod.o
+else
 output_mod.o: netcdf_output_mod.o binary_output_mod.o txt_output_mod.o
 restart_mod.o: coord_ecmwf_mod.o unc_mod.o netcdf_output_mod.o
+endif
 
 #9)
 initialise_mod.o: xmass_mod.o output_mod.o turbulence_mod.o
@@ -201,4 +218,8 @@ initialise_mod.o: xmass_mod.o output_mod.o turbulence_mod.o
 timemanager_mod.o: advance_mod.o conv_mod.o plume_mod.o getfields_mod.o restart_mod.o initialise_mod.o
 
 #11)
-FLEXPART.o: timemanager_mod.o gitversion.o
+ifneq ($(GIT_VERSION),$(GIT_OLD))
+FLEXPART.o: timemanager_mod.o gitversion
+else
+FLEXPART.o: timemanager_mod.o
+endif
