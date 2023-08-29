@@ -138,8 +138,13 @@ cleanall:
 
 ## DEPENDENCIES
 
-#1) Independent modules: par_mod.o, com_mod.o, qvsat_mod.o class_gribfile_mod.o
+gitversion:
+	GIT_VERSION=`git log --pretty=format:"%h %D (%s %at)" -n 1`
+	sed -i "s/git_version=*/git_version=$(GIT_VERSION)/" par_mod.f90
+	@echo Added Gitversion: $(GIT_VERSION)
 
+#1) Independent modules: par_mod.o, com_mod.o, qvsat_mod.o class_gribfile_mod.o
+par_mod.o: gitversion
 #2) Modules that are only dependent on independent modules
 cmapf_mod.o: par_mod.o
 com_mod.o: par_mod.o

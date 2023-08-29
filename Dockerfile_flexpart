@@ -1,0 +1,24 @@
+#
+# Dockerfile for CI and Flexpart container images
+# Options:
+#	- JASPER = 0/1 (include jasper libs?)
+#	- COMMIT = ... (use git log --pretty=format:'%h %D (%s %at)' -n 1)
+#			   with this option Flexpart is build inside the container
+# Build Examples:
+#	- podman build -t flexpart:fp11 -f Dockerfile_flexpart --build-arg COMMIT=$(git log --pretty=format:'%h %D (%s %at)' -n 1)
+#
+ARG COMMIT=0
+#
+# Build image with Flexpart inside
+#
+FROM localhost/almalinux8:fp11_1
+COPY ./src /src
+COPY ./tests/default_options /options
+COPY ./tests/default_winds /inputs
+COPY ./entrypoint.sh /entrypoint.sh
+WORKDIR /src
+ENV COMMIT=$COMMIT
+RUN make -f makefile_gfortran && \
+	mkdir -p /output && \
+	echo -e "/options/\n/output/\n/inputs/\n/inputs/AVAILABLE" > /pathnames
+ENTRYPOINT ["/entrypoint.sh"]

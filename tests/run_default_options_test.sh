@@ -52,6 +52,51 @@ sed "/LOUTRESTART=/c\ LOUTRESTART=   -1," ./default_options/COMMAND > ./current/
 report "[$MM] TEST $TESTRUN (LOUTRESTART)"
 STATUS=$((STATUS + $?))
 TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+# 
+#
+cp -rf ./default_options ./current
+sed "/LDIRECT=/c\ LDIRECT=   -1," ./default_options/COMMAND > ./current/COMMAND
+# change release
+# 
+# IND_RECEPTOR=          1, ! Unit to be used at the receptor; [0]no receptor [1]mass 2]mass mixing ratio 3]wet depo. 4]dry depo.
+# ! Release start time in UTC HHMISS: HH hours, MI=minutes, SS=seconds
+sed -i "s/ITIME1.*/ITIME1  =   030000,/" ./current/RELEASES
+sed -i "s/ITIME2.*/ITIME2  =   030000,/" ./current/RELEASES
+sed -i "s/IND_RECEPTOR.*/IND_RECEPTOR=  3," ./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (IND_RECEPTOR=3)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+# 
+#
+cp -rf ./default_options ./current
+sed "/LDIRECT=/c\ LDIRECT=   -1," ./default_options/COMMAND > ./current/COMMAND
+sed -i "s/ITIME1.*/ITIME1  =   030000,/" ./current/RELEASES
+sed -i "s/ITIME2.*/ITIME2  =   030000,/" ./current/RELEASES
+sed -i "/IND_RECEPTOR.*/IND_RECEPTOR=  4,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (IND_RECEPTOR=4)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+# Test particale output (ipout=1)
+# between openmp=1 and openmp=?? the locations should be identical
+# no convection no turbulence
+#
+
+#
+# Add comaprison with MASTER branch outputs
+# add as a volume
+#
+#
 
 #
 # FINAL
