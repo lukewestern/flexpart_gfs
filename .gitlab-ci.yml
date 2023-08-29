@@ -7,33 +7,24 @@ default:
     - podman
 
 alma8-build:
-  image: almalinux:8-minimal
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:fp11_1
   stage: build
-  #when: manual
-
-  before_script:
-    - microdnf install -y epel-release
-    - microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 eccodes-devel.x86_64 netcdf.x86_64
 
   script:
     - export FC=gfortran
-    - export LIBRARY_PATH=/usr/lib64
-    - export CPATH=/usr/include:/usr/lib64/gfortran/modules
+    - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
+    - export CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules
     - make -j -C src -f makefile_gfortran
   artifacts:
     paths:
       - ./src/FLEXPART
 
 options-test:
-  image: almalinux:8-minimal
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:fp11_1
   stage: test
-  #when: manual
   needs:
     - alma8-build
 
-  before_script:
-    - microdnf install -y epel-release
-    - microdnf install -y --enablerepo=powertools make netcdf-fortran.x86_64 eccodes.x86_64 netcdf.x86_64
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
