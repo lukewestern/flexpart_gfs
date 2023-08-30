@@ -56,7 +56,7 @@ TESTSRUN=$((TESTSRUN + 1))
 rm -rf ./current ./output/*
 #
 # 
-#
+#BACKWARD WET DEPOSITION
 cp -rf ./default_options ./current
 sed "/LDIRECT=/c\ LDIRECT=   -1," ./default_options/COMMAND > ./current/COMMAND
 # change release
@@ -74,7 +74,7 @@ TESTSRUN=$((TESTSRUN + 1))
 rm -rf ./current ./output/*
 #
 # 
-#
+#BACKWARD DRY DEPOSITION
 cp -rf ./default_options ./current
 sed "/LDIRECT=/c\ LDIRECT=   -1," ./default_options/COMMAND > ./current/COMMAND
 sed -i "s/ITIME1.*/ITIME1  =   030000,/" ./current/RELEASES
@@ -87,6 +87,176 @@ TESTSRUN=$((TESTSRUN + 1))
 # clean up
 rm -rf ./current ./output/*
 #
+#
+#OUTRESTART
+cp -rf ./default_options ./current
+sed -i "/LOUTRESTART.*/LOUTRESTART=  3600,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (LOUTRESTART=3600)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#CTL option
+cp -rf ./default_options ./current
+sed -i "/CTL.*/CTL=  10.0000,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (CTL=10)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#NETCDF output
+cp -rf ./default_options ./current
+sed -i "/IOUT.*/IOUT=  9,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (IOUT=9)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#NETCDF particle output
+cp -rf ./default_options ./current
+sed -i "/IPOUT.*/IPOUT=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (IPOUT=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#NETCDF particle output at the end
+cp -rf ./default_options ./current
+sed -i "/IPOUT.*/IPOUT=  2,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (IPOUT=2)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#LSUBGRID
+cp -rf ./default_options ./current
+sed -i "/LSUBGRID.*/LSUBGRID=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (LSUBGRID=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#AGESPECTRA
+cp -rf ./default_options ./current
+sed -i "/LAGESPECTRA.*/LAGESPECTRA=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (LAGESPECTRA=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#IPIN
+./FLEXPART pathnames
+mv output/restart_20090101020000 output/restart.bin
+cp -rf ./default_options ./current
+sed -i "/IPIN.*/IPIN=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (IPIN=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#IOUTPUTFOREACHRELEASE
+cp -rf ./default_options ./current
+sed -i "/IOUT.*/IOUT=  9,"./current/COMMAND
+sed -i "/IOUTPUTFOREACHRELEASE.*/IOUTPUTFOREACHRELEASE=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (IOUTPUTFOREACHRELEASE=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+#
+#
+#IFLUX
+cp -rf ./default_options ./current
+sed -i "/IFLUX.*/IFLUX=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (IFLUX=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#MDOMAINFILL
+cp -rf ./default_options ./current
+sed -i "/MDOMAINFILL.*/MDOMAINFILL=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (MDOMAINFILL=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#MQUASILAG
+cp -rf ./default_options ./current
+sed -i "/MQUASILAG.*/MQUASILAG=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (MQUASILAG=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#NESTED_OUTPUT
+cp -rf ./default_options ./current
+sed -i "/NESTED_OUTPUT.*/NESTED_OUTPUT=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (NESTED_OUTPUT=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#NESTED_INPUT
+#
+#
+#LINIT_COND
+cp -rf ./default_options ./current
+sed -i "/LINIT_COND.*/LINIT_COND=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (LINIT_COND=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#CBLFLAG
+cp -rf ./default_options ./current
+sed -i "/CTL.*/CTL=  10.0000,"./current/COMMAND
+sed -i "/IFINE.*/IFINE=  10,"./current/COMMAND
+sed -i "/CBLFLAG.*/CBLFLAG=  1,"./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (CBLFLAG=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
 # Test particale output (ipout=1)
 # between openmp=1 and openmp=?? the locations should be identical
 # no convection no turbulence
