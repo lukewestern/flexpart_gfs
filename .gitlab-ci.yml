@@ -8,7 +8,7 @@ default:
     - podman
 
 alma8-build:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:fp11_1
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   stage: build
 
   script:
@@ -21,7 +21,7 @@ alma8-build:
       - ./src/FLEXPART
 
 options-test:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:fp11_1
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   stage: test
   needs:
     - alma8-build
