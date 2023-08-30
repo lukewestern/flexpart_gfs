@@ -6,7 +6,7 @@ default:
     - podman
 
 alma8-build:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:fp11_jasp
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:jasper
   stage: build
   when: manual
 
