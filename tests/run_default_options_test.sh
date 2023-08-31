@@ -54,8 +54,8 @@ sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
 # 
 # IND_RECEPTOR=          1, ! Unit to be used at the receptor; [0]no receptor [1]mass 2]mass mixing ratio 3]wet depo. 4]dry depo.
 # ! Release start time in UTC HHMISS: HH hours, MI=minutes, SS=seconds
-sed -i "/ITIME1/c\ ITIME1  =   030000,/" ./current/RELEASES
-sed -i "/ITIME2/c\ ITIME2  =   030000,/" ./current/RELEASES
+sed -i "/ITIME1/c\ ITIME1  =   030000," ./current/RELEASES
+sed -i "/ITIME2/c\ ITIME2  =   030000," ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  3," ./current/COMMAND
 sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
 ./FLEXPART pathnames
@@ -69,8 +69,8 @@ rm -rf ./current ./output/*
 #BACKWARD DRY DEPOSITION
 cp -rf ./default_options ./current
 sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
-sed -i "/ITIME1/c\ ITIME1  =   030000,/" ./current/RELEASES
-sed -i "/ITIME2/c\ ITIME2  =   030000,/" ./current/RELEASES
+sed -i "/ITIME1/c\ ITIME1  =   030000," ./current/RELEASES
+sed -i "/ITIME2/c\ ITIME2  =   030000," ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  4," ./current/COMMAND
 sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
 ./FLEXPART pathnames
