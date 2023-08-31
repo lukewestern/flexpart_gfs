@@ -9,7 +9,7 @@ default:
     - podman
 
 alma8-build:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:fp11_1
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   stage: build
 
   script:
@@ -22,7 +22,7 @@ alma8-build:
       - ./src/FLEXPART
 
 options-test:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:fp11_1
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   stage: test_options
   needs:
     - alma8-build
@@ -32,7 +32,7 @@ options-test:
     - bash ./tests/run_default_options_test.sh
 
 openmp-test:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:fp11_1
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   stage: test_omp
   when: manual
   needs:

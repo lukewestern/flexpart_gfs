@@ -1,7 +1,7 @@
 #
 # Dockerfile for CI and Flexpart container images
 # Build Examples:
-#	- podman build -t harbor.wolke.img.univie.ac.at/flexpart/almalinux8 -f Dockerfile
+#	- podman build -t harbor.wolke.img.univie.ac.at/flexpart/almalinux8:jasper -f Dockerfile
 #
 FROM almalinux:8-minimal 
 #
@@ -9,7 +9,7 @@ FROM almalinux:8-minimal
 # jasper was used in FP 10.4 (eccodes, emoslib)
 #
 RUN microdnf install -y epel-release && \
-	microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 netcdf.x86_64 cmake tar gcc-c++ perl && \
+	microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 netcdf.x86_64 cmake tar gcc-c++ perl jasper-libs.x86_64 && \
 	microdnf clean all -y
 
 #
