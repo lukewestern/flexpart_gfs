@@ -45,6 +45,8 @@ openmp-simulation:
     paths:
       - ./tests/output_omp1
       - ./tests/output_omp32
+      - ./tests/output_omp1/partoutput_20090101000000_init.nc
+      - ./tests/output_omp32/partoutput_20090101000000_init.nc
 
 openmp-test:
   image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
