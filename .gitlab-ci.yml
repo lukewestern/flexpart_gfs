@@ -1,7 +1,6 @@
 stages:
   - build
-  - test_options
-  - test_omp
+  - test
   - compare
 
 default:
@@ -23,18 +22,17 @@ alma8-build:
 
 options-test:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
-  stage: test_options
+  stage: test
   needs:
     - alma8-build
 
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
-
-openmp-test:
+  
+openmp-simulation:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
-  stage: test_omp
-  when: manual
+  stage: test
   needs:
     - alma8-build
 
@@ -42,16 +40,19 @@ openmp-test:
     - ulimit -s unlimited
     - bash ./tests/run_openmp_test.sh
   
-  #artifacts:
-  #  when: on_success
-  #  paths:
-  #    - ./tests/output
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/output_omp1
+      - ./tests/output_omp32
 
-comparison:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+openmp-test:
+  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
   stage: compare
   when: manual
   needs:
-    - options-test
+    - openmp-test
   script:
-    - uptime
+    - cd ./tests/
+    - python3 ./openmp_test.py
+  
