@@ -25,5 +25,5 @@ ndata_32.close()
 os.rmdir('./current') 
 os.rmdir('./output_omp1')
 os.rmdir('./output_omp32')
-os.remove('pathnames_omp1'
+os.remove('pathnames_omp1')
 os.remove('pathnames_omp32')
