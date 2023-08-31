@@ -1089,7 +1089,6 @@ subroutine init_domainfill
               jj=jj+1
               !THIS WILL CAUSE PROBLEMS WITH OMP! because of dynamical allocation
               call spawn_particle(0,numpart+jj)
-              if (allocated_tmp.lt.numpart+jj) allocated_tmp=numpart+jj
               call set_xlon(numpart+jj,real(real(lix)-0.5+ran1(idummy,0),kind=dp))
               if (lix.eq.0) call set_xlon(numpart+jj,real(ran1(idummy,0),kind=dp))
               if (lix.eq.nxmin1) &
@@ -1177,7 +1176,6 @@ subroutine init_domainfill
 
   alive_tmp=count%alive
   spawned_tmp=count%spawned
-  allocated_tmp=count%allocated
   terminated_tmp=count%terminated
 
 ! !$OMP PARALLEL PRIVATE(j) REDUCTION(+:alive_tmp,spawned_tmp,allocated_tmp,terminated_tmp)
@@ -1198,7 +1196,6 @@ subroutine init_domainfill
 
   count%alive=alive_tmp
   count%spawned=spawned_tmp
-  count%allocated=allocated_tmp
   count%terminated=terminated_tmp
   ! Check whether numpart is really smaller than maxpart
   !*****************************************************
@@ -1409,18 +1406,19 @@ subroutine boundcond_domainfill(itime,loutend)
 
   ! Loop from south to north
   !*************************
-!$OMP PARALLEL PRIVATE(i,jy,k,j,ii,deltaz,boundarea,indz,indzp,indexh,windl,rhol, &
-!$OMP windhl,rhohl,windx,rhox,fluxofmass,mmass,ixm,jym,ixp,jyp,ddx,ddy,rddx, &
-!$OMP rddy,p1,p2,p3,p4,indzm,mm,indzh,pvpart,ylat,ix,cosfact,ipart) &
-!$OMP REDUCTION(+:numactiveparticles,numparticlecount_tmp,accmasst)
+! OMP doesn't work here yet because particles are being spawned inside of the loop
+! !$OMP PARALLEL PRIVATE(i,jy,k,j,ii,deltaz,boundarea,indz,indzp,indexh,windl,rhol, &
+! !$OMP windhl,rhohl,windx,rhox,fluxofmass,mmass,ixm,jym,ixp,jyp,ddx,ddy,rddx, &
+! !$OMP rddy,p1,p2,p3,p4,indzm,mm,indzh,pvpart,ylat,ix,cosfact,ipart) &
+! !$OMP REDUCTION(+:numactiveparticles,numparticlecount_tmp,accmasst)
 
-#ifdef _OPENMP
-  ithread = OMP_GET_THREAD_NUM()
-#else
-  ithread = 0
-#endif
+! #ifdef _OPENMP
+!   ithread = OMP_GET_THREAD_NUM()
+! #else
+!   ithread = 0
+! #endif
 
-!$OMP DO
+! !$OMP DO
   do jy=ny_sn(1),ny_sn(2)
 
   ! Loop over western (index 1) and eastern (index 2) boundary
@@ -1532,6 +1530,7 @@ subroutine boundcond_domainfill(itime,loutend)
         endif
 
         do m=1,mmass
+          !THIS WILL CAUSE PROBLEMS WITH OMP! because of dynamical allocation
           call get_newpart_index(ipart)
           call spawn_particle(itime, ipart)
 
@@ -1624,7 +1623,7 @@ subroutine boundcond_domainfill(itime,loutend)
       end do ! release locations in column
     end do ! western and eastern boundary
   end do ! south to north
-!$OMP END DO
+! !$OMP END DO
 
   !*****************************************
   ! Southern and northern boundary condition
@@ -1632,7 +1631,7 @@ subroutine boundcond_domainfill(itime,loutend)
 
   ! Loop from west to east
   !***********************
-!$OMP DO
+! !$OMP DO
   do ix=nx_we(1),nx_we(2)
 
   ! Loop over southern (index 1) and northern (index 2) boundary
@@ -1836,8 +1835,8 @@ subroutine boundcond_domainfill(itime,loutend)
       end do ! releases per column
     end do ! east west
   end do ! north south
-!$OMP END DO
-!$OMP END PARALLEL
+! !$OMP END DO
+! !$OMP END PARALLEL
   numparticlecount = numparticlecount_tmp
   ! If particles shall be dumped, then accumulated masses at the domain boundaries
   ! must be dumped, too, to be used for later runs
