@@ -1958,7 +1958,7 @@ subroutine readreceptors
   write(*,*) ' #### POINTS ARE GIVEN.                       #### '
   write(*,*) ' #### MAXIMUM NUMBER IS ',maxreceptor,'       #### '
 !        write(*,*) ' #### PLEASE MAKE CHANGES IN FILE RECEPTORS   #### '
-  error stop' maxreceptor smaller than numreceptor'
+  error stop ' maxreceptor smaller than numreceptor'
 
 993 continue
   write(*,*) '#### FLEXPART ERROR: namelist in file RECEPTORS'
