@@ -48,8 +48,8 @@ TESTSRUN=0
 # run Options test with restart output disabled
 #
 sed "/LCONVECTION=/c\ LCONVECTION=   0," ./default_options/COMMAND > ./current/COMMAND
-sed "/LTURBULENCE=/c\ LTURBULENCE=   0," ./default_options/COMMAND > ./current/COMMAND
-sed "/IPOUT=/c\ IPOUT=   1," ./default_options/COMMAND > ./current/COMMAND
+sed -i "/LTURBULENCE=/c\ LTURBULENCE=   0," ./current/COMMAND
+sed -i "/IPOUT=/c\ IPOUT=   1," ./current/COMMAND
 
 # Aerosol particles to capture settling speeds, dry and wet deposition in output
 sed "/SPECNUM_REL=/c\ SPECNUM_REL=   40," ./default_options/RELEASES > ./current/RELEASES

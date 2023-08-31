@@ -90,7 +90,7 @@ rm -rf ./current ./output/*
 #
 #OUTRESTART
 cp -rf ./default_options ./current
-sed -i "/LOUTRESTART.*/LOUTRESTART=  3600,"./current/COMMAND
+sed "/LOUTRESTART.*/LOUTRESTART=  3600," ./default_options/COMMAND > ./current/COMMAND
 ./FLEXPART pathnames
 report "[$MM] TEST $TESTRUN (LOUTRESTART=3600)"
 STATUS=$((STATUS + $?))
