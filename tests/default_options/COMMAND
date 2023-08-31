@@ -24,13 +24,14 @@
  LTURBULENCE=           1, ! Switch for turbulence parameterisation;0]off [1]on
  LAGESPECTRA=           0, ! Switch for calculation of age spectra (needs AGECLASSES);[0]off 1]on
  IPIN=                  0, ! Warm start from particle dump; [0]no 1]from restart.bin file 2]from previous partoutput file 3]self made initial conditions 4]restart.bin and self made initial conditions
- IOUTPUTFOREACHRELEASE= 1, ! Separate output fields for each location in the RELEASE file; [0]no 1]yes 
+ IOUTPUTFOREACHRELEASE= 0, ! Separate output fields for each location in the RELEASE file; [0]no 1]yes 
  IFLUX=                 0, ! Output of mass fluxes through output grid box boundaries
  MDOMAINFILL=           0, ! Switch for domain-filling, if limited-area particles generated at boundary
  IND_SOURCE=            1, ! Unit to be used at the source; [1]mass 2]mass mixing ratio 
  IND_RECEPTOR=          1, ! Unit to be used at the receptor; [0]no receptor [1]mass 2]mass mixing ratio 3]wet depo. 4]dry depo.
  MQUASILAG=             0, ! Quasi-Lagrangian mode to track individual numbered particles 
  NESTED_OUTPUT=         0, ! Output also for a nested domain 
+ LNETCDFOUT=            1, ! Gridded netcdf output: [0]no [1]yes
  LINIT_COND=            0, ! Output sensitivity to initial conditions (bkw mode only) [0]off 1]conc 2]mmr 
  SURF_ONLY=             0, ! Output only for the lowest model layer, used w/ LINIT_COND=1 or 2
  CBLFLAG=               0, ! Skewed, not Gaussian turbulence in the convective ABL, need large CTL and IFINE
