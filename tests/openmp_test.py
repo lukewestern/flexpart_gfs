@@ -46,7 +46,7 @@ if (mn_c>(mn_c1/1.e8)):
   raise ValueError('Gridded concentration output deviates between serial and OMP version')
 
 #Wet deposition
-temp=ndata_1['WD_spec001_mr'][:]-ndata_32['WD_spec001_mr'][:]
+temp=ndata_1['WD_spec001'][:]-ndata_32['WD_spec001'][:]
 mn_c=np.mean(temp)
 mx_c=np.max(temp)
 mn_c1=np.mean(ndata_1['spec001_mr'][:])
@@ -55,7 +55,7 @@ if (mn_c>(mn_c1/1.e8)):
   raise ValueError('Gridded WET deposition output deviates between serial and OMP version')
 
 #Dry deposition
-temp=ndata_1['DD_spec001_mr'][:]-ndata_32['DD_spec001_mr'][:]
+temp=ndata_1['DD_spec001'][:]-ndata_32['DD_spec001'][:]
 mn_c=np.mean(temp)
 mx_c=np.max(temp)
 mn_c1=np.mean(ndata_1['spec001_mr'][:])
