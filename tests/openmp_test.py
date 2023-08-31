@@ -41,6 +41,7 @@ temp=ndata_1['spec001_mr'][:]-ndata_32['spec001_mr'][:]
 mn_c=np.mean(temp)
 mx_c=np.max(temp)
 mn_c1=np.mean(ndata_1['spec001_mr'][:])
+print("Concentrations: mean difference",mn_c," max abs difference:",mx_c, "mean: ",mn_c1)
 if (mn_c>(mn_c1/1.e8)):
   print('Gridded concentration output: mean difference exceeds allowed value of ',mn_c1/1.e8)
   raise ValueError('Gridded concentration output deviates between serial and OMP version')
@@ -50,6 +51,7 @@ temp=ndata_1['WD_spec001'][:]-ndata_32['WD_spec001'][:]
 mn_c=np.mean(temp)
 mx_c=np.max(temp)
 mn_c1=np.mean(ndata_1['spec001_mr'][:])
+print("WET deposition: mean difference",mn_c," max abs difference:",mx_c, "mean: ",mn_c1)
 if (mn_c>(mn_c1/1.e8)):
   print('Gridded WET deposition output: mean difference exceeds allowed value of ',mn_c1/1.e8)
   raise ValueError('Gridded WET deposition output deviates between serial and OMP version')
@@ -59,6 +61,7 @@ temp=ndata_1['DD_spec001'][:]-ndata_32['DD_spec001'][:]
 mn_c=np.mean(temp)
 mx_c=np.max(temp)
 mn_c1=np.mean(ndata_1['spec001_mr'][:])
+print("DRY deposition: mean difference",mn_c," max abs difference:",mx_c, "mean: ",mn_c1)
 if (mn_c>(mn_c1/1.e8)):
   print('Gridded DRY deposition output: mean difference exceeds allowed value of ',mn_c1/1.e8)
   raise ValueError('Gridded DRY deposition output deviates between serial and OMP version')
