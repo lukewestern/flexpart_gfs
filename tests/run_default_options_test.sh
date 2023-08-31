@@ -57,6 +57,7 @@ sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
 sed -i "/ITIME1/c\ ITIME1  =   030000,/" ./current/RELEASES
 sed -i "/ITIME2/c\ ITIME2  =   030000,/" ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  3," ./current/COMMAND
+sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
 ./FLEXPART pathnames
 report "[$MM] TEST $TESTRUN (IND_RECEPTOR=3)"
 STATUS=$((STATUS + $?))
@@ -71,6 +72,7 @@ sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
 sed -i "/ITIME1/c\ ITIME1  =   030000,/" ./current/RELEASES
 sed -i "/ITIME2/c\ ITIME2  =   030000,/" ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  4," ./current/COMMAND
+sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
 ./FLEXPART pathnames
 report "[$MM] TEST $TESTRUN (IND_RECEPTOR=4)"
 STATUS=$((STATUS + $?))
@@ -203,15 +205,6 @@ TESTSRUN=$((TESTSRUN + 1))
 # clean up
 rm -rf ./current ./output/*
 #
-#
-#IOUTPUTFOREACHRELEASE
-cp -rf ./default_options ./current
-sed -i "/IOUT=/c\ IOUT=  9," ./current/COMMAND
-sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
-./FLEXPART pathnames
-report "[$MM] TEST $TESTRUN (IOUTPUTFOREACHRELEASE=1)"
-STATUS=$((STATUS + $?))
-TESTSRUN=$((TESTSRUN + 1))
 #
 #
 #IFLUX
