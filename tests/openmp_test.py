@@ -10,8 +10,8 @@ for dd in dirs:
   if dd.startswith('output_'):
     files_lv1 = os.listdir('./'+dd)
     for f1 in files_lv1:
+      print(f1)
       if f1.endswith('_init.nc'):
-        print(f1)
         paths.append('./'+dd+f1)
 
 print(paths)
