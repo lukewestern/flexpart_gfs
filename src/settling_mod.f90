@@ -4,9 +4,89 @@ module settling_mod
   
   implicit none
 
+  integer :: re_nsteps ! Number of Reynolds number table points
+  real, allocatable ,dimension(:) :: re_lookup, cd_lookup
+
+
   private :: viscosity
   public :: get_settling
 contains
+
+subroutine init_dragcoeff_lookup()
+  implicit none
+  !*****************************
+  ! Clift and Guavin 1971 model*
+  !*****************************
+  real :: re_min, re_max ! Range of Reynolds numbers
+  integer :: i
+
+  re_nsteps=1000
+
+  allocate (re_lookup(re_nsteps), cd_lookup(re_nsteps))
+
+  ! Reynolds numbers range between 0.2 and 8000. 
+  ! Below this range, the approx of re/24 is sufficient and above 8000, the 
+  ! full equation is executed during run-time.
+  ! logarithmic spacing with a 1000 steps gives a maximum deviation of drag_coeff of
+  ! 0.07% as compared to using the full equation (mean=0.0037% deviation)
+  !**********************************************************************
+  re_min=log10(0.02)
+  re_max=log10(8000.)
+  do i=1,re_nsteps
+    re_lookup(i) = 10.**((re_max-re_min) * real(i-1) / real(re_nsteps-1) + re_min)
+  end do
+
+  ! Computing drag coefficients
+  !****************************
+  cd_lookup=(24.0/re_lookup)*(1+0.15*(re_lookup**0.687))+ &
+      0.42/(1.0+42500.0/(re_lookup**1.16))
+
+end subroutine init_dragcoeff_lookup
+
+subroutine find_dragcoeff(reynolds, c_drag)
+  implicit none
+  real, intent(in) :: reynolds
+  real, intent(out) :: c_drag
+  integer :: i, i_re
+  real :: dre,dre1,dre2
+
+
+  ! If reynolds<0.2, approximation 24/reynolds is valid
+  ! 24/reynolds makes up >99% of all components
+  !****************************************************
+  if (reynolds.le.0.02) then
+    c_drag=(24.0/reynolds)
+
+  else if (reynolds.le.8000) then ! Outside of lookup table range
+    c_drag=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
+      0.42/(1.0+42500.0/(reynolds**1.16))
+
+  else
+    ! Linear search for correct indices in lookup table
+    !**************************************************
+    i_re = re_nsteps
+    do i = 1, re_nsteps
+      if (re_lookup(i) >= reynolds) then
+        i_re=i
+        exit
+      endif
+    end do
+
+    ! Linear interpolation (maybe also do logarithmic?)
+    !*********************
+    if (i_re.eq.re_nsteps) then
+      c_drag=cd_lookup(re_nsteps)
+    else if (i_re.eq.1) then
+      c_drag=cd_lookup(1)
+    else
+      dre=1./(cd_lookup(i_re+1)-cd_lookup(i_re))
+      dre1=(reynolds-re_lookup(i_re))*dre
+      dre2=(re_lookup(i_re+1)-reynolds)*dre
+      c_drag=dre1*cd_lookup(i_re+1)+dre2*cd_lookup(i_re)
+    endif
+  endif
+
+end subroutine
 
 subroutine get_settling(xt,yt,zt,nsp,settling)
   !                          i   i  i  i   i     o
@@ -139,43 +219,8 @@ subroutine get_settling(xt,yt,zt,nsp,settling)
       ! endif
 
       ! Clift and Guavin 1971 model
- 
-      ! c_d=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
-      !         0.42/(1.0+42500.0/(reynolds**1.16))
 
-      ! Numerically faster
-      ! c_d = A + B
-
-      ! A = (24./reynolds) + (3.6/reynolds**0.313)
-      ! B = 0.42/(1.0+42500.0/(reynolds**1.16))
-
-      ! B=0.01*A: reynolds<288.63: c_d = A
-      ! B=0.1*A: reynolds<1377.23: c_d = A + Blin0
-      ! B=0.3*A: reynolds<3151.65: c_d = A + Blin1
-      ! B=0.5*A: reynolds<4842.17: c_d = A + Blin2
-      ! B=0.7*A: reynolds<4842.17: c_d = A + Blin2
-      ! B=0.8*A: reynolds<7540.06: c_d = A + Blin4
-
-      ! Blin = a1*reynolds + b2
-      ! Alin = a2*reynolds + b2
-
-      if (reynolds.lt.0.2) then ! (3.6/reynolds**0.313) + 0.42/(1.0+42500.0/(reynolds**1.16)) less than 5 percent of c_d
-        c_d=(24./reynolds)
-      else if (reynolds.lt.288.63) then ! B is less than 1 percent of A
-        c_d=(24./reynolds) + (3.6/reynolds**0.313)
-      else if (reynolds.lt.1377.23) then ! B is less than 10 percent of A
-        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (2.9651e-5*reynolds - 0.00161403)
-      else if (reynolds.lt.3152.65) then ! B is less than 30 percent of A and can be described by the following linear fit
-        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (2.8084e-5*reynolds + 0.00054399)
-      else if (reynolds.lt.4842.17) then ! B is less than 50 percent of A and can be described by the following linear fit
-        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (2.3574e-5*reynolds + 0.0147596)
-      else if (reynolds.lt.6607.45) then ! B is less than 70 percent of A and can be described by the following linear fit
-        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (1.9389e-5*reynolds + 0.0350241)
-      else if (reynolds.lt.7540.06) then ! B is less than 80 percent of A and can be described by the following linear fit
-        c_d=(24./reynolds) + (3.6/reynolds**0.313) + (1.6637e-5*reynolds + 0.0532110)
-      else ! Full equation
-        c_d=(24./reynolds) + (3.6/reynolds**0.313) + 0.42/(1.0+42500.0/(reynolds**1.16))
-      endif
+      call find_dragcoeff(reynolds, c_d)
 
       settling=-1.* &
            sqrt(4*ga*dquer(nsp)/1.e6*density(nsp)*cunningham(nsp)/ &

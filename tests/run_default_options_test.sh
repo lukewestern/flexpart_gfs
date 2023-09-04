@@ -54,6 +54,7 @@ sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
 # 
 # IND_RECEPTOR=          1, ! Unit to be used at the receptor; [0]no receptor [1]mass 2]mass mixing ratio 3]wet depo. 4]dry depo.
 # ! Release start time in UTC HHMISS: HH hours, MI=minutes, SS=seconds
+sed "/SPECNUM_REL=/c\ SPECNUM_REL=   40," ./default_options/RELEASES > ./current/RELEASES
 sed -i "/ITIME1  =/c\ ITIME1  =   030000," ./current/RELEASES
 sed -i "/ITIME2  =/c\ ITIME2  =   030000," ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  3," ./current/COMMAND
@@ -69,6 +70,7 @@ rm -rf ./current ./output/*
 #BACKWARD DRY DEPOSITION
 cp -rf ./default_options ./current
 sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
+sed "/SPECNUM_REL=/c\ SPECNUM_REL=   40," ./default_options/RELEASES > ./current/RELEASES
 sed -i "/ITIME1  =/c\ ITIME1  =   030000," ./current/RELEASES
 sed -i "/ITIME2  =/c\ ITIME2  =   030000," ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  4," ./current/COMMAND
@@ -144,12 +146,25 @@ rm -rf ./current ./output/*
 cp -rf ./default_options ./current
 sed -i "/IPOUT=/c\ IPOUT=  1," ./current/COMMAND
 sed "/SPECNUM_REL=/c\ SPECNUM_REL=   40," ./default_options/RELEASES > ./current/RELEASES
-./FLEXPART pathnames
+sed -i "/LON1    =/c\ LON1    =    -50.0," ./current/RELEASES
+sed -i "/LON2    =/c\ LON2    =    50.0," ./current/RELEASES
+sed -i "/LAT1    =/c\ LAT1    =        10.0," ./current/RELEASES
+sed -i "/LAT2    =/c\ LAT2    =        80.0," ./current/RELEASES
+sed -i "/Z1      =/c\ Z1    =         1.0000," ./current/RELEASES
+sed -i "/Z2      =/c\ Z2    =       100.0000," ./current/RELEASES
+sed -i "/PSHAPE/c\ PSHAPE= 0" ./current/SPECIES/SPECIES_040
+sed -i "/PDQUER/c\ PDQUER=100.0E-06" ./current/SPECIES/SPECIES_040
+
+cp pathnames pathnames_tmp
+sed -i "/output/c\./output_settling/" ./pathnames_tmp
+#sed -i "s/default_winds/default_etex/g" ./pathnames_tmp
+mkdir output_settling
+./FLEXPART pathnames_tmp
 report "[$MM] TEST $TESTRUN (IPOUT=1)"
 STATUS=$((STATUS + $?))
 TESTSRUN=$((TESTSRUN + 1))
 # clean up
-rm -rf ./current ./output/*
+rm -rf ./current
 #
 #
 #NETCDF particle output at the end

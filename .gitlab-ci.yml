@@ -29,6 +29,12 @@ options-test:
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/output_settling
+    expire_in: 5 mins
+
   
 openmp-simulation:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -63,6 +69,24 @@ etex-simulation:
     paths:
       - ./tests/output_etex
     expire_in: 10 mins
+
+settling-test:
+  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  stage: compare
+  needs:
+    - job: options-test
+      artifacts: true
+  script:
+    - cd ./tests/
+    - if -f "./tests/settling_test.txt"; then
+        mv ./tests/settling_test.txt ./tests/settling_old.txt
+      fi
+    - python3 ./settling_test.py
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/settling_test.txt
+    expire_in: never  
 
 openmp-test:
   image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
