@@ -86,6 +86,7 @@ settling-test:
     when: on_success
     paths:
       - ./tests/settling_test.txt
+      - ./tests/settling_old.txt
     expire_in: never  
 
 openmp-test:

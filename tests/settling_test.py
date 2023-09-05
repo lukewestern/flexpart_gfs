@@ -112,3 +112,5 @@ with open(output_name, 'a') as f:
 
 if (return_flag):
   raise ValueError('Old and New version deviate')
+else if (compare):
+  print("Output from previous version is not significantly different from this version.")
