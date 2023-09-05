@@ -79,7 +79,7 @@ settling-test:
   script:
     - cd ./tests/
     - if -f "./settling_test.txt"; then
-        mv "./settling_test.txt" "./settling_old.txt"
+        mv "./settling_test.txt" "./settling_old.txt";
       fi
     - python3 ./settling_test.py
   artifacts:
