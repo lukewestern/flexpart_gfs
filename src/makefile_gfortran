@@ -30,8 +30,17 @@ SHELL = /bin/bash
 # Unified executable names
 # The same executable is used for both ECMWF and GFS metdata
 
-# Serial processing executable
-FLEXPART-SERIAL = FLEXPART
+# meter coordinates + NetCDF executable
+FLEXPART = FLEXPART
+
+# meter coordinates + Binary executable
+FLEXPART-BIN = FLEXPART_BIN
+
+# Eta coordinates netcdf executable
+FLEXPART-ETA = FLEXPART_ETA
+
+# Eta coordinates binary executable
+FLEXPART-ETA-BIN = FLEXPART_ETA_BIN
 
 export OMP_NESTED=FALSE
 
@@ -65,6 +74,13 @@ else
 	NCOPT = -DUSE_NCF -lnetcdff
 endif
 
+### Enable eta coordinates?
+ifeq ($(eta), yes)
+	ETAOPT = -DETA
+else
+	ETAOPT = -UETA
+endif
+
 ## OPTIMIZATION LEVEL
 O_LEV = 3 # [0,1,2,3,g,s,fast]
 O_LEV_DBG = g # [0,g]
@@ -73,11 +89,11 @@ O_LEV_DBG = g # [0,g]
 FUSER = -g -fopenmp -march=native -mtune=native
 mpi: FUSER := $(FUSER) -Dusempi #-MM -MT -MD
 ## LIBRARIES
-LIBS = -leccodes -leccodes_f90 -lm $(NCOPT) #MD -ljasper
+LIBS = -leccodes -leccodes_f90 -lm $(NCOPT) $(ETAOPT) #MD -ljasper
 
-FFLAGS   = $(INC) -O$(O_LEV) -m64 -cpp -mcmodel=large -O$(O_LEV) $(NCOPT) $(FUSER)  #-convert little_endian -fpp -WB -check all
+FFLAGS   = $(INC) -O$(O_LEV) -m64 -cpp -mcmodel=large -O$(O_LEV) $(NCOPT) $(ETAOPT) $(FUSER)  #-convert little_endian -fpp -WB -check all
 
-DBGFLAGS = $(INC) -O$(O_LEV_DBG) -g3 -ggdb3 -cpp -m64 -mcmodel=large -fconvert=little-endian -frecord-marker=4 -fmessage-length=0 -flto=jobserver -O$(O_LEV_DBG) $(NCOPT) -fbacktrace   -Wall  -fdump-core $(FUSER)  #  -ffpe-trap=invalid,overflow,denormal,underflow,zero  -Warray-bounds -fcheck=all
+DBGFLAGS = $(INC) -O$(O_LEV_DBG) -g3 -ggdb3 -cpp -m64 -mcmodel=large -fconvert=little-endian -frecord-marker=4 -fmessage-length=0 -flto=jobserver -O$(O_LEV_DBG) $(NCOPT) $(ETAOPT) -fbacktrace   -Wall  -fdump-core $(FUSER)  #  -ffpe-trap=invalid,overflow,denormal,underflow,zero  -Warray-bounds -fcheck=all
 
 LDFLAGS  = $(FFLAGS) $(LIBPATH) $(LIBRPATH) $(LIBS) 
 LDDEBUG  = $(DBGFLAGS) $(LIBPATH) $(LIBRPATH) $(LIBS)
