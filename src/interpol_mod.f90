@@ -15,26 +15,35 @@ module interpol_mod
   implicit none
 
   real,dimension(nzmax) ::          &
-    uprof,vprof,wprof,wprofeta,             &
-    usigprof,vsigprof,wsigprof,wsigprofeta, &
+    uprof,vprof,wprof,              &
+    usigprof,vsigprof,wsigprof,     &
     rhoprof,rhogradprof
   logical,dimension(nzmax) ::       &
     indzindicator
 
-  real :: u,v,w,usig,vsig,wsig,ueta,veta,weta,wsigeta
+  real :: u,v,w,usig,vsig,wsig
 
   real :: p1,p2,p3,p4,ddx,ddy,rddx,rddy,dtt,dt1,dt2
   real :: xtn,ytn
   real :: dz1out,dz2out
   integer :: nix,njy
-  integer :: ix,jy,ixp,jyp,ngrid,indz,indzp,indzeta,indzpeta
+  integer :: ix,jy,ixp,jyp,ngrid,indz,indzp
   integer :: induv,indpuv
   logical :: depoindicator(maxspec)
-  logical :: lbounds(2),lbounds_w(2),lbounds_uv(2) ! marking particles below or above bounds
+  logical :: lbounds(2) ! marking particles below or above bounds
+#ifdef ETA
+  real,dimension(nzmax) ::wprofeta,wsigprofeta
+  real :: ueta,veta,weta,wsigeta
+  integer :: indzeta,indzpeta
+  logical :: lbounds_w(2),lbounds_uv(2) ! marking particles below or above bounds
+#endif
 
-  private :: interpol_wind_meter,interpol_wind_eta
-  private :: stdev_meter,stdev_eta
-  private :: interpol_partoutput_val_eta,interpol_partoutput_val_meter
+  private :: interpol_wind_meter
+  private :: stdev_meter
+  private :: interpol_partoutput_val_meter
+#ifdef ETA
+  private :: interpol_wind_eta,stdev_eta,interpol_partoutput_val_eta
+#endif
 
   interface hor_interpol
     procedure hor_interpol_4d,hor_interpol_2d
@@ -47,6 +56,8 @@ module interpol_mod
   interface find_ngrid
     procedure find_ngrid_dp, find_ngrid_sp
   end interface find_ngrid
+
+#ifdef ETA
 !$OMP THREADPRIVATE(uprof,vprof,wprof,usigprof,vsigprof,wsigprof, &
 !$OMP rhoprof,rhogradprof,u,v,w,usig,vsig,wsig, &
 !$OMP p1,p2,p3,p4,ddx,ddy,rddx,rddy,dtt,dt1,dt2,ix,jy,ixp,jyp, &
@@ -54,6 +65,14 @@ module interpol_mod
 !$OMP wprofeta,wsigprofeta,induv,indpuv,lbounds,lbounds_w,lbounds_uv, &
 !$OMP indzeta,indzpeta,ueta,veta,weta,wsigeta, &
 !$OMP xtn,ytn,nix,njy,dz1out,dz2out)
+#else
+!$OMP THREADPRIVATE(uprof,vprof,wprof,usigprof,vsigprof,wsigprof, &
+!$OMP rhoprof,rhogradprof,u,v,w,usig,vsig,wsig, &
+!$OMP p1,p2,p3,p4,ddx,ddy,rddx,rddy,dtt,dt1,dt2,ix,jy,ixp,jyp, &
+!$OMP ngrid,indz,indzp,depoindicator,indzindicator, &
+!$OMP induv,indpuv,lbounds,xtn,ytn,nix,njy,dz1out,dz2out)
+#endif
+
 
 contains
 
@@ -167,12 +186,12 @@ subroutine find_z_level(zt,zteta)
     zt,                   & ! height in meters
     zteta                   ! height in eta
 
-  if (wind_coord_type.eq.'ETA') then
+#ifdef ETA
     call find_z_level_meters(zt)
     call find_z_level_eta(zteta)
-  else ! METER
+#else
     call find_z_level_meters(zt)
-  endif
+#endif
 
 end subroutine find_z_level
 
@@ -205,6 +224,7 @@ subroutine find_z_level_meters(zt)
 
 end subroutine find_z_level_meters
 
+#ifdef ETA
 subroutine find_z_level_eta(zteta)
 
   real, intent(in)       :: zteta    ! height in eta coordinates
@@ -273,6 +293,7 @@ subroutine find_z_level_eta_uv(zteta)
   endif
 
 end subroutine find_z_level_eta_uv
+#endif
 
 subroutine find_vert_vars(vertlevels,zpos,zlevel,dz1,dz2,bounds,wlevel)
 
@@ -716,10 +737,10 @@ subroutine interpol_pbl(itime,xt,yt,zt,zteta)
 
   ! w(eta) velocities are necessary for the Petterssen correction
   !**************************************************************
-  if (wind_coord_type.eq.'ETA') then
+#ifdef ETA
     call find_z_level_eta(zteta)
     iweta(:)=(/ indzeta, indzpeta /)
-  endif
+#endif
 
   !**************************************
   ! 1.) Bilinear horizontal interpolation
@@ -732,8 +753,9 @@ subroutine interpol_pbl(itime,xt,yt,zt,zteta)
     do n=1,2
       do m=1,2
         call hor_interpol(ww,wh1(m),iw(n),memind(m),nzmax)
-        if (wind_coord_type.eq.'ETA') &
-          call hor_interpol(wweta,wetah1(m),iweta(n),memind(m),nzmax)
+#ifdef ETA
+        call hor_interpol(wweta,wetah1(m),iweta(n),memind(m),nzmax)
+#endif
         call hor_interpol(rho,rho1(m),iw(n),memind(m),nzmax)
         call hor_interpol(drhodz,rhograd1(m),iw(n),memind(m),nzmax)
         if (ngrid.lt.0) then
@@ -745,8 +767,9 @@ subroutine interpol_pbl(itime,xt,yt,zt,zteta)
         endif
       end do
       call temporal_interpolation(wh1(1),wh1(2),wprof(iw(n)))
-      if (wind_coord_type.eq.'ETA') &
-        call temporal_interpolation(wetah1(1),wetah1(2),wprofeta(iweta(n)))
+#ifdef ETA
+      call temporal_interpolation(wetah1(1),wetah1(2),wprofeta(iweta(n)))
+#endif      
       call temporal_interpolation(uh1(1),uh1(2),uprof(iw(n)))
       call temporal_interpolation(vh1(1),vh1(2),vprof(iw(n)))
       call temporal_interpolation(rho1(1),rho1(2),rhoprof(iw(n)))
@@ -756,16 +779,18 @@ subroutine interpol_pbl(itime,xt,yt,zt,zteta)
     do n=1,2
       do m=1,2
         call hor_interpol_nest(wwn,wh1(m),iw(n),memind(m),nzmax)
-        if (wind_coord_type.eq.'ETA') &
-          call hor_interpol_nest(wwetan,wetah1(m),iweta(n),memind(m),nzmax)
+#ifdef ETA
+        call hor_interpol_nest(wwetan,wetah1(m),iweta(n),memind(m),nzmax)
+#endif
         call hor_interpol_nest(uun,uh1(m),iw(n),memind(m),nzmax)
         call hor_interpol_nest(vvn,vh1(m),iw(n),memind(m),nzmax)
         call hor_interpol_nest(rhon,rho1(m),iw(n),memind(m),nzmax)
         call hor_interpol_nest(drhodzn,rhograd1(m),iw(n),memind(m),nzmax)
       end do
       call temporal_interpolation(wh1(1),wh1(2),wprof(iw(n)))
-      if (wind_coord_type.eq.'ETA') &
-        call temporal_interpolation(wetah1(1),wetah1(2),wprofeta(iweta(n)))
+#ifdef ETA
+      call temporal_interpolation(wetah1(1),wetah1(2),wprofeta(iweta(n)))
+#endif
       call temporal_interpolation(uh1(1),uh1(2),uprof(iw(n)))
       call temporal_interpolation(vh1(1),vh1(2),vprof(iw(n)))
       call temporal_interpolation(rho1(1),rho1(2),rhoprof(iw(n)))
@@ -776,12 +801,12 @@ subroutine interpol_pbl(itime,xt,yt,zt,zteta)
   endif
 
   ! Only necessary for the Petterssen correction
-  if (wind_coord_type.eq.'ETA') then
-    call find_vert_vars(wheight,zteta,indzeta, &
-      dz1weta,dz2weta,lbounds_w,.true.)
-    call vert_interpol(wprofeta(indzeta),wprofeta(indzpeta), &
-      dz1weta,dz2weta,weta)
-  endif
+#ifdef ETA
+  call find_vert_vars(wheight,zteta,indzeta, &
+    dz1weta,dz2weta,lbounds_w,.true.)
+  call vert_interpol(wprofeta(indzeta),wprofeta(indzpeta), &
+    dz1weta,dz2weta,weta)
+#endif
 
 end subroutine interpol_pbl
 
@@ -891,15 +916,15 @@ subroutine interpol_mesoscale(xt,yt,zt,zteta)
   call find_z_level_meters(zt)
   iw(:)=(/ indz, indzp /)
   
-  if (wind_coord_type.eq.'ETA') then
-    call find_z_level_eta(zteta)
-    iuv(:)=(/ induv, indpuv /)
-    iweta(:)=(/ indzeta, indzpeta /)
-    call stdev_eta(iw,iuv,iweta)
-  else
-    iw(:)=(/ indz, indzp /)
-    call stdev_meter(iw)
-  endif
+#ifdef ETA
+  call find_z_level_eta(zteta)
+  iuv(:)=(/ induv, indpuv /)
+  iweta(:)=(/ indzeta, indzpeta /)
+  call stdev_eta(iw,iuv,iweta)
+#else
+  iw(:)=(/ indz, indzp /)
+  call stdev_meter(iw)
+#endif
 
 end subroutine interpol_mesoscale
 
@@ -956,24 +981,24 @@ subroutine interpol_wind(itime,xt,yt,zt,zteta)
   ! Interpolate over the windfields depending on the prefered
   ! coordinate system
   !**********************************************************
-  if (wind_coord_type.eq.'ETA') then
-    ! Same for eta coordinates
-    !*************************
-    call find_z_level_eta(zteta)
+#ifdef ETA
+  ! Same for eta coordinates
+  !*************************
+  call find_z_level_eta(zteta)
 
-    iuv(:)  = (/ induv, indpuv /)
-    iweta(:)= (/ indzeta, indzpeta /)
-    call interpol_wind_eta(zteta,iuv,iweta)
-    !call stdev_wind_eta(iw,iuv,iweta)
-  else
-    ! Determine the level below the current position for u,v
-    !*******************************************************
-    call find_z_level_meters(zt)
+  iuv(:)  = (/ induv, indpuv /)
+  iweta(:)= (/ indzeta, indzpeta /)
+  call interpol_wind_eta(zteta,iuv,iweta)
+  !call stdev_wind_eta(iw,iuv,iweta)
+#else
+  ! Determine the level below the current position for u,v
+  !*******************************************************
+  call find_z_level_meters(zt)
 
-    iw(:)=(/ indz, indzp /)
-    call interpol_wind_meter(zt,iw)
-    !call stdev_wind_meter(iw)
-  endif
+  iw(:)=(/ indz, indzp /)
+  call interpol_wind_meter(zt,iw)
+  !call stdev_wind_meter(iw)
+#endif
 
 end subroutine interpol_wind
 
@@ -1024,25 +1049,25 @@ subroutine interpol_wind_short(itime,xt,yt,zt,zteta)
   ! Interpolate over the windfields depending on the prefered
   ! coordinate system
   !**********************************************************
-  if (wind_coord_type.eq.'ETA') then
-    ! Determine the level below the current position for eta coordinates
-    !*******************************************************************
-    call find_z_level_eta(zteta)
+#ifdef ETA
+  ! Determine the level below the current position for eta coordinates
+  !*******************************************************************
+  call find_z_level_eta(zteta)
 
-    iuv(:)=(/ induv, indpuv /)
-    iweta(:)=(/ indzeta, indzpeta /)
-    ! Interpolate the u, v, weta windfields
-    !**************************************
-    call interpol_wind_eta(zteta,iuv,iweta)
-  else ! METER
+  iuv(:)=(/ induv, indpuv /)
+  iweta(:)=(/ indzeta, indzpeta /)
+  ! Interpolate the u, v, weta windfields
+  !**************************************
+  call interpol_wind_eta(zteta,iuv,iweta)
+#else
 
-    ! Determine the level below the current position for u,v
-    !*******************************************************
-    call find_z_level_meters(zt)
+  ! Determine the level below the current position for u,v
+  !*******************************************************
+  call find_z_level_meters(zt)
 
-    iw(:)=(/ indz, indzp /)
-    call interpol_wind_meter(zt,iw)
-  endif
+  iw(:)=(/ indz, indzp /)
+  call interpol_wind_meter(zt,iw)
+#endif
 
 end subroutine interpol_wind_short
 
@@ -1054,11 +1079,11 @@ subroutine interpol_partoutput_val(fieldname,output,j)
   ! Interpolate over the windfields depending on the prefered
   ! coordinate system
   !**********************************************************
-  if (wind_coord_type.eq.'ETA') then
-    call interpol_partoutput_val_eta(fieldname,output,j)
-  else ! METER
-    call interpol_partoutput_val_meter(fieldname,output,j)
-  endif
+#ifdef ETA
+  call interpol_partoutput_val_eta(fieldname,output,j)
+#else
+  call interpol_partoutput_val_meter(fieldname,output,j)
+#endif
 end subroutine interpol_partoutput_val
 
 subroutine interpol_htropo_hmix(tropop,h)
@@ -1120,34 +1145,34 @@ subroutine interpol_density(itime,ipart,output)
   !(accurate enough, no time interpolation needed)
   !***********************************************
   
-  if (wind_coord_type.eq.'ETA') then
-    call find_z_level_eta(real(part(ipart)%zeta))
-    call find_vert_vars(uvheight,real(part(ipart)%zeta),induv, &
-      dz1,dz2,lbounds_uv,.false.)
-    if (ngrid.le.0) then
-      do ind=induv,indpuv
-        call hor_interpol(rhoeta,rhoprof(ind-induv+1),ind,memind(2),nzmax)
-      end do
-    else
-      do ind=induv,indpuv
-        call hor_interpol_nest(rhoetan,rhoprof(ind-induv+1),ind,memind(2), &
-          nzmax)
-      end do
-    endif
-  else ! METER
-    call find_z_level_meters(real(part(ipart)%z))
-    call find_vert_vars(height,real(part(ipart)%z),indz, &
-      dz1,dz2,lbounds,.false.)
-    if (ngrid.le.0) then
-      do ind=indz,indzp
-        call hor_interpol(rho,rhoprof(ind-indz+1),ind,memind(2),nzmax)
-      end do
-    else
-      do ind=indz,indzp
-        call hor_interpol_nest(rhon,rhoprof(ind-indz+1),ind,memind(2),nzmax)
-      end do
-    endif
+#ifdef ETA
+  call find_z_level_eta(real(part(ipart)%zeta))
+  call find_vert_vars(uvheight,real(part(ipart)%zeta),induv, &
+    dz1,dz2,lbounds_uv,.false.)
+  if (ngrid.le.0) then
+    do ind=induv,indpuv
+      call hor_interpol(rhoeta,rhoprof(ind-induv+1),ind,memind(2),nzmax)
+    end do
+  else
+    do ind=induv,indpuv
+      call hor_interpol_nest(rhoetan,rhoprof(ind-induv+1),ind,memind(2), &
+        nzmax)
+    end do
   endif
+#else
+  call find_z_level_meters(real(part(ipart)%z))
+  call find_vert_vars(height,real(part(ipart)%z),indz, &
+    dz1,dz2,lbounds,.false.)
+  if (ngrid.le.0) then
+    do ind=indz,indzp
+      call hor_interpol(rho,rhoprof(ind-indz+1),ind,memind(2),nzmax)
+    end do
+  else
+    do ind=indz,indzp
+      call hor_interpol_nest(rhon,rhoprof(ind-indz+1),ind,memind(2),nzmax)
+    end do
+  endif
+#endif
   call vert_interpol(rhoprof(1),rhoprof(2),dz1,dz2,output)
 end subroutine interpol_density
 
@@ -1156,6 +1181,7 @@ end subroutine interpol_density
 !*********************
 ! Interpolation of wind fields
 !*****************************
+#ifdef ETA
 subroutine interpol_wind_eta(zteta,iuv,iweta)
 
 !* PRIVATE FUNCTION *
@@ -1215,6 +1241,7 @@ subroutine interpol_wind_eta(zteta,iuv,iweta)
   call temporal_interpolation(vh(1),vh(2),v)
   call temporal_interpolation(wetah(1),wetah(2),weta)
 end subroutine interpol_wind_eta
+#endif
 
 subroutine interpol_wind_meter(zt,iw)
 
@@ -1270,6 +1297,7 @@ subroutine interpol_wind_meter(zt,iw)
   call temporal_interpolation(vh(1),vh(2),v)
 end subroutine interpol_wind_meter
 
+#ifdef ETA
 subroutine interpol_partoutput_val_eta(fieldname,output,j)
   implicit none
 
@@ -1346,6 +1374,7 @@ subroutine interpol_partoutput_val_eta(fieldname,output,j)
       call temporal_interpolation(field1(1),field1(2),output)
   end select
 end subroutine interpol_partoutput_val_eta
+#endif
 
 subroutine interpol_partoutput_val_meter(fieldname,output,j)
   implicit none
@@ -1422,6 +1451,7 @@ subroutine interpol_partoutput_val_meter(fieldname,output,j)
   end select
 end subroutine interpol_partoutput_val_meter
 
+#ifdef ETA
 subroutine interpol_mixinglayer_eta(zt,zteta,rhoa,rhograd)
 
   real, intent(in)    :: zt,zteta
@@ -1439,7 +1469,9 @@ subroutine interpol_mixinglayer_eta(zt,zteta,rhoa,rhograd)
   call vert_interpol(rhogradprof(induv),rhogradprof(indpuv),dz1uv,dz2uv,rhograd)
   call vert_interpol(wprofeta(indzeta),wprofeta(indzpeta),dz1weta,dz2weta,weta)
 end subroutine interpol_mixinglayer_eta
+#endif
 
+#ifdef ETA
 subroutine stdev_eta(iw,iuv,iweta)
 
 !* PRIVATE FUNCTION *
@@ -1495,6 +1527,7 @@ subroutine stdev_eta(iw,iuv,iweta)
   call stdev(wetasl,wetasq,16.,wsigeta)
 
 end subroutine stdev_eta
+#endif
 
 subroutine stdev_meter(iw)
 

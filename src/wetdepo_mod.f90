@@ -247,7 +247,9 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
 
   use interpol_mod
   use windfields_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
 
   implicit none
 
@@ -324,13 +326,13 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   !  If total precipitation is less than 0.01 mm/h - no scavenging occurs
   if ((lsp.lt.0.01).and.(convp.lt.0.01)) return
 
-  if (wind_coord_type.eq.'ETA') then
-    call find_z_level_eta_uv(real(part(jpart)%zeta))
-    hz=induv
-  else
-    call find_z_level_meters(real(part(jpart)%z))
-    hz=indz
-  endif
+#ifdef ETA
+  call find_z_level_eta_uv(real(part(jpart)%zeta))
+  hz=induv
+#else
+  call find_z_level_meters(real(part(jpart)%z))
+  hz=indz
+#endif
 
   if (ngrid.le.0) then
     clouds_v=clouds(ix,jy,hz,n)
@@ -391,17 +393,17 @@ subroutine get_wetscav(itime,ltsample,loutnext,jpart,ks,grfraction,inc_count,blc
   !**********************************************************
 
   if (ngrid.gt.0) then
-    if (wind_coord_type.eq.'ETA') then
-      act_temp=ttetan(ix,jy,hz,n,ngrid)
-    else
-      act_temp=ttn(ix,jy,hz,n,ngrid)
-    endif
+#ifdef ETA
+    act_temp=ttetan(ix,jy,hz,n,ngrid)
+#else
+    act_temp=ttn(ix,jy,hz,n,ngrid)
+#endif
   else
-    if (wind_coord_type.eq.'ETA') then
-      act_temp=tteta(ix,jy,hz,n)
-    else
-      act_temp=tt(ix,jy,hz,n)
-    endif
+#ifdef ETA
+    act_temp=tteta(ix,jy,hz,n)
+#else
+    act_temp=tt(ix,jy,hz,n)
+#endif
   endif
 
   !***********************

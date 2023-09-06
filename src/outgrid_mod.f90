@@ -588,7 +588,9 @@ subroutine initcond_calc(itime,i,thread)
   !*****************************************************************************
 
   use interpol_mod, only: interpol_density,ix,jy,ixp,jyp
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
 
   implicit none
@@ -614,7 +616,9 @@ subroutine initcond_calc(itime,i,thread)
 
 
   if (linit_cond.eq.1) then     ! mass unit
+#ifdef ETA
     call update_zeta_to_z(itime,i)
+#endif
     call interpol_density(itime,i,rhoi)
   elseif (linit_cond.eq.2) then    ! mass mixing ratio unit
     rhoi=1.

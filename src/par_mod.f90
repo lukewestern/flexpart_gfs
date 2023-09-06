@@ -299,13 +299,6 @@ module par_mod
   ! High numbers create more overhead and a larger memory footprint
   !***********************************************************************
   integer,parameter :: max_numthreads_grid=1
-  ! Set the coordinate system. At the moment only ECMWF is possible. This bit
-  ! needs to be a parameter that can be set at compile time. 
-  ! Throughout the code there will be SELECT CASE statements or IFDEFs
-  !*******************************************************************
-  
-  character(len=256),parameter :: wind_coord_type='ETA'
-  !character(len=256),parameter :: wind_coord_type='METER'
 
   ! This flag sets all vertical interpolation to logarithmic instead of linear
   !***************************************************************************

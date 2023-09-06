@@ -1,6 +1,8 @@
 module restart_mod
   use particle_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use outgrid_mod
   use unc_mod
   use date_mod
@@ -47,11 +49,16 @@ subroutine output_restart(itime,loutnext,outnum)
   write(unitrestart) numreceptor
 
   do i=1,count%allocated
+#ifdef ETA
     if (part(i)%alive) then
       call update_zeta_to_z(itime,i)
       call update_z_to_zeta(itime,i)
     endif
-    write(unitrestart) part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta, &
+#endif
+    write(unitrestart) part(i)%xlon,part(i)%ylat,part(i)%z, &
+#ifdef ETA
+      part(i)%zeta, &
+#endif
       part(i)%npoint,part(i)%nclass,part(i)%idt,part(i)%tend, &
       part(i)%tstart,part(i)%alive,part(i)%turbvel%u, &
       part(i)%turbvel%v,part(i)%turbvel%w,part(i)%mesovel%u, &
@@ -173,15 +180,20 @@ subroutine readrestart
 
   call spawn_particles(itime_init, numpart)
   do i=1,numpart
-    read(unitpartin) part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta, &
+    read(unitpartin) part(i)%xlon,part(i)%ylat,part(i)%z, &
+#ifdef ETA
+      part(i)%zeta, &
+#endif
       part(i)%npoint,part(i)%nclass,part(i)%idt,part(i)%tend, &
       part(i)%tstart,part(i)%alive,part(i)%turbvel%u, &
       part(i)%turbvel%v,part(i)%turbvel%w,part(i)%mesovel%u, &
       part(i)%mesovel%v,part(i)%mesovel%w,(part(i)%mass(j),j=1,nspec), &
       (part(i)%mass_init(j),j=1,nspec),(part(i)%wetdepo(j),j=1,nspec), &
       (part(i)%drydepo(j),j=1,nspec)
+#ifdef ETA
     part(i)%etaupdate=.true.
     part(i)%meterupdate=.true.
+#endif
     if (.not. part(i)%alive) then
       if (part(i)%tstart.le.itime_init) then
         call terminate_particle(i,part(i)%tend)

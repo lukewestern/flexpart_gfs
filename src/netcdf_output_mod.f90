@@ -2496,7 +2496,9 @@ subroutine readinitconditions_netcdf()
   use random_mod
   use particle_mod
   use date_mod
-  use coord_ecmwf_mod
+! #ifdef ETA
+!   use coord_ecmwf_mod
+! #endif
   use readoptions_mod
   use drydepo_mod
 
@@ -2579,7 +2581,7 @@ subroutine readinitconditions_netcdf()
   !   start=(/ 1 /),count=(/ plen /)))
 
   ! Count number of releases
-  numpoint=1
+  numpoint=0
   allocate(numpoint_max(plen),stat=stat)
   numpoint_max=0
   release_max=0
@@ -2594,6 +2596,8 @@ subroutine readinitconditions_netcdf()
     numpoint_max(numpoint)=part(i)%npoint
     if (part(i)%npoint.gt.release_max) release_max=part(i)%npoint
   end do l1
+
+  if (numpoint.eq.0) numpoint=1
 
   allocate(kindz(numpoint),stat=stat)
   kindz=-1
@@ -2638,9 +2642,11 @@ subroutine readinitconditions_netcdf()
   ireleaseend=-1
   do i=1,plen
     do j=1,numpoint
-      do nsp=1,nspec
-        xmass(j,nsp) = xmass(j,nsp)+part(i)%mass(nsp)
-      end do 
+      if (part(i)%npoint.eq.j) then
+         do nsp=1,nspec
+           xmass(j,nsp) = xmass(j,nsp)+part(i)%mass(nsp)
+         end do 
+      endif
       if (part(i)%npoint.eq.j) then 
         npart(j)=npart(j)+1
         if ((ireleasestart(j).gt.part(i)%tstart).or.(ireleasestart(j).eq.-1)) ireleasestart(j)=part(i)%tstart

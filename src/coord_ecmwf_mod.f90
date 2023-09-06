@@ -16,7 +16,7 @@ module coord_ecmwf_mod
   use windfields_mod
 
 contains
-
+#ifdef ETA
 subroutine update_zeta_to_z(itime, ipart)
   use particle_mod
   implicit none 
@@ -25,7 +25,6 @@ subroutine update_zeta_to_z(itime, ipart)
     itime,                        & ! time index
     ipart                           ! particle index
 
-  if (.not. wind_coord_type.eq.'ETA') return
   if (.not. part(ipart)%alive) return  
   if (part(ipart)%etaupdate) return
 
@@ -43,7 +42,6 @@ subroutine update_z_to_zeta(itime, ipart)
     itime,                        & ! time index
     ipart                           ! particle index
 
-  if (.not. wind_coord_type.eq.'ETA') return
   if (.not. part(ipart)%alive) return
   if (part(ipart)%meterupdate) return
 
@@ -468,5 +466,5 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
   
   ztout = real(ztemp1(1),kind=dp)*(1.-frac)+real(ztemp1(2),kind=dp)*frac
 end subroutine zeta_to_z_lin
-
+#endif
 end module coord_ecmwf_mod

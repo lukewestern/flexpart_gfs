@@ -1065,11 +1065,24 @@ subroutine readdepo
   real :: rluh(5,numclass),rgssh(5,numclass),rgsoh(5,numclass)
   real :: rclsh(5,numclass),rcloh(5,numclass)
   integer :: i,j,ic
+  logical :: ios, ios2
+  character(12) :: file_sfcdepo
 
 
   ! Read deposition constants related with landuse and seasonal category
   !*********************************************************************
-  open(unitwesely,file=path(1)(1:length(1))//'sfcdepo.t', &
+  file_sfcdepo='sfcdepo.t'
+  inquire(file=path(1)(1:length(1))//trim(file_sfcdepo),exist=ios)
+  if (.not. ios) then
+    file_sfcdepo='surfdepo.t'
+    inquire(file=path(1)(1:length(1))//trim(file_sfcdepo),exist=ios2)
+    if (ios2) then
+      write(*,*) 'WARNING: surfdepo.t should be renamed to sfcdepo.t'
+      write(*,*) 'Continuing with surfdepo.t'
+    endif
+  endif
+
+  open(unitwesely,file=path(1)(1:length(1))//trim(file_sfcdepo), &
        status='old',err=999)
 
   do i=1,16
@@ -1277,6 +1290,8 @@ subroutine readlanduse
   integer(kind=1) :: ilr_buffer(2160000)
   integer :: il,irecread
   real :: rlr, r2lr
+  logical :: ios,ios2
+  character(12) :: file_sfcdata
 
 
   ! Read landuse inventory
@@ -1332,9 +1347,19 @@ subroutine readlanduse
 
   ! Read relation landuse,z0
   !*****************************
+  file_sfcdata='sfcdata.t'
+  inquire(file=path(1)(1:length(1))//trim(file_sfcdata),exist=ios)
+  if (.not. ios) then
+    file_sfcdata='surfdata.t'
+    inquire(file=path(1)(1:length(1))//trim(file_sfcdata),exist=ios2)
+    if (ios2) then
+      write(*,*) 'WARNING: surfdata.t should be renamed to sfcdata.t'
+      write(*,*) 'Continuing with surfdata.t'
+    endif
+  endif
 
-  open(unitsfcdata,file=path(1)(1:length(1))//'sfcdata.t', &
-       status='old',err=999)
+  open(unitsfcdata,file=path(1)(1:length(1))//trim(file_sfcdata), &
+            status='old',err=999)
 
   do i=1,4
     read(unitsfcdata,*)
@@ -1354,10 +1379,8 @@ subroutine readlanduse
   stop
 
 999 write(*,*) ' #### FLEXPART ERROR! FILE              ####'
-  write(*,*)   ' #### ', path(1)(1:length(1))//'sfcdata.txt'
-  write(*,*)   ' #### DOES NOT EXIST. Note that         ####'
-  write(*,*)   ' #### file was renamed from sfcdata.t  ####'
-  write(*,*)   ' #### to sfcdata.txt in v11             ####'
+  write(*,*)   ' #### ', path(1)(1:length(1))//'sfcdata.t'
+  write(*,*)   ' #### DOES NOT EXIST.                   ####'
   stop
 end subroutine readlanduse
 

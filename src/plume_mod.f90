@@ -52,7 +52,9 @@ subroutine plumetraj(itime)
   use com_mod
   use mean_mod
   use particle_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use windfields_mod
 
   implicit none
@@ -97,7 +99,9 @@ subroutine plumetraj(itime)
       n=n+1
       xplum(n)=xlon0+real(part(i)%xlon)*dx
       yplum(n)=ylat0+real(part(i)%ylat)*dy
+#ifdef ETA
       call update_zeta_to_z(itime,i)
+#endif
       zplum(n)=real(part(i)%z)
 
   ! Interpolate PBL height, PV, and tropopause height to each

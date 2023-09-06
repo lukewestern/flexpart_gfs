@@ -88,7 +88,9 @@ subroutine timemanager
   use ohr_mod
   use par_mod
   use com_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
   use conv_mod
   use windfields_mod
@@ -192,9 +194,9 @@ subroutine timemanager
       call output_restart(itime,loutnext,outnum)
     endif
 
-    if ((itime.ne.0).and.(count%alive.gt.0)) then
-      if (part(1)%alive) write(*,*) 'xlon,ylat,z,zeta', part(1)%xlon,part(1)%ylat,part(1)%z,part(1)%zeta
-    endif
+    ! if ((itime.ne.0).and.(count%alive.gt.0)) then
+    !   if (part(1)%alive) write(*,*) 'xlon,ylat,z,zeta', part(1)%xlon,part(1)%ylat,part(1)%z,part(1)%zeta
+    ! endif
     call init_output(itime,filesize)
 
   ! Get necessary wind fields if not available
@@ -204,8 +206,8 @@ subroutine timemanager
 
   ! In case of ETA coordinates being read from file, convert the z positions to zeta
   !*********************************************************************************
-    if ((itime.eq.itime_init).and.((ipin.eq.1).or.(ipin.eq.3).or.(ipin.eq.4)).and. &
-      (wind_coord_type.eq.'ETA')) then 
+#ifdef ETA
+    if ((itime.eq.itime_init).and.((ipin.eq.1).or.(ipin.eq.3).or.(ipin.eq.4))) then 
       
       if (numpart.le.0) error stop 'Something is going wrong reading the old particle file! &
         &No particles found.'
@@ -217,6 +219,7 @@ subroutine timemanager
 !$OMP END DO
 !$OMP END PARALLEL
     endif
+#endif
 
     if (WETDEP .and. (itime.ne.0) .and. (numpart.gt.0)) then
       call wetdepo(itime,lsynctime,loutnext)
@@ -260,13 +263,17 @@ subroutine timemanager
           if (ldirect.lt.0) then
             if ((part(i)%tstart.le.itime).and.(part(i)%tstart.gt.itime+lsynctime)) then
               call spawn_particle(itime,i)
+#ifdef ETA
               call update_z_to_zeta(itime,i)
+#endif
               alive_tmp=alive_tmp+1
               spawned_tmp=spawned_tmp+1
             endif
           else if ((part(i)%tstart.ge.itime).and.(part(i)%tstart.lt.itime+lsynctime)) then
             call spawn_particle(itime,i)
+#ifdef ETA
             call update_z_to_zeta(itime,i)
+#endif
             alive_tmp=alive_tmp+1
             spawned_tmp=spawned_tmp+1
           endif
@@ -374,7 +381,9 @@ subroutine timemanager
   ! Initialize newly released particle
   !***********************************
       if ((part(j)%tstart.eq.itime).or.(itime.eq.0)) then
+#ifdef ETA
         call update_zeta_to_z(itime, j)
+#endif
         call init_particle(itime,j)
       endif
 
@@ -383,7 +392,9 @@ subroutine timemanager
       part(j)%xlon_prev=part(j)%xlon
       part(j)%ylat_prev=part(j)%ylat
       part(j)%z_prev=part(j)%z
+#ifdef ETA
       part(j)%zeta_prev=part(j)%zeta
+#endif
 
   ! RECEPTOR: dry/wet depovel
   !****************************
@@ -394,7 +405,9 @@ subroutine timemanager
       if  (DRYBKDEP) then
         do ks=1,nspec
           if  ((xscav_frac1(j,ks).lt.0)) then
+#ifdef ETA
             call update_zeta_to_z(itime,j)
+#endif
             call get_vdep_prob(itime,real(part(j)%xlon),real(part(j)%ylat), &
               real(part(j)%z),prob_rec)
             if (DRYDEPSPEC(ks)) then        ! dry deposition

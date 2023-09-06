@@ -55,7 +55,9 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold,thread)
   !*****************************************************************************
   
   use particle_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
 
   implicit none
   integer, intent(in) :: thread ! for OMP, number of thread
@@ -72,7 +74,10 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold,thread)
   else
      kp=1
   endif
+
+#ifdef ETA
   call update_zeta_to_z(itime,jpart)
+#endif
   xmean=(xold+real(part(jpart)%xlon))/2.
   ymean=(yold+real(part(jpart)%ylat))/2.
 

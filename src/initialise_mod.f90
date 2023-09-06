@@ -16,7 +16,9 @@ module initialise_mod
   use particle_mod
   use windfields_mod
   use random_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
 #ifdef USE_NCF
   use netcdf_output_mod
 #endif
@@ -371,10 +373,10 @@ subroutine releaseparticles(itime)
         if (part(ipart)%z.gt.height(nz)-0.5) &
           call set_z(ipart,height(nz)-0.5) ! Maximum starting height is uppermost level - 0.5 meters
 
-        if (wind_coord_type.eq.'ETA') then
-          call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)
-          part(ipart)%etaupdate = .true. ! The z(meter) coordinate is up to date
-        end if
+#ifdef ETA
+        call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)
+        part(ipart)%etaupdate = .true. ! The z(meter) coordinate is up to date
+#endif
 
   ! For special simulations, multiply particle concentration air density;
   ! Simply take the 2nd field in memory to do this (accurate enough)
@@ -700,7 +702,11 @@ subroutine init_particle(itime,ipart)
   xt = real(part(ipart)%xlon)
   yt = real(part(ipart)%ylat)
   zt = real(part(ipart)%z)
+#ifdef ETA
   zteta = real(part(ipart)%zeta)
+#else
+  zteta = 0.
+#endif
 
   !******************************
   ! 2. Interpolate necessary data
@@ -850,11 +856,11 @@ subroutine init_particle(itime,ipart)
     if (nrand+2.gt.maxrand) nrand=1
     part(ipart)%mesovel%u=rannumb(nrand)*usig
     part(ipart)%mesovel%v=rannumb(nrand+1)*vsig
-    if (wind_coord_type.eq.'ETA') then
-        part(ipart)%mesovel%w=rannumb(nrand+2)*wsigeta
-    else
-        part(ipart)%mesovel%w=rannumb(nrand+2)*wsig
-    endif
+#ifdef ETA
+    part(ipart)%mesovel%w=rannumb(nrand+2)*wsigeta
+#else
+    part(ipart)%mesovel%w=rannumb(nrand+2)*wsig
+#endif
   endif
 end subroutine init_particle
 
@@ -1100,9 +1106,9 @@ subroutine init_domainfill
               call set_z(numpart+jj,height_tmp)
               if (real(part(numpart+jj)%z).gt.height(nz)-0.5) &
                 call set_z(numpart+jj, height(nz)-0.5)
-
+#ifdef ETA
               call update_z_to_zeta(0, numpart+jj)
-              
+#endif
               ! Interpolate PV to the particle position
               !****************************************
               ixm=int(part(numpart+jj)%xlon)
@@ -1555,9 +1561,9 @@ subroutine boundcond_domainfill(itime,loutend)
             call set_z(ipart,zcolumn_we(k,jy,j-1)+ran1(idummy,ithread)* &
                  (zcolumn_we(k,jy,j+1)-zcolumn_we(k,jy,j-1)))
           endif
-
+#ifdef ETA
           call update_z_to_zeta(itime, ipart)
-
+#endif
   ! Interpolate PV to the particle position
   !****************************************
           ixm=int(part(ipart)%xlon)
@@ -1769,9 +1775,9 @@ subroutine boundcond_domainfill(itime,loutend)
             call set_z(ipart,zcolumn_sn(k,ix,j-1)+ran1(idummy,ithread)* &
                  (zcolumn_sn(k,ix,j+1)-zcolumn_sn(k,ix,j-1)))
           endif
-
+#ifdef ETA
           call update_z_to_zeta(itime, ipart)
-
+#endif
   ! Interpolate PV to the particle position
   !****************************************
           ixm=int(part(ipart)%xlon)

@@ -15,7 +15,9 @@ module advance_mod
   use interpol_mod
   use cmapf_mod
   use random_mod, only: ran3,iseed1
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
   use turbulence_mod
   use settling_mod
@@ -126,13 +128,16 @@ subroutine advance(itime,ipart,thread)
     ngr                             ! temporary new grid index of moved particle
   real ::                         &
     ux,vy,                        & ! random turbulent velocities above PBL
-    weta_settling,                & ! Settling velocity in eta coordinates
     tropop,                       & ! height of troposphere
     dxsave,dysave,                & ! accumulated displacement in long and lat
-    dawsave,dcwsave                ! accumulated displacement in wind directions
+    dawsave,dcwsave,              & ! accumulated displacement in wind directions
+    ztseta,wsigeta_tmp              ! real of eta z position
   logical ::                      &
-    abovePBL 
+    abovePBL
     ! flag will be set to 'true' if computation needs to be completed above PBL
+#ifdef ETA
+  real :: weta_settling             ! Settling velocity in eta coordinates
+#endif
 
   eps=nxmax/3.e5
 
@@ -176,16 +181,19 @@ subroutine advance(itime,ipart,thread)
 
   ! Convert z(eta) to z(m) for the turbulence scheme, w(m/s) 
   ! is computed in verttransform_ecmwf.f90
-
+#ifdef ETA
   call update_zeta_to_z(itime,ipart)
-
+  ztseta=real(part(ipart)%zeta)
+#else
+  ztseta=0.
+#endif
   ! Determine nested grid coordinates
   ! Determine the lower left corner and its distance to the current position
   ! Calculate variables for time interpolation
   !*******************************************
   call init_interpol(itime, &
-    real(part(ipart)%xlon),real(part(ipart)%ylat),&
-    real(part(ipart)%z),   real(part(ipart)%zeta))
+    real(part(ipart)%xlon),real(part(ipart)%ylat), &
+    real(part(ipart)%z),ztseta)
 
   ! Compute maximum mixing height around particle position
   !*******************************************************
@@ -207,13 +215,14 @@ subroutine advance(itime,ipart,thread)
 
     call adv_in_pbl(itime,itimec,&
       dxsave,dysave,dawsave,dcwsave,abovePBL,nrand,ipart,thread)
-    if (wind_coord_type.eq.'ETA' .and. lsettling) then
+#ifdef ETA
+    if (lsettling) then
       call w_to_weta(itime,real(part(ipart)%idt),part(ipart)%xlon, &
         part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta, &
         part(ipart)%settling,weta_settling)
       weta=weta+weta_settling
     endif
-
+#endif
   endif 
 
   !**********************************************************
@@ -245,11 +254,18 @@ subroutine advance(itime,ipart,thread)
   if (lturbulence.eq.1) then 
     ! mesoscale turbulence is found to give issues, so turned off
     if (lmesoscale_turb) then
+#ifdef ETA
+      ztseta=real(part(ipart)%zeta)
+      wsigeta_tmp=wsigeta
+#else
+      ztseta=0.
+      wsigeta_tmp=0.
+#endif
       call interpol_mesoscale( &
         real(part(ipart)%xlon),real(part(ipart)%ylat), &
-        real(part(ipart)%z),real(part(ipart)%zeta))
+        real(part(ipart)%z),ztseta)
       call turb_mesoscale(nrand,dxsave,dysave,ipart, &
-        usig,vsig,wsig,wsigeta,eps_eta)
+        usig,vsig,wsig,wsigeta_tmp,eps_eta)
     endif
 
     !*************************************************************
@@ -340,13 +356,19 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
   real ::                         &
     dt,                           & ! real(ldt)
     xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
-    weta_settling,                & ! settling velocity in eta coordinates
     wp                              ! random turbulence velocities
+#ifdef ETA
+  real :: weta_settling                   ! settling velocity in eta coordinates
+#endif
   integer ::                      &
     insp,nsp                        ! loop variables for number of species
 
   zts=real(part(ipart)%z)
+#ifdef ETA
   ztseta=real(part(ipart)%zeta)
+#else
+  ztseta=0.
+#endif
   xts=real(part(ipart)%xlon)
   yts=real(part(ipart)%ylat)
   if (lsettling) part(ipart)%settling=0.
@@ -390,14 +412,14 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
       ! LB change to eta coords?
       if (density(nsp).gt.0.) then
         call get_settling(xts,yts,zts,nsp,part(ipart)%settling)
-        if (wind_coord_type.eq.'ETA') then
-          call update_zeta_to_z(itime,ipart)
-          call w_to_weta(itime,dt,part(ipart)%xlon,part(ipart)%ylat, &
-            part(ipart)%z,part(ipart)%zeta,part(ipart)%settling,weta_settling)
-            weta=weta+weta_settling
-        else
-            w=w+part(ipart)%settling
-        endif
+#ifdef ETA
+        call update_zeta_to_z(itime,ipart)
+        call w_to_weta(itime,dt,part(ipart)%xlon,part(ipart)%ylat, &
+          part(ipart)%z,part(ipart)%zeta,part(ipart)%settling,weta_settling)
+          weta=weta+weta_settling
+#else
+        w=w+part(ipart)%settling
+#endif
       end if
     endif
   end if
@@ -407,7 +429,7 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
   dxsave=dxsave+(u+ux)*dt
   dysave=dysave+(v+vy)*dt
 
-  if (wind_coord_type.eq.'ETA') then
+#ifdef ETA
       if (wp.ne.0.) then
         call update_zeta_to_z(itime,ipart)
         call update_z(ipart,wp*dt*real(ldirect))
@@ -418,10 +440,10 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
       call update_zeta(ipart,weta*dt*real(ldirect))
       if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
       if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
-  else
+#else
       call update_z(ipart,(w+wp)*dt*real(ldirect))
       if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))
-  endif
+#endif
 
 end subroutine adv_above_pbl
 
@@ -447,7 +469,7 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
     nrand                           ! random number used for turbulence
   real ::                         &
     dt,                           & ! real(ldt)
-    xts,yts,zts,                  & ! local 'real' copy of the particle position
+    xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
     rhoa,                         & ! air density, used in CBL
     rhograd                     ! vertical gradient of air density, used in CBL
   integer ::                      &
@@ -464,8 +486,12 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
   ! Within this loop, only METER coordinates are used, and the new z value will
   ! be updated to ETA coordinates at the end
   !****************************************************************************
-  
+#ifdef ETA
   call update_zeta_to_z(itime,ipart)
+  ztseta=real(part(ipart)%zeta)
+#else
+  ztseta=0.
+#endif
 
   loop=0
   pbl_loop: do
@@ -489,9 +515,9 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
       if (ngrid.le.0) then
         xts=real(part(ipart)%xlon)
         yts=real(part(ipart)%ylat)
-        call interpol_pbl(itime,xts,yts,zts,real(part(ipart)%zeta))
+        call interpol_pbl(itime,xts,yts,zts,ztseta)
       else
-        call interpol_pbl(itime,xtn,ytn,zts,real(part(ipart)%zeta))
+        call interpol_pbl(itime,xtn,ytn,zts,ztseta)
       endif
 
     else
@@ -581,23 +607,25 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
     dcwsave=dcwsave+part(ipart)%turbvel%v*dt
     ! How can I change the w to w(eta) efficiently?
 
-    if (wind_coord_type.eq.'ETA') then
-        call update_z(ipart,w*dt*real(ldirect))
-        zts=real(part(ipart)%z)
-        ! HSO/AL: Particle managed to go over highest level -> interpolation
-        ! error in goto 700
-        !          alias interpol_wind (division by zero)
-        if (zts.ge.height(nz)) call set_z(ipart,height(nz)-100.*eps) 
-         ! Manually for z instead
-    else
-        call update_z(ipart,w*dt*real(ldirect))
-        call pushpartdown(ipart)
-    endif
+#ifdef ETA
+    call update_z(ipart,w*dt*real(ldirect))
+    zts=real(part(ipart)%z)
+    ! HSO/AL: Particle managed to go over highest level -> interpolation
+    ! error in goto 700
+    !          alias interpol_wind (division by zero)
+    if (zts.ge.height(nz)) call set_z(ipart,height(nz)-100.*eps) 
+     ! Manually for z instead
+#else
+    call update_z(ipart,w*dt*real(ldirect))
+    call pushpartdown(ipart)
+#endif
     ! end select
     zts=real(part(ipart)%z)
     
     if (zts.gt.h) then
+#ifdef ETA
       call update_z_to_zeta(itime,ipart)
+#endif
       if (itimec.ne.itime+lsynctime) abovePBL=.true. 
         ! complete the current interval above PBL
       return 
@@ -612,13 +640,17 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
 
     if (itimec.eq.(itime+lsynctime)) then
       ! Convert z position that changed by turbulent motions to eta coords
+#ifdef ETA
       call update_z_to_zeta(itime,ipart)
+#endif
       return  ! finished
     endif
 
   end do pbl_loop
 
+#ifdef ETA
   call update_z_to_zeta(itime,ipart)
+#endif
 
 end subroutine adv_in_pbl
 
@@ -633,13 +665,19 @@ subroutine petterssen_corr(itime,ipart)
     nsp,insp                        ! loop variables for number of species
   real ::                         &
     xts,yts,zts,ztseta,           & ! local 'real' copy of the particle position
-    uold,vold,wold,woldeta,       &
-    weta_settling
+    uold,vold,wold
+#ifdef ETA
+  real :: woldeta,weta_settling ! eta equivalents
+#endif
 
   xts=real(part(ipart)%xlon)
   yts=real(part(ipart)%ylat)
   zts=real(part(ipart)%z)
+#ifdef ETA
   ztseta=real(part(ipart)%zeta)
+#else
+  ztseta=0.
+#endif
   if (lsettling) part(ipart)%settling=0.
 
   ! Memorize the old wind
@@ -648,11 +686,11 @@ subroutine petterssen_corr(itime,ipart)
   uold=u
   vold=v
 
-  if (wind_coord_type.eq.'ETA') then
-      woldeta=weta
-  else
-      wold=w
-  endif
+#ifdef ETA
+    woldeta=weta
+#else
+    wold=w
+#endif
 
   ! Interpolate wind at new position and time
   !******************************************
@@ -669,22 +707,22 @@ subroutine petterssen_corr(itime,ipart)
         nsp=1
       endif
       if (density(nsp).gt.0.) then
-        if (wind_coord_type.eq.'ETA') then
-          call update_zeta_to_z(itime+part(ipart)%idt,ipart)
-          call update_z_to_zeta(itime+part(ipart)%idt,ipart)
-          zts=real(part(ipart)%z)
-          call get_settling(xts,yts,zts,nsp,part(ipart)%settling) !bugfix
-          call w_to_weta( &
-            itime+part(ipart)%idt, real(part(ipart)%idt), part(ipart)%xlon, &
-            part(ipart)%ylat, part(ipart)%z, part(ipart)%zeta, &
-            part(ipart)%settling, weta_settling)
-          weta=weta+weta_settling
-           !woldeta=
-     !real(part(ipart)%zeta-part(ipart)%zeta_prev)/real(part(ipart)%idt*ldirect)
-        else
-          call get_settling(xts,yts,zts,nsp,part(ipart)%settling)
-          w=w+part(ipart)%settling
-        endif          
+#ifdef ETA
+        call update_zeta_to_z(itime+part(ipart)%idt,ipart)
+        call update_z_to_zeta(itime+part(ipart)%idt,ipart)
+        zts=real(part(ipart)%z)
+        call get_settling(xts,yts,zts,nsp,part(ipart)%settling) !bugfix
+        call w_to_weta( &
+          itime+part(ipart)%idt, real(part(ipart)%idt), part(ipart)%xlon, &
+          part(ipart)%ylat, part(ipart)%z, part(ipart)%zeta, &
+          part(ipart)%settling, weta_settling)
+        weta=weta+weta_settling
+         !woldeta=
+   !real(part(ipart)%zeta-part(ipart)%zeta_prev)/real(part(ipart)%idt*ldirect)
+#else
+        call get_settling(xts,yts,zts,nsp,part(ipart)%settling)
+        w=w+part(ipart)%settling
+#endif
       end if
     endif
   end if
@@ -696,16 +734,16 @@ subroutine petterssen_corr(itime,ipart)
   u=(u-uold)*0.5
   v=(v-vold)*0.5
 
-  if (wind_coord_type.eq.'ETA') then
-      weta=(weta-woldeta)/2.
-      call update_zeta(ipart,weta*real(part(ipart)%idt*ldirect))
-      if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
-      if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
-  else
-      w=(w-wold)/2.
-      call update_z(ipart,w*real(part(ipart)%idt*ldirect))
-      if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))          ! if particle below ground -> reflection
-  endif
+#ifdef ETA
+    weta=(weta-woldeta)/2.
+    call update_zeta(ipart,weta*real(part(ipart)%idt*ldirect))
+    if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
+    if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
+#else
+    w=(w-wold)/2.
+    call update_z(ipart,w*real(part(ipart)%idt*ldirect))
+    if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))          ! if particle below ground -> reflection
+#endif
 
   ! Finally, correct the old position
   !**********************************
@@ -822,13 +860,13 @@ subroutine pushpartdown(ipart)
 
   eps=nxmax/3.e5
 
-  if (wind_coord_type.eq.'ETA') then
-      if (part(ipart)%zeta.le.real(uvheight(nz),kind=dp)) &
-        call set_zeta(ipart,uvheight(nz)+eps_eta)
-  else
-      if (part(ipart)%z.ge.real(height(nz),kind=dp)) &
-        call set_z(ipart,height(nz)-100.*eps)
-  endif
+#ifdef ETA
+  if (part(ipart)%zeta.le.real(uvheight(nz),kind=dp)) &
+    call set_zeta(ipart,uvheight(nz)+eps_eta)
+#else
+  if (part(ipart)%z.ge.real(height(nz),kind=dp)) &
+    call set_z(ipart,height(nz)-100.*eps)
+#endif
   
 end subroutine pushpartdown
 

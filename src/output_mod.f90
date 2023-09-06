@@ -164,7 +164,9 @@ subroutine output_particles(itime,initial_output)
   !*****************************************************************************
 
   use interpol_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
 #ifdef USE_NCF
   use netcdf
@@ -284,7 +286,9 @@ subroutine output_particles(itime,initial_output)
           call temporal_interpolation(tmp(1),tmp(2),output(np,i))
           cycle
         case ('ZZ') ! Height
+#ifdef ETA
           call update_zeta_to_z(itime, i) ! Convert eta z coordinate to meters if necessary
+#endif
           output(np,i)=real(part(i)%z)
           cycle
         ! case ('UU') ! Longitudinal velocity
@@ -613,7 +617,9 @@ subroutine conccalc(itime,weight)
   use com_mod
   use omp_lib, only: OMP_GET_THREAD_NUM
   use interpol_mod, only: interpol_density
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
 
   implicit none
@@ -680,7 +686,9 @@ subroutine conccalc(itime,weight)
   !Af ind_samp is defined in readcommand.f
 
     if ( ind_samp .eq. -1 ) then
+#ifdef ETA
       call update_zeta_to_z(itime,i)
+#endif
       call interpol_density(itime,i,rhoi)
     elseif (ind_samp.eq.0) then 
       rhoi = 1.
@@ -1219,7 +1227,9 @@ subroutine partpos_avg(itime,j)
   use par_mod
   use com_mod
   use interpol_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
 
   implicit none
 
@@ -1331,7 +1341,9 @@ subroutine partpos_avg(itime,j)
       case ('zz')
         ! Convert eta z coordinate to meters if necessary. Can be moved to output only
         !************************************************
+#ifdef ETA
         call update_zeta_to_z(itime,j)
+#endif
         part(j)%val_av(i_av)=part(j)%val_av(i_av)+real(part(j)%z)
       case ('ma')
         do ns=1,nspec

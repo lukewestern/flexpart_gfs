@@ -680,7 +680,9 @@ subroutine redist(itime,ipart,ktop,ipconv)
   use random_mod
   use omp_lib
   use interpol_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
   use qvsat_mod
 
@@ -709,92 +711,92 @@ subroutine redist(itime,ipart,ktop,ipconv)
 
   ! !  determine vertical grid position of particle in the eta system
   ! !****************************************************************
-  if (wind_coord_type.eq.'ETA') then
-    ztold = real(part(abs(ipart))%zeta)
-    ! find old particle grid position
-    levold = nconvtop
-    do kz = 2, nconvtop
-      if (wheight(kz) .le. ztold ) then
-        levold = kz-1
-        exit
-      endif
-    end do
-  else ! METER
+#ifdef ETA
+  ztold = real(part(abs(ipart))%zeta)
+  ! find old particle grid position
+  levold = nconvtop
+  do kz = 2, nconvtop
+    if (wheight(kz) .le. ztold ) then
+      levold = kz-1
+      exit
+    endif
+  end do
+#else
 
-    ! determine height of the eta half-levels (uvzlev)
-    ! do that only once for each grid column
-    ! i.e. when ktop.eq.1
-    !**************************************************************
+  ! determine height of the eta half-levels (uvzlev)
+  ! do that only once for each grid column
+  ! i.e. when ktop.eq.1
+  !**************************************************************
 
-    if (ktop .le. 1) then
+  if (ktop .le. 1) then
 
-      tvold=tt2conv*(1.+0.378*ew(td2conv,psconv)/psconv)
-      pold=psconv
-      uvzlev(1)=0.
+    tvold=tt2conv*(1.+0.378*ew(td2conv,psconv)/psconv)
+    pold=psconv
+    uvzlev(1)=0.
 
-      pint = phconv(2)
-    !  determine next virtual temperatures
-      tv1 = tconv(1)*(1.+0.608*qconv(1))
-      tv2 = tconv(2)*(1.+0.608*qconv(2))
-    !  interpolate virtual temperature to half-level
-      tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
-      tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
+    pint = phconv(2)
+  !  determine next virtual temperatures
+    tv1 = tconv(1)*(1.+0.608*qconv(1))
+    tv2 = tconv(2)*(1.+0.608*qconv(2))
+  !  interpolate virtual temperature to half-level
+    tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
+    tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
+    if (abs(tv-tvold).gt.0.2) then
+      uvzlev(2) = uvzlev(1) + &
+           const*log(pold/pint)* &
+           (tv-tvold)/log(tv/tvold)
+    else
+      uvzlev(2) = uvzlev(1)+ &
+           const*log(pold/pint)*tv
+    endif
+    tvold=tv
+    tv1=tv2
+    pold=pint
+
+  ! integrate profile (calculation of height agl of eta layers) as required
+    do kz = 3, nconvtop+1
+  !    note that variables defined in calcmatrix.f (pconv,tconv,qconv)
+  !    start at the first real ECMWF model level whereas kz and
+  !    thus uvzlev(kz) starts at the surface. uvzlev is defined at the
+  !    half-levels (between the tconv, qconv etc. values !)
+  !    Thus, uvzlev(kz) is the lower boundary of the tconv(kz) cell.
+      pint = phconv(kz)
+  !    determine next virtual temperatures
+      tv2 = tconv(kz)*(1.+0.608*qconv(kz))
+  !    interpolate virtual temperature to half-level
+      tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
+           (pconv(kz-1)-pconv(kz))
+      tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
+           (pconv(kz-1)-pconv(kz))
       if (abs(tv-tvold).gt.0.2) then
-        uvzlev(2) = uvzlev(1) + &
+        uvzlev(kz) = uvzlev(kz-1) + &
              const*log(pold/pint)* &
              (tv-tvold)/log(tv/tvold)
       else
-        uvzlev(2) = uvzlev(1)+ &
+        uvzlev(kz) = uvzlev(kz-1)+ &
              const*log(pold/pint)*tv
       endif
       tvold=tv
       tv1=tv2
       pold=pint
 
-    ! integrate profile (calculation of height agl of eta layers) as required
-      do kz = 3, nconvtop+1
-    !    note that variables defined in calcmatrix.f (pconv,tconv,qconv)
-    !    start at the first real ECMWF model level whereas kz and
-    !    thus uvzlev(kz) starts at the surface. uvzlev is defined at the
-    !    half-levels (between the tconv, qconv etc. values !)
-    !    Thus, uvzlev(kz) is the lower boundary of the tconv(kz) cell.
-        pint = phconv(kz)
-    !    determine next virtual temperatures
-        tv2 = tconv(kz)*(1.+0.608*qconv(kz))
-    !    interpolate virtual temperature to half-level
-        tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
-             (pconv(kz-1)-pconv(kz))
-        tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
-             (pconv(kz-1)-pconv(kz))
-        if (abs(tv-tvold).gt.0.2) then
-          uvzlev(kz) = uvzlev(kz-1) + &
-               const*log(pold/pint)* &
-               (tv-tvold)/log(tv/tvold)
-        else
-          uvzlev(kz) = uvzlev(kz-1)+ &
-               const*log(pold/pint)*tv
-        endif
-        tvold=tv
-        tv1=tv2
-        pold=pint
 
-
-      end do
-
-      ktop = 2
-
-    endif
-    
-    ztold = real(part(abs(ipart))%z)
-    ! find old particle grid position
-    levold = nconvtop
-    do kz = 2, nconvtop
-      if (uvzlev(kz) .ge. ztold ) then
-        levold = kz-1
-        exit
-      endif
     end do
+
+    ktop = 2
+
   endif
+  
+  ztold = real(part(abs(ipart))%z)
+  ! find old particle grid position
+  levold = nconvtop
+  do kz = 2, nconvtop
+    if (uvzlev(kz) .ge. ztold ) then
+      levold = kz-1
+      exit
+    endif
+  end do
+#endif
 
   ! If the particle is above the potentially convective domain, it will be skipped
   if (levold.ne.nconvtop) then
@@ -841,26 +843,26 @@ subroutine redist(itime,ipart,ktop,ipconv)
     end do loop1
 
     ! now assign new position to particle
-    if (wind_coord_type.eq.'ETA') then
-      if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
-        dlogp = (1.-dlevfrac) * (wheight(levnew+1)-wheight(levnew))
-        call set_zeta(ipart,wheight(levnew)+dlogp)
-        if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
-        if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
-        if (ipconv.gt.0) ipconv=-1
-      endif
-    else ! METER
-      if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
-        dlogp = (1.-dlevfrac)* (log(phconv(levnew+1))-log(phconv(levnew)))
-        pint = log(phconv(levnew))+dlogp
-        dz1 = pint - log(phconv(levnew))
-        dz2 = log(phconv(levnew+1)) - pint
-        dz = dz1 + dz2
-        call set_z(ipart,(uvzlev(levnew)*dz2+uvzlev(levnew+1)*dz1)/dz)
-        if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
-        if (ipconv.gt.0) ipconv=-1
-      endif
+#ifdef ETA
+    if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
+      dlogp = (1.-dlevfrac) * (wheight(levnew+1)-wheight(levnew))
+      call set_zeta(ipart,wheight(levnew)+dlogp)
+      if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
+      if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
+      if (ipconv.gt.0) ipconv=-1
     endif
+#else
+    if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
+      dlogp = (1.-dlevfrac)* (log(phconv(levnew+1))-log(phconv(levnew)))
+      pint = log(phconv(levnew))+dlogp
+      dz1 = pint - log(phconv(levnew))
+      dz2 = log(phconv(levnew+1)) - pint
+      dz = dz1 + dz2
+      call set_z(ipart,(uvzlev(levnew)*dz2+uvzlev(levnew+1)*dz1)/dz)
+      if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
+      if (ipconv.gt.0) ipconv=-1
+    endif
+#endif
     ! displace particle according to compensating subsidence
     ! this is done to those particles, that were not redistributed
     ! by the matrix
@@ -895,51 +897,51 @@ subroutine redist(itime,ipart,ktop,ipconv)
           (phconv(levold+1))
 
       ! interpolate wsub to the vertical particle position
-      if (wind_coord_type.eq.'ETA') then
-        ztold = real(part(abs(ipart))%zeta)
-        dz1 = ztold - wheight(levold)
-        dz2 = wheight(levold+1) - ztold
-        dz = dz1 + dz2
+#ifdef ETA
+      ztold = real(part(abs(ipart))%zeta)
+      dz1 = ztold - wheight(levold)
+      dz2 = wheight(levold+1) - ztold
+      dz = dz1 + dz2
 
-        ! Convert z(eta) to z(m) in order to add subsidence
-        call update_zeta_to_z(itime, ipart)
-        ! call zeta_to_z(itime,part(abs(ipart))%xlon,part(abs(ipart))%ylat, &
-        !   part(abs(ipart))%zeta,part(abs(ipart))%z)
+      ! Convert z(eta) to z(m) in order to add subsidence
+      call update_zeta_to_z(itime, ipart)
+      ! call zeta_to_z(itime,part(abs(ipart))%xlon,part(abs(ipart))%ylat, &
+      !   part(abs(ipart))%zeta,part(abs(ipart))%z)
 
-        wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
+      wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
 
-        call update_z(ipart,wsubpart*real(lsynctime))
+      call update_z(ipart,wsubpart*real(lsynctime))
 
-        if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
+      if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
 
-        ! Convert new z(m) back to z(eta)
-        call update_z_to_zeta(itime, ipart)
+      ! Convert new z(m) back to z(eta)
+      call update_z_to_zeta(itime, ipart)
           
-      else ! METER
-        ztold = real(part(abs(ipart))%z)
-        dz1 = ztold - uvzlev(levold)
-        dz2 = uvzlev(levold+1) - ztold
-        dz = dz1 + dz2
+#else
+      ztold = real(part(abs(ipart))%z)
+      dz1 = ztold - uvzlev(levold)
+      dz2 = uvzlev(levold+1) - ztold
+      dz = dz1 + dz2
 
-        wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
+      wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
 
-        call update_z(ipart,wsubpart*real(lsynctime))
+      call update_z(ipart,wsubpart*real(lsynctime))
 
-        if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
+      if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
 
-      endif ! wind_coord_type
+#endif
     endif      !(levnew.le.nconvtop.and.levnew.eq.levold)
   endif
   ! Maximum altitude .5 meter below uppermost model level
   !*******************************************************
 
-  if (wind_coord_type.eq.'ETA') then
+#ifdef ETA
     if (part(abs(ipart))%zeta .lt. uvheight(nz)) call set_zeta(ipart,uvheight(nz)+1.e-4)
     if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
     if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
-  else ! METER
+#else
     if (part(abs(ipart))%z .gt. height(nz)-0.5) call set_z(ipart,height(nz)-0.5)
-  endif
+#endif
 
 end subroutine redist
 
