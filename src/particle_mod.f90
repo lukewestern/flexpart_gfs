@@ -11,7 +11,7 @@
   !*****************************************************************************
 
 module particle_mod
-  use com_mod, only: maxspec,DRYBKDEP,WETBKDEP,iout,n_average
+  use com_mod, only: maxspec,DRYBKDEP,WETBKDEP,iout,n_average,nspec
   use par_mod, only: dp
 
   implicit none
@@ -234,7 +234,7 @@ contains
       itime,               &  ! spawning time
       nmpart                  ! number of particles that are being spawned
     integer ::             &
-      i ,j                    ! loop variable
+      i ,j, k                 ! loop variable
 
     ! Check if new memory needs to be allocated 
     !*******************************************
@@ -263,6 +263,7 @@ contains
     ! Update the total number of spawned particles
     !*********************************************
     count%spawned = count%spawned + nmpart
+
   end subroutine spawn_particles
 
   subroutine spawn_particle(itime, ipart)
@@ -301,6 +302,7 @@ contains
     ! Update the total number of spawned particles
     !*********************************************
     count%spawned = count%spawned + 1
+
   end subroutine spawn_particle
 
   subroutine terminate_particle(ipart,itime)

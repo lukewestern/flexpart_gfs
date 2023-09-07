@@ -57,9 +57,11 @@ module netcdf_output_mod
                        memind,xreceptor,yreceptor,numreceptor,creceptor,iout, &
                        loutrestart,lnetcdfout,lsynctime, ctl, ifine, lagespectra, ipin, &
                        ioutputforeachrelease, iflux, mdomainfill, mquasilag, & 
-                       nested_output, ipout, surf_only, linit_cond, &
-                       flexversion,mpi_mode,DRYBKDEP,WETBKDEP,numpart,numpoint, &
-                       partopt,num_partopt,gitversion
+                       nested_output, ipout, sfc_only, linit_cond, &
+                       flexversion,mpi_mode,DEP,DRYDEP,WETDEP,DRYBKDEP,WETBKDEP,OHREA, &
+                       numpart,numpoint,partopt,num_partopt,gitversion,ndia, &
+                       DRYDEPSPEC,WETDEPSPEC
+  ! use com_mod
   use windfields_mod, only: oro,rho,nxmax,height,nxmin1,nymin1,nz,nx,ny,hmix, &
                        ! for concoutput_netcdf and concoutput_nest_netcdf 
                        tropopause,oron,rhon,xresoln,yresoln,xrn,xln,yrn,yln,nxn,nyn
@@ -241,7 +243,7 @@ subroutine writemetadata(ncid,lnest)
   call nf90_err(nf90_put_att(ncid, nf90_global, 'ind_receptor', ind_receptor))
   call nf90_err(nf90_put_att(ncid, nf90_global, 'mquasilag', mquasilag))
   call nf90_err(nf90_put_att(ncid, nf90_global, 'nested_output', nested_output))
-  call nf90_err(nf90_put_att(ncid, nf90_global, 'surf_only', surf_only))
+  call nf90_err(nf90_put_att(ncid, nf90_global, 'sfc_only', sfc_only))
   call nf90_err(nf90_put_att(ncid, nf90_global, 'linit_cond', linit_cond))
 end subroutine writemetadata
 
@@ -2496,9 +2498,6 @@ subroutine readinitconditions_netcdf()
   use random_mod
   use particle_mod
   use date_mod
-! #ifdef ETA
-!   use coord_ecmwf_mod
-! #endif
   use readoptions_mod
   use drydepo_mod
 
@@ -2530,6 +2529,9 @@ subroutine readinitconditions_netcdf()
   call nf90_err(nf90_inquire_attribute(ncid=ncidend,name='nspecies',varid=NF90_GLOBAL))
   call nf90_err(nf90_get_att(ncid=ncidend,varid=NF90_GLOBAL,name='nspecies',values=nspec))
 
+  if (nspec.gt.maxspec) then
+    error stop 'number of species in part_ic.nc is larger than the allowed maxspec set in the par_mod.f90'
+  endif
   ! Which species?
   call nf90_err(nf90_inquire_attribute(ncid=ncidend,name='species',varid=NF90_GLOBAL))
   call nf90_err(nf90_get_att(ncid=ncidend,varid=NF90_GLOBAL,name='species',values=specnum_rel(1:nspec)))

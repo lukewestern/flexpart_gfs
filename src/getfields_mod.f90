@@ -1323,7 +1323,7 @@ subroutine calcpar_nest(n)
   end do
 end subroutine calcpar_nest
 
-real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
+real function obukhov(ps,tsfc,tdsfc,tlev,ustar,hf,akm,bkm,plev)
 
   !********************************************************************
   !                                                                   *
@@ -1349,8 +1349,8 @@ real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
   !     INPUT:                                                        *
   !                                                                   *
   !     ps      surface pressure [Pa]                                 *
-  !     tsurf   surface temperature [K]                               *
-  !     tdsurf  surface dew point [K]                                 *
+  !     tsfc   surface temperature [K]                               *
+  !     tdsfc  surface dew point [K]                                 *
   !     tlev    temperature first model level [K]                     *
   !     ustar   scale velocity [m/s]                                  *
   !     hf      surface sensible heat flux [W/m2]                     *
@@ -1367,12 +1367,12 @@ real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
   implicit none
 
   real,dimension(:) :: akm,bkm
-  real :: ps,tsurf,tdsurf,tlev,ustar,hf,e,tv,rhoa,plev
+  real :: ps,tsfc,tdsfc,tlev,ustar,hf,e,tv,rhoa,plev
   real :: ak1,bk1,theta,thetastar
 
 
-  e=ew(tdsurf,ps)                           ! vapor pressure
-  tv=tsurf*(1.+0.378*e/ps)               ! virtual temperature
+  e=ew(tdsfc,ps)                           ! vapor pressure
+  tv=tsfc*(1.+0.378*e/ps)               ! virtual temperature
   rhoa=ps/(r_air*tv)                      ! air density
   if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
   ak1=(akm(1)+akm(2))/2.
@@ -1391,7 +1391,7 @@ real function obukhov(ps,tsurf,tdsurf,tlev,ustar,hf,akm,bkm,plev)
   if (obukhov.lt.-9999.) obukhov=-9999.
 end function obukhov
 
-subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
+subroutine richardson(psfc,ust,ttlev,qvlev,ulev,vlev,nuvz, &
        akz,bkz,hf,tt2,td2,h,wst,hmixplus,ierr)
   !                        i    i    i     i    i    i    i
   ! i   i  i   i   i  o  o     o
@@ -1432,7 +1432,7 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
   ! Variables:                                                                *
   ! h                          mixing height [m]                              *
   ! hf                         sensible heat flux                             *
-  ! psurf                      surface pressure at point (xt,yt) [Pa]         *
+  ! psfc                      surface pressure at point (xt,yt) [Pa]         *
   ! tv                         virtual temperature                            *
   ! wst                        convective velocity scale                      *
   ! metdata_format             format of metdata (ecmwf/gfs)                  *
@@ -1456,7 +1456,7 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
   integer,intent(in)  ::            &
     nuvz                              ! Upper vertical level
   real,intent(in) ::                &
-    psurf,                          & ! surface pressure at point (xt,yt) [Pa] 
+    psfc,                           & ! surface pressure at point (xt,yt) [Pa] 
     ust,                            & ! Scale velocity
     hf,                             & ! Surface sensible heat flux
     tt2,td2                           ! Temperature
@@ -1493,7 +1493,7 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
 
      llev = 0
      do i=1,nuvz
-       if (psurf.lt.akz(i)) llev=i
+       if (psfc.lt.akz(i)) llev=i
      end do
      llev = llev+1
     ! sec llev should not be 1!
@@ -1509,11 +1509,11 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
 
   do iter=1,itmax,1
 
-    pold=psurf
-    tvold=tt2*(1.+0.378*ew(td2,psurf)/psurf)
+    pold=psfc
+    tvold=tt2*(1.+0.378*ew(td2,psfc)/psfc)
     zold=2.0
     zref=zold
-    rhold=ew(td2,psurf)/ew(tt2,psurf)
+    rhold=ew(td2,psfc)/ew(tt2,psfc)
 
 
     thetaref=tvold*(100000./pold)**(r_air/cpa)+excess
@@ -1530,7 +1530,7 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
     kcheck=loop_start
     do k=loop_start,nuvz
       kcheck=k
-      pint=akz(k)+bkz(k)*psurf  ! pressure on model layers
+      pint=akz(k)+bkz(k)*psfc  ! pressure on model layers
       tv=ttlev(k)*(1.+0.608*qvlev(k))
 
       if (abs(tv-tvold).gt.0.2) then
@@ -1630,8 +1630,8 @@ subroutine richardson(psurf,ust,ttlev,qvlev,ulev,vlev,nuvz, &
 7000  continue
   write(*,'(a         )') 'nuvz'
   write(*,'(i5        )')  nuvz
-  write(*,'(a         )') 'psurf,ust,hf,tt2,td2,h,wst,hmixplus'
-  write(*,'(1p,4e18.10)')  psurf,ust,hf,tt2,td2,h,wst,hmixplus
+  write(*,'(a         )') 'psfc,ust,hf,tt2,td2,h,wst,hmixplus'
+  write(*,'(1p,4e18.10)')  psfc,ust,hf,tt2,td2,h,wst,hmixplus
   return
 end subroutine richardson
 

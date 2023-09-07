@@ -287,7 +287,7 @@ endif
 endif
 
 #9)
-initialise_mod.o: xmass_mod.o output_mod.o turbulence_mod.o
+initialise_mod.o: interpol_mod.o xmass_mod.o output_mod.o turbulence_mod.o
 
 #10)
 timemanager_mod.o: advance_mod.o conv_mod.o plume_mod.o getfields_mod.o restart_mod.o initialise_mod.o

@@ -47,9 +47,9 @@ subroutine init_output(itime,filesize)
         call writeheader_bin
 
         !if (nested_output.eq.1) call writeheader_nest
-        if ((nested_output.eq.1).and.(surf_only.ne.1)) call writeheader_bin_nest
-        if ((nested_output.eq.1).and.(surf_only.eq.1)) call writeheader_bin_sfc_nest
-        if ((nested_output.ne.1).and.(surf_only.eq.1)) call writeheader_bin_sfc
+        if ((nested_output.eq.1).and.(sfc_only.ne.1)) call writeheader_bin_nest
+        if ((nested_output.eq.1).and.(sfc_only.eq.1)) call writeheader_bin_sfc_nest
+        if ((nested_output.ne.1).and.(sfc_only.eq.1)) call writeheader_bin_sfc
       endif
     endif ! iout.ne.0
     ! FLEXPART 9.2 ticket ?? write header in ASCII format 
@@ -523,7 +523,7 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
   ! If necessary, first sample of new grid is also taken
   !*****************************************************
   if ((iout.le.3.).or.(iout.eq.5)) then
-    if (surf_only.ne.1) then
+    if (sfc_only.ne.1) then
       if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
         call concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
@@ -549,7 +549,7 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
     if (nested_output .eq. 1) then
       if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
-        if (surf_only.ne.1) then
+        if (sfc_only.ne.1) then
           call concoutput_nest_netcdf(itime,outnum)
         else 
           error stop 'Netcdf output for surface only not yet implemented'
@@ -557,7 +557,7 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
         endif
 #endif
       else
-        if (surf_only.ne.1) then
+        if (sfc_only.ne.1) then
           call concoutput_nest(itime,outnum)
         else 
           if(linversionout.eq.1) then

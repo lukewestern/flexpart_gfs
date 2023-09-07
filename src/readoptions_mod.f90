@@ -492,6 +492,7 @@ subroutine readcommand
   nested_output, &
   linit_cond, &
   lnetcdfout, &
+  sfc_only, &
   surf_only, &
   cblflag, &
   linversionout, &
@@ -530,7 +531,8 @@ subroutine readcommand
   nested_output=0
   linit_cond=0
   lnetcdfout=1
-  surf_only=0 
+  sfc_only=0
+  surf_only=-1
   cblflag=0 ! if using old-style COMMAND file, set to 1 here to use mc cbl routine
   linversionout=0
   ohfields_path="../../flexin/"
@@ -557,6 +559,11 @@ subroutine readcommand
   
   close(unitcommand)
 
+  if (surf_only.ne.-1) then
+    write(*,*) 'WARNING: SURF_ONLY in COMMAND will be deprecated and renamed SFC_ONLY'
+    write(*,*) 'Continuing with SURF_ONLY...'
+    sfc_only=surf_only
+  endif
   ! distinguish namelist from fixed text input
   if ((ios.ne.0).or.(ldirect.eq.0)) then ! parse as text file format
     if (lroot) write(*,*) 'COMMAND either having unrecognised entries, &
@@ -759,7 +766,7 @@ subroutine readcommand
 #endif
   endif
 
-  if ((lnetcdfout.eq.1).and.((surf_only.eq.1).or.(linversionout.eq.1))) then
+  if ((lnetcdfout.eq.1).and.((sfc_only.eq.1).or.(linversionout.eq.1))) then
     write(*,*) ' WARNING: NetCDF output for surface only or for inversions'
     write(*,*) ' is not yet implemented. LNETCDFOUT set to 0.'
     lnetcdfout=0

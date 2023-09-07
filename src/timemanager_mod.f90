@@ -108,7 +108,7 @@ subroutine timemanager
   real, parameter ::        &
     e_inv = 1.0/exp(1.0)  
   integer ::                &
-    j,i,                    & ! loop variable
+    j,i,k,                  & ! loop variables
     ks,                     & ! loop variable species
     kp,                     & ! loop variable for maxpointspec_act
     itime=0,                & ! time index
@@ -268,6 +268,7 @@ subroutine timemanager
 #endif
               alive_tmp=alive_tmp+1
               spawned_tmp=spawned_tmp+1
+
             endif
           else if ((part(i)%tstart.ge.itime).and.(part(i)%tstart.lt.itime+lsynctime)) then
             call spawn_particle(itime,i)

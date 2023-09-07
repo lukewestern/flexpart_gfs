@@ -16,9 +16,11 @@ alma8-build:
     - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
     - export CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules
     - make -j -C src -f makefile_gfortran
+    - make -j -C src -f makefile_gfortran eta=yes
   artifacts:
     paths:
       - ./src/FLEXPART
+      - ./src/FLEXPART_ETA
 
 options-test:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -33,6 +35,9 @@ options-test:
     when: on_success
     paths:
       - ./tests/output_settling
+      - ./tests/output_bkw
+      - ./tests/output_settling_eta
+      - ./tests/output_bkw_eta
     expire_in: 5 mins
 
   
@@ -51,6 +56,8 @@ openmp-simulation:
     paths:
       - ./tests/output_omp1
       - ./tests/output_omp32
+      - ./tests/output_omp1_eta
+      - ./tests/output_omp32_eta
     expire_in: 5 mins
 
 etex-simulation:
@@ -78,15 +85,26 @@ settling-test:
       artifacts: true
   script:
     - cd ./tests/
-    - if [ -e "./settling_test.txt" ]; then
-        mv "./settling_test.txt" "./settling_old.txt";
-      fi
     - python3 ./settling_test.py
   artifacts:
     when: on_success
     paths:
       - ./tests/settling_test.txt
-      - ./tests/settling_old.txt
+    expire_in: never  
+
+bkw-test:
+  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  stage: compare
+  needs:
+    - job: options-test
+      artifacts: true
+  script:
+    - cd ./tests/
+    - python3 ./bkw_test.py
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/bkw_test.txt
     expire_in: never  
 
 openmp-test:

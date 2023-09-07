@@ -90,7 +90,8 @@ module com_mod
   real :: ctl,fine
   integer :: ifine,iout,ipout,ipin,iflux,mdomainfill,ipoutfac
   integer :: mquasilag,nested_output,ind_source,ind_receptor,nxshift
-  integer :: ind_rel,ind_samp,ioutputforeachrelease,linit_cond,surf_only
+  integer :: ind_rel,ind_samp,ioutputforeachrelease,linit_cond,sfc_only
+  integer :: surf_only ! deprecated
   logical :: turbswitch
   integer :: cblflag !added by mc for cbl
 
@@ -118,7 +119,7 @@ module com_mod
   !     0=no, 1=mass unit, 2=mass mixing ratio unit
   ! mquasilag 0: normal run
   !      1: Particle position output is produced in a condensed format and particles are numbered
-  ! surf_only   switch output in grid_time files for surface only or full vertical resolution
+  ! sfc_only   switch output in grid_time files for surface only or full vertical resolution
   !      0=no (full vertical resolution), 1=yes (surface only)
   ! nested_output: 0 no, 1 yes
   ! turbswitch              determines how the Markov chain is formulated

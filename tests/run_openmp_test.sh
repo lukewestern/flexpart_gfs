@@ -38,7 +38,6 @@ ln -s ../src/FLEXPART .
 test -d ./default_options
 report "[$MM] default options: ./default_options" || exit 1
 cp -rf ./default_options ./current
-mkdir -p ./output/
 #
 # Different options tests
 #
@@ -62,6 +61,16 @@ export OMP_NUM_THREADS=1
 ./FLEXPART pathnames_omp1
 export OMP_NUM_THREADS=32
 ./FLEXPART pathnames_omp32
+
+sed "/output/c\./output_omp1_eta/" ./pathnames > ./pathnames_omp1
+sed "/output/c\./output_omp32_eta/" ./pathnames > ./pathnames_omp32
+mkdir -p ./output_omp1_eta/
+mkdir -p ./output_omp32_eta/
+export OMP_NUM_THREADS=1
+./FLEXPART_ETA pathnames_omp1
+export OMP_NUM_THREADS=32
+./FLEXPART_ETA pathnames_omp32
+
 report "[$MM] TEST $TESTRUN (OpenMP)"
 STATUS=$((STATUS + $?))
 TESTSRUN=$((TESTSRUN + 1))

@@ -57,14 +57,30 @@ sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
 sed "/SPECNUM_REL=/c\ SPECNUM_REL=   40," ./default_options/RELEASES > ./current/RELEASES
 sed -i "/ITIME1  =/c\ ITIME1  =   030000," ./current/RELEASES
 sed -i "/ITIME2  =/c\ ITIME2  =   030000," ./current/RELEASES
+sed -i "/LON1    =/c\ LON1    =    -50.0," ./current/RELEASES
+sed -i "/LON2    =/c\ LON2    =    50.0," ./current/RELEASES
+sed -i "/LAT1    =/c\ LAT1    =        10.0," ./current/RELEASES
+sed -i "/LAT2    =/c\ LAT2    =        80.0," ./current/RELEASES
+sed -i "/Z1      =/c\ Z1    =         1.0000," ./current/RELEASES
+sed -i "/Z2      =/c\ Z2    =       100.0000," ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  3," ./current/COMMAND
 sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
-./FLEXPART pathnames
+
+sed -i "/output/c\./output_bkw/" ./pathnames_tmp
+mkdir output_bkw
+
+./FLEXPART pathnames_tmp
+
+sed -i "/output/c\./output_bkw_eta/" ./pathnames_tmp
+mkdir output_bkw_eta
+
+./FLEXPART_ETA pathnames_tmp
+
 report "[$MM] TEST $TESTRUN (IND_RECEPTOR=3)"
 STATUS=$((STATUS + $?))
 TESTSRUN=$((TESTSRUN + 1))
 # clean up
-rm -rf ./current ./output/*
+rm -rf ./current
 #
 # 
 #BACKWARD DRY DEPOSITION
@@ -73,14 +89,28 @@ sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
 sed "/SPECNUM_REL=/c\ SPECNUM_REL=   40," ./default_options/RELEASES > ./current/RELEASES
 sed -i "/ITIME1  =/c\ ITIME1  =   030000," ./current/RELEASES
 sed -i "/ITIME2  =/c\ ITIME2  =   030000," ./current/RELEASES
+sed -i "/LON1    =/c\ LON1    =    -50.0," ./current/RELEASES
+sed -i "/LON2    =/c\ LON2    =    50.0," ./current/RELEASES
+sed -i "/LAT1    =/c\ LAT1    =        10.0," ./current/RELEASES
+sed -i "/LAT2    =/c\ LAT2    =        80.0," ./current/RELEASES
+sed -i "/Z1      =/c\ Z1    =         1.0000," ./current/RELEASES
+sed -i "/Z2      =/c\ Z2    =       100.0000," ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  4," ./current/COMMAND
 sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
-./FLEXPART pathnames
+
+cp pathnames pathnames_tmp
+sed -i "/output/c\./output_bkw/" ./pathnames_tmp
+./FLEXPART pathnames_tmp
+
+cp pathnames pathnames_tmp
+sed -i "/output/c\./output_bkw_eta/" ./pathnames_tmp
+./FLEXPART_ETA pathnames_tmp
+
 report "[$MM] TEST $TESTRUN (IND_RECEPTOR=4)"
 STATUS=$((STATUS + $?))
 TESTSRUN=$((TESTSRUN + 1))
 # clean up
-rm -rf ./current ./output/*
+rm -rf ./current
 #
 #
 #Convection
@@ -160,6 +190,13 @@ sed -i "/output/c\./output_settling/" ./pathnames_tmp
 #sed -i "s/default_winds/default_etex/g" ./pathnames_tmp
 mkdir output_settling
 ./FLEXPART pathnames_tmp
+
+cp pathnames pathnames_tmp
+sed -i "/output/c\./output_settling_eta/" ./pathnames_tmp
+#sed -i "s/default_winds/default_etex/g" ./pathnames_tmp
+mkdir output_settling_eta
+./FLEXPART_ETA pathnames_tmp
+
 report "[$MM] TEST $TESTRUN (IPOUT=1)"
 STATUS=$((STATUS + $?))
 TESTSRUN=$((TESTSRUN + 1))

@@ -2290,7 +2290,7 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Concentrations
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
           sp_count_i=0
           sp_count_r=0
@@ -2336,7 +2336,7 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Mixing ratios
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
           sp_count_i=0
           sp_count_r=0
@@ -2796,7 +2796,7 @@ subroutine concoutput_inversion_nest(itime,outnum)
 
   ! Concentrations
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
          sp_count_i=0
          sp_count_r=0
@@ -2844,7 +2844,7 @@ subroutine concoutput_inversion_nest(itime,outnum)
 
   ! Mixing ratios
 
-    ! surf_only write only 1st layer 
+    ! sfc_only write only 1st layer 
 
          sp_count_i=0
          sp_count_r=0
@@ -3358,7 +3358,7 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Concentrations
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
           sp_count_i=0
           sp_count_r=0
@@ -3474,7 +3474,7 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Mixing ratios
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
           sp_count_i=0
           sp_count_r=0
@@ -3955,9 +3955,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
 
   ! Concentrations
 
-  ! if surf_only write only 1st layer 
+  ! if sfc_only write only 1st layer 
 
-         if(surf_only.eq.1) then
+         if(sfc_only.eq.1) then
          sp_count_i=0
          sp_count_r=0
          sp_fact=-1.
@@ -4030,7 +4030,7 @@ subroutine concoutput_sfc_nest(itime,outnum)
          write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
          write(unitoutgrid) sp_count_r
          write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-         endif ! surf_only
+         endif ! sfc_only
 
 
     endif !  concentration output
@@ -4114,9 +4114,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
 
   ! Mixing ratios
 
-    ! if surf_only write only 1st layer 
+    ! if sfc_only write only 1st layer 
 
-         if(surf_only.eq.1) then
+         if(sfc_only.eq.1) then
          sp_count_i=0
          sp_count_r=0
          sp_fact=-1.
@@ -4191,7 +4191,7 @@ subroutine concoutput_sfc_nest(itime,outnum)
          write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
          write(unitoutgridppt) sp_count_r
          write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-         endif ! surf_only
+         endif ! sfc_only
 
       endif ! output for ppt
 

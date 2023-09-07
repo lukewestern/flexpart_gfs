@@ -92,22 +92,20 @@ subroutine releaseparticles(itime)
   use point_mod
   use xmass_mod
   use output_mod
+  use interpol_mod
 
   implicit none
 
   !real xaux,yaux,zaux,ran1,rfraction,xmasssave(maxpoint)
   real :: xaux,yaux,zaux,rfraction
-  real :: topo,rhoaux(2),r,t,rhoout
-  real :: dz1,dz2,dz,xlonav,timecorrect(maxspec),press,pressold
+  real :: topo,r,t
+  real :: dp1,dp2,xlonav,timecorrect(maxspec),press,pressold
   real :: presspart,average_timecorrect
-  integer :: itime,numrel,i,j,k,n,ipart,minpart,ii
+  integer :: itime,numrel,i,j,k,n,ipart,minpart
   integer :: kz,istart,iend,totpart
   integer :: nweeks,ndayofweek,nhour,jjjjmmdd,ihmmss,mm
   real(kind=dp) :: julmonday,jul,jullocal,juldiff
   real,parameter :: eps2=1.e-6
-
-  integer :: ngrid,ix,jy,ixp,jyp,indz,indzp
-  real :: ddx,ddy,rddx,rddy,p1,p2,p3,p4,xtn,ytn
 
   integer :: idummy = -7
   !save idummy,xmasssave
@@ -243,15 +241,9 @@ subroutine releaseparticles(itime)
           part(ipart)%mass(k)=xmass(i,k)/real(npart(i)) &
                 *timecorrect(k)/average_timecorrect
           part(ipart)%mass_init(k)=part(ipart)%mass(k)
-          if (DRYBKDEP.or.WETBKDEP) then ! if there is no scavenging in wetdepo it will be set to 0
-  !              if ( henry(k).gt.0 .or. &
-  !                   crain_aero(k).gt.0. .or. csnow_aero(k).gt.0. .or. &
-  !                   ccn_aero(k).gt.0. .or. in_aero(k).gt.0. )  then
-            xscav_frac1(ipart,k)=-1.
-          endif
+        end do
   ! Assign certain properties to particle
   !**************************************
-        end do
         part(ipart)%nclass=min(int(ran1(idummy,0)*real(nclassunc))+1, &
              nclassunc)
         numparticlecount=numparticlecount+1
@@ -270,44 +262,12 @@ subroutine releaseparticles(itime)
 
   ! Determine the nest we are in
   !*****************************
-        ! Temporary fix for nested layer edges: replaced eps with dxn and dyn (LB)
-        ngrid=0
-        do k=numbnests,1,-1
-          if ((real(part(ipart)%xlon).gt.xln(k)+dxn(k)).and. &
-               (real(part(ipart)%xlon).lt.xrn(k)-dxn(k)).and. &
-               (real(part(ipart)%xlon).gt.yln(k)+dyn(k)).and. &
-               (real(part(ipart)%xlon).lt.yrn(k)-dyn(k))) then
-            ngrid=k
-            exit
-          endif
-        end do
+        call find_ngrid(part(ipart)%xlon,part(ipart)%ylat)
 
   ! Determine (nested) grid coordinates and auxiliary parameters used for interpolation
   !*****************************************************************************
-
-        if (ngrid.gt.0) then
-          xtn=(real(part(ipart)%xlon)-xln(ngrid))*xresoln(ngrid)
-          ytn=(real(part(ipart)%ylat)-yln(ngrid))*yresoln(ngrid)
-          ! ix=int(xtn)
-          ! jy=int(ytn)
-          ix=max(min(nint(xtn),nxn(ngrid)-1),0)
-          jy=max(min(nint(ytn),nyn(ngrid)-1),0)
-          ddy=ytn-real(jy)
-          ddx=xtn-real(ix)
-        else
-          ix=int(part(ipart)%xlon)
-          jy=int(part(ipart)%ylat)
-          ddy=real(part(ipart)%ylat)-real(jy)
-          ddx=real(part(ipart)%xlon)-real(ix)
-        endif
-        ixp=ix+1
-        jyp=jy+1
-        rddx=1.-ddx
-        rddy=1.-ddy
-        p1=rddx*rddy
-        p2=ddx*rddy
-        p3=rddx*ddy
-        p4=ddx*ddy
+        call find_grid_indices(real(part(ipart)%xlon),real(part(ipart)%ylat))
+        call find_grid_distances(real(part(ipart)%xlon),real(part(ipart)%ylat))
 
         if (ngrid.gt.0) then
           topo=p1*oron(ix ,jy ,ngrid) &
@@ -352,10 +312,10 @@ subroutine releaseparticles(itime)
               if (kz.eq.1) then
                 call set_z(ipart,height(1)/2.)
               else
-                dz1=pressold-presspart
-                dz2=presspart-press
-                call set_z(ipart,(height(kz-1)*dz2+height(kz)*dz1) &
-                     /(dz1+dz2))
+                dp1=pressold-presspart
+                dp2=presspart-press
+                call set_z(ipart,(height(kz-1)*dp2+height(kz)*dp1) &
+                     /(dp1+dp2))
               endif
               exit
             endif
@@ -377,73 +337,8 @@ subroutine releaseparticles(itime)
         call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)
         part(ipart)%etaupdate = .true. ! The z(meter) coordinate is up to date
 #endif
-
-  ! For special simulations, multiply particle concentration air density;
-  ! Simply take the 2nd field in memory to do this (accurate enough)
-  !***********************************************************************
-  !AF IND_SOURCE switches between different units for concentrations at the source
-  !Af    NOTE that in backward simulations the release of particles takes place at the
-  !Af         receptor and the sampling at the source.
-  !Af          1="mass"
-  !Af          2="mass mixing ratio"
-  !Af IND_RECEPTOR switches between different units for concentrations at the receptor
-  !            0= no receptors
-  !Af          1="mass"
-  !Af          2="mass mixing ratio"
-  !            3 = wet deposition in outputfield
-  !            4 = dry deposition in outputfield
-
-  !Af switches for the releasefile:
-  !Af IND_REL =  1 : xmass * rho
-  !Af IND_REL =  0 : xmass * 1
-
-  !Af ind_rel is defined in readcommand.f
-
-        if ((ind_rel .eq. 1).or.(ind_rel .eq. 3).or.(ind_rel .eq. 4)) then
-
-  ! Interpolate the air density
-  !****************************
-          indz=nz-1
-          indzp=nz
-          do ii=2,nz
-            if (height(ii).gt.real(part(ipart)%z)) then
-              indz=ii-1
-              indzp=ii
-              exit
-            endif
-          end do
-
-          dz1=real(part(ipart)%z)-height(indz)
-          dz2=height(indzp)-real(part(ipart)%z)
-          dz=1./(dz1+dz2)
-
-          if (ngrid.gt.0) then
-            do n=1,2
-              rhoaux(n)=p1*rhon(ix ,jy ,indz+n-1,2,ngrid) &
-                   +p2*rhon(ixp,jy ,indz+n-1,2,ngrid) &
-                   +p3*rhon(ix ,jyp,indz+n-1,2,ngrid) &
-                   +p4*rhon(ixp,jyp,indz+n-1,2,ngrid)
-            end do
-          else
-            do n=1,2
-              rhoaux(n)=p1*rho(ix ,jy ,indz+n-1,2) &
-                   +p2*rho(ixp,jy ,indz+n-1,2) &
-                   +p3*rho(ix ,jyp,indz+n-1,2) &
-                   +p4*rho(ixp,jyp,indz+n-1,2)
-            end do
-          endif
-          rhoout=(dz2*rhoaux(1)+dz1*rhoaux(2))*dz
-          rho_rel(i)=rhoout
-
-
-  ! Multiply "mass" (i.e., mass mixing ratio in forward runs) with density
-  !********************************************************************
-
-          do k=1,nspec
-            part(ipart)%mass(k)=part(ipart)%mass(k)*rhoout
-            part(ipart)%mass_init(k)=part(ipart)%mass(k)
-          end do
-        endif
+        
+        call init_mass_conversion(ipart,i)
 
         call get_totalpart_num(numpart)
 
@@ -474,6 +369,74 @@ subroutine releaseparticles(itime)
 !   stop
 
 end subroutine releaseparticles
+
+subroutine init_mass_conversion(ipart,ipoint)
+  ! For special simulations, multiply particle concentration air density;
+  ! Simply take the 2nd field in memory to do this (accurate enough)
+  !***********************************************************************
+  !AF IND_SOURCE switches between different units for concentrations at the source
+  !Af    NOTE that in backward simulations the release of particles takes place at the
+  !Af         receptor and the sampling at the source.
+  !Af          1="mass"
+  !Af          2="mass mixing ratio"
+  !Af IND_RECEPTOR switches between different units for concentrations at the receptor
+  !Af          1="mass"
+  !Af          2="mass mixing ratio"
+  !            3 = wet deposition in outputfield
+  !            4 = dry deposition in outputfield
+
+  !Af switches for the releasefile:
+  !Af IND_REL =  1 : xmass * rho
+  !Af IND_REL =  0 : xmass * 1
+
+  !Af ind_rel is defined in readcommand.f
+  use point_mod
+  use xmass_mod
+  use interpol_mod
+
+  implicit none
+
+  integer,intent(in) :: ipart,ipoint
+  integer :: ii,n,k
+  real :: rhoaux(2),rhoout
+  real :: dz1,dz2
+
+
+  if ((ind_rel .eq. 1).or.(ind_rel .eq. 3).or.(ind_rel .eq. 4)) then
+
+  ! Interpolate the air density
+  !****************************
+    call find_z_level_meters(real(part(ipart)%z))
+    call find_vert_vars_lin(height,real(part(ipart)%z),indz,dz1,dz2,lbounds)
+
+    if (ngrid.gt.0) then
+      do n=1,2
+        rhoaux(n)=p1*rhon(ix ,jy ,indz+n-1,2,ngrid) &
+             +p2*rhon(ixp,jy ,indz+n-1,2,ngrid) &
+             +p3*rhon(ix ,jyp,indz+n-1,2,ngrid) &
+             +p4*rhon(ixp,jyp,indz+n-1,2,ngrid)
+      end do
+    else
+      do n=1,2
+        rhoaux(n)=p1*rho(ix ,jy ,indz+n-1,2) &
+             +p2*rho(ixp,jy ,indz+n-1,2) &
+             +p3*rho(ix ,jyp,indz+n-1,2) &
+             +p4*rho(ixp,jyp,indz+n-1,2)
+      end do
+    endif
+    rhoout=dz2*rhoaux(1)+dz1*rhoaux(2)
+    rho_rel(ipoint)=rhoout !What is this????
+
+
+  ! Multiply "mass" (i.e., mass mixing ratio in forward runs) with density
+  !********************************************************************
+
+    do k=1,nspec
+      part(ipart)%mass(k)=part(ipart)%mass(k)*rhoout
+      part(ipart)%mass_init(k)=part(ipart)%mass(k)
+    end do
+  endif
+end subroutine init_mass_conversion
 
 subroutine readpartpositions
 
@@ -689,6 +652,16 @@ subroutine init_particle(itime,ipart)
   real :: xt,yt,zt,zteta
   integer :: thread
 
+
+  ! Initialise scavenging for backward runs
+  !****************************************
+  if (DRYBKDEP.or.WETBKDEP) then ! if there is no scavenging in wetdepo it will be set to 0
+    do k=1,nspec
+      xscav_frac1(ipart,k)=-1.
+    end do
+  endif
+
+
 #ifdef _OPENMP
   thread = OMP_GET_THREAD_NUM()
 #else 
@@ -718,6 +691,11 @@ subroutine init_particle(itime,ipart)
   ! Compute maximum mixing height around particle position
   !*******************************************************
   call find_grid_indices(xt,yt)
+
+  ! If part_ic.nc is used, convert particle mass to mixing mass in forward,
+  ! or internal mass conversion for wet and dry backward depostion.
+  !************************************************************************
+  if ((iout.eq.4).or.(iout.eq.5)) call init_mass_conversion(ipart,part(ipart)%npoint)
   
   h=max(hmix(ix ,jy,1,memind(1)), &
        hmix(ixp,jy ,1,memind(1)), &
