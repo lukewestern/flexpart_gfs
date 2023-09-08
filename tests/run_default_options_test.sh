@@ -62,8 +62,8 @@ sed -i "/LON1    =/c\ LON1    =    -50.0," ./current/RELEASES
 sed -i "/LON2    =/c\ LON2    =    50.0," ./current/RELEASES
 sed -i "/LAT1    =/c\ LAT1    =        10.0," ./current/RELEASES
 sed -i "/LAT2    =/c\ LAT2    =        80.0," ./current/RELEASES
-sed -i "/Z1      =/c\ Z1    =         1.0000," ./current/RELEASES
-sed -i "/Z2      =/c\ Z2    =       100.0000," ./current/RELEASES
+sed -i "/Z1      =/c\ Z1      =         1.0000," ./current/RELEASES
+sed -i "/Z2      =/c\ Z2      =       100.0000," ./current/RELEASES
 sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  3," ./current/COMMAND
 sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
 

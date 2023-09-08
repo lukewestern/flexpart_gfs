@@ -127,7 +127,7 @@ subroutine getfields(itime,nstop)
   implicit none
 
   integer :: indj,itime,nstop,memaux
-
+  integer :: kz,ix,jy
   integer :: indmin = 1
 
   ! Check, if wind fields are available for the current time step
@@ -198,6 +198,29 @@ subroutine getfields(itime,nstop)
       call writeprecip(itime,memind(1))
     endif
 
+    if ((DRYDEP).or.(lnetcdfout.eq.0)) then
+!$OMP PARALLEL PRIVATE(ix,jy,kz)
+!$OMP DO
+  ! RLT calculate dry air density
+      do kz=1,nuvz
+        do jy=0,nymin1
+          do ix=0,nxmin1
+            pwater(ix,jy,kz,memind(1))=qv(ix,jy,kz,memind(1))*prs(ix,jy,kz,memind(1))/ &
+              ((r_air/r_water)*(1.-qv(ix,jy,kz,memind(1)))+qv(ix,jy,kz,memind(1)))
+            pwater(ix,jy,kz,memind(2))=qv(ix,jy,kz,memind(2))*prs(ix,jy,kz,memind(2))/ &
+              ((r_air/r_water)*(1.-qv(ix,jy,kz,memind(2)))+qv(ix,jy,kz,memind(2)))
+            rho_dry(ix,jy,kz,memind(1))=(prs(ix,jy,kz,memind(1))-pwater(ix,jy,kz,memind(1)))/ &
+              (r_air*tt(ix,jy,kz,memind(1)))
+            rho_dry(ix,jy,kz,memind(2))=(prs(ix,jy,kz,memind(2))-pwater(ix,jy,kz,memind(2)))/ &
+              (r_air*tt(ix,jy,kz,memind(2)))
+          end do 
+        end do
+      end do
+      ! pwater=qv*prs/((r_air/r_water)*(1.-qv)+qv)
+      ! rho_dry=(prs-pwater)/(r_air*tt)
+!$OMP END DO
+!$OMP END PARALLEL
+    endif
   else
 
   ! No wind fields, which can be used, are currently in memory
@@ -257,13 +280,30 @@ subroutine getfields(itime,nstop)
       call writeprecip(itime,memind(1))
     endif
 
+    if ((DRYDEP).or.(lnetcdfout.eq.0)) then
+!$OMP PARALLEL PRIVATE(ix,jy,kz)
+!$OMP DO
+    ! RLT calculate dry air density
+      do kz=1,nuvz
+        do jy=0,nymin1
+          do ix=0,nxmin1
+            pwater(ix,jy,kz,memind(1))=qv(ix,jy,kz,memind(1))*prs(ix,jy,kz,memind(1))/ &
+              ((r_air/r_water)*(1.-qv(ix,jy,kz,memind(1)))+qv(ix,jy,kz,memind(1)))
+            pwater(ix,jy,kz,memind(2))=qv(ix,jy,kz,memind(2))*prs(ix,jy,kz,memind(2))/ &
+              ((r_air/r_water)*(1.-qv(ix,jy,kz,memind(2)))+qv(ix,jy,kz,memind(2)))
+            rho_dry(ix,jy,kz,memind(1))=(prs(ix,jy,kz,memind(1))-pwater(ix,jy,kz,memind(1)))/ &
+              (r_air*tt(ix,jy,kz,memind(1)))
+            rho_dry(ix,jy,kz,memind(2))=(prs(ix,jy,kz,memind(2))-pwater(ix,jy,kz,memind(2)))/ &
+              (r_air*tt(ix,jy,kz,memind(2)))
+          end do 
+        end do
+      end do
+      ! pwater=qv*prs/((r_air/r_water)*(1.-qv)+qv)
+      ! rho_dry=(prs-pwater)/(r_air*tt)
+!$OMP END DO
+!$OMP END PARALLEL
+    endif
   end if
-
-  ! RLT calculate dry air density
-  if ((DRYDEP).or.(lnetcdfout.eq.0)) then
-    pwater=qv*prs/((r_air/r_water)*(1.-qv)+qv)
-    rho_dry=(prs-pwater)/(r_air*tt)
-  endif
 
   lwindinterv=abs(memtime(2)-memtime(1))
 

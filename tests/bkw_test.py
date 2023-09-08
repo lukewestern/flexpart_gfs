@@ -9,9 +9,9 @@ resolution=1.e7
 
 compare = False
 # Comparing to previous version, if it exists
-if (os.path.isfile("./bkw_old.txt")):
+if (os.path.isfile("./bkw_master.txt")):
   compare = True
-  fr = open("./bkw_old.txt", "r")
+  fr = open("./bkw_master.txt", "r")
 
 output_name = 'bkw_test.txt'
 with open(output_name, 'a') as f:
