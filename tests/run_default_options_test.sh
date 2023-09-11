@@ -104,11 +104,11 @@ sed -i "/IND_RECEPTOR/c\ IND_RECEPTOR=  4," ./current/COMMAND
 sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
 
 cp pathnames pathnames_tmp
-sed -i "/output/c\./output_bkw_orig/" ./pathnames_tmp
+sed -i "/output/c\./output_bkw/" ./pathnames_tmp
 ./FLEXPART pathnames_tmp
 
 cp pathnames pathnames_tmp
-sed -i "/output/c\./output_bkw_eta_orig/" ./pathnames_tmp
+sed -i "/output/c\./output_bkw_eta/" ./pathnames_tmp
 ./FLEXPART_ETA pathnames_tmp
 
 report "[$MM] TEST $TESTRUN (IND_RECEPTOR=4)"
