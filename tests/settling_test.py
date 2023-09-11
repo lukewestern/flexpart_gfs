@@ -13,7 +13,7 @@ if (os.path.isfile("./settling_master.txt")):
   compare = True
   fr = open("./settling_master.txt", "r")
 
-output_name = 'settling_orig.txt'
+output_name = 'settling_test.txt'
 with open(output_name, 'a') as f:
   ndata = nc.Dataset("./output_settling/partoutput_20090101000000_init.nc", 'r')
   ndata2 = nc.Dataset("./output_settling_eta/partoutput_20090101000000_init.nc", 'r')

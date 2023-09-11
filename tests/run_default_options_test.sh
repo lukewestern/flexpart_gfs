@@ -56,6 +56,8 @@ sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
 # IND_RECEPTOR=          1, ! Unit to be used at the receptor; [0]no receptor [1]mass 2]mass mixing ratio 3]wet depo. 4]dry depo.
 # ! Release start time in UTC HHMISS: HH hours, MI=minutes, SS=seconds
 sed "/SPECNUM_REL=/c\ SPECNUM_REL=   40," ./default_options/RELEASES > ./current/RELEASES
+sed -i "/PSHAPE=/c\ PSHAPE= 0," ./current/SPECIES/SPECIES_040
+sed -i "/PDQUER=/c\ PDQUER=1.0E-06," ./current/SPECIES/SPECIES_040
 sed -i "/ITIME1  =/c\ ITIME1  =   030000," ./current/RELEASES
 sed -i "/ITIME2  =/c\ ITIME2  =   030000," ./current/RELEASES
 sed -i "/LON1    =/c\ LON1    =    -50.0," ./current/RELEASES
