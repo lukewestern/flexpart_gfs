@@ -1,39 +1,135 @@
 stages:
   - build
   - test
+  - compare
 
 default:
   tags:
     - podman
 
 alma8-build:
-  image: almalinux:8-minimal
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   stage: build
-  #when: manual
-
-  before_script:
-    - microdnf install -y epel-release
-    - microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 eccodes-devel.x86_64 netcdf.x86_64
 
   script:
     - export FC=gfortran
-    - export LIBRARY_PATH=/usr/lib64
-    - export CPATH=/usr/include:/usr/lib64/gfortran/modules
+    - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
+    - export CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules
     - make -j -C src -f makefile_gfortran
+    - make -j -C src -f makefile_gfortran eta=yes
   artifacts:
+    when: on_success
     paths:
       - ./src/FLEXPART
+      - ./src/FLEXPART_ETA
+    expire_in: never
 
 options-test:
-  image: almalinux:8-minimal
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   stage: test
-  #when: manual
   needs:
     - alma8-build
 
-  before_script:
-    - microdnf install -y epel-release
-    - microdnf install -y --enablerepo=powertools make netcdf-fortran.x86_64 eccodes.x86_64 netcdf.x86_64
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/output_settling
+      - ./tests/output_bkw
+      - ./tests/output_settling_eta
+      - ./tests/output_bkw_eta
+    expire_in: 5 mins
+
+  
+openmp-simulation:
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  stage: test
+  needs:
+    - alma8-build
+
+  script:
+    - ulimit -s unlimited
+    - bash ./tests/run_openmp_test.sh
+  
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/output_omp1
+      - ./tests/output_omp32
+      - ./tests/output_omp1_eta
+      - ./tests/output_omp32_eta
+    expire_in: 5 mins
+
+etex-simulation:
+  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  stage: test
+  when: manual
+  needs:
+    - alma8-build
+
+  script:
+    - ulimit -s unlimited
+    - bash ./tests/run_etex_test.sh
+
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/output_etex
+    expire_in: 10 mins
+
+settling-test:
+  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  stage: compare
+  needs:
+    - job: options-test
+      artifacts: true
+  script:
+    - cd ./tests/
+    - python3 ./settling_test.py
+  artifacts:
+    when: always
+    paths:
+      - ./tests/settling_test.txt
+    expire_in: never  
+
+bkw-test:
+  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  stage: compare
+  needs:
+    - job: options-test
+      artifacts: true
+  script:
+    - cd ./tests/
+    - python3 ./bkw_test.py
+  artifacts:
+    when: always
+    paths:
+      - ./tests/bkw_test.txt
+    expire_in: never  
+
+openmp-test:
+  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  stage: compare
+  needs:
+    - job: openmp-simulation
+      artifacts: true
+  script:
+    - cd ./tests/
+    - python3 ./openmp_test.py
+
+etex-test:
+  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  stage: compare
+  needs:
+    - job: etex-simulation
+      artifacts: true
+  script:
+    - cd ./tests/
+    - python3 ./etex_test.py
+  artifacts:
+    when: on_success
+    paths:
+      - ./tests/etex_test.txt
+    expire_in: never

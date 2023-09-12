@@ -87,7 +87,7 @@ subroutine coordtrafo(nxmin1,nymin1)
   do i=1,numpoint
     if (sglobal.and.(ypoint1(i).lt.1.e-6)) ypoint1(i)=1.e-6
     if (nglobal.and.(ypoint2(i).gt.real(nymin1,kind=dp)-1.e-5)) &
-         ypoint2(i)=real(nymin1,kind=dp)-10*yrspc
+         ypoint2(i)=real(nymin1,kind=dp)-10.*yrspc
     if ((ypoint1(i).lt.1.e-6).or.(ypoint1(i).ge.real(nymin1,kind=dp)-1.e-6) &
        .or.(ypoint2(i).lt.1.e-6).or.(ypoint2(i).ge.real(nymin1,kind=dp)-yrspc) &
        .or.((.not.xglobal).and.((xpoint1(i).lt.1.e-6).or. &

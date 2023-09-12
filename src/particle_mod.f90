@@ -11,7 +11,7 @@
   !*****************************************************************************
 
 module particle_mod
-  use com_mod, only: maxspec,DRYBKDEP,WETBKDEP,iout,n_average
+  use com_mod, only: maxspec,DRYBKDEP,WETBKDEP,iout,n_average,nspec
   use par_mod, only: dp
 
   implicit none
@@ -22,8 +22,10 @@ module particle_mod
       ylat                          ! latitude in grid coordinates
     real          ::              &
       z                             ! height in meters
+#ifdef ETA
     real          ::              &
       zeta                          ! height in eta (ECMWF) coordinates
+#endif
   end type coordinates
 
   type :: velocities
@@ -31,8 +33,10 @@ module particle_mod
       u,                          & ! x velocity
       v,                          & ! y velocity
       w                             ! z velocity
+#ifdef ETA
     real               ::         &
       weta                          ! z velocity in eta (ECMWF) coordinates
+#endif
   end type velocities
 
   type :: particle
@@ -42,9 +46,11 @@ module particle_mod
       xlon_prev, ylat_prev,       & ! Keeping the previous positions in memory
       z,                          & ! height in meters
       z_prev                        ! Previous position
+#ifdef ETA
     real(kind=dp)      ::         &
       zeta,                       & ! Height in eta (ECMWF) coordinates
       zeta_prev                     ! Previous position
+#endif
     type(velocities)   ::         &
       vel,                        & ! Velocities from interpolated windfields
       turbvel,                    & ! Random turbulent velocities
@@ -53,9 +59,12 @@ module particle_mod
       settling                      ! Settling velocity for dry and wet(?) deposit
     logical            ::         &
       alive=.false.,              & ! Flag to show if the particle is still in the running
-      etaupdate=.false.,          & ! If false, z(meter) is more up-to-date than z(eta)
-      meterupdate=.false.,         & ! If false, z(eta) is more up-to-date than z(meter)
       nstop=.false.                 ! Flag to stop particle (used in advance, stopped in timemanager)
+#ifdef ETA
+    logical            ::         &
+      etaupdate=.false.,          & ! If false, z(meter) is more up-to-date than z(eta)
+      meterupdate=.false.           ! If false, z(eta) is more up-to-date than z(meter)
+#endif
     integer(kind=2)    ::         &
       icbt                          ! Forbidden state flag   
     integer            ::         &
@@ -90,7 +99,9 @@ module particle_mod
       allocated=0,                & ! Number of total allocated particle spaces
       ninmem=0                      ! Number of particles currently in memory
     logical,allocatable  ::       &
-      inmem(:)
+      inmem(:)                      ! Logical to keep track which particle numbers are allocated
+    integer,allocatable  ::       &                  
+      ialive(:)                     ! Array that stores alive particle numbers up to count%alive for OMP loops 
   end type
 
   type(particle), allocatable ::  &
@@ -148,6 +159,7 @@ module particle_mod
     procedure set_z_dp,set_z_sp
   end interface set_z
 
+#ifdef ETA
   interface update_zeta
     procedure update_zeta_dp,update_zeta_sp
   end interface update_zeta
@@ -155,7 +167,7 @@ module particle_mod
   interface set_zeta
     procedure set_zeta_dp,set_zeta_sp
   end interface set_zeta
-   
+#endif
 contains
 
   logical function particle_allocated(ipart)
@@ -221,24 +233,37 @@ contains
     integer, intent(in) :: &
       itime,               &  ! spawning time
       nmpart                  ! number of particles that are being spawned
+    integer ::             &
+      i ,j, k                 ! loop variable
 
     ! Check if new memory needs to be allocated 
     !*******************************************
     if (nmpart+count%spawned.gt.count%allocated) then
       call alloc_particles( (nmpart+count%spawned) - count%allocated )
     endif
-    ! Update the number of particles that are currently alive
-    !********************************************************
-    count%alive = count%alive + nmpart
 
     ! Set the spawning time for each new particle and mark it as alive
     !*****************************************************************
     part(count%spawned+1:count%spawned+nmpart)%tstart = itime
     part(count%spawned+1:count%spawned+nmpart)%alive = .true.
 
+    ! Updating the list with alive particle numbers that is used to
+    ! loop over when doing particle computations
+    !*************************************************************
+    j=count%spawned+1
+    do i=count%alive+1,count%alive+nmpart
+      count%ialive(i)=j
+      j = j+1
+    end do
+
+    ! Update the number of particles that are currently alive
+    !********************************************************
+    count%alive = count%alive + nmpart
+
     ! Update the total number of spawned particles
     !*********************************************
     count%spawned = count%spawned + nmpart
+
   end subroutine spawn_particles
 
   subroutine spawn_particle(itime, ipart)
@@ -269,9 +294,15 @@ contains
     part(ipart)%tstart = itime
     part(ipart)%alive = .true.
 
+    ! Updating the list with alive particle numbers that is used to
+    ! loop over when doing particle computations
+    !*************************************************************
+    count%ialive(count%alive) = ipart
+
     ! Update the total number of spawned particles
     !*********************************************
     count%spawned = count%spawned + 1
+
   end subroutine spawn_particle
 
   subroutine terminate_particle(ipart,itime)
@@ -285,15 +316,31 @@ contains
     integer, intent(in) :: &
       ipart,               & ! to be terminated particle index
       itime                  ! Time at which particle is terminated
+    integer ::             &
+      i,                   & ! loop variable
+      iloc                   ! location of ipart in count%ialive
 
     ! Flagging the particle as having been terminated
     !************************************************
-    part(ipart)%alive=.false.
+    part(ipart)%alive=.false.  
     part(ipart)%tend=itime
 
     ! Update the number of current particles that are alive
     !******************************************************
     count%alive = count%alive - 1
+    ! And remove from the ialive array
+    !*********************************
+    ! iloc=findloc(count%ialive,ipart,1) ! findloc not supported in gcc<v9
+    iloc=count%allocated
+    do i=1,count%alive+1
+      if (count%ialive(i).eq.ipart) then
+        iloc=i
+        exit
+      endif
+    end do
+    if (iloc.ne.count%allocated) then
+      count%ialive(iloc:count%allocated-1)=count%ialive(iloc+1:count%allocated)
+    endif
 
     ! Update the total number of terminated particles during the whole run
     !**********************************************************************
@@ -312,7 +359,8 @@ contains
     integer, allocatable       :: tmpnclust(:)
     integer                    :: i
 
-    if (nmpart.gt.100) write(*,*) 'Allocating ',nmpart,' particles'
+    if (nmpart.gt.100) &
+      write(*,*) 'Allocating ',nmpart,' particles', count%allocated, count%terminated, count%spawned
 
     ! Keeping track of the allocated memory in case 
     ! there is a reason for deallocating some of it
@@ -320,6 +368,10 @@ contains
     allocate( tmpcount(count%allocated+nmpart) )
     if (count%allocated.gt.0) tmpcount(1:count%allocated) = count%inmem
     call move_alloc(tmpcount,count%inmem)
+    allocate( tmpnclust(count%allocated+nmpart) )
+    if (count%allocated.gt.0) tmpnclust(1:count%allocated) = count%ialive
+    call move_alloc(tmpnclust,count%ialive)
+
     count%inmem(count%allocated+1:count%allocated+nmpart) = .true.
 
     ! Allocating new particle spaces
@@ -342,6 +394,8 @@ contains
       allocate( tmpxscav(count%allocated+nmpart,maxspec) )
       if (count%allocated.gt.0) tmpxscav(1:count%allocated,:) = xscav_frac1
       call move_alloc(tmpxscav,xscav_frac1)
+      ! Initialise it here
+      xscav_frac1(count%allocated+1:count%allocated+nmpart,:) = -1.
     endif
 
     if ((iout.eq.4).or.(iout.eq.5)) then
@@ -417,6 +471,7 @@ contains
     endif
     deallocate( part )
     deallocate( count%inmem )
+    deallocate( count%ialive )
 
     if (WETBKDEP.or.DRYBKDEP) then
       deallocate( xscav_frac1 )
@@ -593,8 +648,10 @@ contains
     real(kind=dp), intent(in)  :: zchange
 
     part(ipart)%z = part(ipart)%z + zchange
+#ifdef ETA
     part(ipart)%meterupdate=.false.
     part(ipart)%etaupdate=.true.
+#endif
   end subroutine update_z_dp
 
   subroutine update_z_sp(ipart,zchange)
@@ -607,10 +664,13 @@ contains
     real, intent(in)       :: zchange
 
     part(ipart)%z = part(ipart)%z + real(zchange,kind=dp)
+#ifdef ETA
     part(ipart)%meterupdate=.false.
     part(ipart)%etaupdate=.true.
+#endif
   end subroutine update_z_sp  
 
+#ifdef ETA
   subroutine update_zeta_dp(ipart,zchange)
     !**************************************
     ! Updates the height of the particle
@@ -638,6 +698,7 @@ contains
     part(ipart)%etaupdate=.false.
     part(ipart)%meterupdate=.true.
   end subroutine update_zeta_sp
+#endif
 ! End update z positions
 
 ! Update z positions
@@ -651,8 +712,10 @@ contains
     real(kind=dp), intent(in)  :: zvalue
 
     part(ipart)%z = zvalue
+#ifdef ETA
     part(ipart)%meterupdate=.false.
     part(ipart)%etaupdate=.true.
+#endif
   end subroutine set_z_dp  
 
   subroutine set_z_sp(ipart,zvalue)
@@ -665,10 +728,13 @@ contains
     real, intent(in)       :: zvalue
 
     part(ipart)%z = real(zvalue,kind=dp)
+#ifdef ETA
     part(ipart)%meterupdate=.false.
     part(ipart)%etaupdate=.true.
+#endif
   end subroutine set_z_sp
 
+#ifdef ETA
   subroutine set_zeta_dp(ipart,zvalue)
     !**************************************
     ! Updates the height of the particle
@@ -696,6 +762,7 @@ contains
     part(ipart)%etaupdate=.false.
     part(ipart)%meterupdate=.true.
   end subroutine set_zeta_sp
+#endif
 ! End update z positions
 
 end module particle_mod

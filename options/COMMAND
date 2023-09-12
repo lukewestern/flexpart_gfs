@@ -21,6 +21,7 @@
  IPOUT=                 0, ! Particle position output: 0]off 1]every output 2]only at end
  LSUBGRID=              0, ! Increase of ABL heights due to sub-grid scale orographic variations;[0]off 1]on 
  LCONVECTION=           1, ! Switch for convection parameterization;0]off [1]on
+ LTURBULENCE=           1, ! Switch for turbulence parameterisation;0]off [1]on
  LAGESPECTRA=           0, ! Switch for calculation of age spectra (needs AGECLASSES);[0]off 1]on
  IPIN=                  0, ! Warm start from particle dump; [0]no 1]from restart.bin file 2]from previous partoutput file 3]self made initial conditions 4]restart.bin and self made initial conditions
  IOUTPUTFOREACHRELEASE= 1, ! Separate output fields for each location in the RELEASE file; [0]no 1]yes 

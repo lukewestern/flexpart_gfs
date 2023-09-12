@@ -12,6 +12,6 @@
 *                                              *
 ************************************************
 &AGECLASS
- NAGECLASS=          1,
- LAGE=    1728000,
+ NAGECLASS=          1, ! Number of ageclasses for the age spectra calculation
+ LAGE=    1728000,      ! Maximum age of particles in seconds for each ageclass
  /

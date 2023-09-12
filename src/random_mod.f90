@@ -139,7 +139,7 @@ contains
 
     integer,parameter :: mbig=1000000000, mseed=161803398, mz=0
     real,parameter    :: fac=1./mbig
-    integer :: i,ii,inext,inextp,k
+    integer :: i,ii,k
     integer :: mj,mk
 
     if(idum.lt.0 .or. ran3_iff(ithread).eq.0)then

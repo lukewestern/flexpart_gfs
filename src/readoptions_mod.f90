@@ -82,11 +82,9 @@ subroutine readageclasses
     end do
     read(unitageclasses,*) nageclass
     read(unitageclasses,*) lage(1)
-    if (nageclass.ge.2) then
-      do i=2,nageclass
-        read(unitageclasses,*) lage(i)
-      end do
-    endif
+    do i=2,nageclass
+      read(unitageclasses,*) lage(i)
+    end do
     close(unitageclasses)
   endif
 
@@ -464,7 +462,6 @@ subroutine readcommand
   implicit none
 
   character(len=50) :: line
-  logical :: old
   integer :: ios
 
   namelist /command/ &
@@ -483,6 +480,7 @@ subroutine readcommand
   ipoutfac, &
   lsubgrid, &
   lconvection, &
+  lturbulence, &
   lagespectra, &
   ipin, &
   ioutputforeachrelease, &
@@ -494,6 +492,7 @@ subroutine readcommand
   nested_output, &
   linit_cond, &
   lnetcdfout, &
+  sfc_only, &
   surf_only, &
   cblflag, &
   linversionout, &
@@ -520,6 +519,7 @@ subroutine readcommand
   ipoutfac=1
   lsubgrid=1
   lconvection=1
+  lturbulence=1
   lagespectra=0
   ipin=0
   ioutputforeachrelease=1
@@ -530,8 +530,9 @@ subroutine readcommand
   mquasilag=0
   nested_output=0
   linit_cond=0
-  lnetcdfout=0
-  surf_only=0 
+  lnetcdfout=1
+  sfc_only=0
+  surf_only=-1
   cblflag=0 ! if using old-style COMMAND file, set to 1 here to use mc cbl routine
   linversionout=0
   ohfields_path="../../flexin/"
@@ -558,6 +559,11 @@ subroutine readcommand
   
   close(unitcommand)
 
+  if (surf_only.ne.-1) then
+    write(*,*) 'WARNING: SURF_ONLY in COMMAND will be deprecated and renamed SFC_ONLY'
+    write(*,*) 'Continuing with SURF_ONLY...'
+    sfc_only=surf_only
+  endif
   ! distinguish namelist from fixed text input
   if ((ios.ne.0).or.(ldirect.eq.0)) then ! parse as text file format
     if (lroot) write(*,*) 'COMMAND either having unrecognised entries, &
@@ -705,26 +711,26 @@ subroutine readcommand
     endif
   endif
 
-#ifndef USE_NCF
-  if ((loutrestart.ne.-1).or.(ipin.ne.0)) then
-    write(*,*) ' WARNING: restart option set with intervals'
-    write(*,*) ' LOUTRESTART', loutrestart
-    write(*,*) ' not possible when using binary gridded output'
-    write(*,*) ' ==> RESTART FUNCTION SWITCHED OFF!'
-  endif
-  if (ipin.ne.0) then 
-    write(*,*) ' ERROR: restart option not possible using binary'
-    write(*,*) ' output.'
-    write(*,*) ' Please only use IPIN>0 when compiling and running using'
-    write(*,*) ' netcdf output. '
-  endif
-#else
-  if ((surf_only.eq.1).or.(linversionout.eq.1)) then
-    write(*,*) ' ERROR: NetCDF output for surface only or for inversions'
-    write(*,*) ' is not yet implemented. Please compile without NetCDF.'
-    error stop 'Surface only option is not supported for NetCDF'
-  endif
-#endif
+! #ifndef USE_NCF
+!   if ((loutrestart.ne.-1).or.(ipin.ne.0)) then
+!     write(*,*) ' WARNING: restart option set with intervals'
+!     write(*,*) ' LOUTRESTART', loutrestart
+!     write(*,*) ' not possible when using binary gridded output'
+!     write(*,*) ' ==> RESTART FUNCTION SWITCHED OFF!'
+!   endif
+!   if (ipin.ne.0) then 
+!     write(*,*) ' ERROR: restart option not possible using binary'
+!     write(*,*) ' output.'
+!     write(*,*) ' Please only use IPIN>0 when compiling and running using'
+!     write(*,*) ' netcdf output. '
+!   endif
+! #else
+!   if ((surf_only.eq.1).or.(linversionout.eq.1)) then
+!     write(*,*) ' ERROR: NetCDF output for surface only or for inversions'
+!     write(*,*) ' is not yet implemented. Please compile without NetCDF.'
+!     error stop 'Surface only option is not supported for NetCDF'
+!   endif
+! #endif
 
   ! Determine kind of dispersion method
   !************************************
@@ -739,20 +745,33 @@ subroutine readcommand
 
   ! Check for netcdf output switch
   !*******************************
-#ifdef USE_NCF
-  lnetcdfout = 1
-#endif
-  if (iout.ge.8) then
-    lnetcdfout = 1
-    iout = iout - 8
+  if (iout.gt.8) then
+    lnetcdfout=1
+    iout = iout -8
+  endif
+  if (lnetcdfout.eq.1) then
 #ifndef USE_NCF
-    write(*,*) 'ERROR: netcdf output not activated during compile time &
-      &but used in COMMAND file!'
+    write(*,*) 'WARNING: netcdf output not activated during compile time &
+      &but switched on in COMMAND or set to default value 1.'
     write(*,*) 'Please recompile with netcdf library (`make [...] ncf=yes`) &
-      &or use standard output format.'
-    error stop 'FLEXPART not compiled with NetCDF'
+      &when requiring NetCDF output.'
+    write(*,*) 'LNETCDFOUT set to 0.'
+    lnetcdfout = 0
+#endif
+  else
+#ifdef USE_NCF
+    write(*,*) 'WARNING: Executable compiled using NetCDF libraries, but &
+      &BINARY output is requested. If this was unintended, please add 8 &
+      &to IOUT or set LOUTNETCDF=1 in the COMMAND file.'
 #endif
   endif
+
+  if ((lnetcdfout.eq.1).and.((sfc_only.eq.1).or.(linversionout.eq.1))) then
+    write(*,*) ' WARNING: NetCDF output for surface only or for inversions'
+    write(*,*) ' is not yet implemented. LNETCDFOUT set to 0.'
+    lnetcdfout=0
+  endif
+
 #ifndef USE_NCF
   if (ipout.ne.0) then
     write(*,*) 'ERROR: NETCDF missing! Please recompile with the netcdf'
@@ -1053,11 +1072,24 @@ subroutine readdepo
   real :: rluh(5,numclass),rgssh(5,numclass),rgsoh(5,numclass)
   real :: rclsh(5,numclass),rcloh(5,numclass)
   integer :: i,j,ic
+  logical :: ios, ios2
+  character(12) :: file_sfcdepo
 
 
   ! Read deposition constants related with landuse and seasonal category
   !*********************************************************************
-  open(unitwesely,file=path(1)(1:length(1))//'sfcdepo.t', &
+  file_sfcdepo='sfcdepo.t'
+  inquire(file=path(1)(1:length(1))//trim(file_sfcdepo),exist=ios)
+  if (.not. ios) then
+    file_sfcdepo='surfdepo.t'
+    inquire(file=path(1)(1:length(1))//trim(file_sfcdepo),exist=ios2)
+    if (ios2) then
+      write(*,*) 'WARNING: surfdepo.t should be renamed to sfcdepo.t'
+      write(*,*) 'Continuing with surfdepo.t'
+    endif
+  endif
+
+  open(unitwesely,file=path(1)(1:length(1))//trim(file_sfcdepo), &
        status='old',err=999)
 
   do i=1,16
@@ -1265,6 +1297,8 @@ subroutine readlanduse
   integer(kind=1) :: ilr_buffer(2160000)
   integer :: il,irecread
   real :: rlr, r2lr
+  logical :: ios,ios2
+  character(12) :: file_sfcdata
 
 
   ! Read landuse inventory
@@ -1310,7 +1344,7 @@ subroutine readlanduse
   ! get only the right half of the byte
         r2lr=rlr-int(rlr)
   ! shift left by 4
-        lu_perc=r2lr*16.
+        lu_perc=int(r2lr*16.)
         landinvent(ix,jy,k)=lu_cat
         landinvent(ix,jy,k+3)=lu_perc
   ! if ((jy.lt.10).and.(ix.lt.10)) write(*,*) 'reading: ',ix,jy,lu_cat,lu_perc
@@ -1320,9 +1354,19 @@ subroutine readlanduse
 
   ! Read relation landuse,z0
   !*****************************
+  file_sfcdata='sfcdata.t'
+  inquire(file=path(1)(1:length(1))//trim(file_sfcdata),exist=ios)
+  if (.not. ios) then
+    file_sfcdata='surfdata.t'
+    inquire(file=path(1)(1:length(1))//trim(file_sfcdata),exist=ios2)
+    if (ios2) then
+      write(*,*) 'WARNING: surfdata.t should be renamed to sfcdata.t'
+      write(*,*) 'Continuing with surfdata.t'
+    endif
+  endif
 
-  open(unitsfcdata,file=path(1)(1:length(1))//'sfcdata.t', &
-       status='old',err=999)
+  open(unitsfcdata,file=path(1)(1:length(1))//trim(file_sfcdata), &
+            status='old',err=999)
 
   do i=1,4
     read(unitsfcdata,*)
@@ -1342,10 +1386,8 @@ subroutine readlanduse
   stop
 
 999 write(*,*) ' #### FLEXPART ERROR! FILE              ####'
-  write(*,*)   ' #### ', path(1)(1:length(1))//'sfcdata.txt'
-  write(*,*)   ' #### DOES NOT EXIST. Note that         ####'
-  write(*,*)   ' #### file was renamed from sfcdata.t  ####'
-  write(*,*)   ' #### to sfcdata.txt in v11             ####'
+  write(*,*)   ' #### ', path(1)(1:length(1))//'sfcdata.t'
+  write(*,*)   ' #### DOES NOT EXIST.                   ####'
   stop
 end subroutine readlanduse
 
@@ -1805,7 +1847,7 @@ subroutine readreceptors
   implicit none
 
   integer :: j
-  real :: x,y,xm,ym
+  real :: xm,ym
   character(len=16) :: receptor
 
   integer :: ios
@@ -1814,6 +1856,7 @@ subroutine readreceptors
   ! declare namelist
   namelist /receptors/ receptor, lon, lat
 
+  numreceptor=0 ! Initialise numreceptor
 !CPS I comment this out - why should we not have receptor output in bwd runs? 
   ! For backward runs, do not allow receptor output. Thus, set number of
   ! receptors to zero
@@ -1938,20 +1981,20 @@ subroutine readreceptors
   write(*,*) '#### in namelist in file RECEPTORS'
   write(*,*) '#### note that in v11+ coordinate names are lon and lat'
 
-  stop
+  error stop
 
 992 continue
   write(*,*) ' #### FLEXPART MODEL ERROR! TOO MANY RECEPTOR #### '
   write(*,*) ' #### POINTS ARE GIVEN.                       #### '
   write(*,*) ' #### MAXIMUM NUMBER IS ',maxreceptor,'       #### '
 !        write(*,*) ' #### PLEASE MAKE CHANGES IN FILE RECEPTORS   #### '
-  stop
+  error stop ' maxreceptor smaller than numreceptor'
 
 993 continue
   write(*,*) '#### FLEXPART ERROR: namelist in file RECEPTORS'
   write(*,*) '#### first receptor point did not contain lon and/or lat'
   write(*,*) '#### Check your namelist!'
-  stop
+  error stop
 
 999 write(*,*) 'INFORMATION: input file RECEPTORS cannot be opened'
     write(*,*) 'in directory '//trim(path(1))
@@ -1965,7 +2008,7 @@ subroutine readreceptors
   write(*,'(a)') ' #### '//trim(path(2))
   write(*,*)    ' #### either write perm missing or old file exists ###'
 
-  stop
+  error stop
 
 end subroutine readreceptors
 
@@ -2023,13 +2066,12 @@ subroutine readreleases
 
   implicit none
 
-  integer :: numpartmax,i,j,id1,it1,id2,it2,idum,stat,irel,ispc,nsettle
+  integer :: numpartmax,i,j,id1,it1,id2,it2,stat,irel,ispc,nsettle
   integer,parameter :: num_min_discrete=100
-  real :: releaserate,xdum,cun
+  real :: releaserate,cun
   real(kind=dp) :: jul1,jul2,julm
   real,parameter :: eps2=1.e-9
   character(len=50) :: line
-  logical :: old
 
   ! help variables for namelist reading
   integer :: numpoints, parts, ios
@@ -2413,7 +2455,7 @@ subroutine readreleases
     releaserate=releaserate+real(npart(numpoint))/ &
          real(ireleaseend(numpoint)-ireleasestart(numpoint))
   else
-    releaserate=99999999
+    releaserate=99999999.
   endif
   numpartmax=numpartmax+npart(numpoint)
   goto 101
@@ -2502,17 +2544,6 @@ subroutine readreleases
   write(*,*) '#####################################################'
   error stop
 
-998 write(*,*) '#####################################################'
-  write(*,*) '#### FLEXPART MODEL SUBROUTINE READRELEASES:     ####'
-  write(*,*) '####                                             ####'
-  write(*,*) '#### FATAL ERROR - FILE "RELEASES" IS            ####'
-  write(*,*) '#### CORRUPT. PLEASE CHECK YOUR INPUTS FOR       ####'
-  write(*,*) '#### MISTAKES OR GET A NEW "RELEASES"-           ####'
-  write(*,*) '#### FILE ...                                    ####'
-  write(*,*) '#####################################################'
-  error stop
-
-
 999 write(*,*) '#####################################################'
   write(*,*) '   FLEXPART MODEL SUBROUTINE READRELEASES: '
   write(*,*)
@@ -2568,7 +2599,6 @@ subroutine readspecies(id_spec,pos_spec)
   integer :: i, pos_spec,j
   integer :: idow,ihour,id_spec
   character(len=3) :: aspecnumb
-  logical :: spec_found
 
   character(len=16) :: pspecies
   character(len=50) :: line
@@ -2581,7 +2611,6 @@ subroutine readspecies(id_spec,pos_spec)
   integer :: pshape,porient
   ! Daria Tatsii: species shape properties
   real ::pla,pia,psa,f,e,paspectratio
-  real :: la(maxspec),ia(maxspec),sa(maxspec) ! Axes
 
   ! declare namelist
   namelist /species_params/ &
@@ -2857,7 +2886,7 @@ subroutine readspecies(id_spec,pos_spec)
       
       f=psa/pia
       e=pia/pla
-
+      ! Drag coefficient scheme by Bagheri & Bonadonna, 2016 to define settling velocities of other shapes (by D.Tatsii)
       if ((ishape(pos_spec).eq.2).or.((ishape(pos_spec).eq.1).and. &
         (pia.eq.psa).and.(pla.ge.20.0*pia))) then
 
@@ -2867,6 +2896,11 @@ subroutine readspecies(id_spec,pos_spec)
         Fn(pos_spec)=f*f*e*((dquer(pos_spec))**3)/(psa*pia*pla) ! Newton's regime  
         Fs(pos_spec)=f*e**(1.3)*(dquer(pos_spec)**3/(psa*pia*pla)) ! Stokes' regime
       endif
+      ! Pre-compute ks and kn values needed for horizontal and average orientation (B&B Figure 12 k_(s,max))
+      ks1(pos_spec)=(Fs(pos_spec)**(1./3.) + Fs(pos_spec)**(-1./3.))/2.
+      ks2(pos_spec)=0.5*((Fs(pos_spec)**0.05)+(Fs(pos_spec)**(-0.36)))
+      kn2(pos_spec)=10.**(alpha2*(-log10(Fn(pos_spec)))**beta2)
+
     else ! Spheres
       write(*,*) "Particle shape SPHERE for particle", id_spec
     endif
@@ -3000,8 +3034,6 @@ subroutine readspecies(id_spec,pos_spec)
     write(*,*) '#### SPECIES NUMBER',aspecnumb
     error stop
   endif
-20 continue
-
 
 22 close(unitspecies)
 
@@ -3021,17 +3053,6 @@ subroutine readspecies(id_spec,pos_spec)
   write(*,*) '#### PLEASE MODIFY SPECIES DESCR. FILE!        #### '
   write(*,*) '#####################################################'
   error stop
-
-
-997 write(*,*) '#####################################################'
-  write(*,*) '#### FLEXPART MODEL ERROR!                      #### '
-  write(*,*) '#### THE ASSSOCIATED SPECIES HAS TO BE DEFINED  #### '
-  write(*,*) '#### BEFORE THE ONE WHICH POINTS AT IT          #### '
-  write(*,*) '#### PLEASE CHANGE ORDER IN RELEASES OR ADD     #### '
-  write(*,*) '#### THE ASSOCIATED SPECIES IN RELEASES         #### '
-  write(*,*) '#####################################################'
-  error stop
-
 
 998 write(*,*) '#####################################################'
   write(*,*) '#### FLEXPART MODEL ERROR!                      #### '
@@ -3069,7 +3090,7 @@ subroutine readpartoptions
 
   implicit none
 
-  integer :: i,np
+  integer :: np
 
   ! namelist help variables
   integer :: ios

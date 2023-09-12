@@ -28,9 +28,9 @@ subroutine cc2gll (strcmp, xlat,xlong, ue,vn, ug,vg)
 
   implicit none
 
-  real :: strcmp(9), xlat, xlong, ue, vn, ug, vg
+  real :: strcmp(9), xlat, xlong, ue, vn, ug, vg,xpolg,ypolg
 
-  real(kind=dp) :: xpolg,ypolg,along,slong,clong,rot
+  real(kind=dp) :: along,slong,clong,rot
 
   along = cspanf( xlong - strcmp(2), -180., 180.)
   if (xlat.gt.89.985) then
@@ -44,157 +44,157 @@ subroutine cc2gll (strcmp, xlat,xlong, ue,vn, ug,vg)
   endif
   slong = sin( radpdg * rot )
   clong = cos( radpdg * rot )
-  xpolg = slong * strcmp(5) + clong * strcmp(6)
-  ypolg = clong * strcmp(5) - slong * strcmp(6)
+  xpolg = real(slong * strcmp(5) + clong * strcmp(6))
+  ypolg = real(clong * strcmp(5) - slong * strcmp(6))
   ug = ypolg * ue + xpolg * vn
   vg = ypolg * vn - xpolg * ue
   return
 end subroutine cc2gll
 
-subroutine ccrvll (strcmp, xlat,xlong, gx,gy)
-  !*  Written on 9/20/94 by Dr. Albion Taylor  NOAA / OAR / ARL
+! subroutine ccrvll (strcmp, xlat,xlong, gx,gy)
+!   !*  Written on 9/20/94 by Dr. Albion Taylor  NOAA / OAR / ARL
 
-  use par_mod, only: dp
+!   use par_mod, only: dp
 
-  implicit none
+!   implicit none
 
-  real(kind=dp) :: xpolg,ypolg,temp,along,slong,clong,ctemp, curv
-  real :: strcmp(9), xlat, xlong, gx, gy
+!   real(kind=dp) :: xpolg,ypolg,temp,along,slong,clong,ctemp, curv
+!   real :: strcmp(9), xlat, xlong, gx, gy
 
-  along = cspanf( xlong - strcmp(2), -180., 180.)
-  slong = sin( radpdg * strcmp(1) * along)
-  clong = cos( radpdg * strcmp(1) * along)
-  xpolg = - slong * strcmp(5) + clong * strcmp(6)
-  ypolg = clong * strcmp(5) + slong * strcmp(6)
-  temp = sin(radpdg * xlat)
-  ctemp = cos(radpdg * xlat)
-  curv = (strcmp(1) - temp) / ctemp / rearth
-  gx = curv * xpolg
-  gy = curv * ypolg
-  return
-end subroutine ccrvll
+!   along = cspanf( xlong - strcmp(2), -180., 180.)
+!   slong = sin( radpdg * strcmp(1) * along)
+!   clong = cos( radpdg * strcmp(1) * along)
+!   xpolg = - slong * strcmp(5) + clong * strcmp(6)
+!   ypolg = clong * strcmp(5) + slong * strcmp(6)
+!   temp = sin(radpdg * xlat)
+!   ctemp = cos(radpdg * xlat)
+!   curv = (strcmp(1) - temp) / ctemp / rearth
+!   gx = real(curv * xpolg)
+!   gy = real(curv * ypolg)
+!   return
+! end subroutine ccrvll
 
-subroutine ccrvxy (strcmp, x,y, gx,gy)
-  !*  Written on 9/20/94 by Dr. Albion Taylor  NOAA / OAR / ARL
+! subroutine ccrvxy (strcmp, x,y, gx,gy)
+!   !*  Written on 9/20/94 by Dr. Albion Taylor  NOAA / OAR / ARL
 
-  use par_mod, only: dp
+!   use par_mod, only: dp
 
-  implicit none
+!   implicit none
 
-  real :: strcmp(9), x, y, gx, gy
-  real(kind=dp) :: xpolg,ypolg,temp,ymerc,efact,curv
+!   real :: strcmp(9), x, y, gx, gy
+!   real(kind=dp) :: xpolg,ypolg,temp,ymerc,efact,curv
 
-  temp = strcmp(1) * strcmp(7) /rearth
-  xpolg = strcmp(6) + temp * (strcmp(3) - x)
-  ypolg = strcmp(5) + temp * (strcmp(4) - y)
-  temp = sqrt ( xpolg ** 2 + ypolg ** 2 )
-  if (temp.gt.0.) then
-    ymerc = - log( temp) /strcmp(1)
-    efact = exp(ymerc)
-    curv = ( (strcmp(1) - 1.d0) * efact + &
-         (strcmp(1) + 1.d0) / efact ) &
-         * .5d0 / rearth
-    gx = xpolg * curv / temp
-    gy = ypolg * curv / temp
-  else
-    if (abs(strcmp(1)) .eq. 1.) then
-      gx = 0.
-      gy = 0.
-    else
-      gx = 1./rearth
-      gy = 1./rearth
-    endif
-  endif
-  return
-end subroutine ccrvxy
+!   temp = strcmp(1) * strcmp(7) /rearth
+!   xpolg = strcmp(6) + temp * (strcmp(3) - x)
+!   ypolg = strcmp(5) + temp * (strcmp(4) - y)
+!   temp = sqrt ( xpolg ** 2 + ypolg ** 2 )
+!   if (temp.gt.0.) then
+!     ymerc = - log( temp) /strcmp(1)
+!     efact = exp(ymerc)
+!     curv = ( (strcmp(1) - 1.d0) * efact + &
+!          (strcmp(1) + 1.d0) / efact ) &
+!          * .5d0 / rearth
+!     gx = real(xpolg * curv / temp)
+!     gy = real(ypolg * curv / temp)
+!   else
+!     if (abs(strcmp(1)) .eq. 1.) then
+!       gx = 0.
+!       gy = 0.
+!     else
+!       gx = 1./rearth
+!       gy = 1./rearth
+!     endif
+!   endif
+!   return
+! end subroutine ccrvxy
 
-subroutine cg2cll (strcmp, xlat,xlong, ug,vg, ue,vn)
+! subroutine cg2cll (strcmp, xlat,xlong, ug,vg, ue,vn)
+!   !*  Written on 3/31/94 by Dr. Albion Taylor  NOAA / OAR / ARL
+
+!   use par_mod, only: dp
+
+!   implicit none
+
+!   real(kind=dp) :: xpolg,ypolg,along,slong,clong,rot
+!   real :: strcmp(9), xlat, xlong, ug, vg, ue, vn
+
+!   along = cspanf( xlong - strcmp(2), -180., 180.)
+!   if (xlat.gt.89.985) then
+!   !*  North polar meteorological orientation: "north" along prime meridian
+!     rot = - strcmp(1) * along + xlong - 180.
+!   elseif (xlat.lt.-89.985) then
+!   !*  South polar meteorological orientation: "north" along prime meridian
+!     rot = - strcmp(1) * along - xlong
+!   else
+!     rot = - strcmp(1) * along
+!   endif
+!   slong = sin( radpdg * rot )
+!   clong = cos( radpdg * rot )
+!   xpolg = slong * strcmp(5) + clong * strcmp(6)
+!   ypolg = clong * strcmp(5) - slong * strcmp(6)
+!   ue = real(ypolg) * ug - real(xpolg) * vg
+!   vn = real(ypolg) * vg + real(xpolg) * ug
+!   return
+! end subroutine cg2cll
+
+! subroutine cg2cxy (strcmp, x,y, ug,vg, ue,vn)
+!   !*  Written on 3/31/94 by Dr. Albion Taylor  NOAA / OAR / ARL
+
+!   use par_mod, only: dp
+
+!   implicit none
+
+!   real :: strcmp(9) , x, y, ug, vg, ue, vn
+
+!   real :: clong, radial, rot, slong, xlat, xlong
+!   real(kind=dp) :: xpolg,ypolg,temp,xi0,eta0,xi,eta
+
+!   xi0 = ( x - strcmp(3) ) * strcmp(7) / rearth
+!   eta0 = ( y - strcmp(4) ) * strcmp(7) /rearth
+!   xi = xi0 * strcmp(5) - eta0 * strcmp(6)
+!   eta = eta0 * strcmp(5) + xi0 * strcmp(6)
+!   radial = real(2. * eta - strcmp(1) * (xi*xi + eta*eta))
+!   if (radial.gt.strcmp(8)) then
+!   !*  Case north of 89 degrees. Meteorological wind direction definition
+!   !*      changes.
+!     call cnxyll(strcmp, xi,eta, xlat,xlong)
+!   !*  North polar meteorological orientation: "north" along prime meridian
+!     rot = strcmp(1) * (xlong - strcmp(2)) - xlong - 180.
+!     slong = - sin( radpdg * rot )
+!     clong = cos( radpdg * rot )
+!     xpolg = slong * strcmp(5) + clong * strcmp(6)
+!     ypolg = clong * strcmp(5) - slong * strcmp(6)
+!   else if (radial.lt.strcmp(9)) then
+!   !*  Case south of -89 degrees. Meteorological wind direction definition
+!   !*      changes.
+!     call cnxyll(strcmp, xi,eta, xlat,xlong)
+!   !*  South polar meteorological orientation: "north" along prime meridian
+!     rot = strcmp(1) * (xlong - strcmp(2)) + xlong
+!     slong = - sin( radpdg * rot )
+!     clong = cos( radpdg * rot )
+!     xpolg = slong * strcmp(5) + clong * strcmp(6)
+!     ypolg = clong * strcmp(5) - slong * strcmp(6)
+!   else
+!   !* Normal case. Meteorological direction of wind related to true north.
+!     xpolg = strcmp(6) - strcmp(1) * xi0
+!     ypolg = strcmp(5) - strcmp(1) * eta0
+!     temp = sqrt ( xpolg ** 2 + ypolg ** 2 )
+!     xpolg = xpolg / temp
+!     ypolg = ypolg / temp
+!   end if
+!   ue = ( real(ypolg) * ug - real(xpolg) * vg )
+!   vn = ( real(ypolg) * vg + real(xpolg) * ug )
+!   return
+! end subroutine cg2cxy
+
+real function cgszll (strcmp, xlat)
   !*  Written on 3/31/94 by Dr. Albion Taylor  NOAA / OAR / ARL
 
   use par_mod, only: dp
 
   implicit none
 
-  real(kind=dp) :: xpolg,ypolg,along,slong,clong,rot
-  real :: strcmp(9), xlat, xlong, ug, vg, ue, vn
-
-  along = cspanf( xlong - strcmp(2), -180., 180.)
-  if (xlat.gt.89.985) then
-  !*  North polar meteorological orientation: "north" along prime meridian
-    rot = - strcmp(1) * along + xlong - 180.
-  elseif (xlat.lt.-89.985) then
-  !*  South polar meteorological orientation: "north" along prime meridian
-    rot = - strcmp(1) * along - xlong
-  else
-    rot = - strcmp(1) * along
-  endif
-  slong = sin( radpdg * rot )
-  clong = cos( radpdg * rot )
-  xpolg = slong * strcmp(5) + clong * strcmp(6)
-  ypolg = clong * strcmp(5) - slong * strcmp(6)
-  ue = ypolg * ug - xpolg * vg
-  vn = ypolg * vg + xpolg * ug
-  return
-end subroutine cg2cll
-
-subroutine cg2cxy (strcmp, x,y, ug,vg, ue,vn)
-  !*  Written on 3/31/94 by Dr. Albion Taylor  NOAA / OAR / ARL
-
-  use par_mod, only: dp
-
-  implicit none
-
-  real :: strcmp(9) , x, y, ug, vg, ue, vn
-
-  real :: clong, radial, rot, slong, xlat, xlong
-  real(kind=dp) :: xpolg,ypolg,temp,xi0,eta0,xi,eta
-
-  xi0 = ( x - strcmp(3) ) * strcmp(7) / rearth
-  eta0 = ( y - strcmp(4) ) * strcmp(7) /rearth
-  xi = xi0 * strcmp(5) - eta0 * strcmp(6)
-  eta = eta0 * strcmp(5) + xi0 * strcmp(6)
-  radial = 2. * eta - strcmp(1) * (xi*xi + eta*eta)
-  if (radial.gt.strcmp(8)) then
-  !*  Case north of 89 degrees. Meteorological wind direction definition
-  !*      changes.
-    call cnxyll(strcmp, xi,eta, xlat,xlong)
-  !*  North polar meteorological orientation: "north" along prime meridian
-    rot = strcmp(1) * (xlong - strcmp(2)) - xlong - 180.
-    slong = - sin( radpdg * rot )
-    clong = cos( radpdg * rot )
-    xpolg = slong * strcmp(5) + clong * strcmp(6)
-    ypolg = clong * strcmp(5) - slong * strcmp(6)
-  else if (radial.lt.strcmp(9)) then
-  !*  Case south of -89 degrees. Meteorological wind direction definition
-  !*      changes.
-    call cnxyll(strcmp, xi,eta, xlat,xlong)
-  !*  South polar meteorological orientation: "north" along prime meridian
-    rot = strcmp(1) * (xlong - strcmp(2)) + xlong
-    slong = - sin( radpdg * rot )
-    clong = cos( radpdg * rot )
-    xpolg = slong * strcmp(5) + clong * strcmp(6)
-    ypolg = clong * strcmp(5) - slong * strcmp(6)
-  else
-  !* Normal case. Meteorological direction of wind related to true north.
-    xpolg = strcmp(6) - strcmp(1) * xi0
-    ypolg = strcmp(5) - strcmp(1) * eta0
-    temp = sqrt ( xpolg ** 2 + ypolg ** 2 )
-    xpolg = xpolg / temp
-    ypolg = ypolg / temp
-  end if
-  ue = ( ypolg * ug - xpolg * vg )
-  vn = ( ypolg * vg + xpolg * ug )
-  return
-end subroutine cg2cxy
-
-real function cgszll (strcmp, xlat,xlong)
-  !*  Written on 3/31/94 by Dr. Albion Taylor  NOAA / OAR / ARL
-
-  use par_mod, only: dp
-
-  implicit none
-
-  real :: strcmp(9), xlat, xlong
+  real :: strcmp(9), xlat
 
   real(kind=dp) :: slat,ymerc,efact
 
@@ -233,7 +233,7 @@ real function cgszll (strcmp, xlat,xlong)
   !cgszll = 2. * strcmp(7) * exp (strcmp(1) * ymerc)
   !c             / (efact + 1./efact)
   endif
-  cgszll = strcmp(7) * cos(radpdg * xlat) * exp(strcmp(1) *ymerc)
+  cgszll = strcmp(7) * cos(radpdg * xlat) * exp(strcmp(1) *real(ymerc))
   return
 end function cgszll
 
@@ -286,8 +286,8 @@ real function cgszxy (strcmp, x,y)
     endif
   else
     efact = exp(ymerc)
-    cgszxy = 2. * strcmp(7) * exp (strcmp(1) * ymerc) &
-         / (efact + 1./efact)
+    cgszxy = 2. * strcmp(7) * exp (strcmp(1) * real(ymerc)) &
+         / real(efact + 1./efact)
   endif
   return
 end function cgszxy
@@ -317,15 +317,14 @@ subroutine cnllxy (strcmp, xlat,xlong, xi,eta)
   implicit none
 
   real :: strcmp(9), xlat, xlong, xi, eta, &
-       gdlong, sndgam, csdgam, rhog1
-  real(kind=dp) :: gamma
-  real(kind=dp) :: dlong,dlat,slat,mercy,gmercy
+       gdlong, sndgam, csdgam, rhog1, gamma, dlong
+  real(kind=dp) :: dlat,slat,mercy,gmercy
 
-  gamma = strcmp(1)
+  gamma = real(strcmp(1))
   dlat = xlat
-  dlong = cspanf(xlong - strcmp(2), -180., 180.)
+  dlong = real(cspanf(xlong - strcmp(2), -180., 180.))
   dlong = dlong * radpdg
-  gdlong = gamma * dlong
+  gdlong = gamma * real(dlong)
   if (abs(gdlong) .lt. .01) then
   !  Code for gamma small or zero.  This avoids round-off error or divide-
   !  by zero in the case of mercator or near-mercator projections.
@@ -353,12 +352,12 @@ subroutine cnllxy (strcmp, xlat,xlong, xi,eta)
   if (abs(gmercy) .lt. .001) then
   !  Code for gamma small or zero.  This avoids round-off error or divide-
   !  by zero in the case of mercator or near-mercator projections.
-    rhog1 = mercy * (1. - .5 * gmercy * &
+    rhog1 = real( mercy * (1. - .5 * gmercy * &
          (1. - 1./3. * gmercy * &
-         (1. - 1./4. * gmercy ) ) )
+         (1. - 1./4. * gmercy ) ) ) )
   else
   ! Code for moderate values of gamma
-    rhog1 = (1. - exp(-gmercy)) / gamma
+    rhog1 = (1. - real(exp(-gmercy))) / gamma
   endif
   eta = rhog1 + (1. - gamma * rhog1) * gamma * csdgam
   xi = (1. - gamma * rhog1 ) * sndgam
@@ -373,13 +372,13 @@ subroutine cnxyll (strcmp, xi,eta, xlat,xlong)
 
   implicit none
 
-  real :: strcmp(9), xlat, xlong, odist
+  real :: strcmp(9), xlat, xlong !, odist
   real(kind=dp) :: gamma,temp,arg1,arg2,ymerc,along,gxi,cgeta
   real(kind=dp) :: xi,eta
 
   gamma = strcmp(1)
   !  Calculate equivalent mercator coordinate
-  odist = xi*xi + eta*eta
+  !odist = xi*xi + eta*eta
   arg2 = 2. * eta - gamma * (xi*xi + eta*eta)
   arg1 = gamma * arg2
   ! Change by A. Stohl to avoid problems close to the poles
@@ -403,7 +402,7 @@ subroutine cnxyll (strcmp, xi,eta, xlat,xlong)
   endif
   ! Convert ymerc to latitude
   temp = exp( - abs(ymerc) )
-  xlat = sign(atan2((1. - temp) * (1. + temp), 2. * temp), ymerc)
+  xlat = real(sign(atan2((1. - temp) * (1. + temp), 2. * temp), ymerc))
   ! Find longitudes
   gxi = gamma*xi
   cgeta = 1. - gamma * eta
@@ -424,72 +423,72 @@ subroutine cnxyll (strcmp, xi,eta, xlat,xlong)
   return
 end subroutine cnxyll
 
-subroutine cpolll (strcmp, xlat,xlong, enx,eny,enz)
-  !*  Written on 11/23/94 by Dr. Albion Taylor  NOAA / OAR / ARL
+! subroutine cpolll (strcmp, xlat,xlong, enx,eny,enz)
+!   !*  Written on 11/23/94 by Dr. Albion Taylor  NOAA / OAR / ARL
 
-  use par_mod, only: dp
+!   use par_mod, only: dp
 
-  implicit none
+!   implicit none
 
-  real(kind=dp) :: xpolg,ypolg,along,slong,clong,rot
-  real :: strcmp(9), xlat, xlong, enx, eny, enz, clat
+!   real(kind=dp) :: xpolg,ypolg,along,slong,clong,rot
+!   real :: strcmp(9), xlat, xlong, enx, eny, enz, clat
 
-  along = cspanf( xlong - strcmp(2), -180., 180.)
-  rot = - strcmp(1) * along
-  slong = sin( radpdg * rot )
-  clong = cos( radpdg * rot )
-  xpolg = slong * strcmp(5) + clong * strcmp(6)
-  ypolg = clong * strcmp(5) - slong * strcmp(6)
-  clat = cos(radpdg * xlat)
-  enx = clat * xpolg
-  eny = clat * ypolg
-  enz = sin(radpdg * xlat)
-  return
-end subroutine cpolll
+!   along = cspanf( xlong - strcmp(2), -180., 180.)
+!   rot = - strcmp(1) * along
+!   slong = sin( radpdg * rot )
+!   clong = cos( radpdg * rot )
+!   xpolg = slong * strcmp(5) + clong * strcmp(6)
+!   ypolg = clong * strcmp(5) - slong * strcmp(6)
+!   clat = cos(radpdg * xlat)
+!   enx = clat * real(xpolg)
+!   eny = clat * real(ypolg)
+!   enz = sin(radpdg * xlat)
+!   return
+! end subroutine cpolll
 
-subroutine cpolxy (strcmp, x,y, enx,eny,enz)
-  !*  Written on 11/26/94 by Dr. Albion Taylor  NOAA / OAR / ARL
+! subroutine cpolxy (strcmp, x,y, enx,eny,enz)
+!   !*  Written on 11/26/94 by Dr. Albion Taylor  NOAA / OAR / ARL
 
-  use par_mod, only: dp
+!   use par_mod, only: dp
 
-  implicit none
+!   implicit none
 
-  real :: strcmp(9) , x, y, enx, eny, enz
-  real(kind=dp) :: xpol,ypol,temp,xi0,eta0,xi,eta,radial
-  real(kind=dp) :: temp2,ymerc,arg,oarg,clat
+!   real :: strcmp(9) , x, y, enx, eny, enz
+!   real(kind=dp) :: xpol,ypol,temp,xi0,eta0,xi,eta,radial
+!   real(kind=dp) :: temp2,ymerc,arg,oarg,clat
 
-  xi0 = ( x - strcmp(3) ) * strcmp(7) / rearth
-  eta0 = ( y - strcmp(4) ) * strcmp(7) /rearth
-  xi = xi0 * strcmp(5) - eta0 * strcmp(6)
-  eta = eta0 * strcmp(5) + xi0 * strcmp(6)
-  radial = 2. * eta -  strcmp(1) * (xi*xi + eta*eta)
-  temp = strcmp(1) * radial
-  if (temp .ge. 1.) then
-    enx = 0.
-    eny = 0.
-    enz = sign(1.,strcmp(1))
-    return
-  endif
-  if (abs(temp).lt.1.e-2) then
-    temp2 = (temp / (2. - temp))**2
-    ymerc = radial / (2. - temp) * (1. + temp2 * &
-         (1./3. + temp2 * &
-         (1./5. + temp2 * &
-         (1./7.))))
-  else
-    ymerc = -.5 * log(1. - temp) / strcmp(1)
-  endif
-  arg = exp( ymerc )
-  oarg = 1./arg
-  clat = 2./(arg + oarg)
-  enz = (arg - oarg) * clat /2.
-  temp = clat / sqrt(1. - temp)
-  xpol = - xi * strcmp(1) * temp
-  ypol = (1. - eta * strcmp(1) ) * temp
-  enx = xpol * strcmp(5) + ypol * strcmp(6)
-  eny = ypol * strcmp(5) - xpol * strcmp(6)
-  return
-end subroutine cpolxy
+!   xi0 = ( x - strcmp(3) ) * strcmp(7) / rearth
+!   eta0 = ( y - strcmp(4) ) * strcmp(7) /rearth
+!   xi = xi0 * strcmp(5) - eta0 * strcmp(6)
+!   eta = eta0 * strcmp(5) + xi0 * strcmp(6)
+!   radial = 2. * eta -  strcmp(1) * (xi*xi + eta*eta)
+!   temp = strcmp(1) * radial
+!   if (temp .ge. 1.) then
+!     enx = 0.
+!     eny = 0.
+!     enz = sign(1.,strcmp(1))
+!     return
+!   endif
+!   if (abs(temp).lt.1.e-2) then
+!     temp2 = (temp / (2. - temp))**2
+!     ymerc = radial / (2. - temp) * (1. + temp2 * &
+!          (1./3. + temp2 * &
+!          (1./5. + temp2 * &
+!          (1./7.))))
+!   else
+!     ymerc = -.5 * log(1. - temp) / strcmp(1)
+!   endif
+!   arg = exp( ymerc )
+!   oarg = 1./arg
+!   clat = 2./(arg + oarg)
+!   enz = real((arg - oarg) * clat /2.)
+!   temp = clat / sqrt(1. - temp)
+!   xpol = - xi * strcmp(1) * temp
+!   ypol = (1. - eta * strcmp(1) ) * temp
+!   enx = real(xpol * strcmp(5) + ypol * strcmp(6))
+!   eny = ypol * strcmp(5) - xpol * strcmp(6)
+!   return
+! end subroutine cpolxy
 
 real function cspanf (value, begin, end)
   !*  Written on 3/31/94 by Dr. Albion Taylor  NOAA / OAR / ARL
@@ -574,31 +573,31 @@ real function eqvlat (xlat1,xlat2)
   return
 end function eqvlat
 
-subroutine stcm1p(strcmp, x1,y1, xlat1,xlong1, &
-       xlatg,xlongg, gridsz, orient)
-  !*  Written on 3/31/94 by Dr. Albion Taylor  NOAA / OAR / ARL
+! subroutine stcm1p(strcmp, x1,y1, xlat1,xlong1, &
+!        xlatg,xlongg, gridsz, orient)
+!   !*  Written on 3/31/94 by Dr. Albion Taylor  NOAA / OAR / ARL
 
-  implicit none
+!   implicit none
 
-  integer :: k
-  real :: strcmp(9), x1, y1, xlat1, xlong1, turn, orient, &
-       xlatg, xlongg, gridsz, x1a, y1a
+!   integer :: k
+!   real :: strcmp(9), x1, y1, xlat1, xlong1, turn, orient, &
+!        xlatg, xlongg, gridsz, x1a, y1a
 
-  do k=3,4
-    strcmp (k) = 0.
-  enddo
-    turn = radpdg * (orient - strcmp(1) * &
-         cspanf(xlongg - strcmp(2), -180., 180.) )
-  strcmp (5) = cos (turn)
-  strcmp (6) = - sin (turn)
-  strcmp (7) = 1.
-  strcmp (7) = gridsz * strcmp(7) &
-       / cgszll(strcmp, xlatg, strcmp(2))
-  call cll2xy (strcmp, xlat1,xlong1, x1a,y1a)
-  strcmp(3) = strcmp(3) + x1 - x1a
-  strcmp(4) = strcmp(4) + y1 - y1a
-  return
-end subroutine stcm1p
+!   do k=3,4
+!     strcmp (k) = 0.
+!   enddo
+!     turn = radpdg * (orient - strcmp(1) * &
+!          cspanf(xlongg - strcmp(2), -180., 180.) )
+!   strcmp (5) = cos (turn)
+!   strcmp (6) = - sin (turn)
+!   strcmp (7) = 1.
+!   strcmp (7) = gridsz * strcmp(7) &
+!        / cgszll(strcmp, xlatg)
+!   call cll2xy (strcmp, xlat1,xlong1, x1a,y1a)
+!   strcmp(3) = strcmp(3) + x1 - x1a
+!   strcmp(4) = strcmp(4) + y1 - y1a
+!   return
+! end subroutine stcm1p
 
 subroutine stcm2p(strcmp, x1,y1, xlat1,xlong1, &
        x2,y2, xlat2,xlong2)
@@ -742,7 +741,7 @@ end subroutine stcm2p
 !*    gx,gy       - vector coefficients of curvature, in units radians
 !*                  per kilometer
 
-!*  real function cgszll (strcmp, xlat,xlong)
+!*  real function cgszll (strcmp, xlat)
 !*  real function cgszxy (strcmp, x,y)
 !*    These functions return the size, in kilometers, of each unit of
 !*    motion in map coordinates (grid size).  The grid size at any
@@ -751,7 +750,7 @@ end subroutine stcm2p
 !*  inputs:
 !*    strcmp(9) - 9-value map structure array
 !*    for cgszxy:  x,y        -  map coordinates of site
-!*    for cgszll:  xlat,xlong -  geographic coordinates of site
+!*    for cgszll:  xlat -  geographic coordinates of site
 !*  returns:
 !*    gridsize in kilometers at given site.
 

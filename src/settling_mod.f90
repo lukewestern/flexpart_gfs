@@ -4,11 +4,91 @@ module settling_mod
   
   implicit none
 
+  integer :: re_nsteps ! Number of Reynolds number table points
+  real, allocatable ,dimension(:) :: re_lookup, cd_lookup
+
+
   private :: viscosity
   public :: get_settling
 contains
 
-subroutine get_settling(itime,xt,yt,zt,nsp,settling)
+subroutine init_dragcoeff_lookup()
+  implicit none
+  !*****************************
+  ! Clift and Guavin 1971 model*
+  !*****************************
+  real :: re_min, re_max ! Range of Reynolds numbers
+  integer :: i
+
+  re_nsteps=1000
+
+  allocate (re_lookup(re_nsteps), cd_lookup(re_nsteps))
+
+  ! Reynolds numbers range between 0.2 and 8000. 
+  ! Below this range, the approx of re/24 is sufficient and above 8000, the 
+  ! full equation is executed during run-time.
+  ! logarithmic spacing with a 1000 steps gives a maximum deviation of drag_coeff of
+  ! 0.07% as compared to using the full equation (mean=0.0037% deviation)
+  !**********************************************************************
+  re_min=log10(0.02)
+  re_max=log10(8000.)
+  do i=1,re_nsteps
+    re_lookup(i) = 10.**((re_max-re_min) * real(i-1) / real(re_nsteps-1) + re_min)
+  end do
+
+  ! Computing drag coefficients
+  !****************************
+  cd_lookup=(24.0/re_lookup)*(1+0.15*(re_lookup**0.687))+ &
+      0.42/(1.0+42500.0/(re_lookup**1.16))
+
+end subroutine init_dragcoeff_lookup
+
+subroutine find_dragcoeff(reynolds, c_drag)
+  implicit none
+  real, intent(in) :: reynolds
+  real, intent(out) :: c_drag
+  integer :: i, i_re
+  real :: dre,dre1,dre2
+
+
+  ! If reynolds<0.2, approximation 24/reynolds is valid
+  ! 24/reynolds makes up >99% of all components
+  !****************************************************
+  if (reynolds.le.0.02) then
+    c_drag=(24.0/reynolds)
+
+  else if (reynolds.le.8000) then ! Outside of lookup table range
+    c_drag=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
+      0.42/(1.0+42500.0/(reynolds**1.16))
+
+  else
+    ! Linear search for correct indices in lookup table
+    !**************************************************
+    i_re = re_nsteps
+    do i = 1, re_nsteps
+      if (re_lookup(i) >= reynolds) then
+        i_re=i
+        exit
+      endif
+    end do
+
+    ! Linear interpolation (maybe also do logarithmic?)
+    !*********************
+    if (i_re.eq.re_nsteps) then
+      c_drag=cd_lookup(re_nsteps)
+    else if (i_re.eq.1) then
+      c_drag=cd_lookup(1)
+    else
+      dre=1./(cd_lookup(i_re+1)-cd_lookup(i_re))
+      dre1=(reynolds-re_lookup(i_re))*dre
+      dre2=(re_lookup(i_re+1)-reynolds)*dre
+      c_drag=dre1*cd_lookup(i_re+1)+dre2*cd_lookup(i_re)
+    endif
+  endif
+
+end subroutine
+
+subroutine get_settling(xt,yt,zt,nsp,settling)
   !                          i   i  i  i   i     o
   !*****************************************************************************
   !                                                                            *
@@ -59,7 +139,7 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
 
   implicit none
 
-  integer, intent(in) :: itime, nsp
+  integer, intent(in) :: nsp
   real, intent(in) :: xt, yt, zt
   real, intent(out) :: settling
   integer :: indz
@@ -71,7 +151,7 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
   integer :: i,n,nix,njy,indzh
 
   ! Variables needed for drag coefficient calculation
-  real :: dfdr,f,e,kn,ks,alpha1,alpha2,beta1,beta2,ks1,ks2,kn1,kn2
+  real :: dfdr,kn,ks,alpha1,beta1,kn1
 
   !*****************************************************************************
   ! 1. Interpolate temperature and density: nearest neighbor interpolation sufficient
@@ -128,7 +208,7 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
   settling_old=vsetaver(nsp)    ! initialize iteration with Stokes' law to define settling velocity of a sphere, constant viscosity estimate
 
   if (ishape(nsp).eq.0) then
-    do i=1,20    ! do a few iterations Why 20???
+    do i=1,20    ! do a few iterations
 
       ! if (reynolds.lt.1.917) then
       !   c_d=24./reynolds
@@ -139,9 +219,8 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
       ! endif
 
       ! Clift and Guavin 1971 model
- 
-      c_d=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
-              0.42/(1.0+42500.0/(reynolds**1.16))
+
+      call find_dragcoeff(reynolds, c_d)
 
       settling=-1.* &
            sqrt(4*ga*dquer(nsp)/1.e6*density(nsp)*cunningham(nsp)/ &
@@ -154,34 +233,30 @@ subroutine get_settling(itime,xt,yt,zt,nsp,settling)
     end do
 
   else ! Drag coefficient scheme by Bagheri & Bonadonna, 2016 to define settling velocities of other shapes (by D.Tatsii)
-    dfdr=density(nsp)/airdens
 
     ! Orientation of particles
     !*************************
     if (orient(nsp).eq.0) then
       ! Horizontal orientation
-      alpha2=0.77 ! B&B: eq. 32
-      beta2=0.63
-      ks=0.5*((Fs(nsp)**0.05)+(Fs(nsp)**(-0.36)))  ! B&B Figure 12 k_(s,max)
-      kn=10.**(alpha2*(-log10(Fn(nsp)))**beta2)
+      ks=ks2(nsp)  ! B&B Figure 12 k_(s,max)
+      kn=kn2(nsp)
     else if (orient(nsp).eq.1) then 
       ! Random orientation
+      dfdr=density(nsp)/airdens
+
       alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
       beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
-      ks=(Fs(nsp)**(1./3.) + Fs(nsp)**(-1./3))/2.
+      ks=ks1(nsp)
       kn=10.**(alpha1*(-log10(Fn(nsp)))**beta1)
     else
       ! The average of random and horizontal orientation
+      dfdr=density(nsp)/airdens
+
       alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
       beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
-      alpha2=0.77 ! B&B: eq. 32
-      beta2=0.63
-      ks1=(Fs(nsp)**(1./3.) + Fs(nsp)**(-1./3))/2.
       kn1=10.**(alpha1*(-log10(Fn(nsp)))**beta1)
-      ks2=0.5*((Fs(nsp)**0.05)+(Fs(nsp)**(-0.36)))  ! B&B Figure 12 k_(s,max)
-      kn2=10.**(alpha2*(-log10(Fn(nsp)))**beta2)
-      ks=(ks1+ks2)/2.
-      kn=(kn1+kn2)/2.
+      ks=(ks1(nsp)+ks2(nsp))/2.
+      kn=(kn1+kn2(nsp))/2.
     endif
 
     do i=1,20

@@ -55,6 +55,92 @@ module outgrid_mod
   !real,allocatable, dimension (:,:,:) :: areaeast
 contains
 
+subroutine alloc_grid
+
+  implicit none
+
+  integer :: stat
+
+  ! if necessary allocate flux fields
+  if (iflux.eq.1) then
+    allocate(flux(6,0:numxgrid-1,0:numygrid-1,numzgrid, &
+         1:nspec,1:maxpointspec_act,1:nageclass),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate flux array '
+#ifdef _OPENMP
+    allocate(flux_omp(6,0:numxgrid-1,0:numygrid-1,numzgrid, &
+         1:nspec,1:maxpointspec_act,1:nageclass,numthreads))
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate flux_omp array '
+#endif
+  endif
+
+  !write (*,*) 'Dimensions for fields', numxgrid,numygrid, &
+  !     maxspec,maxpointspec_act,nclassunc,maxageclass
+
+  ! allocate fields for concoutput with maximum dimension of outgrid
+  ! and outgrid_nest
+
+  allocate(gridsigma(0:max(numxgrid,numxgridn)-1, &
+       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+  allocate(grid(0:max(numxgrid,numxgridn)-1, &
+       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+  allocate(densityoutgrid(0:max(numxgrid,numxgridn)-1, &
+       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+  ! RLT
+  allocate(densitydrygrid(0:max(numxgrid,numxgridn)-1, &
+       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+  allocate(factor_drygrid(0:max(numxgrid,numxgridn)-1, &
+       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+
+  allocate(factor3d(0:max(numxgrid,numxgridn)-1, &
+       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+  allocate(sparse_dump_r(max(numxgrid,numxgridn)* &
+       max(numygrid,numygridn)*numzgrid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+
+   allocate(sparse_dump_u(max(numxgrid,numxgridn)* &
+       max(numygrid,numygridn)*numzgrid),stat=stat)
+        if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+
+  allocate(sparse_dump_i(max(numxgrid,numxgridn)* &
+       max(numygrid,numygridn)*numzgrid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+
+  ! deposition fields are only allocated for forward runs
+  if (ldirect.gt.0) then
+     allocate(wetgridsigma(0:max(numxgrid,numxgridn)-1, &
+          0:max(numygrid,numygridn)-1),stat=stat)
+     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+     allocate(drygridsigma(0:max(numxgrid,numxgridn)-1, &
+          0:max(numygrid,numygridn)-1),stat=stat)
+     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+     allocate(wetgrid(0:max(numxgrid,numxgridn)-1, &
+          0:max(numygrid,numygridn)-1),stat=stat)
+     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+     allocate(drygrid(0:max(numxgrid,numxgridn)-1, &
+          0:max(numygrid,numygridn)-1),stat=stat)
+     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+  endif
+
+  ! Initial condition field
+
+  if (linit_cond.gt.0) then
+    allocate(init_cond(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
+         maxpointspec_act),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate init_cond'
+#ifdef _OPENMP
+    allocate(init_cond_omp(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
+         maxpointspec_act,numthreads),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate init_cond_omp'
+#endif
+  endif
+end subroutine alloc_grid
+
 subroutine outgrid_init
   !
   !*****************************************************************************
@@ -230,159 +316,15 @@ subroutine outgrid_init
     end do
   end do
 
-  ! if necessary allocate flux fields
-  if (iflux.eq.1) then
-    allocate(flux(6,0:numxgrid-1,0:numygrid-1,numzgrid, &
-         1:nspec,1:maxpointspec_act,1:nageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate flux array '
-#ifdef _OPENMP
-    allocate(flux_omp(6,0:numxgrid-1,0:numygrid-1,numzgrid, &
-         1:nspec,1:maxpointspec_act,1:nageclass,numthreads))
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate flux_omp array '
-#endif
-  endif
-
-  ! gridunc,griduncn        uncertainty of outputted concentrations
-  allocate(gridunc(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
-       maxpointspec_act,nclassunc,maxageclass),stat=stat)
-  if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-#ifdef _OPENMP
-  allocate(gridunc_omp(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
-       maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
-  if (stat.ne.0) then
-    write(*,*)'ERROR: could not allocate gridunc_omp'
-    write(*,*)'increase the memory or reduce max_numthreads_grid in par_mod.f90.'
-    error stop
-  endif
-#endif
-  if (ldirect.gt.0) then
-    allocate(wetgridunc(0:numxgrid-1,0:numygrid-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc'
-    allocate(drygridunc(0:numxgrid-1,0:numygrid-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc'
-#ifdef _OPENMP
-    allocate(wetgridunc_omp(0:numxgrid-1,0:numygrid-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc_omp'
-    allocate(drygridunc_omp(0:numxgrid-1,0:numygrid-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc_omp'
-#endif
-  endif
-
-#ifdef USE_MPIINPLACE
-#else
-! Extra field for totals at MPI root process
-  if (lroot.and.mpi_mode.gt.0) then
-! If MPI_IN_PLACE option is not used in mpi_mod.f90::mpif_tm_reduce_grid(),
-! then an aux array is needed for parallel grid reduction
-    allocate(gridunc0(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc0'
-  else if (.not.lroot.and.mpi_mode.gt.0) then
-    allocate(gridunc0(1,1,1,1,1,1,1),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc0'
-  end if
-#endif
-  if (ldirect.gt.0) then
-    if (lroot.and.mpi_mode.gt.0) then
-      allocate(wetgridunc0(0:numxgrid-1,0:numygrid-1,maxspec, &
-           maxpointspec_act,nclassunc,maxageclass),stat=stat)
-      if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc0'
-      allocate(drygridunc0(0:numxgrid-1,0:numygrid-1,maxspec, &
-           maxpointspec_act,nclassunc,maxageclass),stat=stat)
-      if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc0'
-
-  ! allocate a dummy to avoid compilator complaints
-    else if (.not.lroot.and.mpi_mode.gt.0) then
-      allocate(wetgridunc0(1,1,1,1,1,1),stat=stat)
-      allocate(drygridunc0(1,1,1,1,1,1),stat=stat)
-    end if
-  end if
-
-  !write (*,*) 'Dimensions for fields', numxgrid,numygrid, &
-  !     maxspec,maxpointspec_act,nclassunc,maxageclass
-
-  if (lroot) then
-    write (*,*) 'Allocating fields for global output (x,y): ', &
-      numxgrid,numygrid
-    write (*,*) 'Allocating fields for nested output (x,y): ', &
-      numxgridn,numygridn 
-  end if
-
-  ! allocate fields for concoutput with maximum dimension of outgrid
-  ! and outgrid_nest
-
-  allocate(gridsigma(0:max(numxgrid,numxgridn)-1, &
-       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-  allocate(grid(0:max(numxgrid,numxgridn)-1, &
-       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-  allocate(densityoutgrid(0:max(numxgrid,numxgridn)-1, &
-       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-  ! RLT
-  allocate(densitydrygrid(0:max(numxgrid,numxgridn)-1, &
-       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-  allocate(factor_drygrid(0:max(numxgrid,numxgridn)-1, &
-       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-
-  allocate(factor3d(0:max(numxgrid,numxgridn)-1, &
-       0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-  allocate(sparse_dump_r(max(numxgrid,numxgridn)* &
-       max(numygrid,numygridn)*numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-
-   allocate(sparse_dump_u(max(numxgrid,numxgridn)* &
-       max(numygrid,numygridn)*numzgrid),stat=stat)
-        if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-
-  allocate(sparse_dump_i(max(numxgrid,numxgridn)* &
-       max(numygrid,numygridn)*numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-
-  ! deposition fields are only allocated for forward runs
-  if (ldirect.gt.0) then
-     allocate(wetgridsigma(0:max(numxgrid,numxgridn)-1, &
-          0:max(numygrid,numygridn)-1),stat=stat)
-     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-     allocate(drygridsigma(0:max(numxgrid,numxgridn)-1, &
-          0:max(numygrid,numygridn)-1),stat=stat)
-     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-     allocate(wetgrid(0:max(numxgrid,numxgridn)-1, &
-          0:max(numygrid,numygridn)-1),stat=stat)
-     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-     allocate(drygrid(0:max(numxgrid,numxgridn)-1, &
-          0:max(numygrid,numygridn)-1),stat=stat)
-     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
-  endif
-
-  ! Initial condition field
-
-  if (linit_cond.gt.0) then
-    allocate(init_cond(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
-         maxpointspec_act),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate init_cond'
-#ifdef _OPENMP
-    allocate(init_cond_omp(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
-         maxpointspec_act,numthreads),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate init_cond_omp'
-#endif
-  endif
-
+  !if ((ipin.ne.1).or.(ipin.ne.2).or.(ipin.ne.4)) then call alloc_grid_unc
+  !call alloc_grid
   !************************
   ! Initialize output grids
   !************************
 
   do ks=1,nspec
     do kp=1,maxpointspec_act
-      if (numreceptor.gt.0) then
+      if ((numreceptor.gt.0).and.(ipin.ne.1).and.(ipin.ne.4)) then
         do i=1,numreceptor
       ! Receptor points
           creceptor(i,ks)=0.
@@ -391,35 +333,39 @@ subroutine outgrid_init
       do nage=1,nageclass
         do jy=0,numygrid-1
           do ix=0,numxgrid-1
+            do kz=1,numzgrid
+              if (iflux.eq.1) then
+  ! Flux fields
+                 do i=1,5
+                   if ((ipin.ne.1).and.(ipin.ne.4)) flux(i,ix,jy,kz,ks,kp,nage)=0.
+#ifdef _OPENMP
+                   flux_omp(i,ix,jy,kz,ks,kp,nage,:)=0.
+#endif
+                 end do
+              endif
+  ! Initial condition field
+              if ((nage.eq.1).and.(linit_cond.gt.0)) then
+                if ((ipin.ne.1).and.(ipin.ne.4)) init_cond(ix,jy,kz,ks,kp)=0.
+#ifdef _OPENMP
+                init_cond_omp(ix,jy,kz,ks,kp,:)=0.
+#endif
+              endif
+            end do
             do l=1,nclassunc
     ! Deposition fields
               if (ldirect.gt.0) then
-              wetgridunc(ix,jy,ks,kp,l,nage)=0.
-              drygridunc(ix,jy,ks,kp,l,nage)=0.
+                if ((ipin.ne.1).and.(ipin.ne.4)) then 
+                  wetgridunc(ix,jy,ks,kp,l,nage)=0.
+                  drygridunc(ix,jy,ks,kp,l,nage)=0.
+                endif
 #ifdef _OPENMP
-              wetgridunc_omp(ix,jy,ks,kp,l,nage,:)=0.
-              drygridunc_omp(ix,jy,ks,kp,l,nage,:)=0.
+                wetgridunc_omp(ix,jy,ks,kp,l,nage,:)=0.
+                drygridunc_omp(ix,jy,ks,kp,l,nage,:)=0.
 #endif
               endif
               do kz=1,numzgrid
-                if (iflux.eq.1) then
-    ! Flux fields
-                   do i=1,5
-                     flux(i,ix,jy,kz,ks,kp,nage)=0.
-#ifdef _OPENMP
-                     flux_omp(i,ix,jy,kz,ks,kp,nage,:)=0.
-#endif
-                   end do
-                endif
-    ! Initial condition field
-                if ((l.eq.1).and.(nage.eq.1).and.(linit_cond.gt.0)) then
-                  init_cond(ix,jy,kz,ks,kp)=0.
-#ifdef _OPENMP
-                  init_cond_omp(ix,jy,kz,ks,kp,:)=0.
-#endif
-                endif
     ! Concentration fields
-                gridunc(ix,jy,kz,ks,kp,l,nage)=0.
+                if ((ipin.ne.1).and.(ipin.ne.4)) gridunc(ix,jy,kz,ks,kp,l,nage)=0.
 #ifdef _OPENMP
                 gridunc_omp(ix,jy,kz,ks,kp,l,nage,:)=0.
 #endif
@@ -465,63 +411,6 @@ subroutine outgrid_init_nest
   real :: eps
 
   eps=nxmax/3.e5
-
-  ! gridunc,griduncn        uncertainty of outputted concentrations
-  allocate(griduncn(0:numxgridn-1,0:numygridn-1,numzgrid,maxspec, &
-       maxpointspec_act,nclassunc,maxageclass),stat=stat)
-  if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
-#ifdef _OPENMP
-  allocate(griduncn_omp(0:numxgridn-1,0:numygridn-1,numzgrid,maxspec, &
-       maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
-  if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc_omp'
-#endif
-
-  if (ldirect.gt.0) then
-    allocate(wetgriduncn(0:numxgridn-1,0:numygridn-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
-    allocate(drygriduncn(0:numxgridn-1,0:numygridn-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
-#ifdef _OPENMP
-    allocate(wetgriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested wetgridunc_omp'
-    allocate(drygriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested drygriduncn_omp'
-#endif
-  endif
-
-#ifdef USE_MPIINPLACE
-#else
-  ! Extra field for totals at MPI root process
-  if (lroot.and.mpi_mode.gt.0) then
-  ! If MPI_IN_PLACE option is not used in mpi_mod.f90::mpif_tm_reduce_grid_nest(),
-  ! then an aux array is needed for parallel grid reduction
-    allocate(griduncn0(0:numxgridn-1,0:numygridn-1,numzgrid,maxspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
-  ! allocate a dummy to avoid compilator complaints
-  else if (.not.lroot.and.mpi_mode.gt.0) then
-    allocate(griduncn0(1,1,1,1,1,1,1),stat=stat)
-  end if
-#endif
-  if (ldirect.gt.0) then
-    if (lroot.and.mpi_mode.gt.0) then
-      allocate(wetgriduncn0(0:numxgridn-1,0:numygridn-1,maxspec, &
-           maxpointspec_act,nclassunc,maxageclass),stat=stat)
-      if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
-      allocate(drygriduncn0(0:numxgridn-1,0:numygridn-1,maxspec, &
-           maxpointspec_act,nclassunc,maxageclass),stat=stat)
-      if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
-  !  endif
-  ! allocate a dummy to avoid compilator complaints
-    else if (.not.lroot.and.mpi_mode.gt.0) then
-      allocate(wetgriduncn0(1,1,1,1,1,1),stat=stat)
-      allocate(drygriduncn0(1,1,1,1,1,1),stat=stat)
-    end if
-  end if
 
   ! Compute surface area and volume of each grid cell: area, volume;
   ! and the areas of the northward and eastward facing walls: areaeast, areanorth
@@ -699,18 +588,18 @@ subroutine initcond_calc(itime,i,thread)
   !*****************************************************************************
 
   use interpol_mod, only: interpol_density,ix,jy,ixp,jyp
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
 
   implicit none
 
   integer, intent(in) :: itime,i,thread
   integer :: kz,ks
-  integer :: il,ind,indz,indzp,nrelpointer
-  real :: rddx,rddy,p1,p2,p3,p4,dz1,dz2,dz
+  integer :: nrelpointer
   real :: ddx,ddy
-  real :: rhoprof(2),rhoi,xl,yl,wx,wy,w
-  integer :: mind2
+  real :: rhoi,xl,yl,wx,wy,w
   ! mind2        eso: pointer to 2nd windfield in memory
 
 
@@ -727,7 +616,9 @@ subroutine initcond_calc(itime,i,thread)
 
 
   if (linit_cond.eq.1) then     ! mass unit
+#ifdef ETA
     call update_zeta_to_z(itime,i)
+#endif
     call interpol_density(itime,i,rhoi)
   elseif (linit_cond.eq.2) then    ! mass mixing ratio unit
     rhoi=1.
@@ -757,8 +648,8 @@ subroutine initcond_calc(itime,i,thread)
   if (kz.le.numzgrid) then           ! inside output domain
 
 
-    xl=(part(i)%xlon*dx+xoutshift)/dxout
-    yl=(part(i)%ylat*dy+youtshift)/dyout
+    xl=(real(part(i)%xlon)*dx+xoutshift)/dxout
+    yl=(real(part(i)%ylat)*dy+youtshift)/dyout
     ix=int(xl)
     if (xl.lt.0.) ix=ix-1
     jy=int(yl)

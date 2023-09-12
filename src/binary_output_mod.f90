@@ -619,22 +619,32 @@ subroutine openreceptors
   !*********************
 
     if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-      open(unitoutrecept,file=path(2)(1:length(2))//'receptor_conc', &
-           form='unformatted',err=997)
-      write(unitoutrecept) (receptorname(j),j=1,numreceptor)
-      write(unitoutrecept) (xreceptor(j)*dx+xlon0, &
-           yreceptor(j)*dy+ylat0,j=1,numreceptor)
+      if ((ipin.eq.1).or.(ipin.eq.4)) then
+        open(unitoutrecept,file=path(2)(1:length(2))//'receptor_conc', &
+           access='APPEND',status='OLD',err=997)
+      else
+        open(unitoutrecept,file=path(2)(1:length(2))//'receptor_conc', &
+             form='unformatted',err=997)
+        write(unitoutrecept) (receptorname(j),j=1,numreceptor)
+        write(unitoutrecept) (xreceptor(j)*dx+xlon0, &
+             yreceptor(j)*dy+ylat0,j=1,numreceptor)
+      endif
     endif
 
   ! Mixing ratio output
   !********************
 
     if ((iout.eq.2).or.(iout.eq.3)) then
-      open(unitoutreceptppt,file=path(2)(1:length(2))//'receptor_pptv', &
-           form='unformatted',err=998)
-      write(unitoutreceptppt) (receptorname(j),j=1,numreceptor)
-      write(unitoutreceptppt) (xreceptor(j)*dx+xlon0, &
-           yreceptor(j)*dy+ylat0,j=1,numreceptor)
+      if ((ipin.eq.1).or.(ipin.eq.4)) then
+        open(unitoutreceptppt,file=path(2)(1:length(2))//'receptor_pptv', &
+           access='APPEND',status='OLD',err=997)
+      else
+        open(unitoutreceptppt,file=path(2)(1:length(2))//'receptor_pptv', &
+             form='unformatted',err=998)
+        write(unitoutreceptppt) (receptorname(j),j=1,numreceptor)
+        write(unitoutreceptppt) (xreceptor(j)*dx+xlon0, &
+             yreceptor(j)*dy+ylat0,j=1,numreceptor)
+      endif
     endif
   endif
 
@@ -731,6 +741,12 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   ! Overwrite existing dates file on first call, later append to it
   ! This fixes a bug where the dates file kept growing across multiple runs
 
+  ! Restarting a run:
+  if ((ipin.eq.1).or.(ipin.eq.4)) then
+    file_stat='OLD'
+    init=.false.
+  endif
+
   ! If 'dates' file exists in output directory, make a backup
   inquire(file=path(2)(1:length(2))//'dates', exist=ldates_file)
   if (ldates_file.and.init) then
@@ -796,9 +812,9 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &
-           (height(kzz).gt.halfheight)) goto 46
+           (height(kzz).gt.halfheight)) exit
     end do
-46  kzz=max(min(kzz,nz),2)
+    kzz=max(min(kzz,nz),2)
     dz1=halfheight-height(kzz-1)
     dz2=height(kzz)-halfheight
     dz=dz1+dz2
@@ -990,7 +1006,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   endif
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
-                       sp_fact*1.e12*wetgrid(ix,jy)/area(ix,jy)
+                       sp_fact*1.e12*real(wetgrid(ix,jy))/area(ix,jy)
                 else ! concentration is zero
                   sp_zer=.true.
                 endif
@@ -1023,7 +1039,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
                        sp_fact* &
-                       1.e12*drygrid(ix,jy)/area(ix,jy)
+                       1.e12*real(drygrid(ix,jy))/area(ix,jy)
                 else ! concentration is zero
                   sp_zer=.true.
                 endif
@@ -1107,7 +1123,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
                        sp_fact* &
-                       1.e12*wetgrid(ix,jy)/area(ix,jy)
+                       1.e12*real(wetgrid(ix,jy))/area(ix,jy)
                 else ! concentration is zero
                   sp_zer=.true.
                 endif
@@ -1142,7 +1158,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
                        sp_fact* &
-                       1.e12*drygrid(ix,jy)/area(ix,jy)
+                       1.e12*real(drygrid(ix,jy))/area(ix,jy)
                 else ! concentration is zero
                   sp_zer=.true.
                 endif
@@ -1597,7 +1613,7 @@ subroutine concoutput_nest(itime,outnum)
                  endif
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
-                      sp_fact*1.e12*wetgrid(ix,jy)/arean(ix,jy)
+                      sp_fact*1.e12*real(wetgrid(ix,jy))/arean(ix,jy)
   !                sparse_dump_u(sp_count_r)=
   !+                1.e12*wetgridsigma(ix,jy,ks,kp,nage)/area(ix,jy)
               else ! concentration is zero
@@ -1634,7 +1650,7 @@ subroutine concoutput_nest(itime,outnum)
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
                       sp_fact* &
-                      1.e12*drygrid(ix,jy)/arean(ix,jy)
+                      1.e12*real(drygrid(ix,jy))/arean(ix,jy)
   !                sparse_dump_u(sp_count_r)=
   !+                1.e12*drygridsigma(ix,jy,ks,kp,nage)/area(ix,jy)
               else ! concentration is zero
@@ -1722,7 +1738,7 @@ subroutine concoutput_nest(itime,outnum)
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
                       sp_fact* &
-                      1.e12*wetgrid(ix,jy)/arean(ix,jy)
+                      1.e12*real(wetgrid(ix,jy))/arean(ix,jy)
   !                sparse_dump_u(sp_count_r)=
   !    +            ,1.e12*wetgridsigma(ix,jy,ks,kp,nage)/area(ix,jy)
               else ! concentration is zero
@@ -1761,7 +1777,7 @@ subroutine concoutput_nest(itime,outnum)
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
                       sp_fact* &
-                      1.e12*drygrid(ix,jy)/arean(ix,jy)
+                      1.e12*real(drygrid(ix,jy))/arean(ix,jy)
   !                sparse_dump_u(sp_count_r)=
   !    +            ,1.e12*drygridsigma(ix,jy,ks,kp,nage)/area(ix,jy)
               else ! concentration is zero
@@ -2274,7 +2290,7 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Concentrations
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
           sp_count_i=0
           sp_count_r=0
@@ -2320,7 +2336,7 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Mixing ratios
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
           sp_count_i=0
           sp_count_r=0
@@ -2780,7 +2796,7 @@ subroutine concoutput_inversion_nest(itime,outnum)
 
   ! Concentrations
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
          sp_count_i=0
          sp_count_r=0
@@ -2828,7 +2844,7 @@ subroutine concoutput_inversion_nest(itime,outnum)
 
   ! Mixing ratios
 
-    ! surf_only write only 1st layer 
+    ! sfc_only write only 1st layer 
 
          sp_count_i=0
          sp_count_r=0
@@ -3208,7 +3224,7 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
               drygridsigma(ix,jy)= &
                    drygridsigma(ix,jy)* &
                    sqrt(real(nclassunc))
-125           drygridsigmatotal=drygridsigmatotal+ &
+              drygridsigmatotal=drygridsigmatotal+ &
                    drygridsigma(ix,jy)
             endif
 
@@ -3277,9 +3293,9 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   endif
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
-                       sp_fact*1.e12*wetgrid(ix,jy)/area(ix,jy)
+                       sp_fact*1.e12*real(wetgrid(ix,jy))/area(ix,jy)
                   sparse_dump_u(sp_count_r)= &
-                       1.e12*wetgridsigma(ix,jy)/area(ix,jy)
+                       1.e12*real(wetgridsigma(ix,jy))/area(ix,jy)
                 else ! concentration is zero
                   sp_zer=.true.
                 endif
@@ -3317,9 +3333,9 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
                        sp_fact* &
-                       1.e12*drygrid(ix,jy)/area(ix,jy)
+                       1.e12*real(drygrid(ix,jy))/area(ix,jy)
                   sparse_dump_u(sp_count_r)= &
-                       1.e12*drygridsigma(ix,jy)/area(ix,jy)
+                       1.e12*real(drygridsigma(ix,jy))/area(ix,jy)
                 else ! concentration is zero
                   sp_zer=.true.
                 endif
@@ -3342,7 +3358,7 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Concentrations
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
           sp_count_i=0
           sp_count_r=0
@@ -3403,9 +3419,9 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
                        sp_fact* &
-                       1.e12*wetgrid(ix,jy)/area(ix,jy)
+                       1.e12*real(wetgrid(ix,jy))/area(ix,jy)
                   sparse_dump_u(sp_count_r)= &
-                       1.e12*wetgridsigma(ix,jy)/area(ix,jy)
+                       1.e12*real(wetgridsigma(ix,jy))/area(ix,jy)
                 else ! concentration is zero
                   sp_zer=.true.
                 endif
@@ -3439,9 +3455,9 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
                        sp_fact* &
-                       1.e12*drygrid(ix,jy)/area(ix,jy)
+                       1.e12*real(drygrid(ix,jy))/area(ix,jy)
                   sparse_dump_u(sp_count_r)= &
-                       1.e12*drygridsigma(ix,jy)/area(ix,jy)
+                       1.e12*real(drygridsigma(ix,jy))/area(ix,jy)
                 else ! concentration is zero
                   sp_zer=.true.
                 endif
@@ -3458,7 +3474,7 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Mixing ratios
 
-  ! surf_only write only 1st layer 
+  ! sfc_only write only 1st layer 
 
           sp_count_i=0
           sp_count_r=0
@@ -3886,9 +3902,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
                  endif
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
-                      sp_fact*1.e12*wetgrid(ix,jy)/arean(ix,jy)
+                      sp_fact*1.e12*real(wetgrid(ix,jy))/arean(ix,jy)
                  sparse_dump_u(sp_count_r)= &
-                      1.e12*wetgridsigma(ix,jy)/area(ix,jy)
+                      1.e12*real(wetgridsigma(ix,jy))/area(ix,jy)
               else ! concentration is zero
                   sp_zer=.true.
               endif
@@ -3920,9 +3936,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
                       sp_fact* &
-                      1.e12*drygrid(ix,jy)/arean(ix,jy)
+                      1.e12*real(drygrid(ix,jy))/arean(ix,jy)
                  sparse_dump_u(sp_count_r)= &
-                      1.e12*drygridsigma(ix,jy)/area(ix,jy)
+                      1.e12*real(drygridsigma(ix,jy))/area(ix,jy)
               else ! concentration is zero
                   sp_zer=.true.
               endif
@@ -3939,9 +3955,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
 
   ! Concentrations
 
-  ! if surf_only write only 1st layer 
+  ! if sfc_only write only 1st layer 
 
-         if(surf_only.eq.1) then
+         if(sfc_only.eq.1) then
          sp_count_i=0
          sp_count_r=0
          sp_fact=-1.
@@ -4014,7 +4030,7 @@ subroutine concoutput_sfc_nest(itime,outnum)
          write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
          write(unitoutgrid) sp_count_r
          write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-         endif ! surf_only
+         endif ! sfc_only
 
 
     endif !  concentration output
@@ -4043,9 +4059,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
                       sp_fact* &
-                      1.e12*wetgrid(ix,jy)/arean(ix,jy)
+                      1.e12*real(wetgrid(ix,jy))/arean(ix,jy)
                  sparse_dump_u(sp_count_r)= &
-                      1.e12*wetgridsigma(ix,jy)/area(ix,jy)
+                      1.e12*real(wetgridsigma(ix,jy))/area(ix,jy)
               else ! concentration is zero
                   sp_zer=.true.
               endif
@@ -4079,9 +4095,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
                       sp_fact* &
-                      1.e12*drygrid(ix,jy)/arean(ix,jy)
+                      1.e12*real(drygrid(ix,jy))/arean(ix,jy)
                  sparse_dump_u(sp_count_r)= &
-                      1.e12*drygridsigma(ix,jy)/area(ix,jy)
+                      1.e12*real(drygridsigma(ix,jy))/area(ix,jy)
               else ! concentration is zero
                   sp_zer=.true.
               endif
@@ -4098,9 +4114,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
 
   ! Mixing ratios
 
-    ! if surf_only write only 1st layer 
+    ! if sfc_only write only 1st layer 
 
-         if(surf_only.eq.1) then
+         if(sfc_only.eq.1) then
          sp_count_i=0
          sp_count_r=0
          sp_fact=-1.
@@ -4175,7 +4191,7 @@ subroutine concoutput_sfc_nest(itime,outnum)
          write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
          write(unitoutgridppt) sp_count_r
          write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-         endif ! surf_only
+         endif ! sfc_only
 
       endif ! output for ppt
 

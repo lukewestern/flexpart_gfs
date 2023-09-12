@@ -33,14 +33,15 @@ function gammln(xx)
   implicit none
 
   integer :: j
-  real :: x,tmp,ser,xx,gammln
-  real :: cof(6) = (/ &
+  real :: gammln,xx
+  real(kind=dp) :: ser,x,tmp
+  real(kind=dp) :: cof(6) = (/ &
        76.18009173_dp, -86.50532033_dp, 24.01409822_dp, &
        -1.231739516_dp, .120858003e-2_dp, -.536382e-5_dp    /)
-  real :: stp = 2.50662827465_dp
-  real :: half = 0.5_dp, one = 1.0_dp, fpf = 5.5_dp
+  real(kind=dp) :: stp = 2.50662827465_dp
+  real(kind=dp) :: half = 0.5_dp, one = 1.0_dp, fpf = 5.5_dp
 
-  x=xx-one
+  x=real(xx,kind=dp)-one
   tmp=x+fpf
   tmp=(x+half)*log(tmp)-tmp
   ser=one
@@ -48,7 +49,7 @@ function gammln(xx)
     x=x+one
     ser=ser+cof(j)/x
   end do
-  gammln=tmp+log(stp*ser)
+  gammln=real(tmp+log(stp*ser))
 end function gammln
 
 function gammp(a,x)

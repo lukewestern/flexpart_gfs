@@ -1,0 +1,4 @@
+ Dry:		mean abs: 9.32958668e-06	max abs: 3.06104193e-04
+ Dry ETA:	mean abs: 9.28268578e-06	max abs: 3.06104426e-04
+ Wet:		mean abs: 6.18856525e-04	max abs: 3.30591202e-01
+ Wet ETA:	mean abs: 8.27685395e-04	max abs: 3.24246705e-01

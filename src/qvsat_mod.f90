@@ -141,7 +141,7 @@ real function f_esi( p, t )
   return
 end function f_esi
 
-real function ew(x,p)
+real function ew(x,p) ! p is not used
 
   !****************************************************************
   !SAETTIGUNGSDAMPFDRUCK UEBER WASSER IN PA. X IN KELVIN.

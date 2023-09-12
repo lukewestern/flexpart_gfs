@@ -193,7 +193,6 @@ subroutine ohreaction(itime,ltsample,loutnext)
   real :: restmass,ohreacted,oh_average
   real :: ohrate,temp 
   real, parameter :: smallnum = tiny(0.0) ! smallest number that can be handled
-  real(kind=dp) :: jul
 
   ! Compute interval since radioactive decay of deposited mass was computed
   !************************************************************************
@@ -230,8 +229,8 @@ subroutine ohreaction(itime,ltsample,loutnext)
 
     ! Determine nested grid coordinates
     if (ngrid.gt.0) then
-      xtn=(part(jpart)%xlon-xln(ngrid))*xresoln(ngrid)
-      ytn=(part(jpart)%ylat-yln(ngrid))*yresoln(ngrid)
+      xtn=(real(part(jpart)%xlon)-xln(ngrid))*xresoln(ngrid)
+      ytn=(real(part(jpart)%ylat)-yln(ngrid))*yresoln(ngrid)
       ix=int(xtn)
       jy=int(ytn)
     else
@@ -255,11 +254,11 @@ subroutine ohreaction(itime,ltsample,loutnext)
     !*************************************************
 
     ! world coordinates
-    xlon=part(jpart)%xlon*dx+xlon0
+    xlon=real(part(jpart)%xlon)*dx+xlon0
     if (xlon.gt.180) then
        xlon=xlon-360
     endif
-    ylat=part(jpart)%ylat*dy+ylat0
+    ylat=real(part(jpart)%ylat)*dy+ylat0
 
     ! get position in the OH field
     OHx=minloc(abs(lonOH-xlon),dim=1,mask=abs(lonOH-xlon).eq.minval(abs(lonOH-xlon)))

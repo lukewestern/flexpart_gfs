@@ -65,11 +65,6 @@ MODULE class_gribfile_mod
 
 CONTAINS
 
-    SUBROUTINE gribfile_testhello()
-        PRINT *, 'Hello gribfile'
-    END SUBROUTINE gribfile_testhello
-
-
 
     TYPE(gribfile_object) FUNCTION gribfile_object_create(filepath)
 
@@ -85,7 +80,7 @@ CONTAINS
 
         TYPE(gribfile_object) :: returned_object
 
-        INTEGER :: ifile, iret, igrib, grib_centre, gribfile_type
+        INTEGER :: grib_centre, gribfile_type
         INTEGER :: xlon, ylat, zlev
 
 
@@ -182,7 +177,7 @@ CONTAINS
         CHARACTER(LEN=*), INTENT(IN) :: filepath  ! full path to GRIB file
         INTEGER, INTENT(OUT) :: grib_centre, gribfile_type
 
-        INTEGER :: fileptr, iret, igrib, centre, grib_edition
+        INTEGER :: fileptr, iret, igrib, grib_edition
         LOGICAL :: end_of_file
         LOGICAL :: grib1_detected, grib2_detected
 
@@ -262,7 +257,7 @@ CONTAINS
         INTEGER, INTENT(IN) :: gribfile_type
         INTEGER, INTENT(OUT) :: xlon, ylat, zlev
 
-        INTEGER :: ifile, iret, igrib, grib_centre
+        INTEGER :: ifile, iret, igrib
         LOGICAL :: end_of_file
 
         ! These will be assigned according to type of grib file, then used to filter

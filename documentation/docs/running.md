@@ -6,9 +6,9 @@ These are:
 - the [**pathnames file**](running.md#pathnames), defining the paths of where input and output are located, 
 - the [**AVAILABLE file**](running.md#available), listing all available meteorological input,
 
-Of course, there is also the **par_mod.f90** file, which needs to be specified before compiling (see section compiling), but the parameters in this file are expected to not have to be changed between simulations.
+Of course, there is also the **par_mod.f90** file, which needs to be specified before compiling (see [**Compiling FLEXPART**](installation.md#compliling), but the parameters in this file are expected to not have to be changed between simulations.
 
-In addition to the regular input files listed above, a simulation can also be started using a NetCDF file listing all particles to be released. This option can be switched on by specifying IPIN=3 in the COMMAND option file. More information about how to use this option can be found in Silvia Bucci's paper (link).
+In addition to the regular input files listed above, a simulation can also be started using a NetCDF file listing all particles to be released. This option can be switched on by specifying IPIN=3 in the COMMAND option file. More information about how to use this option can be found here: [User-defined initial conditions](running.md#ic).
 
 When wanting to restart a previous simulation, see [restarting a simulation](running.md#restart).
 
@@ -36,7 +36,7 @@ Sets the behaviour of the run (time range, backward or forward, output frequency
 - **Input variables**: IPIN can be set to chose the input type: either initial conditions from particles come from the [RELEASES](running.md#releases) file ([IPIN](running.md#IPIN)=0), from restart files of a previous run ([IPIN](running.md#IPIN)=1),
 from a particle netCDF file written in a previous run (only works when the correct fields in [PARTOPTIONS](running.md#PARTOPTIONS) are chosen) ([IPIN](running.md#IPIN)=2), or from user-defined initial particle conditions ([IPIN](running.md#IPIN)=3). [MDOMAINFILL](running.md#MDOMAINFILL) can be set to distribute particles according to the air density or stratospheric ozone density profiles. This option overwrites the vertical levels set in the [RELEASES](running.md#releases) option file.
 
-| Variable name | Description | Value **default** |
+| Variable name | Description | Possible values and **default** (bold) |
 | ----------- | ----------- | ----------- |
 | <a name="ldirect"></a>LDIRECT | Simulation direction in time | **1 (forward)** or -1 (backward) |
 | <a name="IBDATE"></a>IBDATE | Start date of the simulation | YYYYMMDD: YYYY=year, MM=month, DD=day |
@@ -46,7 +46,7 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="LOUTSTEP"></a>LOUTSTEP | Interval of model output. Average concentrations are calculated every LOUTSTEP (seconds) | **10800** |
 | <a name="LOUTAVER"></a>LOUTAVER | Concentration averaging interval, instantaneous for value of zero (seconds) | **10800** |
 | <a name="LOUTSAMPLE"></a>LOUTSAMPLE | Numerical sampling rate of output, higher statistical accuracy with shorter intervals (seconds) | **900** |
-| <a name="LOUTRESTART"></a>LOUTRESTART | Time interval when a restart file is written (seconds) | **999999999** |
+| <a name="LOUTRESTART"></a>LOUTRESTART | Time interval when a restart file is written (seconds) | **-1** |
 | <a name="LSYNCTIME"></a>LSYNCTIME | All processes are synchronized to this time interval; all values above should be dividable by this number (seconds) | **900** |
 | <a name="CTL"></a>CTL | Factor by which particle transport time step in the ABL must be smaller than the Lagrangian timescale t l ; resulting time steps can be shorter than LSYNCTIME; LSYNCTIME is used if CTL < 0 | **-5.0** |
 | <a name="IFINE"></a>IFINE | Additional reduction factor for time step used for vertical transport only considered if CTL > 1 | **4** |
@@ -67,8 +67,43 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="SURF_ONLY"></a>SURF_ONLY | Output of SRR for fluxes only for the lowest model layer, most useful for backward runs when LINIT_COND set to 1 or 2 | **0 (no)**, 1 (yes) |
 | <a name="CBLFLAG"></a>CBLFLAG | Skewed rather than Gaussian turbulence in the convective ABL; when turned on, very short time steps should be used (see CTL and IFINE) | **0 (no)**, 1 (yes) |
 
+<br/>
+
 ### <a name="releases"></a>RELEASES
 This file contains the information about the particles initial conditions: how many, where and when they will be released, their mass and what species they are (defined in the SPECIES files).
+The RELEASES file contains at two types of namelists: 
+ 
+ 1. `&RELEASES_CTRL` namelist, specifying the total number of species and the specific species file associated (see [SPECIES](running.md#species)). There is only one of this namelist and it is found at the top of the file. 
+
+ 2. `&RELEASE` namelist, specifying for each release, the start and end of the release, the location of the release, and the number of particles that are to be released.
+
+| Variable name `&RELEASES_CTRL` | Description | Data type |
+| ------------- | ----------- | --------- |
+|NSPEC | Total number of species | integer |
+|SPECNUM_REL | Species numbers in directory SPECIES | integer(s divided by comma's) |
+
+<br/>
+And for each release:
+
+| Variable name `&RELEASE` | Description | Data type |
+| ------------- | ----------- | --------- |
+|IDATE1 | Release start date | integer in the form of YYYYMMDD: YYYY=year, MM=month, DD=day|
+|ITIME1 | Release start time in UTC | integers in the form of HHMISS: HH hours, MI=minutes, SS=seconds|
+|IDATE2 | Release end date | same as IDATE1|
+|ITIME2 | Release end time | same as ITIME1|
+|LON1 | Left longitude of release box -180 < LON1 <180| real |
+|LON2 | Right longitude of release box, same as LON1| real |
+|LAT1 | Lower latitude of release box, -90 < LAT1 < 90| real |
+|LAT2 | Upper latitude of release box same format as LAT1 | real |
+|Z1 | Lower height of release box meters/hPa above reference level| real |
+|Z2 | Upper height of release box meters/hPa above reference level| real |
+|ZKIND | Reference level | integer: 1=above ground, 2=above sea level, 3 for pressure in hPa|
+|MASS | Total mass emitted, only relevant for fwd simulations| real |
+|PARTS | Total number of particles to be released| integer |
+|COMMENT | Comment, written in the outputfile| character string |
+
+<br/>
+**Note:** the RELEASES file is no longer necessary when using [IPIN](running.md#ipin)=3, giving full control to the user to decide where and when particles of different species are being released (see [User-defined initial conditions](running.md#ic)).
 
 ### <a name="species"></a>SPECIES
 The subdirectory options/SPECIES/ needs to contain one or more files named SPECIES_nnn. For each species nnn listed in the header section of the RELEASES file, such a SPECIES_nnn file must exist. The parameters in the SPECIES_nnn file, contained in the namelist &SPECIES_PARAMS, set the species name and define the physicochemical properties of the species; they are described in Table 10. These are important for simulating radioactive or chemical decay, wet deposition (scavenging) for gases and aerosols, dry deposition for gases and aerosols, particle settling, and chemical reaction with the OH radical. Some parameters are only necessary for gas tracers and some are only necessary for aerosol tracers; thus, a namelist does not need to contain all parameters for both gases and particles. Optionally, since FLEXPART version 6.0, information about temporal emission variations can be added at the end of the file.
@@ -85,42 +120,91 @@ The following specifies the parameters associated with each physicochemical proc
 - OH reaction: chemical reaction with the OH radical can be turned on by giving parameter pohcconst (cm^3 molecule^-1 s^-1 ), pohdconst (K) and pohnconst (no unit) positive values; defined by Eq. (13) in Pisso et al. (2019).
 - Emission variation: emission variation during the hours (local time) of the day and during the days of the week can be specified. Factors should be 1.0 on average to obtain unbiased emissions overall. The area source factors (useful, e.g., for traffic emissions) are applied to emis sions with a lower release height below 0.5 m above ground level (a.g.l.) and the point source factors (useful, e.g., for power plant emissions) to emissions with a lower release height than 0.5 m a.g.l. Default values are 1.0.
 
-| Variable name | Description |
-| ----------- | ----------- |
-|PSPECIES | Tracer name |
-|PDECAY | Species half life |
-|PWETA_GAS | Below-cloud scavenging (gases) - A (weta_gas) |
-|PWETB_GAS | Below-cloud scavenging (gases) - B (wetb_gas) |
-|PCRAIN_AERO | Below-cloud scavenging (particles) - Crain (crain_aero) |
-|PCSNOW_AERO | Below-cloud scavenging (particles) - Csnow (csnow_aero) |
-|PCCN_AERO | In-cloud scavenging (particles) - CCNeff (ccn_aero) |
-|PIN_AERO | In-cloud scavenging (particles) - INeff (in_aero) |
-|PDENSITY | Dry deposition (particles) - rho |
-|PDQUER | Dry deposition (particles) - dquer (equivalent diameter for shape) |
-|PDSIGMA | Dry deposition (particles) - dsig |
-|PNDIA | Dry deposition (particles) - ndia |
-|PDRYVEL | Alternative: dry deposition velocity |
-|PRELDIFF | Dry deposition (gases) - D |
-|PHENRY | Dry deposition (gases) - Henrys const. |
-|PF0 | Dry deposition (gases) - f0 (reactivity) |
-|PWEIGHTMOLAR | molweight |
-|POHCCONST | OH Reaction rate - C [cm^3/molecule/sec] |
-|POHDCONST | OH Reaction rate - D [K] |
-|POHNCONST | OH Reaction rate - C [cm^3/molecule/sec] |
-|PSHAPE | 0 for sphere, 1 any shape (defined by axes PLA,PIA,PSA), 2-cylinder, 3-cube, 4-tetrahedron, 5-octahedron, 6-ellipsoid |
-|PASPECTRATIO | Aspect ratio of cylinders: works for PSHAPE=2 only |
-|PLA | Longest axis in micrometer (Bagheri & Bonadonna 2016): only for PSHAPE=1 |
-|PIA | Intermediate axis in micrometer: only for PSHAPE=1 |
-|PSA | Smallest axis in micrometer: only for PSHAPE=1 |
-|PORIENT | 0 for horizontal, 1 for random orientation of particles, 2 for an average between random and horizontal |
+| Variable name | Description | Data type |
+| ----------- | ----------- | --------- |
+|PSPECIES | Tracer name | character(len=16) |
+|PDECAY | Species half life | real |
+|PWETA_GAS | Below-cloud scavenging (gases) - A (weta_gas) | real |
+|PWETB_GAS | Below-cloud scavenging (gases) - B (wetb_gas) | real |
+|PCRAIN_AERO | Below-cloud scavenging (particles) - Crain (crain_aero) | real |
+|PCSNOW_AERO | Below-cloud scavenging (particles) - Csnow (csnow_aero) | real |
+|PCCN_AERO | In-cloud scavenging (particles) - CCNeff (ccn_aero) | real |
+|PIN_AERO | In-cloud scavenging (particles) - INeff (in_aero) | real |
+|PDENSITY | Dry deposition (particles) - rho | real |
+|PDQUER | Dry deposition (particles) - dquer (equivalent diameter for shape) | real |
+|PDSIGMA | Dry deposition (particles) - dsig | real |
+|PNDIA | Dry deposition (particles) - ndia | integer |
+|PDRYVEL | Alternative: dry deposition velocity | real |
+|PRELDIFF | Dry deposition (gases) - D | real |
+|PHENRY | Dry deposition (gases) - Henrys const. | real |
+|PF0 | Dry deposition (gases) - f0 (reactivity) | real |
+|PWEIGHTMOLAR | molweight | real |
+|POHCCONST | OH Reaction rate - C [cm^3/molecule/sec] | real |
+|POHDCONST | OH Reaction rate - D [K] | real |
+|POHNCONST | OH Reaction rate - C [cm^3/molecule/sec] | real |
+|PSHAPE | Defining the shape of a particle | integer: **0=sphere (default)**, 1=any shape (defined by axes PLA,PIA,PSA), 2=cylinder, 3=cube, 4=tetrahedron, 5=octahedron, 6=ellipsoid |
+|PASPECTRATIO | Aspect ratio of cylinders: works for PSHAPE=2 only | real |
+|PLA | Longest axis in micrometer (Bagheri & Bonadonna 2016): only for PSHAPE=1 | real |
+|PIA | Intermediate axis in micrometer: only for PSHAPE=1 | real |
+|PSA | Smallest axis in micrometer: only for PSHAPE=1 | real |
+|PORIENT | Falling orientation for aerosol particles of shape != 0 | integer: **0=horizontal (default)**, 1=random orientation of particles, 2=average between random and horizontal |
+
+<br/>
 
 ### <a name="outgrid"></a>OUTGRID
+The OUTGRID file specifies the domain and grid spacing of the three-dimensional output grid. Note that in a Lagrangian model, the domain and resolution of the gridded output are totally independent from those of the meteorological input (apart from the fact that the output domain must be contained within the computational domain). The output grid is available in binary and NetCDF format, which can be set by [IOUT](running.md#iout) in the [COMMAND](running.md#command) file.
+
+
+| Variable name | Descriptions | Data type |
+| ------------- | ------------ | --------- |
+|OUTLON0 | Geographical longitude of the lower left corner of the output grid | real |
+|OUTLAT0 | Geographical latitude of the lower left corner of the output grid | real |
+|NUMXGRID | Number of grid points in the X direction (= No. of cells +1) | integer |
+|NUMYGRID | Number of grid points in the Y direction (= No. of cells +1) | integer |
+|DXOUT | Grid distance in the X direction | real |
+|DYOUT | Grid distance in the Y direction | real |
+|OUTHEIGHTS | The height of the levels (upper boundary) | real(s divided by comma's) |
+
+<br/>
 
 ### <a name="outgrid_nest"></a>OUTGRID_NEST
+Output can also be produced on one nested output grid with higher horizontal resolution.
+This file specifies the size and dimensions of the nested output grid. The height levels are equal to those set in [OUTGRID](running.md#outgrid).
+
+| Variable name | Descriptions | Data type |
+| ------------- | ------------ | --------- |
+|OUTLON0N | Geographical longitude of the lower left corner of the output grid | real |
+|OUTLAT0N | Geographical latitude of the lower left corner of the output grid | real |
+|NUMXGRIDN | Number of grid points in the X direction (= No. of cells +1) | integer |
+|NUMYGRIDN | Number of grid points in the Y direction (= No. of cells +1) | integer |
+|DXOUTN | Grid distance in the X direction | real |
+|DYOUTN | Grid distance in the Y direction | real |
+
+<br/>
 
 ### <a name="ageclasses"></a>AGECLASSES
 
+The option to produce age class output can be activated by setting [LAGESPECTRA](running.md#lagespectra) in the [COMMAND](running.md#command) file. The AGECLASSES file then allows for the definition of a list of times (in seconds, in increasing order) that define the age classes used for model output. With this option, the model output (e.g., oncentrations) is split into contributions from particles of different age, defined as the time passed since the particle release. Particles are dropped
+from the simulation once they exceed the maximum age, skipping unnecesary computations. This is an important technique to limit the cpu usage for long-term simulations. Thus, even if the user is not interested in age information per se, it may often be useful to set one age class to define a maximum particle age.
+
+| Variable name | Description | Data type |
+| ------------- | ------------ | --------- |
+|NAGECLASS | Number of ageclasses for the age spectra calculation | integer |
+|LAGE | Maximum age of particles in seconds for each ageclass | integer(s divided by comma's) |
+
+<br/>
+
 ### <a name="receptors"></a>RECEPTORS
+
+In addition to gridded model output, it is also possible to define receptor points. With this option output can be specifically produced for certain points at the surface in addition to gridded output. The RECEPTORS file contains a list with the definitions of the receptor name, longitude and latitude. If no such file is present, no receptors are written to output. At the moment, this data is added to the gridded_output file, when using netcdf, maybe this should be a dedicated RECEPTOR netcdf file instead.
+
+| Variable name | Description | Data type |
+| ------------- | ------------ | --------- |
+|RECEPTOR | Name of the receptor point | character string |
+|LON | Geographical longitude | real |
+|LAT | Geographical latitude | real |
+
+<br/>
 
 ### <a name="partoptions"></a>PARTOPTIONS
 This option file is only necessary when requiring particle properties to be written out (IPOUT=1 in the COMMAND option file). In this file, the user can set what particle properties and interpolated fields they want to be written to files. At the moment, the available fields that can be written to file are:
@@ -140,11 +224,50 @@ Each property can also be printed out as an average instead of an instantaneous 
 and writes properties to files every hour, the outputted value will be the average of the 6 previous values of the particle of the past hour. Note that this comes with an additional computational cost.
 
 ## <a name="pathnames"></a>Pathnames file
+The pathnames file is a text file containing the path to:
 
-## <a name="available"></a>AVAILABLE file
+- first line: directory of the option files,
+- second line: name of directory where output files are generated,
+- third line: base path to the meteorological input data,
+- fourth line: full path and filename of the AVAILABLE file (see [**AVAILABLE**](running.md#available)).
+
+When using nested areas, the third and fourth line can be repeated with the respected meteorological data directory base paths and AVAILABLE_NEST file paths:
+
+- Line 2n+3: path where meteorological fields are available (nested grid n),
+- Line 2n+4: full path and filename of the AVAILABLE-file of nested grid n.
+
+## <a name="available"></a>AVAILABLE files
+The meteorological input data, one file for each input time, are stored in GRIB format in a common directory (specified in line 3 of pathnames). To enable FLEXPART to find these files, a file usually named AVAILABLE (given in line 4 of pathnames) contains a list of all available meteorological input files and their corresponding time stamps. Additional files containing nested input data may also be provided. In this case, a separate file containing the input file names (e.g., named AVAILABLE_NESTED) must be given. Date and time entries in the AVAILABLE* files for mother and nested
+fields must be identical.
+
+## <a name="ic"></a>User-defined initial conditions
+A simulation can be started using a NetCDF file listing all particles to be released. This option can be switched on by specifying [IPIN](running.md#ipin)=3 in the [COMMAND](running.md#command) option file. This file should be called **part_ic.nc** and located in the output directory defined in [Pathnames file](running.md#pathnames). It should have the following structure:
+
+**Header**
+
+| Variable name | Description | Data type |
+| ------------- | ----------- | --------- |
+| `nspecies` | Number of species | integer |
+| `species` | Species IDs (see [SPECIES](running.md#species)) | 1D-array of integers |
+| `kindz` | Reference level | integer: 1=above ground, 2=above sea level, 3 for pressure in hPa | 
+
+<br/>
+
+**Data**
+
+| Variable name | Description | Data type |
+| ------------- | ----------- | --------- |
+| `longitude` | Initial longitude of each particle | 1D-array of reals with dimension `particle` |
+| `latitude` | Initial latitude of each particle | 1D-array of reals with dimension `particle` |
+| `height` | Initial height of each particle (meter above reference level) | 1D-array of reals with dimension `particle` |
+| `time` | Release time of each particle seconds after simulation start (set in [COMMAND](running.md#command)) | 1D-array of reals with dimension `particle` |
+| `mass` | Initial mass of each particle (kg) | 1D-array of reals with dimension `particle` |
+| `release` | Release ID of each particle, giving separate concentration fields for each ID when [IOUTPUTFOREACHRELEASE](running.md#ioutputforeachrelease) in [COMMAND](running.md#command) is set | 1D-array of integers with dimension `particle` |
+
+<br/>
 
 ## <a name="restart"></a>Restarting a simulation
-In case your simulation crashes or if you simply want to extend your simulation period, it is possible to run using the restart option (COMMAND option file: IPIN=1). You will need to decide if you will need this option before starting your initial simulation: LOUTRESTART in the COMMAND option file needs to be set to an appropriate time interval. For example, you can choose to set LOUTRESTART = 172800 s to get a new restart file ever 2 days. The restart files are written in binary and their name specifies the time within your simulation period they are written.
+In case your simulation crashes or if you simply want to extend your simulation period, it is possible to run using the restart option (COMMAND option file: IPIN=1). You will need to decide if you will need this option before starting your initial simulation: LOUTRESTART in the COMMAND option file needs to be set to an appropriate time interval. For example, you can choose to set LOUTRESTART = 172800 s to get a new restart file ever 2 days. The restart files are written in binary and their name specifies the time within your simulation period they are written. When LOUTRESTART is set to -1, this option is disabled.
 
 To run from one of these files, simply rename the desired restart_XXX.bin file to restart.bin, set IPIN=1 and you can restart your run from there.
 

@@ -44,6 +44,7 @@ program flexpart
   real :: s_timemanager
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
+  character(len=256) :: gitversion_tmp="eaa61eb HEAD -> optimise Mon Sep 11 16:40:18 2023 +0200"
 
   ! Keeping track of the total running time of FLEXPART, printed out at the end.
   !*****************************************************************************
@@ -52,10 +53,11 @@ program flexpart
 
 
   ! FLEXPART version string
-  flexversion_major = '10' ! Major version number, also used for species file names
-  flexversion='Version '//trim(flexversion_major)//'.4 (2019-11-12)'
+  flexversion_major = '11' ! Major version number, also used for species file names
+  flexversion='Version '//trim(flexversion_major)
   verbosity=0
 
+  call update_gitversion(gitversion_tmp)
   ! Read the pathnames where input/output files are stored
   !*******************************************************
 
@@ -76,12 +78,17 @@ program flexpart
   case (0)
     write(pathfile,'(a11)') './pathnames'
   end select
-  
+
   ! Print the GPL License statement
-  !*******************************************************
+  !******************************************************
   print*,'Welcome to FLEXPART ', trim(flexversion)
+  print*,"Git: ", trim(gitversion)
   print*,'FLEXPART is free software released under the GNU General Public License.'
-  write(*,*) 'FLEXPART is running with ', trim(wind_coord_type), 'coordinates.'
+#ifdef ETA
+  write(*,*) 'FLEXPART is running with ETA coordinates.'
+#else
+  write(*,*) 'FLEXPART is running with METER coordinates.'
+#endif
   ! Reading the number of threads available and print them for user
   !****************************************************************
 #ifdef _OPENMP
@@ -121,7 +128,7 @@ program flexpart
     end if
   end if
 
-  if (turboff) write(*,*) 'Turbulence switched off'
+  if (lturbulence.eq.0) write(*,*) 'Turbulence switched off'
 
   ! Calculate particle trajectories
   !********************************
@@ -178,7 +185,6 @@ subroutine read_options_and_initialise_flexpart
   implicit none
 
   integer ::              &
-    i,                    & ! loop variable for number of points
     inest                   ! loop variable for nested gridcells
   integer ::              &
     j,                    & ! loop variable for random numbers
@@ -285,11 +291,11 @@ subroutine read_options_and_initialise_flexpart
 
   ! Convert the release point coordinates from geografical to grid coordinates
   !***************************************************************************
-  call coordtrafo(nxmin1,nymin1) ! CHECK ETA
+  call coordtrafo(nxmin1,nymin1)
 
   ! Read and compute surface resistances to dry deposition of gases
   !****************************************************************
-  call readdepo ! CHECK ETA
+  call readdepo
 
   ! Allocate dry deposition fields if necessary
   !*********************************************
@@ -300,25 +306,26 @@ subroutine read_options_and_initialise_flexpart
   
   ! Assign fractional cover of landuse classes to each ECMWF grid point
   !********************************************************************
-  call assignland ! CHECK ETA
+  call assignland
 
   ! Calculate volume, surface area, etc., of all output grid cells
   ! Allocate fluxes and OHfield if necessary
   !***************************************************************
   if (iout.ne.0) then
-    call outgrid_init ! CHECK ETA
+    call outgrid_init
     if (nested_output.eq.1) call outgrid_init_nest ! CHECK ETA
   endif
 
   ! Read the OH field
   !******************
   if (OHREA) then
-    call readOHfield ! CHECK ETA
+    call readOHfield
   endif
 
-#ifndef USE_NCF
-  call openreceptors
-#endif
+  ! Binary receptor output when lnetcdfout is set to zero, otherwise
+  ! added to gridded output
+  if (lnetcdfout.eq.0) call openreceptors
+
   if ((iout.eq.4).or.(iout.eq.5)) call openouttraj ! CHECK ETA
 
 
@@ -365,16 +372,33 @@ subroutine initialise_particles
 #endif
   use readoptions_mod
   use restart_mod
+  use settling_mod
 
   implicit none
 
   integer :: i
+  logical :: l_lookup=.false.
 
   ! Read the coordinates of the release locations
   !**********************************************
-  if (ipin.le.2) call readreleases ! CHECK ETA
-
   itime_init=0
+
+  if (ipin.le.2) then 
+    call readreleases
+  else
+#ifdef USE_NCF
+    call readinitconditions_netcdf
+#else
+    error stop 'Compile with netCDF if you would like to use the ipin=3,4 options.'
+#endif
+  endif
+
+  if (iout.ne.0) then
+    call alloc_grid
+    call alloc_grid_unc
+    if (nested_output.eq.1) call alloc_grid_unc_nest
+  endif
+  
   if ((ipin.eq.1).or.(ipin.eq.4)) then ! Restarting from restart.bin file
     call readrestart
   else if (ipin.eq.2) then ! Restarting from netcdf partoutput file
@@ -383,14 +407,7 @@ subroutine initialise_particles
 #else
     error stop 'Compile with netCDF if you want to use the ipin=2 option.'
 #endif
-  else if (ipin.eq.3) then ! User defined particle properties
-  ! Reading initial conditions from netcdf file
-#ifdef USE_NCF
-    call readinitconditions_netcdf
-#else
-    error stop 'Compile with netCDF if you want to use the ipin=3 option.'
-#endif
-  else
+  else if (ipin.eq.0) then
     ! Releases can only start and end at discrete times (multiples of lsynctime)
     !***************************************************************************
     do i=1,numpoint
@@ -399,6 +416,15 @@ subroutine initialise_particles
     end do
     numpart=0
     numparticlecount=0
+  endif
+
+  ! Initialise look-up table for drag coefficients when necessary
+  !**************************************************************
+  if (lsettling) then
+    do i=1,nspec
+      if (ishape(i).eq.0) l_lookup=.true.
+    end do
+    if (l_lookup) call init_dragcoeff_lookup()
   endif
 
 end subroutine initialise_particles

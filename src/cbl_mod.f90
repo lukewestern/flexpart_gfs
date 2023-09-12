@@ -10,7 +10,7 @@ module cbl_mod
     
 contains
 
-subroutine cbl(wp,zp,ust,wst,h,rhoa,rhograd,sigmaw,dsigmawdz,tlw,ptot,Q,phi,ath,bth,ol,flagrein)
+subroutine cbl(wp,zp,wst,h,rhoa,rhograd,sigmaw,dsigmawdz,tlw,ptot,Q,phi,ath,bth,ol,flagrein)
 !                i  i i  i   i  i    i     i       i         i   o   o   o   o    o  i    o
      
     use par_mod, only:pi
@@ -31,17 +31,17 @@ subroutine cbl(wp,zp,ust,wst,h,rhoa,rhograd,sigmaw,dsigmawdz,tlw,ptot,Q,phi,ath,
 
        
     integer :: flagrein
-    real :: wp,zp,ust,wst,h,dens,ddens,sigmaw,dsigmawdz,tlw,rhoa,rhograd
+    real :: wp,zp,wst,h,dens,ddens,sigmaw,dsigmawdz,tlw,rhoa,rhograd
     real ::fluarw,fluarw2
     real ::w3,w2
     real ::dw3,dw2
     real ::wb,wa
     real ::deltawa,deltawb
-    real ::wold,wold2,wold_z
+    real ::wold,wold2
     real ::pa,pb,alfa
     real ::Phi,Q,ptot  
     real :: timedir
-    real ::z0,ol,transition   
+    real ::ol,transition   
     
 
     real :: &
@@ -52,7 +52,6 @@ subroutine cbl(wp,zp,ust,wst,h,rhoa,rhograd,sigmaw,dsigmawdz,tlw,ptot,Q,phi,ath,
     bth
 
     real ::  &
-    pow, &
     z, &    
     skew, &
     skew2, &
@@ -235,7 +234,7 @@ function cuberoot(x) result(y)
     y=sign((abs(x))**third,x)
 end function cuberoot
 
-subroutine reinit_particle(zp,ust,wst,h,sigmaw,wp,nrand,ol)
+subroutine reinit_particle(zp,wst,h,sigmaw,wp,nrand,ol)
 !                                      i   i  i   i  i    io  io    i 
 
 !******************************************************************************
@@ -259,8 +258,8 @@ subroutine reinit_particle(zp,ust,wst,h,sigmaw,wp,nrand,ol)
   real :: usurad2,usurad2p,C0,costluar4,eps 
   parameter  (usurad2=0.7071067812,usurad2p=0.3989422804,C0=2,costluar4=0.66667,eps=0.000001)
 
-  integer idum,nrand
-  real :: wp,zp,ust,wst,h,dens,ddens,sigmaw,dsigmawdz,tlw,dcas,dcas1 !,ran3,gasdev
+  integer nrand
+  real :: wp,zp,wst,h,sigmaw,dcas1 !,ran3,gasdev
   real :: w3,w2
   real ::  z, &    
        skew, &
@@ -273,8 +272,6 @@ subroutine reinit_particle(zp,ust,wst,h,sigmaw,wp,nrand,ol)
        bluarw, &
        sigmawa, &
        sigmawb, &  
-       ath, &
-       bth, &
        wb,wa 
   real timedir
   real ol,transition
@@ -332,7 +329,7 @@ subroutine reinit_particle(zp,ust,wst,h,sigmaw,wp,nrand,ol)
   return
 end subroutine reinit_particle
 
-subroutine init_cbl_vel(idum,zp,ust,wst,h,sigmaw,wp,ol,ithread)
+subroutine init_cbl_vel(idum,zp,wst,h,sigmaw,wp,ol,ithread)
   !                              i/o   i  i   i  i     i  o   i  
 
   use par_mod, only:pi
@@ -353,7 +350,7 @@ subroutine init_cbl_vel(idum,zp,ust,wst,h,sigmaw,wp,ol,ithread)
   parameter  (usurad2=0.7071067812,usurad2p=0.3989422804,C0=2,costluar4=0.66667,eps=0.000001)
 
   
-  real :: wp,zp,ust,wst,h,dens,ddens,sigmaw,dsigmawdz,tlw,dcas,dcas1!,ran3,gasdev
+  real :: wp,zp,wst,h,sigmaw,dcas,dcas1!,ran3,gasdev
   real :: w3,w2
   real ::  z, &    
        skew, &
@@ -366,8 +363,6 @@ subroutine init_cbl_vel(idum,zp,ust,wst,h,sigmaw,wp,ol,ithread)
        bluarw, &
        sigmawa, &
        sigmawb, &  
-       ath, &
-       bth, &
        wb,wa 
   real timedir
   real ol, transition

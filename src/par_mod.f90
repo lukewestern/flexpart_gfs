@@ -105,6 +105,10 @@ module par_mod
   ! pvcrit                  PV level of the tropopause
 
 
+  !****************************************************
+  ! Shape parameters from Bagheri & Bonadonna, 2016
+  !****************************************************
+  real, parameter :: alpha2=0.77,beta2=0.63 ! eq.32
 
   !********************
   ! Some time constants
@@ -191,7 +195,7 @@ module par_mod
   !integer maxxgrid,maxygrid,maxzgrid,maxxgridn,maxygridn
   !integer,parameter :: maxxgrid=361,maxygrid=181,maxxgridn=0,maxygridn=0)
 
-  integer,parameter :: maxreceptor=20
+  integer,parameter :: maxreceptor=170
 
   ! maxreceptor             maximum number of receptor points
 
@@ -295,13 +299,6 @@ module par_mod
   ! High numbers create more overhead and a larger memory footprint
   !***********************************************************************
   integer,parameter :: max_numthreads_grid=1
-  ! Set the coordinate system. At the moment only ECMWF is possible. This bit
-  ! needs to be a parameter that can be set at compile time. 
-  ! Throughout the code there will be SELECT CASE statements or IFDEFs
-  !*******************************************************************
-  
-  character(len=256),parameter :: wind_coord_type='ETA'
-  !character(len=256),parameter :: wind_coord_type='METER'
 
   ! This flag sets all vertical interpolation to logarithmic instead of linear
   !***************************************************************************
@@ -316,5 +313,5 @@ module par_mod
   ! is no interaction
   !**********************************************************************
   real,parameter :: d_thresheqv=20
-  
+
 end module par_mod

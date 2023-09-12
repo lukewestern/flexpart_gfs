@@ -37,58 +37,45 @@ subroutine init_output(itime,filesize)
 
   ! Writing header information to either binary or NetCDF format
   if (itime.eq.itime_init) then
-    if (iout.ne.0) then ! No gridded output
+    if (iout.ne.0) then ! No gridded output for iout=0
+      if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
-      if (lnetcdfout.eq.1) then 
         call writeheader_netcdf(lnest=.false.)
-      else 
-        call writeheader_bin
-      end if
-
-      if (nested_output.eq.1) then
-        if (lnetcdfout.eq.1) then
-          call writeheader_netcdf(lnest=.true.)
-        else if ((nested_output.eq.1).and.(surf_only.ne.1)) then
-          call writeheader_bin_nest
-        else if ((nested_output.eq.1).and.(surf_only.eq.1)) then
-          call writeheader_bin_sfc_nest
-        else if ((nested_output.ne.1).and.(surf_only.eq.1)) then 
-          call writeheader_bin_sfc
-        endif
-      endif
-#else
-      call writeheader_bin
-
-      !if (nested_output.eq.1) call writeheader_nest
-      if ((nested_output.eq.1).and.(surf_only.ne.1)) call writeheader_bin_nest
-      if ((nested_output.eq.1).and.(surf_only.eq.1)) call writeheader_bin_sfc_nest
-      if ((nested_output.ne.1).and.(surf_only.eq.1)) call writeheader_bin_sfc
+        if (nested_output.eq.1) call writeheader_netcdf(lnest=.true.)
 #endif
+      else if ((ipin.ne.1).or.(ipin.ne.4)) then ! Not necessary for restart
+        call writeheader_bin
+
+        !if (nested_output.eq.1) call writeheader_nest
+        if ((nested_output.eq.1).and.(sfc_only.ne.1)) call writeheader_bin_nest
+        if ((nested_output.eq.1).and.(sfc_only.eq.1)) call writeheader_bin_sfc_nest
+        if ((nested_output.ne.1).and.(sfc_only.eq.1)) call writeheader_bin_sfc
+      endif
     endif ! iout.ne.0
     ! FLEXPART 9.2 ticket ?? write header in ASCII format 
-    call writeheader_txt
+    if ((ipin.ne.1).or.(ipin.ne.4)) call writeheader_txt
 
     ! NetCDF only: Create file for storing initial particle positions.
 #ifdef USE_NCF
-    if (itime_init.ne.0) then
-      jul=bdate+real(itime,kind=dp)/86400._dp
-      call caldate(jul,jjjjmmdd,ihmmss)      
-    endif
-    if ((mdomainfill.eq.0).and.(ipout.ge.1).and.(ipin.le.1)) then
-      if (itime_init.ne.0) then
-        if (ldirect.eq.1) then
-          call create_particles_initialoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
-        else
-          call create_particles_initialoutput(ihmmss,jjjjmmdd,ietime,iedate)
-        endif
-      else if (ldirect.eq.1) then
-        call create_particles_initialoutput(ibtime,ibdate,ibtime,ibdate)
-      else
-        call create_particles_initialoutput(ietime,iedate,ietime,iedate)
-      endif
-    endif
-    ! Create header files for files that store the particle dump output
     if (ipout.ge.1) then
+      if (itime_init.ne.0) then
+        jul=bdate+real(itime,kind=dp)/86400._dp
+        call caldate(jul,jjjjmmdd,ihmmss)      
+      endif
+      if ((mdomainfill.eq.0).and.(ipin.le.1)) then
+        if (itime_init.ne.0) then
+          if (ldirect.eq.1) then
+            call create_particles_initialoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
+          else
+            call create_particles_initialoutput(ihmmss,jjjjmmdd,ietime,iedate)
+          endif
+        else if (ldirect.eq.1) then
+          call create_particles_initialoutput(ibtime,ibdate,ibtime,ibdate)
+        else
+          call create_particles_initialoutput(ietime,iedate,ietime,iedate)
+        endif
+      endif
+      ! Create header files for files that store the particle dump output
       if (itime_init.ne.0) then
         if (ldirect.eq.1) then
           call writeheader_partoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
@@ -177,7 +164,9 @@ subroutine output_particles(itime,initial_output)
   !*****************************************************************************
 
   use interpol_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
 #ifdef USE_NCF
   use netcdf
@@ -196,22 +185,17 @@ subroutine output_particles(itime,initial_output)
   real :: tmp(2)
   character :: adate*8,atime*6
 
-  real :: xlon(numpart),ylat(numpart),ztemp1,ztemp2,val_av(numpart,2),z_av(numpart)
-  real :: tti(numpart),rhoi(numpart),pvi(numpart),qvi(numpart),pri(numpart)
-  real :: topo(numpart),hmixi(numpart),tri(numpart),ztemp(numpart)
+  real :: dummy(2)
   real :: masstemp(numpart,nspec),masstemp_av(numpart,nspec)
   real :: wetdepotemp(numpart,nspec),drydepotemp(numpart,nspec)
 
   real :: output(num_partopt, numpart)
 
-  ! For averaged output
-  real :: xlon_av(numpart),ylat_av(numpart)
-
   real :: cartxyz(3)
   logical :: cartxyz_comp
 
 #ifdef USE_NCF
-  integer  :: ncid, mythread, thread_divide(12),mass_divide(nspec)
+  integer  :: ncid
 #else
   error stop 'NETCDF missing! Please compile with netcdf if you want the particle dump.'
 #endif
@@ -265,10 +249,10 @@ subroutine output_particles(itime,initial_output)
       endif
       select case (partopt(np)%name)
         case ('LO')
-          output(np,i)=xlon0+part(i)%xlon*dx
+          output(np,i)=xlon0+real(part(i)%xlon)*dx
           cycle
         case ('LA')
-          output(np,i)=ylat0+part(i)%ylat*dy
+          output(np,i)=ylat0+real(part(i)%ylat)*dy
           cycle
         case ('TO') ! Topography
           if (ngrid.le.0) then
@@ -302,8 +286,10 @@ subroutine output_particles(itime,initial_output)
           call temporal_interpolation(tmp(1),tmp(2),output(np,i))
           cycle
         case ('ZZ') ! Height
+#ifdef ETA
           call update_zeta_to_z(itime, i) ! Convert eta z coordinate to meters if necessary
-          output(np,i)=part(i)%z
+#endif
+          output(np,i)=real(part(i)%z)
           cycle
         ! case ('UU') ! Longitudinal velocity
         !   output(np,i)=part(i)%vel%u !This would be preferred, but not implemented yet
@@ -411,8 +397,8 @@ subroutine output_particles(itime,initial_output)
       call open_partoutput_file(ncid)
 
       ! First allocate the time and particle dimensions within the netcdf file
-      call partoutput_netcdf(itime,xlon,'TI',j,ncid)
-      call partoutput_netcdf(itime,xlon,'PA',j,ncid)
+      call partoutput_netcdf(itime,dummy,'TI',j,ncid)
+      call partoutput_netcdf(itime,dummy,'PA',j,ncid)
     endif
 
     ! Fill the fields in parallel
@@ -529,7 +515,7 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
 
   ! If it is not time yet to write outputs, return
   !***********************************************
-  if ((itime.ne.loutend).or.(outnum.le.0)) then
+  if ((itime.ne.loutend).or.(outnum.le.0).or.(itime.eq.itime_init)) then
     return
   endif
 
@@ -537,42 +523,50 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
   ! If necessary, first sample of new grid is also taken
   !*****************************************************
   if ((iout.le.3.).or.(iout.eq.5)) then
-    if (surf_only.ne.1) then 
+    if (sfc_only.ne.1) then
+      if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
-      call concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-#else
-      call concoutput(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+        call concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
 #endif
-    else
-#ifdef USE_NCF
-      call concoutput_sfc_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-#else
-      if (linversionout.eq.1) then
-        call concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
       else
-        call concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+        call concoutput(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
       endif
+    else
+      if (lnetcdfout.eq.1) then
+#ifdef USE_NCF
+        ! call concoutput_sfc_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+        error stop 'Netcdf output for surface only not yet implemented'
 #endif
+      else
+        if (linversionout.eq.1) then
+          call concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+        else
+          call concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
+        endif
+      endif
     endif
 
     if (nested_output .eq. 1) then
+      if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
-      if (surf_only.ne.1) then
-        call concoutput_nest_netcdf(itime,outnum)
-      else 
-        call concoutput_sfc_nest_netcdf(itime,outnum)
-      endif
-#else
-      if (surf_only.ne.1) then
-        call concoutput_nest(itime,outnum)
-      else 
-        if(linversionout.eq.1) then
-          call concoutput_inversion_nest(itime,outnum)
+        if (sfc_only.ne.1) then
+          call concoutput_nest_netcdf(itime,outnum)
         else 
-          call concoutput_sfc_nest(itime,outnum)
+          error stop 'Netcdf output for surface only not yet implemented'
+          !call concoutput_sfc_nest_netcdf(itime,outnum)
+        endif
+#endif
+      else
+        if (sfc_only.ne.1) then
+          call concoutput_nest(itime,outnum)
+        else 
+          if(linversionout.eq.1) then
+            call concoutput_inversion_nest(itime,outnum)
+          else 
+            call concoutput_sfc_nest(itime,outnum)
+          endif
         endif
       endif
-#endif
     endif
     outnum=0.
   endif
@@ -623,18 +617,19 @@ subroutine conccalc(itime,weight)
   use com_mod
   use omp_lib, only: OMP_GET_THREAD_NUM
   use interpol_mod, only: interpol_density
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
 
   implicit none
 
   integer,intent(in) :: itime
   real,intent(in) :: weight
-  integer :: itage,i,kz,ks,n,nage,inage,thread,ithread
-  integer :: il,ind,indz,indzp,nrelpointer
+  integer :: itage,i,j,kz,ks,n,nage,inage,thread,ithread
+  integer :: nrelpointer
   integer :: ix,jy,ixp,jyp
   real :: ddx,ddy
-  real(kind=dp) :: mm3
   real :: hx,hy,hz,hxyz,xd,yd,zd,xkern,r2,c(maxspec)
   real :: rhoi
   real :: xl,yl,wx,wy,w
@@ -658,8 +653,9 @@ subroutine conccalc(itime,weight)
 #endif
 
 !$OMP DO
-  do i=1,numpart
-    if (.not.part(i)%alive) cycle
+  do j=1,count%alive
+
+    i=count%ialive(j)
 
   ! Determine age class of the particle
     itage=abs(itime-part(i)%tstart)
@@ -690,7 +686,9 @@ subroutine conccalc(itime,weight)
   !Af ind_samp is defined in readcommand.f
 
     if ( ind_samp .eq. -1 ) then
+#ifdef ETA
       call update_zeta_to_z(itime,i)
+#endif
       call interpol_density(itime,i,rhoi)
     elseif (ind_samp.eq.0) then 
       rhoi = 1.
@@ -724,8 +722,8 @@ subroutine conccalc(itime,weight)
   ! Do everything for mother domain
   !********************************
 
-      xl=(part(i)%xlon*dx+xoutshift)/dxout
-      yl=(part(i)%ylat*dy+youtshift)/dyout
+      xl=(real(part(i)%xlon)*dx+xoutshift)/dxout
+      yl=(real(part(i)%ylat)*dy+youtshift)/dyout
       ix=int(xl)
       if (xl.lt.0.) ix=ix-1
       jy=int(yl)
@@ -935,8 +933,8 @@ subroutine conccalc(itime,weight)
   !************************************
 
       if (nested_output.eq.1) then
-        xl=(part(i)%xlon*dx+xoutshiftn)/dxoutn
-        yl=(part(i)%ylat*dy+youtshiftn)/dyoutn
+        xl=(real(part(i)%xlon)*dx+xoutshiftn)/dxoutn
+        yl=(real(part(i)%ylat)*dy+youtshiftn)/dyoutn
         ix=int(xl)
         if (xl.lt.0.) ix=ix-1
         jy=int(yl)
@@ -1180,23 +1178,24 @@ subroutine conccalc(itime,weight)
   ! Estimate concentration at receptor
   !***********************************
 
-    do i=1,numpart
+    do j=1,count%alive
 
-      if (.not. part(i)%alive) cycle
+      i=count%ialive(j)
+
       itage=abs(itime-part(i)%tstart)
 
       hz=min(50.+0.3*sqrt(real(itage)),hzmax)
-      zd=part(i)%z/hz
+      zd=real(part(i)%z)/hz
       if (zd.gt.1.) cycle          ! save computing time, leave loop
 
       hx=min((0.29+2.222e-3*sqrt(real(itage)))*dx+ &
            real(itage)*1.2e-5,hxmax)                     ! 80 km/day
-      xd=(part(i)%xlon-xreceptor(n))/hx
+      xd=(real(part(i)%xlon)-xreceptor(n))/hx
       if (xd*xd.gt.1.) cycle       ! save computing time, leave loop
 
       hy=min((0.18+1.389e-3*sqrt(real(itage)))*dy+ &
            real(itage)*7.5e-6,hymax)                     ! 80 km/day
-      yd=(part(i)%ylat-yreceptor(n))/hy
+      yd=(real(part(i)%ylat)-yreceptor(n))/hy
       if (yd*yd.gt.1.) cycle       ! save computing time, leave loop
       hxyz=hx*hy*hz
 
@@ -1228,17 +1227,18 @@ subroutine partpos_avg(itime,j)
   use par_mod
   use com_mod
   use interpol_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
 
   implicit none
 
   integer,intent(in) :: itime,j
   integer :: np,i_av,ns,m
   real :: xlon,ylat,x,y,z
-  real :: topo,hm(2),hmixi,pvi,qvi
-  real :: tti,rhoi,ttemp
-  real :: uui,vvi,output
-  real :: tr(2),tri!,energy
+  real :: hm(2)
+  real :: output
+  real :: tr(2)!,energy
 
   logical :: cart_comp
 
@@ -1341,8 +1341,10 @@ subroutine partpos_avg(itime,j)
       case ('zz')
         ! Convert eta z coordinate to meters if necessary. Can be moved to output only
         !************************************************
+#ifdef ETA
         call update_zeta_to_z(itime,j)
-        part(j)%val_av(i_av)=part(j)%val_av(i_av)+part(j)%z
+#endif
+        part(j)%val_av(i_av)=part(j)%val_av(i_av)+real(part(j)%z)
       case ('ma')
         do ns=1,nspec
           part(j)%val_av(i_av+(ns-1))=part(j)%val_av(i_av+(ns-1))+part(j)%mass(ns)

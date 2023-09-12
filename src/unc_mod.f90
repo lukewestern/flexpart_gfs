@@ -42,6 +42,151 @@ module unc_mod
 
 contains
 
+subroutine alloc_grid_unc()
+  use com_mod
+
+  implicit none 
+
+  integer :: stat
+  
+  ! gridunc,griduncn        uncertainty of outputted concentrations
+  allocate(gridunc(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
+       maxpointspec_act,nclassunc,maxageclass),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+#ifdef _OPENMP
+  allocate(gridunc_omp(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
+       maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+  if (stat.ne.0) then
+    write(*,*)'ERROR: could not allocate gridunc_omp'
+    write(*,*)'increase the memory or reduce max_numthreads_grid in par_mod.f90.'
+    error stop
+  endif
+#endif
+  if (ldirect.gt.0) then
+    allocate(wetgridunc(0:numxgrid-1,0:numygrid-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc'
+    allocate(drygridunc(0:numxgrid-1,0:numygrid-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc'
+#ifdef _OPENMP
+    allocate(wetgridunc_omp(0:numxgrid-1,0:numygrid-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc_omp'
+    allocate(drygridunc_omp(0:numxgrid-1,0:numygrid-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc_omp'
+#endif
+  endif
+
+#ifdef USE_MPIINPLACE
+#else
+! Extra field for totals at MPI root process
+  if (lroot.and.mpi_mode.gt.0) then
+! If MPI_IN_PLACE option is not used in mpi_mod.f90::mpif_tm_reduce_grid(),
+! then an aux array is needed for parallel grid reduction
+    allocate(gridunc0(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc0'
+  else if (.not.lroot.and.mpi_mode.gt.0) then
+    allocate(gridunc0(1,1,1,1,1,1,1),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc0'
+  end if
+#endif
+  if (ldirect.gt.0) then
+    if (lroot.and.mpi_mode.gt.0) then
+      allocate(wetgridunc0(0:numxgrid-1,0:numygrid-1,maxspec, &
+           maxpointspec_act,nclassunc,maxageclass),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc0'
+      allocate(drygridunc0(0:numxgrid-1,0:numygrid-1,maxspec, &
+           maxpointspec_act,nclassunc,maxageclass),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc0'
+
+  ! allocate a dummy to avoid compilator complaints
+    else if (.not.lroot.and.mpi_mode.gt.0) then
+      allocate(wetgridunc0(1,1,1,1,1,1),stat=stat)
+      allocate(drygridunc0(1,1,1,1,1,1),stat=stat)
+    end if
+  end if
+
+  if (lroot) then
+    write (*,*) 'Allocating fields for global output (x,y): ', &
+      numxgrid,numygrid
+  end if
+
+end subroutine alloc_grid_unc
+
+subroutine alloc_grid_unc_nest()
+  use com_mod
+
+  implicit none
+
+  integer :: stat
+
+  ! gridunc,griduncn        uncertainty of outputted concentrations
+  allocate(griduncn(0:numxgridn-1,0:numygridn-1,numzgrid,maxspec, &
+       maxpointspec_act,nclassunc,maxageclass),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
+#ifdef _OPENMP
+  allocate(griduncn_omp(0:numxgridn-1,0:numygridn-1,numzgrid,maxspec, &
+       maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc_omp'
+#endif
+
+  if (ldirect.gt.0) then
+    allocate(wetgriduncn(0:numxgridn-1,0:numygridn-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested wetgridunc'
+    allocate(drygriduncn(0:numxgridn-1,0:numygridn-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested drygridunc'
+#ifdef _OPENMP
+    allocate(wetgriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested wetgridunc_omp'
+    allocate(drygriduncn_omp(0:numxgridn-1,0:numygridn-1,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested drygriduncn_omp'
+#endif
+  endif
+
+#ifdef USE_MPIINPLACE
+#else
+  ! Extra field for totals at MPI root process
+  if (lroot.and.mpi_mode.gt.0) then
+  ! If MPI_IN_PLACE option is not used in mpi_mod.f90::mpif_tm_reduce_grid_nest(),
+  ! then an aux array is needed for parallel grid reduction
+    allocate(griduncn0(0:numxgridn-1,0:numygridn-1,numzgrid,maxspec, &
+         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
+  ! allocate a dummy to avoid compilator complaints
+  else if (.not.lroot.and.mpi_mode.gt.0) then
+    allocate(griduncn0(1,1,1,1,1,1,1),stat=stat)
+  end if
+#endif
+  if (ldirect.gt.0) then
+    if (lroot.and.mpi_mode.gt.0) then
+      allocate(wetgriduncn0(0:numxgridn-1,0:numygridn-1,maxspec, &
+           maxpointspec_act,nclassunc,maxageclass),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
+      allocate(drygriduncn0(0:numxgridn-1,0:numygridn-1,maxspec, &
+           maxpointspec_act,nclassunc,maxageclass),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
+  !  endif
+  ! allocate a dummy to avoid compilator complaints
+    else if (.not.lroot.and.mpi_mode.gt.0) then
+      allocate(wetgriduncn0(1,1,1,1,1,1),stat=stat)
+      allocate(drygriduncn0(1,1,1,1,1,1),stat=stat)
+    end if
+  end if
+
+  if (lroot) then
+    write (*,*) 'Allocating fields for nested output (x,y): ', &
+      numxgridn,numygridn
+  end if
+
+end subroutine alloc_grid_unc_nest
+
 subroutine deposit_decay()
   ! Accumulated deposited mass radioactively decays
   use com_mod
@@ -53,8 +198,7 @@ subroutine deposit_decay()
     ks,                     & ! loop variable species
     kp,                     & ! loop variable for maxpointspec_act
     l,                      & ! loop variable over nclassunc
-    nage,                   & ! loop variable over age classes
-    n                         ! loop variable over particles
+    nage                      ! loop variable over age classes
 
 !$OMP PARALLEL PRIVATE(ks,kp,nage,l,j,i)
 !$OMP DO COLLAPSE(2)

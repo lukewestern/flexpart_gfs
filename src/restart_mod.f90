@@ -1,6 +1,9 @@
 module restart_mod
   use particle_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
+  use outgrid_mod
   use unc_mod
   use date_mod
 #ifdef USE_NCF
@@ -18,7 +21,7 @@ subroutine output_restart(itime,loutnext,outnum)
   integer, intent(in) :: itime,loutnext
   real, intent(in) :: outnum
   integer :: i,j,jjjjmmdd,ihmmss,stat
-  integer :: ks,kp,kz,nage,jy,ix,l
+  integer :: ks,kp,kz,nage,jy,ix,l,n
   real(kind=dp) :: jul
   character :: adate*8,atime*6
 
@@ -43,13 +46,19 @@ subroutine output_restart(itime,loutnext,outnum)
   write(unitrestart) count%allocated
   write(unitrestart) loutnext
   write(unitrestart) outnum
+  write(unitrestart) numreceptor
 
   do i=1,count%allocated
+#ifdef ETA
     if (part(i)%alive) then
       call update_zeta_to_z(itime,i)
       call update_z_to_zeta(itime,i)
     endif
-    write(unitrestart) part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta, &
+#endif
+    write(unitrestart) part(i)%xlon,part(i)%ylat,part(i)%z, &
+#ifdef ETA
+      part(i)%zeta, &
+#endif
       part(i)%npoint,part(i)%nclass,part(i)%idt,part(i)%tend, &
       part(i)%tstart,part(i)%alive,part(i)%turbvel%u, &
       part(i)%turbvel%v,part(i)%turbvel%w,part(i)%mesovel%u, &
@@ -59,7 +68,7 @@ subroutine output_restart(itime,loutnext,outnum)
   end do
   if (iout.gt.0) then
 #ifdef USE_NCF
-    write(unitrestart) tpointer
+    if (lnetcdfout.eq.1) write(unitrestart) tpointer
 #endif
     do ks=1,nspec
       do kp=1,maxpointspec_act
@@ -96,19 +105,44 @@ subroutine output_restart(itime,loutnext,outnum)
               end do
             end do
           endif
+          if (iflux.eq.1) then
+            do kz=1,numzgrid
+              do jy=0,numygridn-1
+                do ix=0,numxgridn-1
+                  do i=1,5
+                    write(unitrestart) flux(i,ix,jy,kz,ks,kp,nage)
+                  end do
+                end do
+              end do
+            end do        
+          endif
         end do
+        if (linit_cond.gt.0) then
+          do kz=1,numzgrid
+            do jy=0,numygridn-1
+              do ix=0,numxgridn-1
+                write(unitrestart) init_cond(ix,jy,kz,ks,kp)
+              end do 
+            end do
+          end do 
+        endif
       end do
       if ((drybkdep).or.(wetbkdep)) then
         do i=1,count%allocated
           write(unitrestart) xscav_frac1(i,ks)
         end do
       endif
+      if (numreceptor.gt.0) then 
+        do n=1,numreceptor
+          write(unitrestart) creceptor(n,ks)
+        end do
+      endif
     end do
   endif
   close(unitrestart)
 
-  open(unit=1234, iostat=stat, file=restart_filename3, status='old')
-  if(stat == 0) close(1234, status='delete')
+  ! open(unit=1234, iostat=stat, file=restart_filename3, status='old')
+  ! if(stat == 0) close(1234, status='delete')
 end subroutine output_restart
 
 subroutine readrestart
@@ -127,9 +161,8 @@ subroutine readrestart
 
   integer :: i,j,ios
   integer :: id1,id2,it1,it2
-  integer :: ks,kp,kz,nage,jy,ix,l
-  real(kind=dp) :: julin,julpartin
-  integer :: idummy = -8
+  integer :: ks,kp,kz,nage,jy,ix,l,n
+  real(kind=dp) :: julin
 
   numparticlecount=0
 
@@ -143,17 +176,24 @@ subroutine readrestart
   read(unitpartin) numpart
   read(unitpartin) loutnext_init
   read(unitpartin) outnum_init
+  read(unitpartin) numreceptor
+
   call spawn_particles(itime_init, numpart)
   do i=1,numpart
-    read(unitpartin) part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta, &
+    read(unitpartin) part(i)%xlon,part(i)%ylat,part(i)%z, &
+#ifdef ETA
+      part(i)%zeta, &
+#endif
       part(i)%npoint,part(i)%nclass,part(i)%idt,part(i)%tend, &
       part(i)%tstart,part(i)%alive,part(i)%turbvel%u, &
       part(i)%turbvel%v,part(i)%turbvel%w,part(i)%mesovel%u, &
       part(i)%mesovel%v,part(i)%mesovel%w,(part(i)%mass(j),j=1,nspec), &
       (part(i)%mass_init(j),j=1,nspec),(part(i)%wetdepo(j),j=1,nspec), &
       (part(i)%drydepo(j),j=1,nspec)
+#ifdef ETA
     part(i)%etaupdate=.true.
     part(i)%meterupdate=.true.
+#endif
     if (.not. part(i)%alive) then
       if (part(i)%tstart.le.itime_init) then
         call terminate_particle(i,part(i)%tend)
@@ -165,7 +205,7 @@ subroutine readrestart
   end do
   if (iout.gt.0) then 
 #ifdef USE_NCF
-    read(unitpartin) tpointer
+    if (lnetcdfout.eq.1) read(unitpartin) tpointer
 #endif
     do ks=1,nspec
       do kp=1,maxpointspec_act
@@ -202,11 +242,36 @@ subroutine readrestart
               end do
             end do
           endif
+          if (iflux.eq.1) then
+            do kz=1,numzgrid
+              do jy=0,numygridn-1
+                do ix=0,numxgridn-1
+                  do i=1,5
+                    read(unitpartin) flux(i,ix,jy,kz,ks,kp,nage)
+                  end do
+                end do
+              end do
+            end do        
+          endif
         end do
+        if (linit_cond.gt.0) then
+          do kz=1,numzgrid
+            do jy=0,numygridn-1
+              do ix=0,numxgridn-1
+                read(unitpartin) init_cond(ix,jy,kz,ks,kp)
+              end do 
+            end do
+          end do 
+        endif
       end do
       if ((drybkdep).or.(wetbkdep)) then
         do i=1,numpart
           read(unitpartin) xscav_frac1(i,ks)
+        end do
+      endif
+      if (numreceptor.gt.0) then 
+        do n=1,numreceptor
+          read(unitpartin) creceptor(n,ks)
         end do
       endif
     end do

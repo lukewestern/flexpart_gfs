@@ -11,8 +11,6 @@
 !          - Array operations in convect subroutine
 !          - OpenMP parallelisation in convmix and redist
 !          - Moved all subroutines related to the convection to this module
-!       2022 M. Duetsch:
-!          - Removed goto statements in sort2 subroutine
 !*******************************************************************************
 
 module conv_mod
@@ -22,6 +20,7 @@ module conv_mod
   use windfields_mod, only: metdata_format,akz,bkz,akm,bkm,nuvz, &
     uvheight,ps,tt2,td2,tth,qvh,pplev,tt,qv,nx,ny,tt2n,td2n,psn,tthn,qvhn, &
     yln,yrn,xln,xrn,yresoln,xresoln,nxn,nyn,dxn,dyn
+  use sort_mod
   implicit none
 
   !integer,parameter :: nconvlevmax = nuvzmax-1, &
@@ -161,7 +160,7 @@ subroutine convmix(itime)
 
   implicit none
 
-  integer :: igr,igrold, ipart, itime, ix, j, inest
+  integer :: igr,igrold, ipart, itime, ix, i, j, inest
   integer :: ipconv,thread,ithread
   integer :: jy, kpart, ktop, ngrid,kz
   integer,allocatable :: igrid(:), ipoint(:), igridn(:,:)
@@ -183,7 +182,7 @@ subroutine convmix(itime)
   integer,allocatable,dimension(:) :: frst
   double precision :: tmarray(2)
 
-  integer :: totpart,alivepart
+  integer :: alivepart
   real:: eps
   eps=nxmax/3.e5
   ! Calculate auxiliary variables for time interpolation
@@ -203,10 +202,10 @@ subroutine convmix(itime)
   call get_alivepart_num(alivepart)
   if (alivepart.le.0 ) return
 
-  call get_totalpart_num(totpart)
-  allocate( igrid(totpart) )
-  allocate( ipoint(totpart) )
-  allocate( igridn(totpart,maxnests) )
+  !call get_totalpart_num(totpart)
+  allocate( igrid(alivepart) )
+  allocate( ipoint(alivepart) )
+  allocate( igridn(alivepart,numbnests) )
 
   ! Assign igrid and igridn, which are pseudo grid numbers indicating particles
   ! that are outside the part of the grid under consideration
@@ -215,18 +214,21 @@ subroutine convmix(itime)
   ! igrid shall be -1
   ! Also, initialize index vector ipoint
   !************************************************************************
-!$OMP PARALLEL PRIVATE(ipart, j, x, y, ngrid, xtn, ytn, ix, jy)
+  igrid(:) = -1
+  do j=numbnests,1,-1
+    igridn(:,j)=-1
+  end do
+
+!$OMP PARALLEL PRIVATE(ipart, i, j, x, y, ngrid, xtn, ytn, ix, jy)
 !$OMP DO
-  do ipart=1,numpart
-    igrid(ipart)=-1
-    do j=numbnests,1,-1
-      igridn(ipart,j)=-1
-    end do
-    ipoint(ipart)=ipart
-  ! do not consider particles that are not (yet) part of simulation
-    if (.not. part(ipart)%alive) cycle
-    x = part(ipart)%xlon
-    y = part(ipart)%ylat
+  do i=1,alivepart
+    ! do not consider particles that are not (yet) part of simulation
+    ipart=count%ialive(i)
+
+    ipoint(i)=ipart
+
+    x = real(part(ipart)%xlon)
+    y = real(part(ipart)%ylat)
 
   ! Determine which nesting level to be used
   !**********************************************************
@@ -262,13 +264,13 @@ subroutine convmix(itime)
       ix=nint(xtn)
       jy=nint(ytn)
       ! igridn(ipart,ngrid) = 1 + jy*nxn(ngrid) + ix
-      igridn(ipart,ngrid) = 1 + ix*nyn(ngrid) + jy
+      igridn(i,ngrid) = 1 + ix*nyn(ngrid) + jy
     else if(ngrid.eq.0) then
   ! mother grid
       ix=nint(x)
       jy=nint(y)
       !igrid(ipart) = 1 + jy*nx + ix
-      igrid(ipart) = 1 + ix*ny + jy
+      igrid(i) = 1 + ix*ny + jy
     endif
   end do
 !$OMP END DO
@@ -287,7 +289,7 @@ subroutine convmix(itime)
 
   ! sort particles according to horizontal position and calculate index vector IPOINT
 
-  call sort2(numpart,igrid,ipoint)
+  call sort2(alivepart,igrid,ipoint)
 
   ! Now visit all grid columns where particles are present
   ! by going through the sorted particles
@@ -299,14 +301,14 @@ subroutine convmix(itime)
   igrold = igrid(1)
   ! Looping over all particles and counting how many in each igrid reside.
   ! This is saved in frst. The number of consecutive particles in igrid is saved in frst(i)
-  do kpart=1,numpart
+  do kpart=1,alivepart
     if (igrold.ne.igrid(kpart)) then
       frst(cnt) = kpart
       igrold=igrid(kpart)
       cnt=cnt+1
     endif
   end do 
-  frst(cnt) = numpart+1
+  frst(cnt) = alivepart+1
 
 !$OMP PARALLEL PRIVATE(kk,jy,ix,tmarray,j,kz,ktop,lconv,kpart,ipart,&
 !$OMP ztold,nage,ipconv,itage,thread)
@@ -317,7 +319,7 @@ subroutine convmix(itime)
     thread = 0
 #endif
 
-!$OMP DO SCHEDULE(static)
+!$OMP DO SCHEDULE(dynamic)
   do kk=1,cnt-1
     ! Only consider grids that have particles inside
     if (igrid(frst(kk)).eq.-1) cycle
@@ -403,19 +405,19 @@ subroutine convmix(itime)
 
   ! sort particles according to horizontal position and calculate index vector IPOINT
   do inest=1,numbnests
-    do ipart=1,numpart
-      ipoint(ipart)=ipart
-      igrid(ipart) = igridn(ipart,inest)
+    do i=1,alivepart
+      ipoint(i)=count%ialive(i)
+      igrid(i) = igridn(i,inest)
     enddo
-    call sort2(numpart,igrid,ipoint)
+    call sort2(alivepart,igrid,ipoint)
 
   ! Now visit all grid columns where particles are present
   ! by going through the sorted particles
 !$OMP PARALLEL PRIVATE (igrold,kpart,ipart,igr,jy,ix,kz,lconv, &
 !$OMP ktop,ztold,nage,ipconv,itage)
     igrold = -1
-!$OMP DO
-    do kpart=1,numpart
+!$OMP DO SCHEDULE(dynamic)
+    do kpart=1,alivepart
       igr = igrid(kpart)
       if (igr .eq. -1) cycle
       ipart = ipoint(kpart)
@@ -450,7 +452,7 @@ subroutine convmix(itime)
   ! treat particle only if column has convection
       if (lconv .eqv. .true.) then
   ! assign new vertical position to particle
-        ztold=part(ipart)%z
+        ztold=real(part(ipart)%z)
         call redist(itime,ipart,ktop,ipconv)
   !      if (ipconv.le.0) sumconv = sumconv+1
 
@@ -541,7 +543,7 @@ subroutine calcmatrix(lconv,delt,cbmf)
 
   real :: rlevmass,summe
 
-  integer :: iflag, k, kk, kuvz
+  integer :: iflag, k, kk
 
   !1-d variables for convection
   !variables for redistribution matrix
@@ -678,7 +680,9 @@ subroutine redist(itime,ipart,ktop,ipconv)
   use random_mod
   use omp_lib
   use interpol_mod
+#ifdef ETA
   use coord_ecmwf_mod
+#endif
   use particle_mod
   use qvsat_mod
 
@@ -707,98 +711,92 @@ subroutine redist(itime,ipart,ktop,ipconv)
 
   ! !  determine vertical grid position of particle in the eta system
   ! !****************************************************************
-  select case (wind_coord_type)
+#ifdef ETA
+  ztold = real(part(abs(ipart))%zeta)
+  ! find old particle grid position
+  levold = nconvtop
+  do kz = 2, nconvtop
+    if (wheight(kz) .le. ztold ) then
+      levold = kz-1
+      exit
+    endif
+  end do
+#else
 
-    case ('ETA')
-      ztold = real(part(abs(ipart))%zeta)
-      ! find old particle grid position
-      levold = nconvtop
-      do kz = 2, nconvtop
-        if (wheight(kz) .le. ztold ) then
-          levold = kz-1
-          exit
-        endif
-      end do
+  ! determine height of the eta half-levels (uvzlev)
+  ! do that only once for each grid column
+  ! i.e. when ktop.eq.1
+  !**************************************************************
 
-    case ('METER')
+  if (ktop .le. 1) then
 
-      ! determine height of the eta half-levels (uvzlev)
-      ! do that only once for each grid column
-      ! i.e. when ktop.eq.1
-      !**************************************************************
+    tvold=tt2conv*(1.+0.378*ew(td2conv,psconv)/psconv)
+    pold=psconv
+    uvzlev(1)=0.
 
-      if (ktop .le. 1) then
+    pint = phconv(2)
+  !  determine next virtual temperatures
+    tv1 = tconv(1)*(1.+0.608*qconv(1))
+    tv2 = tconv(2)*(1.+0.608*qconv(2))
+  !  interpolate virtual temperature to half-level
+    tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
+    tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
+    if (abs(tv-tvold).gt.0.2) then
+      uvzlev(2) = uvzlev(1) + &
+           const*log(pold/pint)* &
+           (tv-tvold)/log(tv/tvold)
+    else
+      uvzlev(2) = uvzlev(1)+ &
+           const*log(pold/pint)*tv
+    endif
+    tvold=tv
+    tv1=tv2
+    pold=pint
 
-        tvold=tt2conv*(1.+0.378*ew(td2conv,psconv)/psconv)
-        pold=psconv
-        uvzlev(1)=0.
-
-        pint = phconv(2)
-      !  determine next virtual temperatures
-        tv1 = tconv(1)*(1.+0.608*qconv(1))
-        tv2 = tconv(2)*(1.+0.608*qconv(2))
-      !  interpolate virtual temperature to half-level
-        tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
-        tv = tv1 + (tv2-tv1)*(pconv(1)-phconv(2))/(pconv(1)-pconv(2))
-        if (abs(tv-tvold).gt.0.2) then
-          uvzlev(2) = uvzlev(1) + &
-               const*log(pold/pint)* &
-               (tv-tvold)/log(tv/tvold)
-        else
-          uvzlev(2) = uvzlev(1)+ &
-               const*log(pold/pint)*tv
-        endif
-        tvold=tv
-        tv1=tv2
-        pold=pint
-
-      ! integrate profile (calculation of height agl of eta layers) as required
-        do kz = 3, nconvtop+1
-      !    note that variables defined in calcmatrix.f (pconv,tconv,qconv)
-      !    start at the first real ECMWF model level whereas kz and
-      !    thus uvzlev(kz) starts at the surface. uvzlev is defined at the
-      !    half-levels (between the tconv, qconv etc. values !)
-      !    Thus, uvzlev(kz) is the lower boundary of the tconv(kz) cell.
-          pint = phconv(kz)
-      !    determine next virtual temperatures
-          tv2 = tconv(kz)*(1.+0.608*qconv(kz))
-      !    interpolate virtual temperature to half-level
-          tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
-               (pconv(kz-1)-pconv(kz))
-          tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
-               (pconv(kz-1)-pconv(kz))
-          if (abs(tv-tvold).gt.0.2) then
-            uvzlev(kz) = uvzlev(kz-1) + &
-                 const*log(pold/pint)* &
-                 (tv-tvold)/log(tv/tvold)
-          else
-            uvzlev(kz) = uvzlev(kz-1)+ &
-                 const*log(pold/pint)*tv
-          endif
-          tvold=tv
-          tv1=tv2
-          pold=pint
-
-
-        end do
-
-        ktop = 2
-
+  ! integrate profile (calculation of height agl of eta layers) as required
+    do kz = 3, nconvtop+1
+  !    note that variables defined in calcmatrix.f (pconv,tconv,qconv)
+  !    start at the first real ECMWF model level whereas kz and
+  !    thus uvzlev(kz) starts at the surface. uvzlev is defined at the
+  !    half-levels (between the tconv, qconv etc. values !)
+  !    Thus, uvzlev(kz) is the lower boundary of the tconv(kz) cell.
+      pint = phconv(kz)
+  !    determine next virtual temperatures
+      tv2 = tconv(kz)*(1.+0.608*qconv(kz))
+  !    interpolate virtual temperature to half-level
+      tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
+           (pconv(kz-1)-pconv(kz))
+      tv = tv1 + (tv2-tv1)*(pconv(kz-1)-phconv(kz))/ &
+           (pconv(kz-1)-pconv(kz))
+      if (abs(tv-tvold).gt.0.2) then
+        uvzlev(kz) = uvzlev(kz-1) + &
+             const*log(pold/pint)* &
+             (tv-tvold)/log(tv/tvold)
+      else
+        uvzlev(kz) = uvzlev(kz-1)+ &
+             const*log(pold/pint)*tv
       endif
-      
-      ztold = real(part(abs(ipart))%z)
-      ! find old particle grid position
-      levold = nconvtop
-      do kz = 2, nconvtop
-        if (uvzlev(kz) .ge. ztold ) then
-          levold = kz-1
-          exit
-        endif
-      end do
-    case default 
-      error stop 'The wind_coord_type is not defined in redist.f90'
+      tvold=tv
+      tv1=tv2
+      pold=pint
 
-  end select
+
+    end do
+
+    ktop = 2
+
+  endif
+  
+  ztold = real(part(abs(ipart))%z)
+  ! find old particle grid position
+  levold = nconvtop
+  do kz = 2, nconvtop
+    if (uvzlev(kz) .ge. ztold ) then
+      levold = kz-1
+      exit
+    endif
+  end do
+#endif
 
   ! If the particle is above the potentially convective domain, it will be skipped
   if (levold.ne.nconvtop) then
@@ -845,34 +843,26 @@ subroutine redist(itime,ipart,ktop,ipconv)
     end do loop1
 
     ! now assign new position to particle
-    select case (wind_coord_type)
-
-      case ('ETA')
-        if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
-          dlogp = (1.-dlevfrac) * (wheight(levnew+1)-wheight(levnew))
-          call set_zeta(ipart,wheight(levnew)+dlogp)
-          if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
-          if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
-          if (ipconv.gt.0) ipconv=-1
-        endif
-
-      case ('METER')
-        if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
-          dlogp = (1.-dlevfrac)* (log(phconv(levnew+1))-log(phconv(levnew)))
-          pint = log(phconv(levnew))+dlogp
-          dz1 = pint - log(phconv(levnew))
-          dz2 = log(phconv(levnew+1)) - pint
-          dz = dz1 + dz2
-          call set_z(ipart,(uvzlev(levnew)*dz2+uvzlev(levnew+1)*dz1)/dz)
-          if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
-          if (ipconv.gt.0) ipconv=-1
-        endif
-
-      case default
-        error stop 'The chosen wind_coord_type is not defined in redist.f90'
-
-    end select
-
+#ifdef ETA
+    if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
+      dlogp = (1.-dlevfrac) * (wheight(levnew+1)-wheight(levnew))
+      call set_zeta(ipart,wheight(levnew)+dlogp)
+      if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
+      if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
+      if (ipconv.gt.0) ipconv=-1
+    endif
+#else
+    if ((levnew.le.nconvtop).and.(levnew.ne.levold)) then
+      dlogp = (1.-dlevfrac)* (log(phconv(levnew+1))-log(phconv(levnew)))
+      pint = log(phconv(levnew))+dlogp
+      dz1 = pint - log(phconv(levnew))
+      dz2 = log(phconv(levnew+1)) - pint
+      dz = dz1 + dz2
+      call set_z(ipart,(uvzlev(levnew)*dz2+uvzlev(levnew+1)*dz1)/dz)
+      if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
+      if (ipconv.gt.0) ipconv=-1
+    endif
+#endif
     ! displace particle according to compensating subsidence
     ! this is done to those particles, that were not redistributed
     ! by the matrix
@@ -907,57 +897,51 @@ subroutine redist(itime,ipart,ktop,ipconv)
           (phconv(levold+1))
 
       ! interpolate wsub to the vertical particle position
-      select case (wind_coord_type)
-        case ('ETA')
-          ztold = real(part(abs(ipart))%zeta)
-          dz1 = ztold - wheight(levold)
-          dz2 = wheight(levold+1) - ztold
-          dz = dz1 + dz2
+#ifdef ETA
+      ztold = real(part(abs(ipart))%zeta)
+      dz1 = ztold - wheight(levold)
+      dz2 = wheight(levold+1) - ztold
+      dz = dz1 + dz2
 
-          ! Convert z(eta) to z(m) in order to add subsidence
-          call update_zeta_to_z(itime, ipart)
-          ! call zeta_to_z(itime,part(abs(ipart))%xlon,part(abs(ipart))%ylat, &
-          !   part(abs(ipart))%zeta,part(abs(ipart))%z)
+      ! Convert z(eta) to z(m) in order to add subsidence
+      call update_zeta_to_z(itime, ipart)
+      ! call zeta_to_z(itime,part(abs(ipart))%xlon,part(abs(ipart))%ylat, &
+      !   part(abs(ipart))%zeta,part(abs(ipart))%z)
 
-          wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
+      wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
 
-          call update_z(ipart,wsubpart*real(lsynctime))
+      call update_z(ipart,wsubpart*real(lsynctime))
 
-          if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
+      if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
 
-          ! Convert new z(m) back to z(eta)
-          call update_z_to_zeta(itime, ipart)
+      ! Convert new z(m) back to z(eta)
+      call update_z_to_zeta(itime, ipart)
           
-        case ('METER')
-          ztold = real(part(abs(ipart))%z)
-          dz1 = ztold - uvzlev(levold)
-          dz2 = uvzlev(levold+1) - ztold
-          dz = dz1 + dz2
+#else
+      ztold = real(part(abs(ipart))%z)
+      dz1 = ztold - uvzlev(levold)
+      dz2 = uvzlev(levold+1) - ztold
+      dz = dz1 + dz2
 
-          wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
+      wsubpart = (dz2*wsub(levold)+dz1*wsub(levold+1))/dz
 
-          call update_z(ipart,wsubpart*real(lsynctime))
+      call update_z(ipart,wsubpart*real(lsynctime))
 
-          if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
+      if (part(abs(ipart))%z.lt.0.) call set_z(ipart,-1.*part(abs(ipart))%z)
 
-        case default
-          error stop 'The wind_coord_type is not defined in redist.f90'
-      end select
+#endif
     endif      !(levnew.le.nconvtop.and.levnew.eq.levold)
   endif
   ! Maximum altitude .5 meter below uppermost model level
   !*******************************************************
 
-  select case (wind_coord_type)
-    case ('ETA')
-      if (part(abs(ipart))%zeta .lt. uvheight(nz)) call set_zeta(ipart,uvheight(nz)+1.e-4)
-      if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
-      if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
-    case ('METER')
-      if (part(abs(ipart))%z .gt. height(nz)-0.5) call set_z(ipart,height(nz)-0.5)
-    case default
-      error stop 'The wind_coord_type is not defined in redist.f90'
-  end select
+#ifdef ETA
+    if (part(abs(ipart))%zeta .lt. uvheight(nz)) call set_zeta(ipart,uvheight(nz)+1.e-4)
+    if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
+    if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
+#else
+    if (part(abs(ipart))%z .gt. height(nz)-0.5) call set_z(ipart,height(nz)-0.5)
+#endif
 
 end subroutine redist
 
@@ -1132,12 +1116,12 @@ end subroutine redist
   real :: ad, afac, ahmax, ahmin, alt, altem
   real :: am, amp1, anum, asij, awat, b6, bf2, bsum, by
   real :: byp, c6, cape, capem, cbmfold, chi, coeff
-  real :: cpinv, cwat, damps, dbo, dbosum
+  real :: cpinv, cwat, damps
   real :: defrac, dei, delm, delp, delt0, delti, denom, dhdp
   real :: dpinv, dtma, dtmin, dtpbl, elacrit, ents
   real :: epmax, fac, fqold, frac, ftold
   real :: plcl, qp1, qsm, qstm, qti, rat
-  real :: rdcp, revap, rh, scrit, sigt, sjmax
+  real :: revap, rh, scrit, sigt, sjmax
   real :: sjmin, smid, smin, stemp, tca
   real :: tvaplcl, tvpplcl, tvx, tvy, wdtrain
 
@@ -1152,7 +1136,7 @@ end subroutine redist
   INTEGER :: NENT(NA)
   REAL :: M(NA),MP(NA),MENT(NA,NA),QENT(NA,NA),ELIJ(NA,NA)
   REAL :: SIJ(NA,NA),TVP(NA),TV(NA),WATER(NA)
-  REAL :: QP(NA),EP(NA),TH(NA),WT(NA),EVAP(NA),CLW(NA)
+  REAL :: QP(NA),EP(NA),WT(NA),EVAP(NA),CLW(NA)
   REAL :: SIGP(NA),TP(NA),CPN(NA)
   REAL :: LV(NA),LVCP(NA),H(NA),HP(NA),GZ(NA),HM(NA)
   !
@@ -2082,112 +2066,5 @@ SUBROUTINE TLIFT(GZ,ICB,NK,TVP,TPK,CLW,ND,NL,KK)
   END DO
   RETURN
 END SUBROUTINE TLIFT
-
-subroutine sort2(n,arr,brr)
-  ! From numerical recipes
-  ! Change by A. Stohl: Use of integer instead of real values
-  implicit none
-
-  integer, intent(in) :: n
-  integer, intent(inout) :: arr(n),brr(n)
-  integer,parameter :: m=7,nstack=50
-  integer :: i,ir,j,jstack,k,l,istack(nstack)
-  integer :: a,b,temp
-  jstack=0
-  l=1
-  ir=n
-  do
-    if(ir-l.lt.m)then
-      do j=l+1,ir
-        a=arr(j)
-        b=brr(j)
-        i=j-1
-        do while(i.gt.0)
-          if (arr(i).le.a) exit
-          arr(i+1)=arr(i)
-          brr(i+1)=brr(i)
-          i=i-1
-        end do
-        arr(i+1)=a
-        brr(i+1)=b
-      end do
-      if(jstack.eq.0)return
-      ir=istack(jstack)
-      l=istack(jstack-1)
-      jstack=jstack-2
-    else
-      k=(l+ir)/2
-      temp=arr(k)
-      arr(k)=arr(l+1)
-      arr(l+1)=temp
-      temp=brr(k)
-      brr(k)=brr(l+1)
-      brr(l+1)=temp
-      if(arr(l+1).gt.arr(ir))then
-        temp=arr(l+1)
-        arr(l+1)=arr(ir)
-        arr(ir)=temp
-        temp=brr(l+1)
-        brr(l+1)=brr(ir)
-        brr(ir)=temp
-      endif
-      if(arr(l).gt.arr(ir))then
-        temp=arr(l)
-        arr(l)=arr(ir)
-        arr(ir)=temp
-        temp=brr(l)
-        brr(l)=brr(ir)
-        brr(ir)=temp
-      endif
-      if(arr(l+1).gt.arr(l))then
-        temp=arr(l+1)
-        arr(l+1)=arr(l)
-        arr(l)=temp
-        temp=brr(l+1)
-        brr(l+1)=brr(l)
-        brr(l)=temp
-      endif
-      i=l+1
-      j=ir
-      a=arr(l)
-      b=brr(l)
-      do
-        do
-          i=i+1
-          if(arr(i).ge.a) exit
-        end do
-        do
-          j=j-1
-          if(arr(j).le.a) exit
-        end do
-        if(j.lt.i) exit
-        temp=arr(i)
-        arr(i)=arr(j)
-        arr(j)=temp
-        temp=brr(i)
-        brr(i)=brr(j)
-        brr(j)=temp
-      end do
-      arr(l)=arr(j)
-      arr(j)=a
-      brr(l)=brr(j)
-      brr(j)=b
-      jstack=jstack+2
-      if(jstack.gt.nstack) then
-         error stop 'nstack too small in sort2'
-      end if
-      if(ir-i+1.ge.j-l)then
-        istack(jstack)=ir
-        istack(jstack-1)=i
-        ir=j-1
-      else
-        istack(jstack)=j-1
-        istack(jstack-1)=l
-        l=i
-      endif
-    endif
-  end do
-!  (C) Copr. 1986-92 Numerical Recipes Software us.
-end subroutine sort2
 
 end module conv_mod

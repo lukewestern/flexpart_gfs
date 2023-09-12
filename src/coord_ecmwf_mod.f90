@@ -16,7 +16,7 @@ module coord_ecmwf_mod
   use windfields_mod
 
 contains
-
+#ifdef ETA
 subroutine update_zeta_to_z(itime, ipart)
   use particle_mod
   implicit none 
@@ -25,7 +25,6 @@ subroutine update_zeta_to_z(itime, ipart)
     itime,                        & ! time index
     ipart                           ! particle index
 
-  if (.not. wind_coord_type.eq.'ETA') return
   if (.not. part(ipart)%alive) return  
   if (part(ipart)%etaupdate) return
 
@@ -43,7 +42,6 @@ subroutine update_z_to_zeta(itime, ipart)
     itime,                        & ! time index
     ipart                           ! particle index
 
-  if (.not. wind_coord_type.eq.'ETA') return
   if (.not. part(ipart)%alive) return
   if (part(ipart)%meterupdate) return
 
@@ -191,7 +189,7 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
   integer, intent(in) ::          &
     itime                           ! time index
   integer ::                      &
-    i,j,k,m,ii,indexh               ! loop indices
+    i,k,m,ii                        ! loop indices
   real(kind=dp), intent(in) ::    &
     xt,yt                           ! particle position
   real(kind=dp), intent(in) ::    &
@@ -199,11 +197,12 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
   real(kind=dp), intent(inout) :: &
     ztout                           ! converted output z in meters
   real(kind=dp) ::                &
-    frac                            ! fraction between z levels
+    frac,                         &  ! fraction between z levels
+    prx,pr1,pr2                      ! pressure of encompassing levels
   real ::                         &
     ztemp1(2),                    & ! z positions of the two encompassing levels
     ttemp1(2),                    & ! storing virtual temperature
-    psint1(2),psint,prx,pr1,pr2     ! pressure of encompassing levels
+    psint1(2),psint                 ! pressure of encompassing levels
  
   if (.not. log_interpol) then
     call zeta_to_z_lin(itime,xt,yt,zteta,ztout)
@@ -238,8 +237,8 @@ subroutine zeta_to_z(itime,xt,yt,zteta,ztout)
   endif
 
   call temporal_interpolation(psint1(1),psint1(2),psint)  
-  pr1=akz(k-1) + bkz(k-1)*psint
-  pr2=akz(k) + bkz(k)*psint
+  pr1=real(akz(k-1) + bkz(k-1)*psint,kind=dp)
+  pr2=real(akz(k) + bkz(k)*psint,kind=dp)
   prx=pr1*(1.-frac) + pr2*frac
   
   if (ngrid.le.0) then
@@ -287,8 +286,6 @@ subroutine w_to_weta(itime,dt,xt,yt,z_old,zeta_old,w_in,weta_out)
   implicit none
   integer, intent(in)          ::  &
     itime                            ! time index
-  integer                      ::  &
-    i,m,k,n                          ! loop indices
   real, intent(in)             ::  &
     dt                               ! time step
   real(kind=dp), intent(in)    ::  &
@@ -337,10 +334,7 @@ subroutine z_to_zeta_lin(itime,xt,yt,zold,zteta)
   real ::                         &
     frac,                         & ! fraction between z levels
     ztemp1,ztemp2,                & ! z positions of the two encompassing levels
-    ttemp1(2),                    & ! storing virtual temperature
-    psint1(2),psint                 ! pressure of encompassing levels
-  real ::                         &
-    prx,pr1,pr2     ! pressure of encompassing levels
+    ttemp1(2)                       ! storing virtual temperature
 
   call find_ngrid(xt,yt)
   call find_grid_indices(real(xt),real(yt))
@@ -375,6 +369,8 @@ subroutine z_to_zeta_lin(itime,xt,yt,zold,zteta)
   n=max(n,2)
 
   ztemp1 = 0.
+  frac = 0.
+  k=n
   do i=n,nz-1
     k=i
     if (ngrid.le.0) then
@@ -421,7 +417,7 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
   integer, intent(in) ::          &
     itime                           ! time index
   integer ::                      &
-    i,j,k,m,ii,indexh               ! loop indices
+    i,k,m,ii                        ! loop indices
   real(kind=dp), intent(in) ::    &
     xt,yt                           ! particle position
   real(kind=dp), intent(in) ::    &
@@ -432,9 +428,8 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
     frac                            ! fraction between z levels
   real ::                         &
     ztemp1(2),                    & ! z positions of the two encompassing levels
-    ttemp1(2),                    & ! storing virtual temperature
-    psint1(2),psint                 ! pressure of encompassing levels
- 
+    ttemp1(2)                       ! storing virtual temperature
+
 
   ! Convert eta z coordinate to meters
   !***********************************
@@ -471,5 +466,5 @@ subroutine zeta_to_z_lin(itime,xt,yt,zteta,ztout)
   
   ztout = real(ztemp1(1),kind=dp)*(1.-frac)+real(ztemp1(2),kind=dp)*frac
 end subroutine zeta_to_z_lin
-
+#endif
 end module coord_ecmwf_mod

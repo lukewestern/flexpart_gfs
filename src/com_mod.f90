@@ -40,6 +40,7 @@ module com_mod
   integer :: length(numpath+2*maxnests)
   character(len=256) :: pathfile, flexversion, flexversion_major, arg1, arg2
   character(len=256) :: ohfields_path
+  character(len=256) :: gitversion
   
   ! path                    path names needed for trajectory model
   ! length                  length of path names needed for trajectory model
@@ -89,7 +90,8 @@ module com_mod
   real :: ctl,fine
   integer :: ifine,iout,ipout,ipin,iflux,mdomainfill,ipoutfac
   integer :: mquasilag,nested_output,ind_source,ind_receptor,nxshift
-  integer :: ind_rel,ind_samp,ioutputforeachrelease,linit_cond,surf_only
+  integer :: ind_rel,ind_samp,ioutputforeachrelease,linit_cond,sfc_only
+  integer :: surf_only ! deprecated
   logical :: turbswitch
   integer :: cblflag !added by mc for cbl
 
@@ -117,7 +119,7 @@ module com_mod
   !     0=no, 1=mass unit, 2=mass mixing ratio unit
   ! mquasilag 0: normal run
   !      1: Particle position output is produced in a condensed format and particles are numbered
-  ! surf_only   switch output in grid_time files for surface only or full vertical resolution
+  ! sfc_only   switch output in grid_time files for surface only or full vertical resolution
   !      0=no (full vertical resolution), 1=yes (surface only)
   ! nested_output: 0 no, 1 yes
   ! turbswitch              determines how the Markov chain is formulated
@@ -135,10 +137,11 @@ module com_mod
   ! mintime                 minimum time step to be used by FLEXPART
   ! itsplit                 time constant for splitting particles
 
-  integer :: lsubgrid,lconvection,lagespectra
+  integer :: lsubgrid,lconvection,lturbulence,lagespectra
 
   ! lsubgrid     1 if subgrid topography parameterization switched on, 2 if not
   ! lconvection  1 if convection parameterization switched on, 0 if not
+  ! lturbulence  1 if turbulence parameterization switched on, 0 if not
   ! lagespectra  1 if age spectra calculation switched on, 2 if not
 
   integer :: lnetcdfout
@@ -204,6 +207,7 @@ module com_mod
   real :: ohcconst(maxspec),ohdconst(maxspec),ohnconst(maxspec)
   ! Daria Tatsii: species shape properties
   real :: Fn(maxspec),Fs(maxspec) ! Newton and Stokes' regime
+  real :: ks1(maxspec),ks2(maxspec),kn2(maxspec)
   integer :: ishape(maxspec),orient(maxspec)
 
   real :: area_hour(maxspec,24),point_hour(maxspec,24)
@@ -486,7 +490,6 @@ module com_mod
   logical :: lroot=.true. ! true if serial version, or if MPI .and. root process
   
   logical, parameter :: interpolhmix=.false. ! true if the hmix shall be interpolated
-  logical, parameter :: turboff=.false.       ! true if the turbulence shall be switched off
 
   integer :: numthreads,numthreads_grid  ! number of available threads in parallel sections
   !integer :: nclassunc2, nrecclunc, ngriclunc
@@ -524,4 +527,8 @@ contains
 
   end subroutine mpi_alloc_part
 
+  subroutine update_gitversion(gitversion_tmp)
+    character(len=256) :: gitversion_tmp
+    gitversion=gitversion_tmp
+  end subroutine
 end module com_mod

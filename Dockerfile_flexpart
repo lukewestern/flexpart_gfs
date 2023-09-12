@@ -1,0 +1,23 @@
+#
+# Dockerfile for CI and Flexpart container images
+# Options:
+#	- COMMIT = ... (use git log --pretty=format:'%h %D (%s %at)' -n 1)
+#			   with this option Flexpart is build inside the container
+# Build Examples:
+#	- podman build -t harbor.wolke.img.univie.ac.at/flexpart/flexpartv11:$(git rev-parse --abbrev-ref HEAD) -f Dockerfile_flexpart --build-arg COMMIT=$(git log --pretty=format:'%h %D %ad' -n 1)
+#
+#
+# Build image with Flexpart inside
+#
+FROM harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+ARG COMMIT=0
+ENV COMMIT=$COMMIT
+COPY ./src /src
+COPY ./tests/default_options /options
+COPY ./tests/default_winds /inputs
+COPY ./entrypoint.sh /entrypoint.sh
+WORKDIR /src
+RUN make -f makefile_gfortran && \
+	mkdir -p /output && \
+	echo -e "/options/\n/output/\n/inputs/\n/inputs/AVAILABLE" > /pathnames
+ENTRYPOINT ["/entrypoint.sh"]
