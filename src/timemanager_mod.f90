@@ -256,34 +256,30 @@ subroutine timemanager
 
       alive_tmp=count%alive
       spawned_tmp=count%spawned
-!$OMP PARALLEL PRIVATE(i) REDUCTION(+:alive_tmp,spawned_tmp)
-!$OMP DO
       do i=1,count%allocated
         if (.not. part(i)%alive) then
           if (ldirect.lt.0) then
             if ((part(i)%tstart.le.itime).and.(part(i)%tstart.gt.itime+lsynctime)) then
               call spawn_particle(itime,i)
-#ifdef ETA
-              call update_z_to_zeta(itime,i)
-#endif
-              alive_tmp=alive_tmp+1
-              spawned_tmp=spawned_tmp+1
-
             endif
           else if ((part(i)%tstart.ge.itime).and.(part(i)%tstart.lt.itime+lsynctime)) then
             call spawn_particle(itime,i)
-#ifdef ETA
-            call update_z_to_zeta(itime,i)
-#endif
-            alive_tmp=alive_tmp+1
-            spawned_tmp=spawned_tmp+1
           endif
         endif
       end do
+
+#ifdef ETA
+!$OMP PARALLEL PRIVATE(i) REDUCTION(+:alive_tmp,spawned_tmp)
+!$OMP DO
+      do i=1,count%alive
+        j=count%ialive(i)
+        if (part(j)%tstart.eq.itime) then
+          call update_z_to_zeta(itime,j)
+        end if
+      end do
 !$OMP END DO
 !$OMP END PARALLEL
-      count%alive=alive_tmp
-      count%spawned=spawned_tmp
+#endif
       call get_totalpart_num(numpart)
     else
       call releaseparticles(itime)

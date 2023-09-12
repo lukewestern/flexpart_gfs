@@ -38,7 +38,6 @@ ln -s ../src/FLEXPART .
 test -d ./default_options
 report "[$MM] default options: ./default_options" || exit 1
 cp -rf ./default_options ./current
-mkdir -p ./output/
 #
 # Different options tests
 #

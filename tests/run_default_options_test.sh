@@ -183,7 +183,7 @@ rm -rf ./current ./output/*
 cp -rf ./default_options ./current
 sed -i "/IPOUT=/c\ IPOUT=  1," ./current/COMMAND
 sed "/SPECNUM_REL=/c\ SPECNUM_REL=   40," ./default_options/RELEASES > ./current/RELEASES
-sed -i "/PSHAPE/c\ PSHAPE= 0" ./current/SPECIES/SPECIES_040
+sed -i "/PSHAPE=/c\ PSHAPE= 0," ./current/SPECIES/SPECIES_040
 sed -i "/LON1    =/c\ LON1    =    10.00833011," ./current/RELEASES
 sed -i "/LON2    =/c\ LON2    =    30.00833011," ./current/RELEASES
 sed -i "/LAT1    =/c\ LAT1    =        20.0583," ./current/RELEASES

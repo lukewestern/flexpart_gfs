@@ -2662,7 +2662,7 @@ subroutine readinitconditions_netcdf()
     stop
   endif
 
-  part(:)%idt=part(:)%tstart
+  part(:)%idt=mintime
   do i=1,plen
     part(i)%nclass=min(int(ran1(idummy,0)*real(nclassunc))+1, &
          nclassunc)

@@ -112,7 +112,7 @@ subroutine find_grid_indices(xt,yt)
 
   real, intent(in) :: xt,yt                 ! particle positions
 
-  if (ngrid.gt.0) then
+  if (ngrid.gt.0) then ! Nest
     xtn=(xt-xln(ngrid))*xresoln(ngrid)
     ytn=(yt-yln(ngrid))*yresoln(ngrid)
     ! ix=int(xtn)
@@ -157,7 +157,7 @@ subroutine find_grid_distances(xt,yt)
   if (ngrid.le.0) then
     ddx=xt-real(ix)
     ddy=yt-real(jy)
-  else
+  else ! Nest
     ddx=xtn-real(ix)
     ddy=ytn-real(jy)
   endif

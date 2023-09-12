@@ -44,7 +44,7 @@ program flexpart
   real :: s_timemanager
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
-  character(len=256) :: gitversion_tmp="7257dae HEAD -> optimise, origin/optimise Mon Sep 11 15:11:05 2023 +0200"
+  character(len=256) :: gitversion_tmp="eaa61eb HEAD -> optimise Mon Sep 11 16:40:18 2023 +0200"
 
   ! Keeping track of the total running time of FLEXPART, printed out at the end.
   !*****************************************************************************
