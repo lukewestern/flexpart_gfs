@@ -48,6 +48,19 @@ _FLEXPART_ is compiled with [make](https://www.gnu.org/software/make/), which us
     $ cd src/
     $ make -j -f <prefered_makefile>
 
+This will create the executable `FLEXPART`
+
+### Compiling FLEXPART with eta coordinates (ECMWF only)
+
+    $ make -j -f <prefered_makefile> eta=yes
+
+This will create the executable `FLEXPART_ETA`
+
+### Compiling FLEXPART without NetCDF libraries
+
+    $ make -j -f <prefered_makefile> eta=<yes/no> ncf=no
+
+This will create the executable `FLEXPART_BIN`, or `FLEXPART_ETA_BIN` for `eta=yes`.
 ### <a name="paths"></a>Paths
 the makefile provided uses a predefined `CPATH` and `LIBRARY_PATH`, the default on most servers. If these paths are not available, you will need to edit the makefile, adding the correct paths manually.
 

@@ -54,6 +54,7 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="IPOUT"></a>IPOUT | Switch for particle position output | **0 (no particle output)**, 1 (particle output every LOUTSTEP), 2 (particle output at the end of the simulation) |
 | <a name="LSUBGRID"></a>LSUBGRID | Increase in ABL heights due to subgrid-scale orographic variations | **0 (off)**, 1 (on) |
 | <a name="LCONVECTION"></a>LCONVECTION | Switch for convection parameterization | 0 (off), **1 (on)** |
+| <a name="LTURBULENCE"></a>LTURBULENCE | Switch for turbulence parameterization | 0 (off), **1 (on)** |
 | <a name="LAGESPECTRA"></a>LAGESPECTRA | Switch for calculation of age spectra (needs file [AGECLASSES](running.md#ageclasses) option file) | 0 (off), **1 (on)** |
 | <a name="IPIN"></a>IPIN | Particle information input. Starting from [RELEASES](running.md#releases) option file, form restart.bin, or user-defined particle input data (see Silvia Bucci's stuff) | **0 (using RELEASES option file)**, 1 (using restart.bin file), 2 (using previous partoutput file), 3 (self made initial conditions), 4 (restart.bin and self made initial conditions) |
 | <a name="IOUTPUTFOREACHRELEASE"></a>IOUTPUTFOREACHRELEASE | Switch for separate output fields for each location in the [RELEASES](running.md#releases) file | 0 (no), **1 (yes)** |
@@ -63,6 +64,7 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="IND_RECEPTOR"></a>IND_RECEPTOR | Unit to be used at the receptor; see Seibert and Frank (2004); Eckhardt et al. (2017) | 0 (no receptor), **1 (mass)**, 2 (mass mixing ratio), 3 (backward only: wet deposition),  4 (backward only: dry depostion) |
 | <a name="MQUASILAG"></a>MQUASILAG | Quasi-Lagrangian mode to track individual numbered particles | **0 (off)**, 1 (on) |
 | <a name="NESTED_OUTPUT"></a>NESTED_OUTPUT | Switch to produce output also for a nested domain | **0 (no)**, 1 (yes) |
+| <a name="LNETCDFOUT"></a>LNETCDFOUT | Switch to produce NetCDF output, overwritten to 1 when IOUT>8 and set to 0 when compiled without NetCDF libraries | 0 (no), **1 (yes)** |
 | <a name="LINIT_COND"></a>LINIT_COND | Switch to produce output sensitivity to initial conditions given in concentration or mixing ratio units (in backwards mode only) | **0 (no)**, 1 (mass), 2 (mass mixing ratio) |
 | <a name="SURF_ONLY"></a>SURF_ONLY | Output of SRR for fluxes only for the lowest model layer, most useful for backward runs when LINIT_COND set to 1 or 2 | **0 (no)**, 1 (yes) |
 | <a name="CBLFLAG"></a>CBLFLAG | Skewed rather than Gaussian turbulence in the convective ABL; when turned on, very short time steps should be used (see CTL and IFINE) | **0 (no)**, 1 (yes) |
@@ -261,7 +263,7 @@ A simulation can be started using a NetCDF file listing all particles to be rele
 | `latitude` | Initial latitude of each particle | 1D-array of reals with dimension `particle` |
 | `height` | Initial height of each particle (meter above reference level) | 1D-array of reals with dimension `particle` |
 | `time` | Release time of each particle seconds after simulation start (set in [COMMAND](running.md#command)) | 1D-array of reals with dimension `particle` |
-| `mass` | Initial mass of each particle (kg) | 1D-array of reals with dimension `particle` |
+| `mass` | Initial mass of each particle (kg) | 2D-array of reals with dimension `species` and `particle` |
 | `release` | Release ID of each particle, giving separate concentration fields for each ID when [IOUTPUTFOREACHRELEASE](running.md#ioutputforeachrelease) in [COMMAND](running.md#command) is set | 1D-array of integers with dimension `particle` |
 
 <br/>
