@@ -2637,6 +2637,15 @@ subroutine readinitconditions_netcdf()
   endif
   deallocate(numpoint_max)
 
+  ! Setting zpoint1 and zpoint2 necessary for wet backward deposition and plumes
+  allocate(zpoint1(numpoint),zpoint2(numpoint))
+  zpoint2(:)=0.
+  zpoint1(:)=1.e8
+  do i=1,plen
+    if (part(i)%z.gt.zpoint2(part(i)%npoint)) zpoint2(part(i)%npoint)=part(i)%z
+    if (part(i)%z.lt.zpoint1(part(i)%npoint)) zpoint1(part(i)%npoint)=part(i)%z
+  end do
+
   allocate(xmass(numpoint,nspec), npart(numpoint),ireleasestart(numpoint),ireleaseend(numpoint))
   xmass=0
   npart=0
