@@ -196,7 +196,7 @@ gitversion:
 	@echo Added Gitversion: $(GIT_VERSION)
 	@echo Old Gitversion: $(GIT_OLD)
 
-	sed -i '0,/gitversion_tmp/s;gitversion_tmp.*;gitversion_tmp=$(GIT_VERSION);' FLEXPART.f90
+	sed -i '0,/gitversion_tmp/s;gitversion_tmp.*;gitversion_tmp=\&\n$(GIT_VERSION);' FLEXPART.f90
 	@echo $(GIT_VERSION) > gitversion.txt
 
 ## DEPENDENCIES
