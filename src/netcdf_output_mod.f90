@@ -2557,20 +2557,6 @@ subroutine readinitconditions_netcdf()
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%ylat, & 
     start=(/ 1 /),count=(/ plen /)))
   part(:)%ylat=(part(:)%ylat-ylat0)/dx
-  ! Check if they are within the bounds
-  do i=1,plen
-    if ((part(i)%xlon.lt.0).or.(part(i)%xlon.gt.nx)) then
-      write(*,*) 'Dimensions (nx,ny): ',nx,ny
-      write(*,*) "Particle", i, "with xlon", part(i)%xlon
-      error stop "Initial latitude particle outside of domain."
-    endif
-    if ((part(i)%ylat.lt.0).or.(part(i)%ylat.gt.ny)) then
-        write(*,*) 'Dimensions (nx,ny): ',nx,ny
-      write(*,*) "Particle", i, "with ylat", part(i)%ylat
-      error stop "Initial latitude particle outside of domain."
-    endif
-  end do
-
   ! Height
   call nf90_err(nf90_inq_varid(ncid=ncidend,name='height',varid=tempIDend))
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%z, & 
@@ -2587,6 +2573,30 @@ subroutine readinitconditions_netcdf()
     part(:)%mass(nsp)=mass_temp(1:plen,nsp)
   end do
   deallocate(mass_temp)
+
+  ! Check if they are within the bounds
+  do i=1,plen
+    if ((part(i)%xlon.lt.0).or.(part(i)%xlon.gt.nx)) then
+      write(*,*) 'Dimensions (nx,ny): ',nx,ny
+      write(*,*) "Particle", i, "with xlon", part(i)%xlon
+      error stop "Initial latitude particle outside of domain."
+    endif
+    if ((part(i)%ylat.lt.0).or.(part(i)%ylat.gt.ny)) then
+        write(*,*) 'Dimensions (nx,ny): ',nx,ny
+      write(*,*) "Particle", i, "with ylat", part(i)%ylat
+      error stop "Initial latitude particle outside of domain."
+    endif
+    if (part(i)%z.lt.0) then
+      write(*,*) "Particle", i, "with height", part(i)%z
+      error stop "Initial height particle below surface/sea level."
+    endif
+    do nsp=1,nspec
+      if (part(i)%mass(nsp).lt.0) then
+        write(*,*) "Particle", i, "of species", nsp, "with mass", part(i)%mass(nsp)
+        error stop "Negative initial mass."
+      endif
+    end do
+  end do
   ! Release
   call nf90_err(nf90_inq_varid(ncid=ncidend,name='release',varid=tempIDend))
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%npoint, & 
