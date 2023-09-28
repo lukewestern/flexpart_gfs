@@ -1205,7 +1205,7 @@ subroutine getvdep_nest(n,ix,jy,ust,temp,pa, &
   end do
 end subroutine getvdep_nest
 
-subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
+subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep_tmp)
   !                   i     i      i     i    i   i    i    i  i, i, i/o
   !*****************************************************************************
   !                                                                            *
@@ -1245,7 +1245,7 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
   ! schmi(nc,ni)         Schmidt number**2/3 of each diameter interval         *
   ! stokes               Stokes number                                         *
   ! ustar [m/s]          friction velocity                                     *
-  ! vdep(nc) [m/s]       deposition velocities of all components               *
+  ! vdep_tmp(nc) [m/s]       deposition velocities of all components               *
   ! vdepj [m/s]          help, deposition velocity of 1 interval               *
   ! vset(nc,ni)          gravitational settling velocity of each interval      *
   !                                                                            *
@@ -1267,7 +1267,7 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
     density(maxspec),       & ! density of the particle
     fract(maxspec,maxndia)    ! mass fraction of each diameter interval
   real, intent(inout) ::    &
-    vdep(maxspec)
+    vdep_tmp(maxspec)
   real :: schmi(maxspec,maxndia)
   real :: stokes,vdepj,rdp,alpha
   real :: & ! Variables related to shape
@@ -1374,7 +1374,7 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep)
         ! deposition velocities of each interval are weighted with mass fraction
         !***********************************************************************
 
-        vdep(ic)=vdep(ic)+vdepj*fract(ic,j)
+        vdep_tmp(ic)=vdep_tmp(ic)+vdepj*fract(ic,j)
           
       end do
     endif
