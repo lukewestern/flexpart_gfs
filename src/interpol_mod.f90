@@ -58,13 +58,13 @@ module interpol_mod
   end interface find_ngrid
 
 ! uprof,vprof,wprof,usigprof,vsigprof,wsigprof,indzindicator, wsigprofeta,
-! rhoprof,rhogradprof,
+! rhoprof,rhogradprof,wprofeta,
 #ifdef ETA
 !$OMP THREADPRIVATE( &
 !$OMP u,v,w,usig,vsig,wsig, &
 !$OMP p1,p2,p3,p4,ddx,ddy,rddx,rddy,dtt,dt1,dt2,ix,jy,ixp,jyp, &
 !$OMP ngrid,indz,indzp,depoindicator,&
-!$OMP wprofeta,induv,indpuv,lbounds,lbounds_w,lbounds_uv, &
+!$OMP induv,indpuv,lbounds,lbounds_w,lbounds_uv, &
 !$OMP indzeta,indzpeta,ueta,veta,weta,wsigeta, &
 !$OMP xtn,ytn,nix,njy,dz1out,dz2out)
 #else
