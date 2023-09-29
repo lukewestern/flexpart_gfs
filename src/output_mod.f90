@@ -310,14 +310,18 @@ subroutine output_particles(itime,initial_output)
           end do
           cycle
         case ('WD') ! Wet deposition
-          do ns=1,nspec
-            wetdepotemp(i,ns)=part(i)%wetdepo(ns)
-          end do
+          if (wetdep) then
+            do ns=1,nspec
+              wetdepotemp(i,ns)=part(i)%wetdepo(ns)
+            end do
+          endif
           cycle
         case ('DD') ! dry deposition
-          do ns=1,nspec
-            drydepotemp(i,ns)=part(i)%drydepo(ns)
-          end do
+          if (drydep) then 
+            do ns=1,nspec
+              drydepotemp(i,ns)=part(i)%drydepo(ns)
+            end do
+          endif
           cycle
         case ('lo')
           if (.not. cartxyz_comp) then
@@ -371,9 +375,9 @@ subroutine output_particles(itime,initial_output)
         write(*,*) partopt(np)%long_name, masstemp(1,:)
       else if (partopt(np)%name.eq.'ma') then
         write(*,*) partopt(np)%long_name, masstemp_av(1,:)
-      else if (partopt(np)%name.eq.'WD') then
+      else if (partopt(np)%name.eq.'WD'.and.wetdep) then
         write(*,*) partopt(np)%long_name, wetdepotemp(1,:)
-      else if (partopt(np)%name.eq.'DD') then
+      else if (partopt(np)%name.eq.'DD'.and.drydep) then
         write(*,*) partopt(np)%long_name, drydepotemp(1,:)
       else
         write(*,*) partopt(np)%long_name, output(np,1)
@@ -424,11 +428,11 @@ subroutine output_particles(itime,initial_output)
           do ns=1,nspec
             call partoutput_netcdf(itime,masstemp_av(:,ns),'ma',ns,ncid)
           end do
-        else if ((.not. init_out).and.(partopt(np)%name.eq.'WD')) then
+        else if ((.not. init_out).and.(partopt(np)%name.eq.'WD').and.wetdep) then
           do ns=1,nspec
             call partoutput_netcdf(itime,wetdepotemp(:,ns),'WD',ns,ncid)
           end do
-        else if ((.not. init_out).and.(partopt(np)%name.eq.'DD')) then
+        else if ((.not. init_out).and.(partopt(np)%name.eq.'DD').and.drydep) then
           do ns=1,nspec
             call partoutput_netcdf(itime,drydepotemp(:,ns),'DD',ns,ncid)
           end do
