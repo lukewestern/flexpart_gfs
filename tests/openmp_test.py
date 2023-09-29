@@ -26,8 +26,8 @@ for idvars in dvars:
 ndata_1.close()
 ndata_32.close()
 
-ndata_1 = nc.Dataset(path1+"grid_drydep_"+fdate+".nc", 'r')
-ndata_32 = nc.Dataset(path32+"grid_drydep_"+fdate+".nc", 'r')
+ndata_1 = nc.Dataset(path1+"grid_conc_"+fdate+".nc", 'r')
+ndata_32 = nc.Dataset(path32+"grid_conc_"+fdate+".nc", 'r')
 
 print("Checking gridded output...")
 #Concentrations
@@ -79,8 +79,8 @@ for idvars in dvars:
 ndata_1.close()
 ndata_32.close()
 
-ndata_1 = nc.Dataset(path1eta+"grid_drydep_"+fdate+".nc", 'r')
-ndata_32 = nc.Dataset(path32eta+"grid_drydep_"+fdate+".nc", 'r')
+ndata_1 = nc.Dataset(path1eta+"grid_conc_"+fdate+".nc", 'r')
+ndata_32 = nc.Dataset(path32eta+"grid_conc_"+fdate+".nc", 'r')
 
 print("Checking gridded output...")
 #Concentrations
