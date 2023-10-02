@@ -25,13 +25,18 @@ contains
 
     implicit none
 
-    integer :: num_threads, i
+    integer :: num_threads, i,stat
 
-    allocate(ran1_iv(ran1_ntab,0:num_threads-1),ran1_iy(0:num_threads-1))
-    allocate(gasdev_iset(0:num_threads-1),gasdev_gset(0:num_threads-1))
-    allocate(ran3_iff(0:num_threads-1),ran3_inext(0:num_threads-1),ran3_inextp(0:num_threads-1))
-    allocate(ma(55,0:num_threads-1))
-    allocate(iseed1(0:num_threads-1),iseed2(0:num_threads-1))
+    allocate(ran1_iv(ran1_ntab,0:num_threads-1),ran1_iy(0:num_threads-1), stat=stat)
+    if (stat.ne.0) error stop "Could not allocate ran1_iv"
+    allocate(gasdev_iset(0:num_threads-1),gasdev_gset(0:num_threads-1), stat=stat)
+    if (stat.ne.0) error stop "Could not allocate gasdev_iset"
+    allocate(ran3_iff(0:num_threads-1),ran3_inext(0:num_threads-1),ran3_inextp(0:num_threads-1), stat=stat)
+    if (stat.ne.0) error stop "Could not allocate ran3_iff"
+    allocate(ma(55,0:num_threads-1), stat=stat)
+    if (stat.ne.0) error stop "Could not allocate ma"
+    allocate(iseed1(0:num_threads-1),iseed2(0:num_threads-1), stat=stat)
+    if (stat.ne.0) error stop "Could not allocate iseed1"
 
     do i=0,num_threads-1
       iseed1(i) = -7-i

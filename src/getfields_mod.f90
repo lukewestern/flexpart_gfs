@@ -50,18 +50,31 @@ contains
 
 subroutine alloc_getfields
   implicit none
-  allocate(uuh(0:nxmax-1,0:nymax-1,nuvzmax),      &
-    vvh(0:nxmax-1,0:nymax-1,nuvzmax),             &
-    pvh(0:nxmax-1,0:nymax-1,nuvzmax),             &
-    wwh(0:nxmax-1,0:nymax-1,nwzmax),              &
-    uuhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numbnests), &
-    vvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numbnests), &
-    pvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numbnests), &
-    wwhn(0:nxmaxn-1,0:nymaxn-1,nwzmax,numbnests),  &
-    pwater(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+  integer :: stat
 
-  allocate(ppml(0:nxmax-1,0:nymax-1,nuvzmax),ppmk(0:nxmax-1,0:nymax-1,nuvzmax))
-  allocate(ttlev(nuvzmax),qvlev(nuvzmax),ulev(nuvzmax),vlev(nuvzmax),zlev(nuvzmax))
+  allocate(uuh(0:nxmax-1,0:nymax-1,nuvzmax),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate uuh'
+  allocate(vvh(0:nxmax-1,0:nymax-1,nuvzmax),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate vvh'
+  allocate(pvh(0:nxmax-1,0:nymax-1,nuvzmax),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate pvh'
+  allocate(wwh(0:nxmax-1,0:nymax-1,nwzmax),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate wwh'
+  allocate(uuhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numbnests),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate uuhn'
+  allocate(vvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numbnests),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate vvhn'
+  allocate(pvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numbnests),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate pvhn'
+  allocate(wwhn(0:nxmaxn-1,0:nymaxn-1,nwzmax,numbnests),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate wwhn'
+  allocate(pwater(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate pwater'
+
+  allocate(ppml(0:nxmax-1,0:nymax-1,nuvzmax),ppmk(0:nxmax-1,0:nymax-1,nuvzmax),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate ppml,ppmk'
+  allocate(ttlev(nuvzmax),qvlev(nuvzmax),ulev(nuvzmax),vlev(nuvzmax),zlev(nuvzmax),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate ttlev,qvlev,ulev,vlev,zlev'
 end subroutine alloc_getfields
 
 subroutine dealloc_getfields
@@ -904,11 +917,11 @@ subroutine calcpar(n)
 
   implicit none
 
-  integer :: n,ix,jy,i,kz,lz,kzmin,llev,loop_start,ierr
+  integer :: n,ix,jy,i,kz,lz,kzmin,llev,loop_start,ierr,stat
   real :: ol,hmixplus
   real :: rh,subsceff,ylat
   real :: altmin,tvold,pold,zold,pint,tv,hmixdummy,akzdummy
-  real :: vd(maxspec)
+  real,allocatable,dimension(:) :: vd
   real :: z0_tmp(numclass) ! temporary variable for z0 (shared between OMP threads)
   real,parameter :: const=r_air/ga
 
@@ -927,6 +940,9 @@ subroutine calcpar(n)
 !$OMP PARALLEL PRIVATE(jy,ix,ulev,vlev,ttlev,qvlev,llev,ylat,ol,i,hmixplus, &
 !$OMP subsceff,vd,kz,lz,zlev,rh,kzmin,pold,zold,tvold,pint,tv,loop_start,ierr, &
 !$OMP altmin)
+
+  allocate( vd(maxspec),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate vd inside of OMP loop'
 
 !$OMP DO
   do jy=0,nymin1
@@ -1117,6 +1133,7 @@ subroutine calcpar(n)
     end do
   end do
 !$OMP END DO
+  deallocate(vd)
 !$OMP END PARALLEL
   ! Calculation of potential vorticity on 3-d grid
   !***********************************************
@@ -1168,11 +1185,11 @@ subroutine calcpar_nest(n)
 
   implicit none
 
-  integer :: n,ix,jy,i,l,kz,lz,kzmin,ierr
+  integer :: n,ix,jy,i,l,kz,lz,kzmin,ierr,stat
   real :: ol,hmixplus,dummyakzllev
   real :: rh,subsceff,ylat
   real :: altmin,tvold,pold,zold,pint,tv
-  real :: vd(maxspec)
+  real,allocatable,dimension(:) :: vd
   real :: z0_tmp(numclass) ! temporary variable for z0 (shared between OMP threads)
   real,parameter :: const=r_air/ga
 
@@ -1187,7 +1204,10 @@ subroutine calcpar_nest(n)
 !$OMP PARALLEL DEFAULT(SHARED) &
 !$OMP PRIVATE(i,ix,jy,kz,lz,kzmin,tvold,pold,zold,zlev,tv,pint, &
 !$OMP rh,ierr,subsceff,ulev,vlev,ttlev,qvlev,ol,altmin,ylat,hmixplus, &
-!$OMP dummyakzllev,vd )
+!$OMP dummyakzllev,stat,vd )
+
+  allocate( vd(maxspec),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate vd inside of OMP loop'
 
 !$OMP DO
   do jy=0,nyn(l)-1
@@ -1344,6 +1364,8 @@ subroutine calcpar_nest(n)
   end do
 
 !$OMP END DO
+
+  deallocate(vd)
 !$OMP END PARALLEL
 
   ! Calculation of potential vorticity on 3-d grid

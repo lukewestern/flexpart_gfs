@@ -357,7 +357,7 @@ contains
     real, allocatable          :: tmpxscav(:,:)
     real, allocatable          :: tmpxl(:),tmpyl(:),tmpzl(:)
     integer, allocatable       :: tmpnclust(:)
-    integer                    :: i
+    integer                    :: i,stat
 
     if (nmpart.gt.100) &
       write(*,*) 'Allocating ',nmpart,' particles', count%allocated, count%terminated, count%spawned
@@ -365,10 +365,12 @@ contains
     ! Keeping track of the allocated memory in case 
     ! there is a reason for deallocating some of it
     !**********************************************
-    allocate( tmpcount(count%allocated+nmpart) )
+    allocate( tmpcount(count%allocated+nmpart),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate tmpcount"
     if (count%allocated.gt.0) tmpcount(1:count%allocated) = count%inmem
     call move_alloc(tmpcount,count%inmem)
-    allocate( tmpnclust(count%allocated+nmpart) )
+    allocate( tmpnclust(count%allocated+nmpart),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate tmpnclust"
     if (count%allocated.gt.0) tmpnclust(1:count%allocated) = count%ialive
     call move_alloc(tmpnclust,count%ialive)
 
@@ -376,7 +378,8 @@ contains
 
     ! Allocating new particle spaces
     !*******************************
-    allocate( tmppart(count%allocated+nmpart) )
+    allocate( tmppart(count%allocated+nmpart),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate tmppart"
     if (n_average.gt.0) then 
       do i=1,count%allocated+nmpart
         allocate( tmppart(i)%val_av(n_average) )
@@ -384,13 +387,16 @@ contains
       end do
     endif
     do i=1,count%allocated+nmpart
-      allocate( tmppart(i)%mass(maxspec),tmppart(i)%mass_init(maxspec) )
+      allocate( tmppart(i)%mass(maxspec),tmppart(i)%mass_init(maxspec),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate tmppart"
       if (DRYDEP) then
-        allocate( tmppart(i)%drydepo(maxspec),tmppart(i)%prob(maxspec) )
+        allocate( tmppart(i)%drydepo(maxspec),tmppart(i)%prob(maxspec),stat=stat)
+        if (stat.ne.0) error stop "Could not allocate tmppart"
         tmppart(i)%drydepo(maxspec)=0.
       endif
       if (WETDEP) then 
-        allocate( tmppart(i)%wetdepo(maxspec) )
+        allocate( tmppart(i)%wetdepo(maxspec),stat=stat)
+        if (stat.ne.0) error stop "Could not allocate tmppart"
         tmppart(i)%wetdepo(maxspec)=0.
       endif
     end do
@@ -401,7 +407,8 @@ contains
     ! needs to be allocated
     !*******************************************************************
     if (WETBKDEP.or.DRYBKDEP) then
-      allocate( tmpxscav(count%allocated+nmpart,maxspec) )
+      allocate( tmpxscav(count%allocated+nmpart,maxspec),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate tmpxscav"
       if (count%allocated.gt.0) tmpxscav(1:count%allocated,:) = xscav_frac1
       call move_alloc(tmpxscav,xscav_frac1)
       ! Initialise it here
@@ -409,19 +416,23 @@ contains
     endif
 
     if ((iout.eq.4).or.(iout.eq.5)) then
-      allocate( tmpxl(count%allocated+nmpart) )
+      allocate( tmpxl(count%allocated+nmpart),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate tmpxl"
       if (count%allocated.gt.0) tmpxl(1:count%allocated) = xplum
       call move_alloc(tmpxl,xplum)
       
-      allocate( tmpyl(count%allocated+nmpart) )
+      allocate( tmpyl(count%allocated+nmpart),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate tmpyl"
       if (count%allocated.gt.0) tmpyl(1:count%allocated) = yplum
       call move_alloc(tmpyl,yplum)
 
-      allocate( tmpzl(count%allocated+nmpart) )
+      allocate( tmpzl(count%allocated+nmpart),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate tmpzl"
       if (count%allocated.gt.0) tmpzl(1:count%allocated) = zplum
       call move_alloc(tmpzl,zplum)
 
-      allocate( tmpnclust(count%allocated+nmpart) )
+      allocate( tmpnclust(count%allocated+nmpart),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate tmpnclust"
       if (count%allocated.gt.0) tmpnclust(1:count%allocated) = nclust
       call move_alloc(tmpnclust,nclust)
     endif

@@ -44,7 +44,7 @@ subroutine readageclasses
   integer :: i
 
   ! namelist help variables
-  integer :: ios
+  integer :: ios,stat
   ! namelist declaration
   namelist /nage/ &
     nageclass
@@ -59,7 +59,8 @@ subroutine readageclasses
 
   if (lagespectra.ne.1) then
     nageclass=1
-    allocate( lage(nageclass) )
+    allocate( lage(nageclass),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate lage"
     lage(nageclass)=999999999
     return
   endif
@@ -74,7 +75,8 @@ subroutine readageclasses
   ! try to read in as a namelist
 
   read(unitageclasses,nage,iostat=ios)
-  allocate( lage(nageclass) )
+  allocate( lage(nageclass),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate lage"
   read(unitageclasses,ageclass,iostat=ios)
   close(unitageclasses)
 
@@ -85,7 +87,8 @@ subroutine readageclasses
       read(unitageclasses,*)
     end do
     read(unitageclasses,*) nageclass
-    allocate( lage(nageclass) )
+    allocate( lage(nageclass),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate lage"
     read(unitageclasses,*) lage(1)
     do i=2,nageclass
       read(unitageclasses,*) lage(i)
@@ -97,6 +100,7 @@ subroutine readageclasses
   if (nmlout.and.lroot) then
     open(unitageclasses,file=path(2)(1:length(2))//'AGECLASSES.namelist', &
       err=1000)
+    write(unitageclasses,nml=nage)
     write(unitageclasses,nml=ageclass)
     close(unitageclasses)
   endif
@@ -1207,7 +1211,7 @@ subroutine readOHfield
 
   implicit none
 
-  integer :: i,j,k,l,ierr
+  integer :: i,j,k,l,ierr,stat
   real, dimension(:), allocatable :: etaOH
 
   !  real, parameter :: gasct=8.314   ! gas constant
@@ -1233,12 +1237,18 @@ subroutine readOHfield
   write(*,*) nxOH,nyOH,nzOH
 
   ! allocate variables
-  allocate(lonOH(nxOH))
-  allocate(latOH(nyOH))
-  allocate(etaOH(nzOH))
-  allocate(altOH(nzOH))
-  allocate(OH_field(nxOH,nyOH,nzOH,12))
-  allocate(OH_hourly(nxOH,nyOH,nzOH,2))
+  allocate(lonOH(nxOH),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate lonOH"
+  allocate(latOH(nyOH),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate latOH"
+  allocate(etaOH(nzOH),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate etaOH"
+  allocate(altOH(nzOH),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate altOH"
+  allocate(OH_field(nxOH,nyOH,nzOH,12),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate OH_field"
+  allocate(OH_hourly(nxOH,nyOH,nzOH,2),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate OH_hourly"
 
   read(unitOH) (lonjr(i),i=1,360)
   read(unitOH) (latjr(i),i=1,180)
@@ -1858,7 +1868,7 @@ subroutine readreceptors
   real :: xm,ym
   character(len=16) :: receptor
 
-  integer :: ios
+  integer :: ios,stat
   real :: lon,lat   ! for namelist input, lon/lat are used instead of x,y
   real,allocatable,dimension(:) :: tmpxrec,tmpyrec,tmprecarea
   character(len=16),allocatable,dimension(:) :: tmprecname
@@ -1912,7 +1922,8 @@ subroutine readreceptors
       read(unitreceptor,receptors,iostat=ios)
       if (ios .eq. 0) then
         numreceptor = j
-        allocate( tmprecname(j),tmpxrec(j),tmpyrec(j),tmprecarea(j) )
+        allocate( tmprecname(j),tmpxrec(j),tmpyrec(j),tmprecarea(j),stat=stat)
+        if (stat.ne.0) write(*,*)'ERROR: could not allocate tmp arrays in readrec'
         if (j.gt.1) then
           tmprecname(1:j-1)=receptorname
           tmpxrec(1:j-1)=xreceptor
@@ -1970,7 +1981,8 @@ subroutine readreceptors
       endif
 
       numreceptor = j
-      allocate( tmprecname(j),tmpxrec(j),tmpyrec(j),tmprecarea(j) )
+      allocate( tmprecname(j),tmpxrec(j),tmpyrec(j),tmprecarea(j),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate tmp arrays in readrec'
       if (j.gt.1) then
         tmprecname(1:j-1)=receptorname
         tmpxrec(1:j-1)=xreceptor
@@ -2266,7 +2278,8 @@ subroutine readreleases
 
   ! Allocate temporary memory necessary for the different diameter bins
   !********************************************************************
-    allocate(vsh(ndia(i)),fracth(ndia(i)),schmih(ndia(i)))
+    allocate( vsh(ndia(i)),fracth(ndia(i)),schmih(ndia(i)),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate vsh,fracth,schmih"
 
   ! Molecular weight
   !*****************
@@ -3128,7 +3141,7 @@ subroutine readpartoptions
 
   implicit none
 
-  integer :: np
+  integer :: np,stat
 
   ! namelist help variables
   integer :: ios
@@ -3220,7 +3233,8 @@ subroutine readpartoptions
     write(*,*) 'Namelist error in PARTOPTIONS file', trim(path(1)(1:length(1))//'PARTOPTIONS')
     error stop
   endif
-  allocate( partopt(num_partopt) )
+  allocate( partopt(num_partopt),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate partopt"
   ! Save values in particle options derived type
   !*********************************************
   partopt(1)%long_name='longitude'

@@ -524,30 +524,44 @@ module com_mod
 contains
 
   subroutine alloc_com
-    allocate( tot_blc_count(maxspec),tot_inc_count(maxspec))
+    implicit none
+    integer :: stat
+
+    allocate( tot_blc_count(maxspec),tot_inc_count(maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate tot_blc_count or tot_inc_count"
     allocate( specnum(maxspec),decay(maxspec),weta_gas(maxspec), &
       wetb_gas(maxspec),crain_aero(maxspec),csnow_aero(maxspec), &
       ccn_aero(maxspec),in_aero(maxspec),ndia(maxspec), &
       reldiff(maxspec),henry(maxspec),f0(maxspec),density(maxspec), &
-      dquer(maxspec),dsigma(maxspec) )
+      dquer(maxspec),dsigma(maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate particle property arrays 1"
     allocate( vsetaver(maxspec),cunningham(maxspec), &
       weightmolar(maxspec),ri(5,numclass),rac(5,numclass), &
       rcl(maxspec,5,numclass),rgs(maxspec,5,numclass), &
       rlu(maxspec,5,numclass),rm(maxspec),dryvel(maxspec), &
-      ohcconst(maxspec),ohdconst(maxspec),ohnconst(maxspec) )
+      ohcconst(maxspec),ohdconst(maxspec),ohnconst(maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate particle property arrays 2"
     allocate( Fn(maxspec),Fs(maxspec),ks1(maxspec),ks2(maxspec), &
-      kn2(maxspec),ishape(maxspec),orient(maxspec) )
+      kn2(maxspec),ishape(maxspec),orient(maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate particle shape arrays"
     allocate( area_hour(maxspec,24),point_hour(maxspec,24), &
       area_dow(maxspec,7),point_dow(maxspec,7), &
-      species(maxspec) )
-    allocate( DRYDEPSPEC(maxspec),WETDEPSPEC(maxspec) )
-    allocate( creceptor(numreceptor,maxspec) )
+      species(maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate species arrays"
+    allocate( DRYDEPSPEC(maxspec),WETDEPSPEC(maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate DRYDEPSPEC or WETDEPSPEC"
+    allocate( creceptor(numreceptor,maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate creceptor"
     tot_blc_count=0
     tot_inc_count=0
   end subroutine alloc_com
 
   subroutine alloc_com_ndia
-    allocate(vset(maxspec,maxndia),schmi(maxspec,maxndia),fract(maxspec,maxndia))
+    implicit none
+    integer :: stat
+
+    allocate(vset(maxspec,maxndia),schmi(maxspec,maxndia),fract(maxspec,maxndia),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate vset,schmi or fract"
   end subroutine alloc_com_ndia
 
   subroutine dealloc_com

@@ -870,11 +870,12 @@ subroutine init_domainfill
 
   implicit none
 
-  integer :: j,kz,lix,ljy,ncolumn,numparttot
-  real :: pp(nzmax),ylat,ylatp,ylatm,hzone
+  integer :: j,kz,lix,ljy,ncolumn,numparttot,stat
+  real :: ylat,ylatp,ylatm,hzone
   real :: cosfactm,cosfactp,deltacol,dz1,dz2,dz,pnew,pnew_temp,fractus
   real,parameter :: pih=pi/180.
   real :: colmasstotal,zposition
+  real,allocatable,dimension(:) :: pp
 
   integer :: ixm,ixp,jym,jyp,indzm,indzh,indzp,i,jj,ii
   integer :: alive_tmp,allocated_tmp,spawned_tmp,terminated_tmp
@@ -971,6 +972,10 @@ subroutine init_domainfill
 
 !$OMP PARALLEL PRIVATE(ljy,ylat,ylatp,ylatm,hzone,cosfactp,cosfactm,pp,lix) &
 !$OMP REDUCTION(+:colmasstotal)
+  
+  allocate( pp(nzmax),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate pp inside of OMP loop'
+
 !$OMP DO
   do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
     ylat=ylat0+real(ljy)*dy
@@ -1006,9 +1011,13 @@ subroutine init_domainfill
     end do
   end do
 !$OMP END DO
+  deallocate(pp)
 !$OMP END PARALLEL
 
   write(*,*) 'Atm. mass: ',colmasstotal
+
+  allocate( pp(nzmax),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate pp'
 
   if (ipin.eq.0) numpart=0
 

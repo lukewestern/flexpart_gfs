@@ -61,10 +61,10 @@ subroutine wetdepo(itime,ltsample,loutnext)
 
   integer :: i,jpart,itime,ltsample,loutnext,ldeltat
   integer :: itage,nage,inage,ithread,thread
-  integer :: ks, kp
+  integer :: ks, kp,stat
   integer(selected_int_kind(16)), dimension(nspec) :: blc_count, inc_count
-  real :: grfraction(3),wetscav
-  real :: wetdeposit(nspec),restmass
+  real :: grfraction(3),wetscav,restmass
+  real,allocatable,dimension(:) :: wetdeposit
   real,parameter :: smallnum = tiny(0.0) ! smallest number that can be handled
 
   ! Compute interval since radioactive decay of deposited mass was computed
@@ -86,12 +86,15 @@ subroutine wetdepo(itime,ltsample,loutnext)
 #endif
 !$OMP PARALLEL PRIVATE(jpart,itage,nage,inage,ks,kp,thread,wetscav,wetdeposit, &
 !$OMP restmass, grfraction) REDUCTION(+:blc_count,inc_count)
-
+  
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM() ! Starts with 0
 #else
     thread = 0
 #endif
+
+  allocate( wetdeposit(nspec),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate wetdeposit inside of OMP loop'
 
 !$OMP DO 
   do i=1,count%alive
@@ -173,6 +176,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
   end do ! all particles
 
 !$OMP END DO
+  deallocate(wetdeposit)
 !$OMP END PARALLEL
 
 #ifdef _OPENMP

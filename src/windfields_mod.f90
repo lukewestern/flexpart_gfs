@@ -346,7 +346,7 @@ subroutine gridcheck_ecmwf
   integer :: ifile
   integer :: iret
   integer :: igrib
-  integer :: gotGrid
+  integer :: gotGrid,stat
   real(kind=4) :: xaux1,xaux2,yaux1,yaux2
   real(kind=8) :: xaux1in,xaux2in,yaux1in,yaux2in
   integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl,parId
@@ -546,7 +546,10 @@ subroutine gridcheck_ecmwf
       ny=isec2(3)
       nlev_ec=isec2(12)/2-1
 
-      allocate(zsec2(60+2*nlev_ec),zsec4(16*nxfield*ny))
+      allocate(zsec2(60+2*nlev_ec), stat=stat)
+      if (stat.ne.0) error stop "Could not allocate zsec2"
+      allocate(zsec4(16*nxfield*ny), stat=stat)
+      if (stat.ne.0) error stop "Could not allocate zsec4"
       !  get the size and data of the vertical coordinate array
       call grib_get_real4_array(igrib,'pv',zsec2,iret)
       call grib_check(iret,gribFunction,gribErrorMsg)
@@ -919,7 +922,7 @@ subroutine gridcheck_gfs
   !HSO  parameters for grib_api
   integer :: ifile
   integer :: iret
-  integer :: igrib
+  integer :: igrib,stat
   real(kind=4) :: xaux1,xaux2,yaux1,yaux2
   real(kind=8) :: xaux1in,xaux2in,yaux1in,yaux2in
   integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl
@@ -1142,7 +1145,10 @@ subroutine gridcheck_gfs
       nxmax=nx
       nymax=ny
       call alloc_fixedfields
-      if (gribVer.eq.1) allocate( zsec4(16*nxmax*nymax) ) ! GRIB Edition 1
+      if (gribVer.eq.1) then
+        allocate( zsec4(16*nxmax*nymax),stat=stat) ! GRIB Edition 1
+        if (stat.ne.0) error stop "Could not allocate zsec2"
+      endif
     endif ! ifield.eq.1
 
     if (nxshift.lt.0) error stop 'nxshift (par_mod) must not be negative'
@@ -1161,7 +1167,8 @@ subroutine gridcheck_gfs
 
     if((isec1(6).eq.33).and.(isec1(7).eq.100)) then ! check for U wind
       iumax=iumax+1
-      allocate( tmppres(iumax) )
+      allocate( tmppres(iumax), stat=stat)
+      if (stat.ne.0) error stop "Could not allocate tmppres"
       if (iumax.gt.1) tmppres(1:iumax)=pres
       pres(iumax)=real(isec1(8))*100.0
       call move_alloc(tmppres,pres)
@@ -1299,7 +1306,8 @@ subroutine gridcheck_gfs
   ! CALCULATE VERTICAL DISCRETIZATION OF ECMWF MODEL
   ! PARAMETER akm,bkm DESCRIBE THE HYBRID "ETA" COORDINATE SYSTEM
 
-  allocate( akm_usort(nwzmax))
+  allocate( akm_usort(nwzmax), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate akm_usort"
   numskip=nlev_ec-nuvz  ! number of ecmwf model layers not used
                         ! by trajectory model
   do i=1,nwz
@@ -1409,7 +1417,7 @@ subroutine gridcheck_nest
   !HSO  parameters for grib_api
   integer :: ifile
   integer :: iret
-  integer :: igrib
+  integer :: igrib,stat
   integer :: gribVer,parCat,parNum,typSurf,valSurf,discipl
   integer :: parID !added by mc for making it consistent with new gridcheck.f90
   integer :: gotGrib
@@ -1618,8 +1626,10 @@ subroutine gridcheck_nest
 
         if (nxn(l).gt.nxmaxn) nxmaxn=nxn(l)
         if (nyn(l).gt.nymaxn) nymaxn=nyn(l)
-        allocate( zsec2(60+2*nlev_ecn) )
-        allocate( zsec4(16*nxn(l)*nyn(l)) )
+        allocate( zsec2(60+2*nlev_ecn), stat=stat)
+        if (stat.ne.0) error stop "Could not allocate zsec2"
+        allocate( zsec4(16*nxn(l)*nyn(l)), stat=stat)
+        if (stat.ne.0) error stop "Could not allocate zsec4"
       endif ! ifield
 
       if (nxn(l).gt.nxmaxn) then
@@ -1920,8 +1930,9 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   ! dimension of zsec2 at least (10+nn), where nn is the number of vertical
   ! coordinate parameters
 
-  integer :: isec1(56),isec2(22+nxmax+nymax)
-  real(kind=4) :: zsec4( 16*nxmax*nymax )
+  integer :: isec1(56)
+  integer,allocatable,dimension(:) :: isec2
+  real(kind=4),allocatable,dimension(:) :: zsec4
   real(kind=4) :: xaux,yaux,xaux0,yaux0
   real(kind=8) :: xauxin,yauxin
   real,parameter :: eps=1.e-4
@@ -1976,7 +1987,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 !$OMP SHARED (nfield, igrib, gribFunction, nxfield, ny, nlev_ec, dx, xlon0, ylat0, &
 !$OMP   n, tth, uuh, vvh, iumax, qvh, ps, wwh, iwmax, sd, msl, tcc, u10, v10, tt2, &
 !$OMP   td2, lsprec, convprec, sshf, hflswitch, ssr, ewss, nsss, strswitch, oro,   &
-!$OMP   excessoro, lsm, nymin1,ciwch,clwch,readclouds,sumclouds, nxshift) & 
+!$OMP   excessoro, lsm, nymin1,ciwch,clwch,readclouds,sumclouds, nxshift,nxmax,nymax) & 
 !$OMP PRIVATE(ii, gribVer, iret, isec1, discipl, parCat, parNum, parId,typSurf, valSurf, &
 !$OMP   zsec4, isec2, gribErrorMsg, xauxin, yauxin, xaux, yaux, xaux0,  &
 !$OMP   yaux0, k, arsize, stat, conversion_factor)  &
@@ -1984,6 +1995,8 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   !
   ! GET NEXT FIELDS
   !
+  allocate( isec2(22+nxmax+nymax),zsec4( 16*nxmax*nymax ),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate isec2 or zsec4'
 
 !$OMP DO SCHEDULE(static)
 
@@ -2368,6 +2381,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   end do fieldloop
 !$OMP END DO
 
+  deallocate( zsec4,isec2 )
 !$OMP END PARALLEL
 
   deallocate(igrib)
@@ -3804,91 +3818,151 @@ end subroutine shift_field
 
 subroutine alloc_fixedfields
   implicit none
-  allocate(oro(0:nxmax-1,0:nymax-1))
-  allocate(excessoro(0:nxmax-1,0:nymax-1))
-  allocate(lsm(0:nxmax-1,0:nymax-1))
-  allocate(pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+  integer :: stat
+
+  allocate(oro(0:nxmax-1,0:nymax-1),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate oro"
+  allocate(excessoro(0:nxmax-1,0:nymax-1),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate excessoro"
+  allocate(lsm(0:nxmax-1,0:nymax-1),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate lsm"
+  allocate(pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate pv"
 end subroutine alloc_fixedfields
 
 subroutine alloc_windfields
   implicit none
-
+  integer :: stat
   ! Eta coordinates
   !****************
 #ifdef ETA
-  allocate(uueta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(vveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(wweta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(uupoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(vvpoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(tteta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(pveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(prseta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(rhoeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(drhodzeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+  allocate(uueta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate uueta"
+  allocate(vveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate vveta"
+  allocate(wweta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate wweta"
+  allocate(uupoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate uupoleta"
+  allocate(vvpoleta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate vvpoleta"
+  allocate(tteta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tteta"
+  allocate(pveta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate pveta"
+  allocate(prseta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate prseta"
+  allocate(rhoeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate rhoeta"
+  allocate(drhodzeta(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate drhodzeta"
 #endif
-  allocate(etauvheight(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
-  allocate(etawheight(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
+  allocate(etauvheight(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate etauvheight"
+  allocate(etawheight(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate etawheight"
 
   ! Intrinsic coordinates
   !**********************
-  allocate(uu(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(vv(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(ww(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(uupol(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(vvpol(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(tt(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(tth(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
-  allocate(qv(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(qvh(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
-  allocate(rho(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(drhodz(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(pplev(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
-  allocate(prs(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(rho_dry(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+  allocate(uu(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate uu"
+  allocate(vv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate vv"
+  allocate(ww(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ww"
+  allocate(uupol(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate uupol"
+  allocate(vvpol(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate vvpol"
+  allocate(tt(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tt"
+  allocate(tth(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tth"
+  allocate(qv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate qv"
+  allocate(qvh(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate qvh"
+  allocate(rho(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate rho"
+  allocate(drhodz(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate drhodz"
+  allocate(pplev(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate pplev"
+  allocate(prs(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate prs"
+  allocate(rho_dry(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate rho_dry"
 
   ! Cloud data
   !***********
-  allocate(clwc(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(ciwc(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(clw(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
-  allocate(clwch(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
-  allocate(ciwch(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem))
+  allocate(clwc(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate clwc"
+  allocate(ciwc(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ciwc"
+  allocate(clw(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate clw"
+  allocate(clwch(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate clwch"
+  allocate(ciwch(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ciwch"
   clwc=0.0
   ciwc=0.0
   clw=0.0
   clwch=0.0
   ciwch=0.0
-  allocate(ctwc(0:nxmax-1,0:nymax-1,numwfmem))
-  allocate(cloudsh(0:nxmax-1,0:nymax-1,numwfmem))
-  allocate(clouds(0:nxmax-1,0:nymax-1,nzmax,numwfmem))
+  allocate(ctwc(0:nxmax-1,0:nymax-1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ctwc"
+  allocate(cloudsh(0:nxmax-1,0:nymax-1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate cloudsh"
+  allocate(clouds(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate clouds"
 
   ! 2d fields
   !**********
-  allocate(ps(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(sd(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(msl(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(tcc(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(u10(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(v10(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(tt2(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(td2(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(lsprec(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(convprec(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(sshf(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(ssr(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(sfcstress(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(ustar(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(wstar(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(hmix(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(tropopause(0:nxmax-1,0:nymax-1,1,numwfmem))
-  allocate(oli(0:nxmax-1,0:nymax-1,1,numwfmem))
+  allocate(ps(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ps"
+  allocate(sd(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate sd"
+  allocate(msl(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate msl"
+  allocate(tcc(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tcc"
+  allocate(u10(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate u10"
+  allocate(v10(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate v10"
+  allocate(tt2(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tt2"
+  allocate(td2(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate td2"
+  allocate(lsprec(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate lsprec"
+  allocate(convprec(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate convprec"
+  allocate(sshf(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate sshf"
+  allocate(ssr(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ssr"
+  allocate(sfcstress(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate sfcstress"
+  allocate(ustar(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ustar"
+  allocate(wstar(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate wstar"
+  allocate(hmix(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate hmix"
+  allocate(tropopause(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tropopause"
+  allocate(oli(0:nxmax-1,0:nymax-1,1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate oli"
 
   ! Vertical descritisation arrays
   !*******************************
-  allocate(height(nzmax),wheight(nzmax),uvheight(nzmax))
+  allocate(height(nzmax),wheight(nzmax),uvheight(nzmax),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate height arrays"
   allocate(akm(nwzmax),bkm(nwzmax),akz(nuvzmax),bkz(nuvzmax), &
-    aknew(nzmax),bknew(nzmax))
+    aknew(nzmax),bknew(nzmax),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate model level parameters"
 end subroutine alloc_windfields
 
 subroutine alloc_windfields_nest
@@ -3899,84 +3973,150 @@ subroutine alloc_windfields_nest
   ! 
   !*******************************************************************************
   implicit none 
+  integer :: stat
 
-  allocate(wfnamen(numbnests,maxwf))
-  allocate(wfspecn(numbnests,maxwf))
+  allocate(wfnamen(numbnests,maxwf),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate wfnamen"
+  allocate(wfspecn(numbnests,maxwf),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate wfspecn"
 
-  allocate(nxn(numbnests))
-  allocate(nyn(numbnests))
-  allocate(dxn(numbnests))
-  allocate(dyn(numbnests))
-  allocate(xlon0n(numbnests))
-  allocate(ylat0n(numbnests))
+  allocate(nxn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate nxn"
+  allocate(nyn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate nyn"
+  allocate(dxn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate dxn"
+  allocate(dyn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate dyn"
+  allocate(xlon0n(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xlon0n"
+  allocate(ylat0n(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ylat0n"
 
-  allocate(oron(0:nxmaxn-1,0:nymaxn-1,numbnests))
-  allocate(excessoron(0:nxmaxn-1,0:nymaxn-1,numbnests))
-  allocate(lsmn(0:nxmaxn-1,0:nymaxn-1,numbnests))
+  allocate(oron(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate oron"
+  allocate(excessoron(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate excessoron"
+  allocate(lsmn(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate lsmn"
 
-  allocate(uun(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(vvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(wwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(ttn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(qvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(pvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(clwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(ciwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(clwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(uun(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate uun"
+  allocate(vvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate vvn"
+  allocate(wwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate wwn"
+  allocate(ttn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ttn"
+  allocate(qvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate qvn"
+  allocate(pvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate pvn"
+  allocate(clwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate clwcn"
+  allocate(ciwcn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ciwcn"
+  allocate(clwn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate clwn"
 
   ! ETA equivalents
 #ifdef ETA
-  allocate(uuetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(vvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(wwetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(ttetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(pvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests)) 
-  allocate(prsetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))  
-  allocate(rhoetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(drhodzetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
+  allocate(uuetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate uuetan"
+  allocate(vvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate vvetan"
+  allocate(wwetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate wwetan"
+  allocate(ttetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ttetan"
+  allocate(pvetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests)),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate pvetan"
+  allocate(prsetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests)) ,stat=stat)
+  if (stat.ne.0) error stop "Could not allocate prsetan"
+  allocate(rhoetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate rhoetan"
+  allocate(drhodzetan(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate drhodzetan"
 #endif
-  allocate(etauvheightn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-  allocate(etawheightn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
+  allocate(etauvheightn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate etauvheightn"
+  allocate(etawheightn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate etawheightn"
 
-  allocate(cloudsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(cloudshn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
-  allocate(prsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(rhon(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(drhodzn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests))
-  allocate(tthn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-  allocate(qvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-  allocate(clwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-  allocate(ciwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests))
-  allocate(ctwcn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests))
+  allocate(cloudsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate cloudsn"
+  allocate(cloudshn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate cloudshn"
+  allocate(prsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate prsn"
+  allocate(rhon(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate rhon"
+  allocate(drhodzn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate drhodzn"
+  allocate(tthn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tthn"
+  allocate(qvhn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate qvhn"
+  allocate(clwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate clwchn"
+  allocate(ciwchn(0:nxmaxn-1,0:nymaxn-1,nuvzmax,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ciwchn"
+  allocate(ctwcn(0:nxmaxn-1,0:nymaxn-1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ctwcn"
 
   ! 2d fields
   !***********
-  allocate(psn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(sdn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(msln(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(tccn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(u10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(v10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(tt2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(td2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(lsprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(convprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(sshfn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(ssrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(sfcstressn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(ustarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(wstarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(hmixn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(tropopausen(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(olin(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests))
-  allocate(vdepn(0:nxmaxn-1,0:nymaxn-1,maxspec,numwfmem,numbnests))
+  allocate(psn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate psn"
+  allocate(sdn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate sdn"
+  allocate(msln(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate msln"
+  allocate(tccn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tccn"
+  allocate(u10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate u10n"
+  allocate(v10n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate v10n"
+  allocate(tt2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tt2n"
+  allocate(td2n(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate td2n"
+  allocate(lsprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate lsprecn"
+  allocate(convprecn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate convprecn"
+  allocate(sshfn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate sshfn"
+  allocate(ssrn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ssrn"
+  allocate(sfcstressn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate sfcstressn"
+  allocate(ustarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ustarn"
+  allocate(wstarn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate wstarn"
+  allocate(hmixn(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate hmixn"
+  allocate(tropopausen(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate tropopausen"
+  allocate(olin(0:nxmaxn-1,0:nymaxn-1,1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate olin"
+  allocate(vdepn(0:nxmaxn-1,0:nymaxn-1,maxspec,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate vdepn"
 
-  allocate(xresoln(0:numbnests))
-  allocate(yresoln(0:numbnests))
-  allocate(xln(numbnests))
-  allocate(yln(numbnests))
-  allocate(xrn(numbnests))
-  allocate(yrn(numbnests))
+  allocate(xresoln(0:numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xresoln"
+  allocate(yresoln(0:numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate yresoln"
+  allocate(xln(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xln"
+  allocate(yln(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate yln"
+  allocate(xrn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xrn"
+  allocate(yrn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate yrn"
 
   ! Initialise
   !************  

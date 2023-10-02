@@ -165,6 +165,7 @@ subroutine read_options_and_initialise_flexpart
     inest                   ! loop variable for nested gridcells
   integer ::              &
     j,                    & ! loop variable for random numbers
+    stat,                 & ! Check if allocation was successful
     idummy=-320             ! dummy value used by the random routine
 
 
@@ -342,7 +343,8 @@ subroutine read_options_and_initialise_flexpart
 
   ! Allocating nan_count for CBL option
   !************************************
-  allocate(nan_count(numthreads))
+  allocate(nan_count(numthreads), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate nan_count"
 end subroutine read_options_and_initialise_flexpart
 
 subroutine initialise_particles

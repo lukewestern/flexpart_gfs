@@ -118,7 +118,8 @@ subroutine timemanager
     ldeltat,                & ! radioactive decay time
     itage,nage,inage,       & ! related to age classes
     i_nan=0,ii_nan,total_nan_intl=0, &  !added by mc to check instability in CBL scheme 
-    thread                    ! openmp change (not sure if necessary)
+    stat,                   & ! Check if allocation was successful
+    thread                    ! openmp thread number
   ! logical ::                &
   !   active_per_rel(maxpoint)  ! are there particles active in each release
   real ::                   &
@@ -131,8 +132,8 @@ subroutine timemanager
     outnum,                 & ! concentration calculation sample number
     prob_rec(maxspec),      & ! dry deposition related
     xmassfract                ! dry deposition related
-  real(dep_prec) ::         &
-    drydeposit(maxspec)       ! dry deposition related
+  real(dep_prec),allocatable,dimension(:) ::         &
+    drydeposit       ! dry deposition related
   integer :: alive_tmp,spawned_tmp
 
   ! First output for time 0
@@ -347,7 +348,7 @@ subroutine timemanager
   ! openmp change
   ! LB, openmp following CTM version, need to be very careful due to big differences
   ! between the openmp loop in this and the CTM version
-!$OMP PARALLEL PRIVATE(prob_rec,inage,nage,itage,ks,kp,thread,j,i,xmassfract,drydeposit)
+!$OMP PARALLEL PRIVATE(prob_rec,inage,nage,itage,ks,kp,thread,j,i,xmassfract)
 
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM() ! Starts with 0
@@ -452,6 +453,8 @@ subroutine timemanager
 #else
     thread = 0
 #endif
+  allocate( drydeposit(maxspec),stat=stat )
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate drydeposit inside of OMP loop'
 
 !$OMP DO 
 ! SCHEDULE(dynamic, max(1,numpart/1000))
@@ -539,6 +542,7 @@ subroutine timemanager
     end do !loop over particles
 
 !$OMP END DO
+  deallocate(drydeposit)
 !$OMP END PARALLEL
 
   ! Terminating particles flagged due to insufficient mass or exceeded max age

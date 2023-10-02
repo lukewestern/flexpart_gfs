@@ -78,13 +78,22 @@ module interpol_mod
 contains
 
 subroutine alloc_interpol ! wsigprofeta(nzmax,numthreads),
-  allocate(uprof(nzmax,numthreads),vprof(nzmax,numthreads),wprof(nzmax,numthreads),      &
+  implicit none 
+  integer :: stat
+
+  allocate( uprof(nzmax,numthreads),vprof(nzmax,numthreads),wprof(nzmax,numthreads),      &
     usigprof(nzmax,numthreads),vsigprof(nzmax,numthreads),wsigprof(nzmax,numthreads),  &
-    rhoprof(nzmax,numthreads),rhogradprof(nzmax,numthreads),indzindicator(nzmax,numthreads))
+    rhoprof(nzmax,numthreads),rhogradprof(nzmax,numthreads), &
+    indzindicator(nzmax,numthreads),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate interpol prof arrays"
 #ifdef ETA
-  allocate(wprofeta(nzmax,numthreads))
+  allocate( wprofeta(nzmax,numthreads),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate wprofeta"
 #endif
-  if (DRYDEP) allocate( depoindicator(maxspec,numthreads) )
+  if (DRYDEP) then
+    allocate( depoindicator(maxspec,numthreads),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate depoindicator"
+  endif
 end subroutine alloc_interpol
 
 subroutine dealloc_interpol ! wsigprofeta,

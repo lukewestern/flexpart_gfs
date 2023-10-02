@@ -65,11 +65,11 @@ subroutine alloc_grid
   if (iflux.eq.1) then
     allocate(flux(6,0:numxgrid-1,0:numygrid-1,numzgrid, &
          1:nspec,1:maxpointspec_act,1:nageclass),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate flux array '
+    if (stat.ne.0) error stop 'ERROR: could not allocate flux array '
 #ifdef _OPENMP
     allocate(flux_omp(6,0:numxgrid-1,0:numygrid-1,numzgrid, &
          1:nspec,1:maxpointspec_act,1:nageclass,numthreads))
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate flux_omp array '
+    if (stat.ne.0) error stop 'ERROR: could not allocate flux_omp array '
 #endif
   endif
 
@@ -81,50 +81,50 @@ subroutine alloc_grid
 
   allocate(gridsigma(0:max(numxgrid,numxgridn)-1, &
        0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+    if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
   allocate(grid(0:max(numxgrid,numxgridn)-1, &
        0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+    if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
   allocate(densityoutgrid(0:max(numxgrid,numxgridn)-1, &
        0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+    if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
   ! RLT
   allocate(densitydrygrid(0:max(numxgrid,numxgridn)-1, &
        0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+    if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
   allocate(factor_drygrid(0:max(numxgrid,numxgridn)-1, &
        0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+    if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
 
   allocate(factor3d(0:max(numxgrid,numxgridn)-1, &
        0:max(numygrid,numygridn)-1,numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+    if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
   allocate(sparse_dump_r(max(numxgrid,numxgridn)* &
        max(numygrid,numygridn)*numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+    if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
 
    allocate(sparse_dump_u(max(numxgrid,numxgridn)* &
        max(numygrid,numygridn)*numzgrid),stat=stat)
-        if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+        if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
 
   allocate(sparse_dump_i(max(numxgrid,numxgridn)* &
        max(numygrid,numygridn)*numzgrid),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+    if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
 
   ! deposition fields are only allocated for forward runs
   if (ldirect.gt.0) then
      allocate(wetgridsigma(0:max(numxgrid,numxgridn)-1, &
           0:max(numygrid,numygridn)-1),stat=stat)
-     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+     if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
      allocate(drygridsigma(0:max(numxgrid,numxgridn)-1, &
           0:max(numygrid,numygridn)-1),stat=stat)
-     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+     if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
      allocate(wetgrid(0:max(numxgrid,numxgridn)-1, &
           0:max(numygrid,numygridn)-1),stat=stat)
-     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+     if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
      allocate(drygrid(0:max(numxgrid,numxgridn)-1, &
           0:max(numygrid,numygridn)-1),stat=stat)
-     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+     if (stat.ne.0) error stop 'ERROR: could not allocate gridunc'
   endif
 
   ! Initial condition field
@@ -132,11 +132,11 @@ subroutine alloc_grid
   if (linit_cond.gt.0) then
     allocate(init_cond(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
          maxpointspec_act),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate init_cond'
+    if (stat.ne.0) error stop 'ERROR: could not allocate init_cond'
 #ifdef _OPENMP
     allocate(init_cond_omp(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec, &
          maxpointspec_act,numthreads),stat=stat)
-    if (stat.ne.0) write(*,*)'ERROR: could not allocate init_cond_omp'
+    if (stat.ne.0) error stop 'ERROR: could not allocate init_cond_omp'
 #endif
   endif
 end subroutine alloc_grid

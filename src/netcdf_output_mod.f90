@@ -133,10 +133,17 @@ module netcdf_output_mod
 contains
 
 subroutine alloc_netcdf
+  implicit none
+  integer :: stat
+
   allocate( specID(maxspec),specIDppt(maxspec), wdspecID(maxspec),ddspecID(maxspec), &
     specIDn(maxspec),specIDnppt(maxspec), wdspecIDn(maxspec),ddspecIDn(maxspec), &
-    recconcID(maxspec),recpptvID(maxspec) )
-  allocate( massID(maxspec),wdID(maxspec),ddID(maxspec),massavID(maxspec),massIDi(maxspec) )
+    recconcID(maxspec),recpptvID(maxspec), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate netcdf fields"
+
+  allocate( massID(maxspec),wdID(maxspec),ddID(maxspec),massavID(maxspec), &
+    massIDi(maxspec), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate netcdf fields 2"
 end subroutine alloc_netcdf
 
 subroutine dealloc_netcdf
@@ -2403,7 +2410,7 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
 
   integer, intent(in) :: ibtime,ibdate
   integer             :: ncidend,tIDend,pIDend,tempIDend
-  integer             :: tlen,plen,tend,i,j
+  integer             :: tlen,plen,tend,i,j,stat
   integer             :: idate_start,itime_start
   character           :: adate*8,atime*6,timeunit*32,adate_start*8,atime_start*6
   character(len=3)    :: anspec
@@ -2475,7 +2482,8 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%z, & 
     start=(/ tlen, 1 /),count=(/ 1, plen /)))
   ! Mass
-  allocate(mass_temp(count%allocated)) 
+  allocate(mass_temp(count%allocated), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate mass_temp"
   if (mdomainfill.eq.0) then
     do j=1,nspec
       write(anspec, '(i3.3)') j
@@ -2552,7 +2560,7 @@ subroutine readinitconditions_netcdf()
 
   ! allocate with maxspec for first input loop
   allocate(specnum_rel(maxspec),stat=stat)
-  if (stat.ne.0) write(*,*)'ERROR: could not allocate specnum_rel'
+  if (stat.ne.0) error stop 'ERROR: could not allocate specnum_rel'
 
   if (nspec.gt.maxspec) then
     error stop 'number of species in part_ic.nc is larger than the allowed maxspec set in the par_mod.f90'
@@ -2635,7 +2643,8 @@ subroutine readinitconditions_netcdf()
 
   ! Count number of releases
   numpoint=0
-  allocate(numpoint_max(plen),stat=stat)
+  allocate(numpoint_max(plen), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate numpoint_max"
   numpoint_max=0
   release_max=0
 
@@ -2689,7 +2698,8 @@ subroutine readinitconditions_netcdf()
   deallocate(numpoint_max)
 
   ! Setting zpoint1 and zpoint2 necessary for wet backward deposition and plumes
-  allocate(zpoint1(numpoint),zpoint2(numpoint))
+  allocate(zpoint1(numpoint),zpoint2(numpoint), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate zpoint"
   zpoint2(:)=0.
   zpoint1(:)=1.e8
   do i=1,plen
@@ -2698,8 +2708,10 @@ subroutine readinitconditions_netcdf()
   end do
 
   ! Setting xpoint1, ypoint1, xpoint2, ypoint2
-  allocate(ypoint1(numpoint),ypoint2(numpoint))
-  allocate(xpoint1(numpoint),xpoint2(numpoint))
+  allocate(ypoint1(numpoint),ypoint2(numpoint), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ypoint"
+  allocate(xpoint1(numpoint),xpoint2(numpoint), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xpoint"
   xpoint2(:)=0.
   xpoint1(:)=1.e8
   ypoint2(:)=0.
@@ -2717,7 +2729,9 @@ subroutine readinitconditions_netcdf()
     ypoint2(j)=(ypoint2(j)-ylat0)/dy
   end do
 
-  allocate(xmass(numpoint,nspec), npart(numpoint),ireleasestart(numpoint),ireleaseend(numpoint))
+  allocate(xmass(numpoint,nspec), npart(numpoint),ireleasestart(numpoint), &
+    ireleaseend(numpoint), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xmass,npart,ireleasestart,ireleaseend"
   xmass=0
   npart=0
   ireleasestart=-1
@@ -2731,8 +2745,10 @@ subroutine readinitconditions_netcdf()
       endif
       if (part(i)%npoint.eq.j) then 
         npart(j)=npart(j)+1
-        if ((ireleasestart(j).gt.part(i)%tstart).or.(ireleasestart(j).eq.-1)) ireleasestart(j)=part(i)%tstart
-        if ((ireleaseend(j).le.part(i)%tstart).or.(ireleaseend(j).eq.-1)) ireleaseend(j)=part(i)%tstart
+        if ((ireleasestart(j).gt.part(i)%tstart).or.(ireleasestart(j).eq.-1)) &
+          ireleasestart(j)=part(i)%tstart
+        if ((ireleaseend(j).le.part(i)%tstart).or.(ireleaseend(j).eq.-1)) &
+          ireleaseend(j)=part(i)%tstart
       endif
     end do
   end do
@@ -2775,7 +2791,8 @@ subroutine readinitconditions_netcdf()
   do nsp=1,nspec
     ! Allocate temporary memory necessary for the different diameter bins
     !********************************************************************
-    allocate(vsh(ndia(nsp)),fracth(ndia(nsp)),schmih(ndia(nsp)))
+    allocate(vsh(ndia(nsp)),fracth(ndia(nsp)),schmih(ndia(nsp)), stat=stat)
+    if (stat.ne.0) error stop "Could not allocate vsh,fracth,schmih"
 
     ! Molecular weight
     !*****************

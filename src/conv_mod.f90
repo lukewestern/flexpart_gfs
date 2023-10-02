@@ -75,10 +75,11 @@ contains
 
 subroutine alloc_convect
   implicit none
+  integer :: stat
   if (.not.lconvection.eq.1) return
   ! nconvlevmax=nuvzmax-1
   ! na=nconvlevmax+1
-  allocate(pconv(nconvlevmax,numthreads),phconv(na,numthreads), &
+  allocate( pconv(nconvlevmax,numthreads),phconv(na,numthreads), &
     dpr(nconvlevmax,numthreads), &
     pconv_hpa(nconvlevmax,numthreads),phconv_hpa(na,numthreads), &
     fmass(nconvlevmax,nconvlevmax,numthreads),        &
@@ -86,9 +87,11 @@ subroutine alloc_convect
     fmassfrac(nconvlevmax,nconvlevmax,numthreads),   &
     cbaseflux(0:nxmax-1,0:nymax-1,numthreads),                        &
     cbasefluxn(0:nxmaxn-1,0:nymaxn-1,numbnests,numthreads),            &
-    tconv(na,numthreads),qconv(na,numthreads),qsconv(na,numthreads))
+    tconv(na,numthreads),qconv(na,numthreads),qsconv(na,numthreads),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate convection arrays"
 
-  allocate(uvzlev(nuvzmax,numthreads),wsub(nuvzmax,numthreads))
+  allocate( uvzlev(nuvzmax,numthreads),wsub(nuvzmax,numthreads),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate uvzlev or wsub"
 
   ! allocate(FUP(NA),FT(NA),FQ(NA),FDOWN(NA),NENT(NA),       &
   !   M(NA),MP(NA),MENT(NA,NA),QENT(NA,NA),ELIJ(NA,NA),      &
@@ -163,7 +166,7 @@ subroutine convmix(itime)
   implicit none
 
   integer :: igr,igrold, ipart, itime, ix, i, j, inest
-  integer :: ipconv,ithread
+  integer :: ipconv,ithread,stat
   integer :: jy, kpart, ktop, ngrid,kz
   integer,allocatable :: igrid(:), ipoint(:), igridn(:,:)
 
@@ -205,9 +208,12 @@ subroutine convmix(itime)
   if (alivepart.le.0 ) return
 
   !call get_totalpart_num(totpart)
-  allocate( igrid(alivepart) )
-  allocate( ipoint(alivepart) )
-  allocate( igridn(alivepart,numbnests) )
+  allocate( igrid(alivepart),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate igrid"
+  allocate( ipoint(alivepart),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ipoint"
+  allocate( igridn(alivepart,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate igridn"
 
   ! Assign igrid and igridn, which are pseudo grid numbers indicating particles
   ! that are outside the part of the grid under consideration
@@ -297,7 +303,8 @@ subroutine convmix(itime)
   ! by going through the sorted particles
 
   !LB changes following the CTM version
-  allocate(frst(nx*(ny+1)+1))
+  allocate( frst(nx*(ny+1)+1),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate frst"
   frst(1) = 1
   cnt = 2
   igrold = igrid(1)
