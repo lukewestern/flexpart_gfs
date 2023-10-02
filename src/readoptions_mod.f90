@@ -464,7 +464,7 @@ subroutine readcommand
   character(len=50) :: line
   integer :: ios
   integer :: lturbulence_meso
-  
+
   namelist /command/ &
   ldirect, &
   ibdate,ibtime, &
@@ -501,7 +501,8 @@ subroutine readcommand
   ohfields_path, &
   d_trop, &
   d_strat, &
-  nxshift
+  nxshift, &
+  maxthreadgrid
 
   ! Presetting namelist command
   ldirect=0
@@ -540,6 +541,7 @@ subroutine readcommand
   linversionout=0
   ohfields_path="../../flexin/"
   nxshift=-9999
+  maxthreadgrid=1
 
   !Af set release-switch
   WETBKDEP=.false.

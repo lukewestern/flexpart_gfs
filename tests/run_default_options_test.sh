@@ -142,6 +142,17 @@ TESTSRUN=$((TESTSRUN + 1))
 rm -rf ./current ./output/*
 #
 #
+#Mesoscale turbulence
+cp -rf ./default_options ./current
+sed -i "/LTURBULENCE_MESO=/c\ LTURBULENCE_MESO=  1," ./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (LTURBULENCE_MESO=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
 #CTL option
 cp -rf ./default_options ./current
 sed -i "/LTURBULENCE=/c\ LTURBULENCE=  1," ./current/COMMAND
@@ -333,10 +344,21 @@ rm -rf ./current ./output/*
 #
 #SFC_ONLY
 cp -rf ./default_options ./current
-sed -i "/SURF_ONLY=/c\ SURF_ONLY=  1," ./current/COMMAND
+sed -i "/SFC_ONLY=/c\ SFC_ONLY=  1," ./current/COMMAND
 sed -i "/LNETCDFOUT=/c\ LNETCDFOUT=  0," ./current/COMMAND
 ./FLEXPART pathnames
-report "[$MM] TEST $TESTRUN (SURF_ONLY=1)"
+report "[$MM] TEST $TESTRUN (SFC_ONLY=1)"
+STATUS=$((STATUS + $?))
+TESTSRUN=$((TESTSRUN + 1))
+# clean up
+rm -rf ./current ./output/*
+#
+#
+#MAXTHREADGRID
+cp -rf ./default_options ./current
+sed -i "/MAXTHREADGRID=/c\ MAXTHREADGRID=  10," ./current/COMMAND
+./FLEXPART pathnames
+report "[$MM] TEST $TESTRUN (MAXTHREADGRID=10)"
 STATUS=$((STATUS + $?))
 TESTSRUN=$((TESTSRUN + 1))
 # clean up

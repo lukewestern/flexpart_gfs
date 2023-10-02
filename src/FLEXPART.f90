@@ -33,7 +33,6 @@ program flexpart
   ! Constants:                                                                 *
   !                                                                            *
   !*****************************************************************************
-  use omp_lib, only: OMP_GET_MAX_THREADS
   use par_mod
   use com_mod
   use timemanager_mod
@@ -44,7 +43,7 @@ program flexpart
   real :: s_timemanager
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
-  character(len=256) :: gitversion_tmp="61cb422 HEAD -> optimise, origin/optimise Mon Oct 2 13:42:00 2023 +0200"
+  character(len=256) :: gitversion_tmp="undefined"
 
   ! Keeping track of the total running time of FLEXPART, printed out at the end.
   !*****************************************************************************
@@ -89,30 +88,6 @@ program flexpart
 #else
   write(*,*) 'FLEXPART is running with METER coordinates.'
 #endif
-  ! Reading the number of threads available and print them for user
-  !****************************************************************
-#ifdef _OPENMP
-    numthreads = OMP_GET_MAX_THREADS()
-    numthreads_grid = min(numthreads,max_numthreads_grid)
-    !numthreads = min(40,numthreads)
-#else
-    numthreads = 1
-    numthreads_grid = 1
-#endif
-
-  if (numthreads.gt.1) then
-    write(*,*)
-    write(*,*) "*********** WARNING  **********************************"
-    write(*,*) "* FLEXPART running in parallel mode                   *"
-    write(*,*) "* Number of uncertainty classes in                    *"
-    write(*,901) " * set to number of threads:            ", &
-      numthreads_grid, "          *" 
-    write(*,901) " * All other computations are done with ",&
-      numthreads, " threads. *"
-    write(*,*) "*******************************************************"
-    write(*,*)
-901 format (a,i5,a)
-  endif
 
   ! Reading user specified options, allocating fields and checking bounds
   !**********************************************************************
@@ -182,6 +157,7 @@ subroutine read_options_and_initialise_flexpart
   use interpol_mod, only: alloc_interpol
   use outgrid_mod
   use binary_output_mod
+  use omp_lib, only: OMP_GET_MAX_THREADS
 
   implicit none
 
@@ -191,14 +167,6 @@ subroutine read_options_and_initialise_flexpart
     j,                    & ! loop variable for random numbers
     idummy=-320             ! dummy value used by the random routine
 
-  call alloc_random(numthreads)
-
-  ! Generate a large number of random numbers
-  !******************************************
-  do j=1,maxrand-1,2
-    call gasdev1(idummy,rannumb(j),rannumb(j+1))
-  end do
-  call gasdev1(idummy,rannumb(maxrand),rannumb(maxrand-1))
 
   ! Read pathnames from file in working director that specify I/O directories
   !**************************************************************************
@@ -207,6 +175,40 @@ subroutine read_options_and_initialise_flexpart
   ! Read the user specifications for the current model run
   !*******************************************************
   call readcommand
+
+  ! Reading the number of threads available and print them for user
+  !****************************************************************
+#ifdef _OPENMP
+    numthreads = OMP_GET_MAX_THREADS()
+    numthreads_grid = min(numthreads,maxthreadgrid)
+    !numthreads = min(40,numthreads)
+#else
+    numthreads = 1
+    numthreads_grid = 1
+#endif
+
+  if (numthreads.gt.1) then
+    write(*,*)
+    write(*,*) "*********** WARNING  **********************************"
+    write(*,*) "* FLEXPART running in parallel mode                   *"
+    write(*,*) "* Number of uncertainty classes in                    *"
+    write(*,901) " * set to number of threads:            ", &
+      numthreads_grid, "          *" 
+    write(*,901) " * All other computations are done with ",&
+      numthreads, " threads. *"
+    write(*,*) "*******************************************************"
+    write(*,*)
+901 format (a,i5,a)
+  endif
+
+  call alloc_random(numthreads)
+
+  ! Generate a large number of random numbers
+  !******************************************
+  do j=1,maxrand-1,2
+    call gasdev1(idummy,rannumb(j),rannumb(j+1))
+  end do
+  call gasdev1(idummy,rannumb(maxrand),rannumb(maxrand-1))
 
   ! Read the age classes to be used
   !********************************

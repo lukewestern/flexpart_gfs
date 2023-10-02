@@ -494,6 +494,12 @@ module com_mod
 
   integer :: numthreads,numthreads_grid  ! number of available threads in parallel sections
   !integer :: nclassunc2, nrecclunc, ngriclunc
+
+  ! Set maximum number of threads for doing grid computations in COMMAND
+  ! Recommended to set this to max 16
+  ! High numbers create more overhead and a larger memory footprint
+  !***********************************************************************
+  integer :: maxthreadgrid
   
   !*********************************************************
   !LB 04.05.2021, simple timing of IO and total running time

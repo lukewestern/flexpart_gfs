@@ -22,6 +22,7 @@
  LSUBGRID=              0, ! Increase of ABL heights due to sub-grid scale orographic variations;[0]off 1]on 
  LCONVECTION=           0, ! Switch for convection parameterization;0]off [1]on
  LTURBULENCE=           0, ! Switch for turbulence parameterisation;0]off [1]on
+ LTURBULENCE_MESO=      0, ! Switch for mesoscale turbulence parameterisation;0]off (recommended) [1]on
  LAGESPECTRA=           0, ! Switch for calculation of age spectra (needs AGECLASSES);[0]off 1]on
  IPIN=                  0, ! Warm start from particle dump; [0]no 1]from restart.bin file 2]from previous partoutput file 3]self made initial conditions 4]restart.bin and self made initial conditions
  IOUTPUTFOREACHRELEASE= 0, ! Separate output fields for each location in the RELEASE file; [0]no 1]yes 
@@ -33,8 +34,9 @@
  NESTED_OUTPUT=         0, ! Output also for a nested domain 
  LNETCDFOUT=            1, ! Gridded netcdf output: [0]no [1]yes
  LINIT_COND=            0, ! Output sensitivity to initial conditions (bkw mode only) [0]off 1]conc 2]mmr 
- SURF_ONLY=             0, ! Output only for the lowest model layer, used w/ LINIT_COND=1 or 2
+ SFC_ONLY=              0, ! Output only for the lowest model layer, used w/ LINIT_COND=1 or 2
  CBLFLAG=               0, ! Skewed, not Gaussian turbulence in the convective ABL, need large CTL and IFINE
  OHFIELDS_PATH= "../../flexin/", ! Default path for OH file
  NXSHIFT=               0, ! Shift of the global meteorological data. Default 359 for ECMWF and 0 for GFS if not given
+ MAXTHREADGRID=         1, ! Set maximum number of threads for doing grid computations. Recommended to set this no higher than 16. High numbers create more overhead and a larger memory footprint, 1=no parallelisation on grid.
  /

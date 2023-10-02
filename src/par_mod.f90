@@ -258,12 +258,6 @@ module par_mod
 
   integer,parameter :: max_partoutput_filesize=30000
 
-  ! Set maximum number of threads for doing grid computations. 
-  ! Recommended to set this to max 16
-  ! High numbers create more overhead and a larger memory footprint
-  !***********************************************************************
-  integer,parameter :: max_numthreads_grid=1
-
   ! This flag sets all vertical interpolation to logarithmic instead of linear
   !***************************************************************************
   logical,parameter :: log_interpol=.false.

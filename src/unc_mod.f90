@@ -58,7 +58,7 @@ subroutine alloc_grid_unc()
        maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
   if (stat.ne.0) then
     write(*,*)'ERROR: could not allocate gridunc_omp'
-    write(*,*)'increase the memory or reduce max_numthreads_grid in par_mod.f90.'
+    write(*,*)'increase the memory or reduce MAXTHREADGRID in COMMAND.'
     error stop
   endif
 #endif
