@@ -51,11 +51,11 @@ subroutine alloc_grid_unc()
   
   ! gridunc,griduncn        uncertainty of outputted concentrations
   allocate(gridunc(0:numxgrid-1,0:numygrid-1,numzgrid,nspec, &
-       maxpointspec_act,nclassunc,maxageclass),stat=stat)
+       maxpointspec_act,nclassunc,nageclass),stat=stat)
   if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
 #ifdef _OPENMP
   allocate(gridunc_omp(0:numxgrid-1,0:numygrid-1,numzgrid,nspec, &
-       maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+       maxpointspec_act,nclassunc,nageclass,numthreads_grid),stat=stat)
   if (stat.ne.0) then
     write(*,*)'ERROR: could not allocate gridunc_omp'
     write(*,*)'increase the memory or reduce MAXTHREADGRID in COMMAND.'
@@ -64,17 +64,17 @@ subroutine alloc_grid_unc()
 #endif
   if (ldirect.gt.0) then
     allocate(wetgridunc(0:numxgrid-1,0:numygrid-1,nspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+         maxpointspec_act,nclassunc,nageclass),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc'
     allocate(drygridunc(0:numxgrid-1,0:numygrid-1,nspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+         maxpointspec_act,nclassunc,nageclass),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc'
 #ifdef _OPENMP
     allocate(wetgridunc_omp(0:numxgrid-1,0:numygrid-1,nspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+         maxpointspec_act,nclassunc,nageclass,numthreads_grid),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc_omp'
     allocate(drygridunc_omp(0:numxgrid-1,0:numygrid-1,nspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+         maxpointspec_act,nclassunc,nageclass,numthreads_grid),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc_omp'
 #endif
   endif
@@ -86,7 +86,7 @@ subroutine alloc_grid_unc()
 ! If MPI_IN_PLACE option is not used in mpi_mod.f90::mpif_tm_reduce_grid(),
 ! then an aux array is needed for parallel grid reduction
     allocate(gridunc0(0:numxgrid-1,0:numygrid-1,numzgrid,nspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+         maxpointspec_act,nclassunc,nageclass),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc0'
   else if (.not.lroot.and.mpi_mode.gt.0) then
     allocate(gridunc0(1,1,1,1,1,1,1),stat=stat)
@@ -96,10 +96,10 @@ subroutine alloc_grid_unc()
   if (ldirect.gt.0) then
     if (lroot.and.mpi_mode.gt.0) then
       allocate(wetgridunc0(0:numxgrid-1,0:numygrid-1,nspec, &
-           maxpointspec_act,nclassunc,maxageclass),stat=stat)
+           maxpointspec_act,nclassunc,nageclass),stat=stat)
       if (stat.ne.0) write(*,*)'ERROR: could not allocate wetgridunc0'
       allocate(drygridunc0(0:numxgrid-1,0:numygrid-1,nspec, &
-           maxpointspec_act,nclassunc,maxageclass),stat=stat)
+           maxpointspec_act,nclassunc,nageclass),stat=stat)
       if (stat.ne.0) write(*,*)'ERROR: could not allocate drygridunc0'
 
   ! allocate a dummy to avoid compilator complaints
@@ -125,27 +125,27 @@ subroutine alloc_grid_unc_nest()
 
   ! gridunc,griduncn        uncertainty of outputted concentrations
   allocate(griduncn(0:numxgridn-1,0:numygridn-1,numzgrid,nspec, &
-       maxpointspec_act,nclassunc,maxageclass),stat=stat)
+       maxpointspec_act,nclassunc,nageclass),stat=stat)
   if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
 #ifdef _OPENMP
   allocate(griduncn_omp(0:numxgridn-1,0:numygridn-1,numzgrid,nspec, &
-       maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+       maxpointspec_act,nclassunc,nageclass,numthreads_grid),stat=stat)
   if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc_omp'
 #endif
 
   if (ldirect.gt.0) then
     allocate(wetgriduncn(0:numxgridn-1,0:numygridn-1,nspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+         maxpointspec_act,nclassunc,nageclass),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested wetgridunc'
     allocate(drygriduncn(0:numxgridn-1,0:numygridn-1,nspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+         maxpointspec_act,nclassunc,nageclass),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested drygridunc'
 #ifdef _OPENMP
     allocate(wetgriduncn_omp(0:numxgridn-1,0:numygridn-1,nspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+         maxpointspec_act,nclassunc,nageclass,numthreads_grid),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested wetgridunc_omp'
     allocate(drygriduncn_omp(0:numxgridn-1,0:numygridn-1,nspec, &
-         maxpointspec_act,nclassunc,maxageclass,numthreads_grid),stat=stat)
+         maxpointspec_act,nclassunc,nageclass,numthreads_grid),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested drygriduncn_omp'
 #endif
   endif
@@ -157,7 +157,7 @@ subroutine alloc_grid_unc_nest()
   ! If MPI_IN_PLACE option is not used in mpi_mod.f90::mpif_tm_reduce_grid_nest(),
   ! then an aux array is needed for parallel grid reduction
     allocate(griduncn0(0:numxgridn-1,0:numygridn-1,numzgrid,nspec, &
-         maxpointspec_act,nclassunc,maxageclass),stat=stat)
+         maxpointspec_act,nclassunc,nageclass),stat=stat)
     if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
   ! allocate a dummy to avoid compilator complaints
   else if (.not.lroot.and.mpi_mode.gt.0) then
@@ -167,10 +167,10 @@ subroutine alloc_grid_unc_nest()
   if (ldirect.gt.0) then
     if (lroot.and.mpi_mode.gt.0) then
       allocate(wetgriduncn0(0:numxgridn-1,0:numygridn-1,nspec, &
-           maxpointspec_act,nclassunc,maxageclass),stat=stat)
+           maxpointspec_act,nclassunc,nageclass),stat=stat)
       if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
       allocate(drygriduncn0(0:numxgridn-1,0:numygridn-1,nspec, &
-           maxpointspec_act,nclassunc,maxageclass),stat=stat)
+           maxpointspec_act,nclassunc,nageclass),stat=stat)
       if (stat.ne.0) write(*,*)'ERROR:could not allocate nested gridunc'
   !  endif
   ! allocate a dummy to avoid compilator complaints

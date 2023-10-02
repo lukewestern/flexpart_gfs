@@ -12,7 +12,7 @@
 
 module com_mod
 
-  use par_mod, only: dp, numpath, maxnests, maxageclass, &
+  use par_mod, only: dp, numpath, maxnests, &
        numclass, maxcolumn, maxwf, maxrand, numwfmem
 
   implicit none
@@ -153,7 +153,8 @@ module com_mod
   integer :: linversionout
   ! linversionout 1 for one grid_time output file for each release containing all timesteps
 
-  integer :: nageclass,lage(maxageclass)
+  integer :: nageclass
+  integer,allocatable,dimension(:) :: lage
 
   ! nageclass               number of ageclasses for the age spectra calculation
   ! lage [s]                ageclasses for the age spectra calculation
@@ -557,6 +558,7 @@ contains
       orient,area_hour,point_hour,area_dow,point_dow,species)
     deallocate(DRYDEPSPEC,WETDEPSPEC)
     deallocate(creceptor,xreceptor,yreceptor,receptorarea,receptorname)
+    deallocate(lage)
   end subroutine dealloc_com
 
   subroutine mpi_alloc_part(nmpart)

@@ -272,12 +272,12 @@ subroutine fluxoutput(itime)
 
   real(kind=dp) :: jul
   integer :: itime,ix,jy,kz,k,nage,jjjjmmdd,ihmmss,kp,i
-  integer :: ncellse(maxspec,maxageclass),ncellsw(maxspec,maxageclass)
-  integer :: ncellss(maxspec,maxageclass),ncellsn(maxspec,maxageclass)
-  integer :: ncellsu(maxspec,maxageclass),ncellsd(maxspec,maxageclass)
-  logical :: sparsee(maxspec,maxageclass),sparsew(maxspec,maxageclass)
-  logical :: sparses(maxspec,maxageclass),sparsen(maxspec,maxageclass)
-  logical :: sparseu(maxspec,maxageclass),sparsed(maxspec,maxageclass)
+  integer :: ncellse(maxspec,nageclass),ncellsw(maxspec,nageclass)
+  integer :: ncellss(maxspec,nageclass),ncellsn(maxspec,nageclass)
+  integer :: ncellsu(maxspec,nageclass),ncellsd(maxspec,nageclass)
+  logical :: sparsee(maxspec,nageclass),sparsew(maxspec,nageclass)
+  logical :: sparses(maxspec,nageclass),sparsen(maxspec,nageclass)
+  logical :: sparseu(maxspec,nageclass),sparsed(maxspec,nageclass)
   character :: adate*8,atime*6
 
 

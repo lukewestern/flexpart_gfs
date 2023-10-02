@@ -59,6 +59,7 @@ subroutine readageclasses
 
   if (lagespectra.ne.1) then
     nageclass=1
+    allocate( lage(nageclass) )
     lage(nageclass)=999999999
     return
   endif
@@ -81,6 +82,7 @@ subroutine readageclasses
       read(unitageclasses,*)
     end do
     read(unitageclasses,*) nageclass
+    allocate( lage(nageclass) )
     read(unitageclasses,*) lage(1)
     do i=2,nageclass
       read(unitageclasses,*) lage(i)
@@ -94,15 +96,6 @@ subroutine readageclasses
       err=1000)
     write(unitageclasses,nml=ageclass)
     close(unitageclasses)
-  endif
-
-  if (nageclass.gt.maxageclass) then
-    write(*,*) ' #### FLEXPART MODEL ERROR! NUMBER OF AGE     #### '
-    write(*,*) ' #### CLASSES GREATER THAN MAXIMUM ALLOWED.   #### '
-    write(*,*) ' #### CHANGE SETTINGS IN FILE AGECLASSES OR   #### '
-    write(*,*) ' #### RECOMPILE WITH LARGER MAXAGECLASS IN    #### '
-    write(*,*) ' #### FILE PAR_MOD.                        #### '
-    error stop 'Number of age classes too large'
   endif
 
   if (lage(1).le.0) then

@@ -155,7 +155,7 @@ module par_mod
   !**************************************
 
   !integer,parameter :: maxageclass=1,maxzgrid=10,nclassunc=1
-  integer,parameter :: maxageclass=1,nclassunc=1
+  integer,parameter :: nclassunc=1
 
   ! nclassunc               number of classes used to calculate the uncertainty
   !                         of the output
