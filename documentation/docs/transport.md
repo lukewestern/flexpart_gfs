@@ -21,9 +21,9 @@ In FLEXPART 11, all convection related computations are located in the convectio
 
 The sorting algorithm used in `convmix` has been updated with a modified sorting module from [The Fortran Standard Library](https://fortran-lang.org/), who cite [Musser 1999](https://onlinelibrary.wiley.com/doi/abs/10.1002/(SICI)1097-024X(199708)27:8%3C983::AID-SPE117%3E3.0.CO;2-%23) as the source for their algorithm. This new sorting algorithm is an order of 4 magnitudes faster and is located in a separate module, **sort\_mod.f90**. In addition, most loops in the `convect` subroutine have been replaced with array operations.
 
-## Settling
+## <a name="settling"></a>Settling
 
 Gravitational settling of particles is computed at each time step and included in the vertical velocities. These are computed following [Naslund & Thaning](https://www.tandfonline.com/doi/abs/10.1080/02786829108959487), with a temperature dependent dynamic viscosity that is computed using the formula of [Sutherland 1893](https://www.tandfonline.com/doi/abs/10.1080/14786449308620508?journalCode=tphm16).
 
-### Shape factor by Daria Tatsii (link)
+### <a name="shape"></a>Shape factor by Daria Tatsii (link)
 In FLEXPART 11, the computation of settling velocities is done in the settling module, **settling\_mod.f90**. Where the previous versions of FLEXPART  did not consider other shapes of aerosols other than spheres, now the settling velocity can also be computed for non-spherical particles.

@@ -192,16 +192,18 @@ This file specifies the size and dimensions of the nested output grid. The heigh
 
 The option to produce age class output can be activated by setting [LAGESPECTRA](running.md#lagespectra) in the [COMMAND](running.md#command) file. The AGECLASSES file then allows for the definition of a list of times (in seconds, in increasing order) that define the age classes used for model output. With this option, the model output (e.g., oncentrations) is split into contributions from particles of different age, defined as the time passed since the particle release. Particles are dropped from the simulation once they exceed the maximum age, skipping unnecesary computations. This is an important technique to limit the cpu usage for long-term simulations. Thus, even if the user is not interested in age information per se, it may often be useful to set one age class to define a maximum particle age.
 The file should contain two namelist: 
+
 1) &NAGE
 
-| Variable name | Description | Data type |
-| ------------- | ------------ | --------- |
-|NAGECLASS | Number of ageclasses for the age spectra calculation | integer |
+    | Variable name | Description | Data type |
+    | ------------- | ------------ | --------- |
+    |NAGECLASS | Number of ageclasses for the age spectra calculation | integer |
 
 2) &AGECLASS
-| Variable name | Description | Data type |
-| ------------- | ------------ | --------- |
-|LAGE | Maximum age of particles in seconds for each ageclass | integer(s divided by comma's) |
+
+    | Variable name | Description | Data type |
+    | ------------- | ------------ | --------- |
+    |LAGE | Maximum age of particles in seconds for each ageclass | integer(s divided by comma's) |
 
 <br/>
 
