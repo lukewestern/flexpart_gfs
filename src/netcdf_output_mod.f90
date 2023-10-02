@@ -40,7 +40,7 @@ module netcdf_output_mod
   use outgrid_mod,  only: outheight,oroout,densityoutgrid,factor3d,volume,&
                        wetgrid,wetgridsigma,drygrid,drygridsigma,grid,gridsigma,&
                        area,arean,volumen,orooutn
-  use par_mod,   only: dep_prec, sp, dp, maxreceptor, nclassunc,&
+  use par_mod,   only: dep_prec, sp, dp, nclassunc,&
                        unitoutrecept,unitoutreceptppt,unittmp
   use com_mod,   only: path,length,ldirect,ibdate,ibtime,iedate,ietime,itime_init, &
                        loutstep,loutaver,loutsample,outlon0,outlat0,&
@@ -899,7 +899,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   real, intent(in)    :: outnum
   real(dep_prec),intent(out):: wetgridtotalunc,drygridtotalunc
   real, intent(out)   :: gridtotalunc
-  real                :: densityoutrecept(maxreceptor),recout(maxreceptor)
+  real                :: densityoutrecept(numreceptor),recout(numreceptor)
   integer             :: ncid,kp,ks,kz,ix,jy,iix,jjy,kzz,ngrid
   integer             :: nage,i,l,jj
   real                :: tot_mu(maxspec,maxpointspec_act)
@@ -1303,7 +1303,7 @@ subroutine concoutput_nest_netcdf(itime,outnum)
 
   integer, intent(in) :: itime
   real, intent(in)    :: outnum
-  real                :: densityoutrecept(maxreceptor)
+  real                :: densityoutrecept(numreceptor)
   integer             :: ncid,kp,ks,kz,ix,jy,iix,jjy,kzz,ngrid
   integer             :: nage,i,l,jj
   real                :: tot_mu(maxspec,maxpointspec_act)

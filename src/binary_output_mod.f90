@@ -707,10 +707,10 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(maxreceptor),xl,yl
+  real :: outnum,densityoutrecept(numreceptor),xl,yl
   ! RLT
-  real :: densitydryrecept(maxreceptor)
-  real :: factor_dryrecept(maxreceptor)
+  real :: densitydryrecept(numreceptor)
+  real :: factor_dryrecept(numreceptor)
 
   real(dep_prec) :: auxgrid(nclassunc)
   real(sp) :: gridtotal,gridsigmatotal,gridtotalunc
@@ -1352,10 +1352,10 @@ subroutine concoutput_nest(itime,outnum)
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(maxreceptor),xl,yl
+  real :: outnum,densityoutrecept(numreceptor),xl,yl
   ! RLT
-  real :: densitydryrecept(maxreceptor)
-  real :: factor_dryrecept(maxreceptor)
+  real :: densitydryrecept(numreceptor)
+  real :: factor_dryrecept(numreceptor)
 
   !real densityoutgrid(0:numxgrid-1,0:numygrid-1,numzgrid),
   !    +grid(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec,maxpointspec_act,
@@ -1941,10 +1941,10 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(maxreceptor),xl,yl
+  real :: outnum,densityoutrecept(numreceptor),xl,yl
   ! RLT
-  real :: densitydryrecept(maxreceptor)
-  real :: factor_dryrecept(maxreceptor)
+  real :: densitydryrecept(numreceptor)
+  real :: factor_dryrecept(numreceptor)
 
 
   real(dep_prec) :: auxgrid(nclassunc)
@@ -2548,10 +2548,10 @@ subroutine concoutput_inversion_nest(itime,outnum)
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(maxreceptor),xl,yl
+  real :: outnum,densityoutrecept(numreceptor),xl,yl
   ! RLT
-  real :: densitydryrecept(maxreceptor)
-  real :: factor_dryrecept(maxreceptor)
+  real :: densitydryrecept(numreceptor)
+  real :: factor_dryrecept(numreceptor)
 
   real(dep_prec) :: auxgrid(nclassunc)
   real :: halfheight,dz,dz1,dz2,tot_mu(maxspec,maxpointspec_act)
@@ -3014,10 +3014,10 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(maxreceptor),xl,yl
+  real :: outnum,densityoutrecept(numreceptor),xl,yl
   ! RLT
-  real :: densitydryrecept(maxreceptor)
-  real :: factor_dryrecept(maxreceptor)
+  real :: densitydryrecept(numreceptor)
+  real :: factor_dryrecept(numreceptor)
 
   real(dep_prec) :: auxgrid(nclassunc)
   real(sp) :: gridtotal,gridsigmatotal,gridtotalunc
@@ -3676,10 +3676,10 @@ subroutine concoutput_sfc_nest(itime,outnum)
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(maxreceptor),xl,yl
+  real :: outnum,densityoutrecept(numreceptor),xl,yl
   ! RLT
-  real :: densitydryrecept(maxreceptor)
-  real :: factor_dryrecept(maxreceptor)
+  real :: densitydryrecept(numreceptor)
+  real :: factor_dryrecept(numreceptor)
 
   real(dep_prec) :: auxgrid(nclassunc)
   real :: halfheight,dz,dz1,dz2,tot_mu(maxspec,maxpointspec_act)

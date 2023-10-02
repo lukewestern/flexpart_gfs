@@ -13,8 +13,7 @@
 module com_mod
 
   use par_mod, only: dp, numpath, maxnests, maxageclass, &
-       numclass, maxcolumn, maxwf, &
-       maxreceptor, maxrand, numwfmem
+       numclass, maxcolumn, maxwf, maxrand, numwfmem
 
   implicit none
 
@@ -376,15 +375,16 @@ module com_mod
   ! Variables defining receptor points
   !***********************************
 
-  real :: xreceptor(maxreceptor),yreceptor(maxreceptor)
-  real :: receptorarea(maxreceptor)
+  real,allocatable,dimension(:) :: xreceptor,yreceptor
+  real,allocatable,dimension(:) :: receptorarea
   real,allocatable,dimension(:,:) :: creceptor
-  character(len=16) :: receptorname(maxreceptor)
+  character(len=16),allocatable,dimension(:) :: receptorname
   integer :: numreceptor
 
   ! xreceptor,yreceptor     receptor position
   ! creceptor               concentrations at receptor points
   ! receptorarea            area of 1*1 grid cell at receptor point
+  ! numreceptor             number of receptor points
 
   !***************************************
   ! Variables characterizing each particle
@@ -518,7 +518,7 @@ contains
       area_dow(maxspec,7),point_dow(maxspec,7), &
       species(maxspec) )
     allocate( DRYDEPSPEC(maxspec),WETDEPSPEC(maxspec) )
-    allocate( creceptor(maxreceptor,maxspec) )
+    allocate( creceptor(numreceptor,maxspec) )
     tot_blc_count=0
     tot_inc_count=0
   end subroutine alloc_com
@@ -534,7 +534,7 @@ contains
       rgs,rlu,rm,dryvel,ohcconst,ohdconst,ohnconst,Fn,Fs,ks1,ks2,kn2,ishape, &
       orient,area_hour,point_hour,area_dow,point_dow,species)
     deallocate(DRYDEPSPEC,WETDEPSPEC)
-    deallocate(creceptor)
+    deallocate(creceptor,xreceptor,yreceptor,receptorarea,receptorname)
   end subroutine dealloc_com
 
   subroutine mpi_alloc_part(nmpart)

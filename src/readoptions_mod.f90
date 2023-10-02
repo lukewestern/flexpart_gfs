@@ -1835,8 +1835,8 @@ subroutine readreceptors
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
-  ! receptorarea(maxreceptor)  area of dx*dy at location of receptor           *
-  ! receptorname(maxreceptor)  names of receptors                              *
+  ! receptorarea   area of dx*dy at location of receptor                       *
+  ! receptorname   names of receptors                                          *
   ! xreceptor,yreceptor  coordinates of receptor points                        *
   !                                                                            *
   ! Constants:                                                                 *
@@ -1852,7 +1852,8 @@ subroutine readreceptors
 
   integer :: ios
   real :: lon,lat   ! for namelist input, lon/lat are used instead of x,y
-
+  real,allocatable,dimension(:) :: tmpxrec,tmpyrec,tmprecarea
+  character(len=16),allocatable,dimension(:) :: tmprecname
   ! declare namelist
   namelist /receptors/ receptor, lon, lat
 
@@ -1902,18 +1903,21 @@ subroutine readreceptors
       j=j+1
       read(unitreceptor,receptors,iostat=ios)
       if (ios .eq. 0) then
-        if (j .gt. maxreceptor) then
-          write(*,*) ' #### FLEXPART MODEL ERROR! TOO MANY RECEPTOR #### '
-          write(*,*) ' #### POINTS ARE GIVEN.                       #### '
-          write(*,*) ' #### MAXIMUM NUMBER IS ',maxreceptor,'       #### '
-          write(*,*) ' #### PLEASE MAKE CHANGES IN FILE RECEPTORS   #### '
-        endif
-        receptorname(j)=receptor
-        xreceptor(j)=(lon-xlon0)/dx       ! transform to grid coordinates
-        yreceptor(j)=(lat-ylat0)/dy
+        numreceptor = j
+        allocate( tmprecname(j),tmpxrec(j),tmpyrec(j),tmprecarea(j) )
+
+        tmprecname(j)=receptor
+        tmpxrec(j)=(lon-xlon0)/dx       ! transform to grid coordinates
+        tmpyrec(j)=(lat-ylat0)/dy
         xm=r_earth*cos(lat*pi/180.)*dx/180.*pi
         ym=r_earth*dy/180.*pi
-        receptorarea(j)=xm*ym
+        tmprecarea(j)=xm*ym
+
+        call move_alloc(tmprecname,receptorname)
+        call move_alloc(tmpxrec,xreceptor)
+        call move_alloc(tmpyrec,yreceptor)
+        call move_alloc(tmprecarea,receptorarea)
+
       ! write receptors in namelist format to output directory if requested
         if (nmlout) write(unitreceptorout,nml=receptors)
 !        if (nmlout) write(unitreceptorout,nml=nml_receptors)
@@ -1925,8 +1929,6 @@ subroutine readreceptors
       !   write (*,receptors)
       endif
     end do ! end nml receptors reading loop
-
-    numreceptor=j-1
 
   else ! ios<0 = EOF, read as conventional input file
 
@@ -1954,26 +1956,33 @@ subroutine readreceptors
         goto 100
       endif
 
-      if (j .gt. maxreceptor) goto 992
+      numreceptor = j
+      allocate( tmprecname(j),tmpxrec(j),tmpyrec(j),tmprecarea(j) )
 
-      receptorname(j)=receptor
-      xreceptor(j)=(lon-xlon0)/dx       ! transform to grid coordinates
-      yreceptor(j)=(lat-ylat0)/dy
+      tmprecname(j)=receptor
+      tmpxrec(j)=(lon-xlon0)/dx       ! transform to grid coordinates
+      tmpyrec(j)=(lat-ylat0)/dy
       xm=r_earth*cos(lat*pi/180.)*dx/180.*pi
       ym=r_earth*dy/180.*pi
-      receptorarea(j)=xm*ym
+      tmprecarea(j)=xm*ym
+
+      call move_alloc(tmprecname,receptorname)
+      call move_alloc(tmpxrec,xreceptor)
+      call move_alloc(tmpyrec,yreceptor)
+      call move_alloc(tmprecarea,receptorarea)
       ! write receptors file in namelist format to output directory if requested
       if (nmlout) write(unitreceptorout,nml=receptors)
 !      if (nmlout) write(unitreceptorout,nml=nml_receptors)
     goto 100
 
-99  numreceptor=j-1
+99  continue
 
   endif ! end no-nml / nml bloc
 
   close (unitreceptor)
   if (nmlout) close (unitreceptorout)
 
+  write(*,*) 'Number of receptors: ',numreceptor
   return
 
 991 continue
@@ -1982,13 +1991,6 @@ subroutine readreceptors
   write(*,*) '#### note that in v11+ coordinate names are lon and lat'
 
   error stop
-
-992 continue
-  write(*,*) ' #### FLEXPART MODEL ERROR! TOO MANY RECEPTOR #### '
-  write(*,*) ' #### POINTS ARE GIVEN.                       #### '
-  write(*,*) ' #### MAXIMUM NUMBER IS ',maxreceptor,'       #### '
-!        write(*,*) ' #### PLEASE MAKE CHANGES IN FILE RECEPTORS   #### '
-  error stop ' maxreceptor smaller than numreceptor'
 
 993 continue
   write(*,*) '#### FLEXPART ERROR: namelist in file RECEPTORS'
