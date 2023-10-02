@@ -1426,8 +1426,7 @@ subroutine gridcheck_nest
   ! coordinate parameters
 
   integer :: isec1(56),isec2(12) !(22+nxmaxn+nymaxn)
-  real(kind=4) :: zsec4(jpunp)
-  real(kind=4),allocatable,dimension(:) :: zsec2
+  real(kind=4),allocatable,dimension(:) :: zsec2,zsec4
 
   !HSO  grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
@@ -1617,6 +1616,7 @@ subroutine gridcheck_nest
         if (nxn(l).gt.nxmaxn) nxmaxn=nxn(l)
         if (nyn(l).gt.nymaxn) nymaxn=nyn(l)
         allocate( zsec2(60+2*nlev_ecn) )
+        allocate( zsec4(16*nxn(l)*nyn(l)) )
       endif ! ifield
 
       if (nxn(l).gt.nxmaxn) then
@@ -1816,7 +1816,7 @@ subroutine gridcheck_nest
       endif
     end do
 
-    deallocate( zsec2 )
+    deallocate( zsec2,zsec4 )
   end do
 
   ! Allocate memory for windfields using nxmax, nymaxn, numbnest
@@ -1918,8 +1918,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   ! coordinate parameters
 
   integer :: isec1(56),isec2(22+nxmax+nymax)
-  real(kind=4), allocatable, dimension(:) :: zsec4
-  !  real(kind=4) :: zsec4(jpunp)
+  real(kind=4) :: zsec4( 16*nxmax*nymax ) )
   real(kind=4) :: xaux,yaux,xaux0,yaux0
   real(kind=8) :: xauxin,yauxin
   real,parameter :: eps=1.e-4
@@ -1982,9 +1981,6 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   !
   ! GET NEXT FIELDS
   !
-  ! allocate memory for reading from grib
-  allocate(zsec4(nxfield*ny), stat=stat)
-  if (stat.ne.0) error stop "Could not allocate zsec4"
 
 !$OMP DO SCHEDULE(static)
 
@@ -2368,7 +2364,7 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
 
   end do fieldloop
 !$OMP END DO
-  deallocate(zsec4)
+
 !$OMP END PARALLEL
 
   deallocate(igrib)
@@ -2597,7 +2593,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   !HSO kept isec1, isec2 and zsec4 for consistency with gribex GRIB input
 
   integer :: isec1(8),isec2(3)
-  real(kind=4) :: zsec4(jpunp)
+  real(kind=4) :: zsec4(16*nxmax*nymax)
   real(kind=4) :: xaux,yaux,xaux0,yaux0
   real(kind=8) :: xauxin,yauxin
   real,parameter :: eps=1.e-4
@@ -3297,7 +3293,7 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
   ! coordinate parameters
 
   integer :: isec1(56),isec2(22+nxmaxn+nymaxn)
-  real(kind=4) :: zsec4(jpunp)
+  real(kind=4) :: zsec4(16*nxmaxn*nymaxn)
   real(kind=4) :: xaux,yaux
   real(kind=8) :: xauxin,yauxin
   real,parameter :: eps=1.e-4
