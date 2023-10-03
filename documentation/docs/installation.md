@@ -13,7 +13,7 @@ There are two options to download _FLEXPART_:
 
     If you have git installed, you can clone the latest version from our git repository:
 
-        $ git clone --single-branch --branch master https://gitlab.phaidra.org/flexpart/flexpart
+        $ git clone --single-branch --branch master https://gitlab.phaidra.org/flexpart/flexpart.git
 
 ## Compiler
 _FLEXPART_ 11 is written in Fortran 2018. The following compilers can be used to compile _FLEXPART_:
