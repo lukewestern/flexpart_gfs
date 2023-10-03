@@ -260,6 +260,7 @@ subroutine read_options_and_initialise_flexpart
   if (numbnests.ge.1) then
   ! If nested wind fields are used, allocate arrays
   !************************************************
+    call alloc_nest_properties
     call gridcheck_nest
   endif
 

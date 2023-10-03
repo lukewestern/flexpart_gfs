@@ -1597,12 +1597,6 @@ subroutine gridcheck_nest
 
       endif
 
-      !get the size and data of the values array
-      if (isec1(6).ne.-1) then
-        call grib_get_real4_array(igrib,'values',zsec4,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
-      endif
-
       !HSO  get the required fields from section 2 in a gribex compatible manner
       if (ifield.eq.1) then
         call grib_get_int(igrib,'numberOfPointsAlongAParallel', &
@@ -1614,9 +1608,6 @@ subroutine gridcheck_nest
         call grib_get_int(igrib,'numberOfVerticalCoordinateValues', &
              isec2(12),iret)
         call grib_check(iret,gribFunction,gribErrorMsg)
-      !HSO    get the size and data of the vertical coordinate array
-        call grib_get_real4_array(igrib,'pv',zsec2,iret)
-        call grib_check(iret,gribFunction,gribErrorMsg)
 
         nxn(l)=isec2(2)
         nyn(l)=isec2(3)
@@ -1626,9 +1617,22 @@ subroutine gridcheck_nest
         if (nyn(l).gt.nymaxn) nymaxn=nyn(l)
         allocate( zsec2(60+2*nlev_ecn), stat=stat)
         if (stat.ne.0) error stop "Could not allocate zsec2"
-        allocate( zsec4(16*nxn(l)*nyn(l)), stat=stat)
+        allocate( zsec4(16*nxmaxn*nymaxn), stat=stat)
         if (stat.ne.0) error stop "Could not allocate zsec4"
+
+        !HSO    get the size and data of the vertical coordinate array
+        call grib_get_real4_array(igrib,'pv',zsec2,iret)
+        call grib_check(iret,gribFunction,gribErrorMsg)
+
+        call alloc_fixedfields_nest
+        write(*,*) 'Dimensions nest:',nxmaxn,nymaxn,nlev_ecn
       endif ! ifield
+
+      !get the size and data of the values array
+      if (isec1(6).ne.-1) then
+        call grib_get_real4_array(igrib,'values',zsec4,iret)
+        call grib_check(iret,gribFunction,gribErrorMsg)
+      endif
 
       if (nxn(l).gt.nxmaxn) then
         write(*,*) 'FLEXPART error: Too many grid points in x direction.'
@@ -1724,7 +1728,7 @@ subroutine gridcheck_nest
     if(nuvzn.eq.nlev_ec) nwzn=nlev_ecn+1
 
     if ((nuvzn.gt.nuvzmax).or.(nwzn.gt.nwzmax)) then
-      write(*,*) 'FLEXPART error: Nested wind fields have too many'// &
+      write(*,*) 'FLEXPART error: Nested wind fields have too many '// &
            'vertical levels.'
       write(*,*) 'Problem was encountered for nesting level ',l
       error stop
@@ -3828,6 +3832,18 @@ subroutine alloc_fixedfields
   if (stat.ne.0) error stop "Could not allocate pv"
 end subroutine alloc_fixedfields
 
+subroutine alloc_fixedfields_nest
+  implicit none 
+  integer :: stat
+
+  allocate(oron(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate oron"
+  allocate(excessoron(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate excessoron"
+  allocate(lsmn(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate lsmn"
+end subroutine alloc_fixedfields_nest
+
 subroutine alloc_windfields
   implicit none
   integer :: stat
@@ -3973,26 +3989,6 @@ subroutine alloc_windfields_nest
   implicit none 
   integer :: stat
 
-  allocate(nxn(numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate nxn"
-  allocate(nyn(numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate nyn"
-  allocate(dxn(numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate dxn"
-  allocate(dyn(numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate dyn"
-  allocate(xlon0n(numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate xlon0n"
-  allocate(ylat0n(numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate ylat0n"
-
-  allocate(oron(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate oron"
-  allocate(excessoron(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate excessoron"
-  allocate(lsmn(0:nxmaxn-1,0:nymaxn-1,numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate lsmn"
-
   allocate(uun(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
   if (stat.ne.0) error stop "Could not allocate uun"
   allocate(vvn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
@@ -4098,6 +4094,31 @@ subroutine alloc_windfields_nest
   allocate(vdepn(0:nxmaxn-1,0:nymaxn-1,maxspec,numwfmem,numbnests),stat=stat)
   if (stat.ne.0) error stop "Could not allocate vdepn"
 
+  ! Initialise
+  !************  
+  clwcn(:,:,:,:,:)=0.
+  ciwcn(:,:,:,:,:)=0.
+  clwchn(:,:,:,:,:)=0.
+  ciwchn(:,:,:,:,:)=0.
+end subroutine alloc_windfields_nest
+
+subroutine alloc_nest_properties
+  implicit none 
+  integer :: stat
+
+  allocate(nxn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate nxn"
+  allocate(nyn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate nyn"
+  allocate(dxn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate dxn"
+  allocate(dyn(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate dyn"
+  allocate(xlon0n(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xlon0n"
+  allocate(ylat0n(numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate ylat0n"
+
   allocate(xresoln(0:numbnests),stat=stat)
   if (stat.ne.0) error stop "Could not allocate xresoln"
   allocate(yresoln(0:numbnests),stat=stat)
@@ -4110,14 +4131,7 @@ subroutine alloc_windfields_nest
   if (stat.ne.0) error stop "Could not allocate xrn"
   allocate(yrn(numbnests),stat=stat)
   if (stat.ne.0) error stop "Could not allocate yrn"
-
-  ! Initialise
-  !************  
-  clwcn(:,:,:,:,:)=0.
-  ciwcn(:,:,:,:,:)=0.
-  clwchn(:,:,:,:,:)=0.
-  ciwchn(:,:,:,:,:)=0.
-end subroutine alloc_windfields_nest
+end subroutine alloc_nest_properties
 
 subroutine dealloc_windfields_nest
   
