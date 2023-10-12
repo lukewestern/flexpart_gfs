@@ -828,7 +828,7 @@ subroutine drydepo_probability(prob,dt,zts,vdepo,ithread)
   integer :: ns,m                      ! loop variable over species
   real :: vdeptemp(2)
 
-  if ((DRYDEP).and.(zts.lt.2.*href)) then
+  if (zts.lt.2.*href) then
     do ns=1,nspec
       if (DRYDEPSPEC(ns)) then
         if (depoindicator(ns,ithread)) then

@@ -630,7 +630,9 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
     
   ! Determine probability of deposition
   !************************************
-    call drydepo_probability(part(ipart)%prob,dt,zts,vdepo,ithread+1)
+    if (DRYDEP) then
+      call drydepo_probability(part(ipart)%prob,dt,zts,vdepo,ithread+1)
+    endif
 
     if (zts.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))    
       ! if particle below ground -> reflection
