@@ -181,7 +181,7 @@ subroutine output_particles(itime,initial_output)
 
   integer,intent(in) :: itime
   logical,optional,intent(in) :: initial_output
-  logical :: init_out
+  logical :: init_out,lskip
   integer :: i,j,m,jjjjmmdd,ihmmss,np,ns,i_av
   real(kind=dp) :: jul
   real :: tmp(2)
@@ -209,7 +209,7 @@ subroutine output_particles(itime,initial_output)
     init_out=.false.
   endif
 
-!$OMP PARALLEL PRIVATE(i,j,m,tmp,ns,i_av,cartxyz_comp,cartxyz,np)
+!$OMP PARALLEL PRIVATE(i,j,m,tmp,ns,i_av,cartxyz_comp,cartxyz,np,lskip)
   ! Some variables needed for temporal interpolation
   !*************************************************
   call find_time_vars(itime)
@@ -218,17 +218,22 @@ subroutine output_particles(itime,initial_output)
   do i=1,count%allocated ! LB: Loop over all particles, including terminated ones because of 
   ! averages that could still be available. There should be a better way.
     !Initialise fields
-    output(:,i) = -1
-    masstemp(i,:) = -1
-    masstemp_av(i,:) = -1
-    wetdepotemp(i,:) = -1
-    drydepotemp(i,:) = -1
-    if (part(i)%tend.eq.0) cycle ! Not spawned yet
-    if ((.not. init_out) .and. (part(i)%tstart.eq.itime)) cycle ! No information avail yet for new parts
+    lskip=.false.
+
+    if (.not. part(i)%spawned) lskip=.true. ! Not spawned yet
+    if ((.not. init_out) .and. (part(i)%tstart.eq.itime)) lskip=.true. ! No information avail yet for new parts
     if (((.not. part(i)%alive).and.(abs(part(i)%tend-itime).ge.ipoutfac*loutstep)) .or. &
-      (init_out .and. (i.lt.partinitpointer1-1 .or. (part(i)%alive .eqv. .false.) ))) cycle
+      (init_out .and. (i.lt.partinitpointer1-1 .or. (part(i)%alive .eqv. .false.) ))) lskip=.true.
     ! no particles that have been dead for longer than a write interval
-    
+
+    if (lskip) then
+      output(:,i) = -1
+      masstemp(i,:) = -1
+      masstemp_av(i,:) = -1
+      wetdepotemp(i,:) = -1
+      drydepotemp(i,:) = -1
+      cycle
+    endif
     !*****************************************************************************
     ! Interpolate several variables (PV, specific humidity, etc.) to particle position
     !*****************************************************************************

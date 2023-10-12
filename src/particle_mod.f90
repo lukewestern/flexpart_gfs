@@ -59,6 +59,7 @@ module particle_mod
       settling                      ! Settling velocity for dry and wet(?) deposit
     logical            ::         &
       alive=.false.,              & ! Flag to show if the particle is still in the running
+      spawned=.false.,            & ! Flag to show that particle has spawned (includes terminated parts)
       nstop=.false.                 ! Flag to stop particle (used in advance, stopped in timemanager)
 #ifdef ETA
     logical            ::         &
@@ -246,6 +247,7 @@ contains
     !*****************************************************************
     part(count%spawned+1:count%spawned+nmpart)%tstart = itime
     part(count%spawned+1:count%spawned+nmpart)%alive = .true.
+    part(count%spawned+1:count%spawned+nmpart)%spawned = .true.
 
     ! Updating the list with alive particle numbers that is used to
     ! loop over when doing particle computations
@@ -293,6 +295,7 @@ contains
     !*****************************************************************
     part(ipart)%tstart = itime
     part(ipart)%alive = .true.
+    part(ipart)%spawned = .true.
 
     ! Updating the list with alive particle numbers that is used to
     ! loop over when doing particle computations
@@ -401,7 +404,6 @@ contains
         tmppart(i)%wetdepo(maxspec)=0.
       endif
       tmppart(i)%ntime=0 ! Preventing particles to be written to partoutput when they just spawned
-      tmppart(i)%tend=0 ! Preventing writing particles that have not spawned yet
     end do
     if (count%allocated.gt.0) tmppart(1:count%allocated) = part
     call move_alloc(tmppart,part)
