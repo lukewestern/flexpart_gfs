@@ -15,8 +15,8 @@ alma8-build:
     - export FC=gfortran
     - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
     - export CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules
+    - make -j -C src -f makefile_gfortran eta=no
     - make -j -C src -f makefile_gfortran
-    - make -j -C src -f makefile_gfortran eta=yes
   artifacts:
     when: on_success
     paths:
