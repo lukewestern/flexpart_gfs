@@ -1156,6 +1156,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
 
         ! Concentration output
         !*********************
+!$OMP BARRIER
 !$OMP SINGLE
         if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
 
