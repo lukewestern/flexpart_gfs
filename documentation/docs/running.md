@@ -273,7 +273,7 @@ A simulation can be started using a NetCDF file listing all particles to be rele
 | `longitude` | Initial longitude of each particle | 1D-array of reals with dimension `particle` |
 | `latitude` | Initial latitude of each particle | 1D-array of reals with dimension `particle` |
 | `height` | Initial height of each particle (meter above reference level) | 1D-array of reals with dimension `particle` |
-| `time` | Release time of each particle seconds after simulation start (set in [COMMAND](running.md#command)) | 1D-array of reals with dimension `particle` |
+| `time` | Release time of each particle seconds after simulation start (IBDATE/IBTIME for forward runs, IEDATE/IETIME for backward runs, set in [COMMAND](running.md#command)) | 1D-array of reals with dimension `particle` |
 | `mass` | Initial mass of each particle (kg) | 2D-array of reals with dimension `species` and `particle` |
 | `release` | Release ID of each particle, giving separate concentration fields for each ID when [IOUTPUTFOREACHRELEASE](running.md#ioutputforeachrelease) in [COMMAND](running.md#command) is set | 1D-array of integers with dimension `particle` |
 
