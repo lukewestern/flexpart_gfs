@@ -230,7 +230,7 @@ subroutine get_settling(xt,yt,zt,nsp,settling)
       if (reynolds.le.0.02) then
         c_d=(24.0/reynolds)
 
-      else ! Outside of lookup table range
+      else
         c_d=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
           0.42/(1.0+42500.0/(reynolds**1.16))
       endif

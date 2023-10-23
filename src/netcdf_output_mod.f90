@@ -2541,6 +2541,7 @@ subroutine readinitconditions_netcdf()
   integer,allocatable, dimension (:) :: specnum_rel,numpoint_max
   real,allocatable,dimension(:,:) :: mass_temp
   real,allocatable,dimension(:) :: vsh,fracth,schmih
+  logical :: lstart=.true.
 
   integer :: idummy = -8
   
@@ -2633,19 +2634,21 @@ subroutine readinitconditions_netcdf()
       endif
     end do
     if (part(i)%tstart*ldirect.lt.0) then
-      write(*,*) "Particle", i, "has a starting time of", part(i)%tstart, "in"
-      if (ldirect.le.0) then 
-        write(*,*) "backward mode, please only use negative values."
-        write(*,*) "time array in part_ic.nc should be given in seconds after the"
-        write(*,*) "start of your simulation."
-        error stop "Positive starting time in part_ic while running in backward mode."
+      if (lstart) then
+        write(*,*) "WARNING: (some) particles have a starting time of", part(i)%tstart, "in"
+        if (ldirect.le.0) then 
+          write(*,*) "backward mode, please only use negative values."
+          write(*,*) "time array in part_ic.nc should be given in seconds after the"
+          write(*,*) "start of your simulation. Positive values will be converted to"
+          write(*,*) "negative starting times..."
+        else 
+          write(*,*) "forward mode, please only use positive values."
+          write(*,*) "time array in part_ic.nc should be given in seconds after the"
+          write(*,*) "start of your simulation. Negative values will be converted to"
+          write(*,*) "positive starting times..."
+        endif
       endif
-      if (ldirect.le.0) then 
-        write(*,*) "forward mode, please only use positive values."
-        write(*,*) "time array in part_ic.nc should be given in seconds after the"
-        write(*,*) "start of your simulation."
-        error stop "Negative starting time in part_ic while running in backward mode."
-      endif
+      part(i)%tstart = part(i)%tstart*-1
     endif
   end do
   ! Release
