@@ -355,7 +355,7 @@ subroutine timemanager
     thread = 0
 #endif
 
-!$OMP DO 
+!$OMP DO SCHEDULE(dynamic)
 ! SCHEDULE(dynamic, max(1,numpart/1000))
 !max(1,int(real(numpart)/numthreads/20.)))
     do i=1,count%alive
