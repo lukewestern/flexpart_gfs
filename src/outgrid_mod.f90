@@ -666,11 +666,11 @@ subroutine initcond_calc(itime,i,thread)
 #ifdef _OPENMP
           init_cond_omp(ix,jy,kz,ks,nrelpointer,thread)= &
                init_cond_omp(ix,jy,kz,ks,nrelpointer,thread)+ &
-               part(i)%mass(ks)/rhoi
+               mass(i,ks)/rhoi
 #else
           init_cond(ix,jy,kz,ks,nrelpointer)= &
                init_cond(ix,jy,kz,ks,nrelpointer)+ &
-               part(i)%mass(ks)/rhoi
+               mass(i,ks)/rhoi
 #endif
         end do
       endif
@@ -706,10 +706,10 @@ subroutine initcond_calc(itime,i,thread)
 #ifdef _OPENMP
             init_cond_omp(ix,jy,kz,ks,nrelpointer,thread)= &
                  init_cond_omp(ix,jy,kz,ks,nrelpointer,thread) + &
-                 part(i)%mass(ks)/rhoi*w
+                 mass(i,ks)/rhoi*w
 #else
             init_cond(ix,jy,kz,ks,nrelpointer)= &
-                 init_cond(ix,jy,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
+                 init_cond(ix,jy,kz,ks,nrelpointer)+mass(i,ks)/rhoi*w
 #endif
           end do
         endif
@@ -720,10 +720,10 @@ subroutine initcond_calc(itime,i,thread)
 #ifdef _OPENMP
             init_cond_omp(ix,jyp,kz,ks,nrelpointer,thread)= &
                  init_cond_omp(ix,jyp,kz,ks,nrelpointer,thread) + &
-                 part(i)%mass(ks)/rhoi*w
+                 mass(i,ks)/rhoi*w
 #else
             init_cond(ix,jyp,kz,ks,nrelpointer)= &
-                 init_cond(ix,jyp,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
+                 init_cond(ix,jyp,kz,ks,nrelpointer)+mass(i,ks)/rhoi*w
 #endif
           end do
         endif
@@ -737,10 +737,10 @@ subroutine initcond_calc(itime,i,thread)
 #ifdef _OPENMP
             init_cond_omp(ixp,jyp,kz,ks,nrelpointer,thread)= &
                  init_cond_omp(ixp,jyp,kz,ks,nrelpointer,thread) + &
-                 part(i)%mass(ks)/rhoi*w
+                 mass(i,ks)/rhoi*w
 #else
             init_cond(ixp,jyp,kz,ks,nrelpointer)= &
-                 init_cond(ixp,jyp,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
+                 init_cond(ixp,jyp,kz,ks,nrelpointer)+mass(i,ks)/rhoi*w
 #endif
           end do
         endif
@@ -751,10 +751,10 @@ subroutine initcond_calc(itime,i,thread)
 #ifdef _OPENMP
             init_cond_omp(ixp,jy,kz,ks,nrelpointer,thread)= &
                  init_cond_omp(ixp,jy,kz,ks,nrelpointer,thread) + &
-                 part(i)%mass(ks)/rhoi*w
+                 mass(i,ks)/rhoi*w
 #else
             init_cond(ixp,jy,kz,ks,nrelpointer)= &
-                 init_cond(ixp,jy,kz,ks,nrelpointer)+part(i)%mass(ks)/rhoi*w
+                 init_cond(ixp,jy,kz,ks,nrelpointer)+mass(i,ks)/rhoi*w
 #endif
           end do
         endif
