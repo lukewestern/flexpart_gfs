@@ -459,7 +459,7 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
   end do
 !$OMP END DO
 
-!$OMP DO SCHEDULE(dynamic)
+!$OMP DO SCHEDULE(guided)
   do iz=2,nz-1
     do jy=0,nymin1
       do ix=0,nxmin1
@@ -640,6 +640,8 @@ subroutine verttransform_ecmwf_stereo(n)
   real :: uuaux,vvaux,uupolaux,vvpolaux,ddpol,ffpol,wdummy
 
   if (nglobal) then
+!$OMP PARALLEL PRIVATE(iz,jy,ix,xlon,ylat)
+!$OMP DO
     do iz=1,nz
       do jy=int(switchnorthg)-2,nymin1
         ylat=ylat0+real(jy)*dy
@@ -656,8 +658,12 @@ subroutine verttransform_ecmwf_stereo(n)
         end do
       end do
     end do
+!$OMP END DO
+!$OMP END PARALLEL
 
-
+!$OMP PARALLEL PRIVATE(iz,jy,ix,xlon,xlonr,ffpol,ddpol,uuaux,vvaux,uupolaux, &
+!$OMP wdummy,vvpolaux)
+!$OMP DO
     do iz=1,nz
 
   ! CALCULATE FFPOL, DDPOL FOR CENTRAL GRID POINT
@@ -680,7 +686,7 @@ subroutine verttransform_ecmwf_stereo(n)
       if(ddpol.lt.0.) ddpol=2.0*pi+ddpol
       if(ddpol.gt.2.0*pi) ddpol=ddpol-2.0*pi
 
-  ! CALCULATE U,V FOR 180 DEG, TRANSFORM TO POLAR STEREOGRAPHIC GRID
+      ! CALCULATE U,V FOR 180 DEG, TRANSFORM TO POLAR STEREOGRAPHIC GRID
       xlon=180.0
       xlonr=xlon*pi/180.
       ylat=90.0
@@ -689,16 +695,23 @@ subroutine verttransform_ecmwf_stereo(n)
       call cc2gll(northpolemap,ylat,xlon,uuaux,vvaux,uupolaux, &
            vvpolaux)
 
+
+      ! Fix: Set W at pole to the zonally averaged W of the next equator-
+      ! ward parallel of latitude
+      wdummy=0.
+      jy=ny-2
+      do ix=0,nxmin1
+        wdummy=wdummy+ww(ix,jy,iz,n)
+      end do
+      wdummy=wdummy/real(nx)
       jy=nymin1
       do ix=0,nxmin1
+        ww(ix,jy,iz,n)=wdummy
         uupol(ix,jy,iz,n)=uupolaux
         vvpol(ix,jy,iz,n)=vvpolaux
       end do
-    end do
 
-#ifdef ETA   
-    do iz=1,nz
-
+#ifdef ETA
       xlon=xlon0+real(nx/2-1)*dx
       xlonr=xlon*pi/180.
       ffpol=sqrt(uueta(nx/2-1,nymin1,iz,n)**2+ &
@@ -724,33 +737,6 @@ subroutine verttransform_ecmwf_stereo(n)
       call cc2gll(northpolemap,ylat,xlon,uuaux,vvaux,uupolaux, &
            vvpolaux)
 
-      jy=nymin1
-      do ix=0,nxmin1
-        uupoleta(ix,jy,iz,n)=uupolaux
-        vvpoleta(ix,jy,iz,n)=vvpolaux
-      end do
-    end do
-#endif
-
-
-  ! Fix: Set W at pole to the zonally averaged W of the next equator-
-  ! ward parallel of latitude
-
-    do iz=1,nz
-      wdummy=0.
-      jy=ny-2
-      do ix=0,nxmin1
-        wdummy=wdummy+ww(ix,jy,iz,n)
-      end do
-      wdummy=wdummy/real(nx)
-      jy=nymin1
-      do ix=0,nxmin1
-        ww(ix,jy,iz,n)=wdummy
-      end do
-    end do
-
-#ifdef ETA
-    do iz=1,nz
       wdummy=0.
       jy=ny-2
       do ix=0,nxmin1
@@ -760,9 +746,46 @@ subroutine verttransform_ecmwf_stereo(n)
       jy=nymin1
       do ix=0,nxmin1
         wweta(ix,jy,iz,n)=wdummy
+        uupoleta(ix,jy,iz,n)=uupolaux
+        vvpoleta(ix,jy,iz,n)=vvpolaux
       end do
-    end do
+
 #endif
+    end do
+!$OMP END DO
+!$OMP END PARALLEL
+
+
+  ! Fix: Set W at pole to the zonally averaged W of the next equator-
+  ! ward parallel of latitude
+
+    ! do iz=1,nz
+    !   wdummy=0.
+    !   jy=ny-2
+    !   do ix=0,nxmin1
+    !     wdummy=wdummy+ww(ix,jy,iz,n)
+    !   end do
+    !   wdummy=wdummy/real(nx)
+    !   jy=nymin1
+    !   do ix=0,nxmin1
+    !     ww(ix,jy,iz,n)=wdummy
+    !   end do
+    ! end do
+
+! #ifdef ETA
+!     do iz=1,nz
+!       wdummy=0.
+!       jy=ny-2
+!       do ix=0,nxmin1
+!         wdummy=wdummy+wweta(ix,jy,iz,n)
+!       end do
+!       wdummy=wdummy/real(nx)
+!       jy=nymin1
+!       do ix=0,nxmin1
+!         wweta(ix,jy,iz,n)=wdummy
+!       end do
+!     end do
+! #endif
 
   endif
 
@@ -772,6 +795,8 @@ subroutine verttransform_ecmwf_stereo(n)
   !*******************************************************************
 
   if (sglobal) then
+!$OMP PARALLEL PRIVATE(iz,jy,ix,xlon,ylat)
+!$OMP DO
     do iz=1,nz
       do jy=0,int(switchsouthg)+3
         ylat=ylat0+real(jy)*dy
@@ -788,7 +813,12 @@ subroutine verttransform_ecmwf_stereo(n)
         end do
       end do
     end do
+!$OMP END DO
+!$OMP END PARALLEL
 
+!$OMP PARALLEL PRIVATE(iz,jy,ix,xlon,xlonr,ffpol,ddpol,uuaux,vvaux,uupolaux, &
+!$OMP wdummy,vvpolaux)
+!$OMP DO
     do iz=1,nz
 
   ! CALCULATE FFPOL, DDPOL FOR CENTRAL GRID POINT
@@ -820,15 +850,22 @@ subroutine verttransform_ecmwf_stereo(n)
       call cc2gll(northpolemap,ylat,xlon,uuaux,vvaux,uupolaux, &
            vvpolaux)
 
+    ! Fix: Set W at pole to the zonally averaged W of the next equator-
+    ! ward parallel of latitude
+      wdummy=0.
+      jy=1
+      do ix=0,nxmin1
+        wdummy=wdummy+ww(ix,jy,iz,n)
+      end do
+      wdummy=wdummy/real(nx)
       jy=0
       do ix=0,nxmin1
+        ww(ix,jy,iz,n)=wdummy
         uupol(ix,jy,iz,n)=uupolaux
         vvpol(ix,jy,iz,n)=vvpolaux
       end do
-    end do
 
 #ifdef ETA
-    do iz=1,nz
   ! CALCULATE FFPOL, DDPOL FOR CENTRAL GRID POINT
   !
   !   AMSnauffer Nov 18 2004 Added check for case vv=0
@@ -858,32 +895,6 @@ subroutine verttransform_ecmwf_stereo(n)
       call cc2gll(northpolemap,ylat,xlon,uuaux,vvaux,uupolaux, &
            vvpolaux)
 
-      jy=0
-      do ix=0,nxmin1
-        uupoleta(ix,jy,iz,n)=uupolaux
-        vvpoleta(ix,jy,iz,n)=vvpolaux
-      end do
-    end do
-#endif
-
-  ! Fix: Set W at pole to the zonally averaged W of the next equator-
-  ! ward parallel of latitude
-
-    do iz=1,nz
-      wdummy=0.
-      jy=1
-      do ix=0,nxmin1
-        wdummy=wdummy+ww(ix,jy,iz,n)
-      end do
-      wdummy=wdummy/real(nx)
-      jy=0
-      do ix=0,nxmin1
-        ww(ix,jy,iz,n)=wdummy
-      end do
-    end do
-
-#ifdef ETA
-    do iz=1,nz
       wdummy=0.
       jy=1
       do ix=0,nxmin1
@@ -893,9 +904,13 @@ subroutine verttransform_ecmwf_stereo(n)
       jy=0
       do ix=0,nxmin1
         wweta(ix,jy,iz,n)=wdummy
+        uupoleta(ix,jy,iz,n)=uupolaux
+        vvpoleta(ix,jy,iz,n)=vvpolaux
       end do
-    end do
 #endif
+    end do
+!$OMP END DO
+!$OMP END PARALLEL
   endif
 end subroutine verttransform_ecmwf_stereo
 
@@ -1633,68 +1648,115 @@ subroutine verttransform_ecmwf_heights(nxlim,nylim, &
   real,intent(out),dimension(0:nxlim,0:nylim,nuvzmax) :: rhoh_tmp,prsh_tmp
   real,intent(out),dimension(0:nxlim,0:nylim,nzmax) :: pinmconv
   real,intent(out),dimension(0:nxlim,0:nylim,nuvzmax) :: uvzlev,wzlev
-  real,dimension(0:nxlim,0:nylim) :: tvold,pold,pint,tv
+  !real,dimension(0:nxlim,0:nylim) :: tvold,pold,pint,tv
+  real :: tvold,pold,pint,tv
   real,parameter :: const=r_air/ga
   integer :: ix,jy,kz
 
   ! Loop over the whole grid
   !*************************
-
+!$OMP PARALLEL PRIVATE(jy,ix,pint,tv,tvold,pold,kz)
+!$OMP DO
   do jy=0,nylim
     do ix=0,nxlim
-      tvold(ix,jy)=tt2_tmp(ix,jy)*(1.+0.378*ew(td2_tmp(ix,jy),ps_tmp(ix,jy))/ &
+      tvold=tt2_tmp(ix,jy)*(1.+0.378*ew(td2_tmp(ix,jy),ps_tmp(ix,jy))/ &
            ps_tmp(ix,jy))
+      pold=ps_tmp(ix,jy)
+      uvzlev(ix,jy,1)=0.
+      wzlev(ix,jy,1)=0.
+      rhoh_tmp(ix,jy,1)=pold/(r_air*tvold)
+      prsh_tmp(ix,jy,1)=ps_tmp(ix,jy)
+
+      do kz=2,nuvz
+        pint=akz(kz)+bkz(kz)*ps_tmp(ix,jy)
+        prsh_tmp(ix,jy,kz)=pint
+        tv=tth_tmp(ix,jy,kz)*(1.+0.608*qvh_tmp(ix,jy,kz))
+        rhoh_tmp(ix,jy,kz)=pint/(r_air*tv)
+
+        if (abs(tv-tvold).gt.0.2) then
+          uvzlev(ix,jy,kz)=uvzlev(ix,jy,kz-1)+const* &
+               log(pold/pint)*(tv-tvold)/log(tv/tvold)
+        else
+          uvzlev(ix,jy,kz)=uvzlev(ix,jy,kz-1)+const* &
+               log(pold/pint)*tv
+        endif
+
+        tvold=tv
+        pold=pint
+
+      end do
+
+      do kz=2,nwz-1
+        wzlev(ix,jy,kz)=(uvzlev(ix,jy,kz+1)+uvzlev(ix,jy,kz))/2.
+      end do
+      wzlev(ix,jy,nwz)=wzlev(ix,jy,nwz-1)+ &
+           uvzlev(ix,jy,nuvz)-uvzlev(ix,jy,nuvz-1)
+
+
+      pinmconv(ix,jy,1)=(uvzlev(ix,jy,2))/ &
+           ((aknew(2)+bknew(2)*ps_tmp(ix,jy))- &
+           (aknew(1)+bknew(1)*ps_tmp(ix,jy)))
+      do kz=2,nz-1
+        pinmconv(ix,jy,kz)=(uvzlev(ix,jy,kz+1)-uvzlev(ix,jy,kz-1))/ &
+             ((aknew(kz+1)+bknew(kz+1)*ps_tmp(ix,jy))- &
+             (aknew(kz-1)+bknew(kz-1)*ps_tmp(ix,jy)))
+      end do
+      pinmconv(ix,jy,nz)=(uvzlev(ix,jy,nz)-uvzlev(ix,jy,nz-1))/ &
+           ((aknew(nz)+bknew(nz)*ps_tmp(ix,jy))- &
+           (aknew(nz-1)+bknew(nz-1)*ps_tmp(ix,jy)))
     end do
   end do
+!$OMP END DO
+!$OMP END PARALLEL
 
-  pold(:,:)=ps_tmp(:,:)
-  uvzlev(:,:,1)=0.
-  wzlev(:,:,1)=0.
-  rhoh_tmp(:,:,1)=pold(:,:)/(r_air*tvold(:,:))
-  prsh_tmp(:,:,1)=ps_tmp(:,:)
+  ! pold(:,:)=ps_tmp(:,:)
+  ! uvzlev(:,:,1)=0.
+  ! wzlev(:,:,1)=0.
+  ! rhoh_tmp(:,:,1)=pold(:,:)/(r_air*tvold(:,:))
+  ! prsh_tmp(:,:,1)=ps_tmp(:,:)
 
   ! Compute heights of eta levels
   !******************************
 
-  do kz=2,nuvz
-    pint(:,:)=akz(kz)+bkz(kz)*ps_tmp(:,:)
-    prsh_tmp(:,:,kz)=pint(:,:)
-    tv(:,:)=tth_tmp(:,:,kz)*(1.+0.608*qvh_tmp(:,:,kz))
-    rhoh_tmp(:,:,kz)=pint(:,:)/(r_air*tv(:,:))
+  ! do kz=2,nuvz
+  !   pint(:,:)=akz(kz)+bkz(kz)*ps_tmp(:,:)
+  !   prsh_tmp(:,:,kz)=pint(:,:)
+  !   tv(:,:)=tth_tmp(:,:,kz)*(1.+0.608*qvh_tmp(:,:,kz))
+  !   rhoh_tmp(:,:,kz)=pint(:,:)/(r_air*tv(:,:))
 
-    where (abs(tv(:,:)-tvold(:,:)).gt.0.2) 
-      uvzlev(:,:,kz)=uvzlev(:,:,kz-1)+const*&
-           &log(pold(:,:)/pint(:,:))* &
-           (tv(:,:)-tvold(:,:))/&
-           &log(tv(:,:)/tvold(:,:))
-    elsewhere
-      uvzlev(:,:,kz)=uvzlev(:,:,kz-1)+const*&
-           &log(pold(:,:)/pint(:,:))*tv(:,:)
-    endwhere
+  !   where (abs(tv(:,:)-tvold(:,:)).gt.0.2) 
+  !     uvzlev(:,:,kz)=uvzlev(:,:,kz-1)+const*&
+  !          &log(pold(:,:)/pint(:,:))* &
+  !          (tv(:,:)-tvold(:,:))/&
+  !          &log(tv(:,:)/tvold(:,:))
+  !   elsewhere
+  !     uvzlev(:,:,kz)=uvzlev(:,:,kz-1)+const*&
+  !          &log(pold(:,:)/pint(:,:))*tv(:,:)
+  !   endwhere
 
-    tvold(:,:)=tv(:,:)
-    pold(:,:)=pint(:,:)
+  !   tvold(:,:)=tv(:,:)
+  !   pold(:,:)=pint(:,:)
 
-  end do
+  ! end do
 
-  do kz=2,nwz-1
-    wzlev(:,:,kz)=(uvzlev(:,:,kz+1)+uvzlev(:,:,kz))/2.
-  end do
-  wzlev(:,:,nwz)=wzlev(:,:,nwz-1)+ &
-       uvzlev(:,:,nuvz)-uvzlev(:,:,nuvz-1)
+  ! do kz=2,nwz-1
+  !   wzlev(:,:,kz)=(uvzlev(:,:,kz+1)+uvzlev(:,:,kz))/2.
+  ! end do
+  ! wzlev(:,:,nwz)=wzlev(:,:,nwz-1)+ &
+  !      uvzlev(:,:,nuvz)-uvzlev(:,:,nuvz-1)
 
 
-  pinmconv(:,:,1)=(uvzlev(:,:,2))/ &
-       ((aknew(2)+bknew(2)*ps_tmp(:,:))- &
-       (aknew(1)+bknew(1)*ps_tmp(:,:)))
-  do kz=2,nz-1
-    pinmconv(:,:,kz)=(uvzlev(:,:,kz+1)-uvzlev(:,:,kz-1))/ &
-         ((aknew(kz+1)+bknew(kz+1)*ps_tmp(:,:))- &
-         (aknew(kz-1)+bknew(kz-1)*ps_tmp(:,:)))
-  end do
-  pinmconv(:,:,nz)=(uvzlev(:,:,nz)-uvzlev(:,:,nz-1))/ &
-       ((aknew(nz)+bknew(nz)*ps_tmp(:,:))- &
-       (aknew(nz-1)+bknew(nz-1)*ps_tmp(:,:)))
+  ! pinmconv(:,:,1)=(uvzlev(:,:,2))/ &
+  !      ((aknew(2)+bknew(2)*ps_tmp(:,:))- &
+  !      (aknew(1)+bknew(1)*ps_tmp(:,:)))
+  ! do kz=2,nz-1
+  !   pinmconv(:,:,kz)=(uvzlev(:,:,kz+1)-uvzlev(:,:,kz-1))/ &
+  !        ((aknew(kz+1)+bknew(kz+1)*ps_tmp(:,:))- &
+  !        (aknew(kz-1)+bknew(kz-1)*ps_tmp(:,:)))
+  ! end do
+  ! pinmconv(:,:,nz)=(uvzlev(:,:,nz)-uvzlev(:,:,nz-1))/ &
+  !      ((aknew(nz)+bknew(nz)*ps_tmp(:,:))- &
+  !      (aknew(nz-1)+bknew(nz-1)*ps_tmp(:,:)))
 end subroutine verttransform_ecmwf_heights
 
 subroutine verttransform_ecmwf_windfields_nest(l,n, &
@@ -1891,7 +1953,7 @@ subroutine verttransform_ecmwf_windfields_nest(l,n, &
 !$OMP END DO
 
   do iz=2,nz-1
-!$OMP DO SCHEDULE(dynamic)
+!$OMP DO SCHEDULE(guided)
     do jy=1,nyn(l)-2
       do ix=1,nxn(l)-2
 
