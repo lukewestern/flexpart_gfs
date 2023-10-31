@@ -915,9 +915,9 @@ subroutine verttransform_ecmwf_cloud(lreadclouds,lsumclouds,nxlim,nylim,clouds_t
     ctwc_tmp(:,:)=0.0
     clouds_tmp(0:nxlim,0:nylim,:)=0
   ! If water/ice are read separately into clwc and ciwc, store sum in clwc
-    if (.not.lsumclouds) then 
-      clwc_tmp(0:nxlim,0:nylim,:) = clwc_tmp(0:nxlim,0:nylim,:) + ciwc_tmp(:,:,:)
-    end if
+    ! if (.not.lsumclouds) then 
+    !   clwc_tmp(0:nxlim,0:nylim,:) = clwc_tmp(0:nxlim,0:nylim,:) + ciwc_tmp(:,:,:)
+    ! end if
 
 !$OMP PARALLEL PRIVATE(ix,jy,kz,lsp,convp,prec,cloudh_min) REDUCTION(+:ctwc_tmp)
 !$OMP DO SCHEDULE(dynamic,max(1,nylim/50))
@@ -933,6 +933,7 @@ subroutine verttransform_ecmwf_cloud(lreadclouds,lsumclouds,nxlim,nylim,clouds_t
 #else
         cloudh_min=height(nz-1)
 #endif
+        if (.not.lsumclouds) clwc_tmp(ix,jy,:) = clwc_tmp(ix,jy,:) + ciwc_tmp(ix,jy,:)
         do kz=1, nz-1 !go from top to bottom
           if (clwc_tmp(ix,jy,kz).gt.0) then      
   ! assuming rho is in kg/m3 and hz in m gives: kg/kg * kg/m3 *m3/kg /m = m2/m3

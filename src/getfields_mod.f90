@@ -356,27 +356,21 @@ subroutine calcpv(n)
 
   ! Set number of levels to check for adjacent theta
   nlck=nuvz/3
-  !
-  ! Loop over entire grid
-  !**********************
-  do kl=1,nuvz
-    do jy=0,nymin1
-      do ix=0,nxmin1
-         ppml(ix,jy,kl)=akz(kl)+bkz(kl)*ps(ix,jy,1,n)
-      enddo
-    enddo
-  enddo
 
-!  ppmk(:,:,1:nuvz)=(100000./ppml(:,:,1:nuvz))**kappa
-  ppmk(0:nxmin1,0:nymin1,1:nuvz)=(100000./ppml(0:nxmin1,0:nymin1,1:nuvz))**kappa
 !$OMP PARALLEL PRIVATE(jy,ix,kl,phi,f,tanphi,cosphi,jyvp,jyvm,jumpy,juy, &
 !$OMP ixvp,ixvm,jumpx,ivrp,ivrm,jux,theta,klvrp,klvrm,klpt,thetap,thetam,dthetadp, &
 !$OMP ii,i,ivr,kdn,kch,kup,thdn,thup,dt1,dt2,dt,vx,k,dvdx, &
 !$OMP jj,j,uy,dudy)
-!$OMP DO
+!$OMP DO SCHEDULE(dynamic,1)
   do jy=0,nymin1
     if (sglobal.and.jy.eq.0) cycle
     if (nglobal.and.jy.eq.nymin1) cycle
+
+    do kl=1,nuvz
+      ppml(0:nxmin1,jy,kl)=akz(kl)+bkz(kl)*ps(0:nxmin1,jy,1,n)
+      ppmk(0:nxmin1,jy,kl)=(100000./ppml(0:nxmin1,jy,kl))**kappa
+    end do
+
     phi = (ylat0 + jy * dy) * pi / 180.
     f = 0.00014585 * sin(phi)
     tanphi = tan(phi)
@@ -606,9 +600,7 @@ subroutine calcpv(n)
         end do
         pvavr=pvavr/real(nx)
         jy=0
-        do ix=0,nxmin1
-           pvh(ix,jy,kl)=pvavr
-        end do
+        pvh(0:nxmin1,jy,kl)=pvavr
      end do
   end if
   if (nglobal) then
@@ -619,9 +611,7 @@ subroutine calcpv(n)
         end do
         pvavr=pvavr/real(nx)
         jy=nymin1
-        do ix=0,nxmin1
-           pvh(ix,jy,kl)=pvavr
-        end do
+        pvh(0:nxmin1,jy,kl)=pvavr
      end do
   end if
 end subroutine calcpv

@@ -2431,35 +2431,61 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   !*************************************************************************
 
   if (xglobal) then
+!$OMP PARALLEL SECTIONS
+!$OMP SECTION
     call shift_field_0(ewss,nxfield,ny)
+!$OMP SECTION
     call shift_field_0(nsss,nxfield,ny)
+!$OMP SECTION
     call shift_field_0(oro,nxfield,ny)
+!$OMP SECTION
     call shift_field_0(excessoro,nxfield,ny)
+!$OMP SECTION
     call shift_field_0(lsm,nxfield,ny)
+!$OMP SECTION
     call shift_field(ps,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(sd,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(msl,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(tcc,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(u10,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(v10,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(tt2,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(td2,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(lsprec,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(convprec,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(sshf,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(ssr,nxfield,ny,1,1,2,n)
+!$OMP SECTION
     call shift_field(tth,nxfield,ny,nuvzmax,nuvz,2,n)
+!$OMP SECTION
     call shift_field(qvh,nxfield,ny,nuvzmax,nuvz,2,n)
+!$OMP SECTION
     call shift_field(uuh,nxfield,ny,nuvzmax,nuvz,1,1)
+!$OMP SECTION
     call shift_field(vvh,nxfield,ny,nuvzmax,nuvz,1,1)
+!$OMP SECTION
     call shift_field(wwh,nxfield,ny,nwzmax,nwz,1,1)
+!$OMP SECTION
   !ZHG
     call shift_field(clwch,nxfield,ny,nuvzmax,nuvz,2,n)
+!$OMP SECTION
     if (.not.sumclouds) call shift_field(ciwch,nxfield,ny,nuvzmax,nuvz,2,n)
   !ZHG end
-
+!$OMP END PARALLEL SECTIONS
   endif
 
+  ! Temporary fix for zero values in the meteo data
   do i=0,nxmin1
     do j=0,nymin1
       if ((ewss(i,j).eq.0.).and.(nsss(i,j).eq.0.)) then
