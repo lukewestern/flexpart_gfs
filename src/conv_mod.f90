@@ -165,8 +165,8 @@ subroutine convmix(itime)
 
   implicit none
 
-  integer :: igr,igrold, ipart, itime, ix, i, j, inest
-  integer :: ipconv,ithread,stat
+  integer :: igr,igrold, ipart, itime, ix, i, j, ik, inest
+  integer :: ipconv,ithread,stat,countconv
   integer :: jy, kpart, ktop, ngrid,kz
   integer,allocatable :: igrid(:), ipoint(:), igridn(:,:)
 
@@ -184,7 +184,7 @@ subroutine convmix(itime)
 
   ! OMP changes
   integer :: cnt,kk
-  integer,allocatable,dimension(:) :: frst
+  integer,allocatable,dimension(:) :: frst,kkcnt
   double precision :: tmarray(2)
 
   integer :: alivepart
@@ -319,6 +319,14 @@ subroutine convmix(itime)
   end do 
   frst(cnt) = alivepart+1
 
+  allocate(kkcnt(cnt-1))
+  countconv=0
+  do kk=1,cnt-1
+    if (igrid(frst(kk)).eq.-1) cycle ! Only consider grids that have particles inside
+    countconv=countconv+1
+    kkcnt(countconv)=kk
+  end do
+
 !$OMP PARALLEL PRIVATE(kk,jy,ix,tmarray,j,kz,ktop,lconv,kpart,ipart,&
 !$OMP ztold,nage,ipconv,itage,ithread)
 
@@ -328,11 +336,11 @@ subroutine convmix(itime)
     ithread = 1
 #endif
 
-!$OMP DO SCHEDULE(dynamic)
-  do kk=1,cnt-1
-    ! Only consider grids that have particles inside
-    if (igrid(frst(kk)).eq.-1) cycle
-
+!$OMP DO SCHEDULE(guided)
+  do ik=1,countconv
+    
+    !if (igrid(frst(kk)).eq.-1) cycle
+    kk=kkcnt(ik)
     ! Find horizontal location of grid column
     ix = (igrid(frst(kk))-1)/ny
     jy = igrid(frst(kk)) - ix*ny - 1
