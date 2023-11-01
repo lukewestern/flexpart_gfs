@@ -373,7 +373,7 @@ subroutine calcpv(n)
 !$OMP ixvp,ixvm,jumpx,ivrp,ivrm,jux,theta,klvrp,klvrm,klpt,thetap,thetam,dthetadp, &
 !$OMP ii,i,ivr,kdn,kch,kup,thdn,thup,dt1,dt2,dt,vx,k,dvdx, &
 !$OMP jj,j,uy,dudy)
-!$OMP DO
+!$OMP DO SCHEDULE(dynamic,1)
   do jy=0,nymin1
     if (sglobal.and.jy.eq.0) cycle
     if (nglobal.and.jy.eq.nymin1) cycle
