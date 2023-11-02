@@ -444,7 +444,7 @@ subroutine timemanager
   end do
 
 
-
+  if (DRYDEP.or.WETDEP.or.LDECAY.or.(lagespectra.eq.1)) then
 !$OMP PARALLEL PRIVATE(prob_rec,nage,inage,itage,ks,kp,thread,i,j,xmassfract,drytmp)
 
 !num_threads(numthreads_grid)
@@ -454,8 +454,10 @@ subroutine timemanager
 #else
     thread = 0
 #endif
-  if (DRYDEP) allocate( drytmp(maxspec),stat=stat )
-  if (stat.ne.0) write(*,*)'ERROR: could not allocate drytmp inside of OMP loop'
+  if (DRYDEP) then
+    allocate( drytmp(maxspec),stat=stat )
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate drytmp inside of OMP loop'
+  endif
 
 !$OMP DO SCHEDULE(static)
 !, max(1,numpart/1000))
@@ -482,7 +484,7 @@ subroutine timemanager
 ! Also check maximum (of all species) of initial mass remaining on the particle;
 ! if it is below a threshold value, terminate particle
 !*****************************************************************************
-      if (DRYDEP.or.LDECAY) then
+      if (DRYDEP.or.WETDEP.or.LDECAY) then
         xmassfract=0.
         do ks=1,nspec
 
@@ -549,7 +551,7 @@ subroutine timemanager
 !$OMP END DO
   if (DRYDEP) deallocate(drytmp)
 !$OMP END PARALLEL
-
+  
   ! Terminating particles flagged due to insufficient mass or exceeded max age
   do i=1,count%allocated
     if ((part(i)%nstop).and.(part(i)%alive)) then
@@ -557,6 +559,7 @@ subroutine timemanager
     endif
   end do
 
+  endif
 
 #ifdef _OPENMP
   call omp_set_num_threads(numthreads)
