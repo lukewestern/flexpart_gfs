@@ -388,9 +388,9 @@ subroutine convmix(itime)
 
         if (iflux.eq.1) then
           lcalcflux=.true.
+          nage=1
           if (lagespectra.eq.1) then
             itage=abs(itime-part(ipart)%tstart)
-            nage=1
             do inage=1,nageclass
               if ((itage.lt.lage(nage)).and.(part(ipart)%alive)) exit
               nage=inage
