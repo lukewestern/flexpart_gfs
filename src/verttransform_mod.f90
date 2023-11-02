@@ -374,6 +374,7 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
   real :: dzdx,dzdy
   real :: dzdx1,dzdx2,dzdy1,dzdy2
 
+  ! Copy fields for ETA coordinate interpolations
 #ifdef ETA
 !$OMP PARALLEL PRIVATE(ix,jy,kz)
 !$OMP WORKSHARE
@@ -393,38 +394,23 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
   end forall
   drhodzeta(0:nxlim,0:nylim,1,n)=(rhoh(0:nxlim,0:nylim,2)-rhoh(0:nxlim,0:nylim,1))/(height(2)-height(1))
   drhodzeta(0:nxlim,0:nylim,nz,n)=drhodzeta(0:nxlim,0:nylim,nz-1,n)
-  ! tvirtual(ix,jy,1,n)=tt2(ix,jy,1,n)* &
-  !   (1.+0.378*ew(td2(ix,jy,1,n),ps(ix,jy,1,n))/ps(ix,jy,1,n))
+
   ! Convert w from Pa/s to eta/s, following FLEXTRA
   !************************************************
   ! z=1
   wweta(0:nxlim,0:nylim,1,n)=wwh(0:nxlim,0:nylim,1)/ &
-    ((akm(kz+1)-akm(kz)+(bkm(kz+1)-bkm(kz))*ps(0:nxlim,0:nylim,1,n))/ &
-        (wheight(kz+1)-wheight(kz)))
+    ((akm(2)-akm(1)+(bkm(2)-bkm(1))*ps(0:nxlim,0:nylim,1,n))/ &
+        (wheight(2)-wheight(1)))
   ! z=nuvz-1
   wweta(0:nxlim,0:nylim,nuvz-1,n)=wwh(0:nxlim,0:nylim,nuvz-1)/ &
-    ((akm(kz)-akm(kz-1)+(bkm(kz)-bkm(kz-1))*ps(0:nxlim,0:nylim,1,n))/ &
-        (wheight(kz)-wheight(kz-1)))
+    ((akm(nuvz-1)-akm(nuvz-2)+(bkm(nuvz-1)-bkm(nuvz-2))*ps(0:nxlim,0:nylim,1,n))/ &
+        (wheight(nuvz-1)-wheight(nuvz-2)))
   ! 1<z<nuvz-1
   forall (ix=0:nxlim,jy=0:nylim,kz=2:nuvz-2)
     wweta(ix,jy,kz,n)=wwh(ix,jy,kz)/ &
       ((akm(kz+1)-akm(kz-1)+(bkm(kz+1)-bkm(kz-1))*ps(ix,jy,1,n))/ &
         (wheight(kz+1)-wheight(kz-1)))
   end forall
-  ! do kz=1,nuvz-1
-  !   ! if (kz.eq.1) then
-  !   !   dpdeta=(akm(kz+1)-akm(kz)+(bkm(kz+1)-bkm(kz))*ps(ix,jy,1,n))/ &
-  !   !     (wheight(kz+1)-wheight(kz))
-  !   else if (kz.eq.nuvz-1) then
-  !     dpdeta=(akm(kz)-akm(kz-1)+(bkm(kz)-bkm(kz-1))*ps(ix,jy,1,n))/ &
-  !       (wheight(kz)-wheight(kz-1))
-  !   else
-  !     dpdeta=(akm(kz+1)-akm(kz-1)+(bkm(kz+1)-bkm(kz-1))*ps(ix,jy,1,n))/ &
-  !       (wheight(kz+1)-wheight(kz-1))
-  !   endif
-  !   wweta(ix,jy,kz,n)=wwh(ix,jy,kz)/dpdeta
-  ! end do
-  ! wweta(0:nxlim,0:nylim,nuvz,n)=wweta(0:nxlim,0:nylim,nuvz-1,n) 
 !$OMP END WORKSHARE NOWAIT
 
   if (readclouds) then
@@ -440,21 +426,21 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
 
 !$OMP PARALLEL PRIVATE(jy,ix,iz,kz,dz1,dz2,dz,ix1,jy1,ixp,jyp,dzdx1,dzdx2,dzdx, &
 !$OMP dzdy1,dzdy2,dzdy,dpdeta)
+  ! Finding the index in eta levels (uv and w) that correspond to
+  ! a certain height level in meters
+  !**************************************************************
+!$OMP WORKSHARE
+  idx(0:nxlim,0:nylim,1:2)=2
+  idxw(0:nxlim,0:nylim,1:2)=2
+!$OMP END WORKSHARE
 
 !$OMP DO
-  do jy=0,nymin1
-    cosf(jy)=1./cos((real(jy)*dy+ylat0)*pi180) ! Needed in slope computations
-  
-    ! Finding the index in eta levels (uv and w) that correspond to
-    ! a certain height level in meters
-    !**************************************************************
-    idx(:,jy,1)=2
-    idxw(:,jy,1)=2
-
+  do jy=0,nylim
     do iz=2,nz-1
-      idx(:,jy,iz)=idx(:,jy,iz-1)
-      idxw(:,jy,iz)=idxw(:,jy,iz-1)
-      do ix=0,nxmin1
+      do ix=0,nxlim
+        idx(ix,jy,iz)=idx(ix,jy,iz-1)
+        idxw(ix,jy,iz)=idxw(ix,jy,iz-1)
+
         ! height in meters that corresponds to the eta w level
         innwz: do kz=idxw(ix,jy,iz),nuvz
           if ((idxw(ix,jy,iz).le.kz).and. &
@@ -480,43 +466,52 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
         endif
       end do
     end do
+  end do
+!$OMP END DO NOWAIT
 
-    ! All bottom and top levels
-    do ix=0,nxmin1
-
-      uu(ix,jy,1,n)=uuh(ix,jy,1)
-      uu(ix,jy,nz,n)=uuh(ix,jy,nuvz)
-      vv(ix,jy,1,n)=vvh(ix,jy,1)
-      vv(ix,jy,nz,n)=vvh(ix,jy,nuvz)
-      tt(ix,jy,1,n)=tth(ix,jy,1,n)
-      tt(ix,jy,nz,n)=tth(ix,jy,nuvz,n)
-      pv(ix,jy,1,n)=pvh(ix,jy,1)
-      pv(ix,jy,nz,n)=pvh(ix,jy,nuvz)
+  ! Setting upper and lower levels
+!$OMP WORKSHARE
+  uu(0:nxlim,0:nylim,1,n)=uuh(0:nxlim,0:nylim,1)
+  uu(0:nxlim,0:nylim,nz,n)=uuh(0:nxlim,0:nylim,nuvz)
+  vv(0:nxlim,0:nylim,1,n)=vvh(0:nxlim,0:nylim,1)
+  vv(0:nxlim,0:nylim,nz,n)=vvh(0:nxlim,0:nylim,nuvz)
+  tt(0:nxlim,0:nylim,1,n)=tth(0:nxlim,0:nylim,1,n)
+  tt(0:nxlim,0:nylim,nz,n)=tth(0:nxlim,0:nylim,nuvz,n)
+  pv(0:nxlim,0:nylim,1,n)=pvh(0:nxlim,0:nylim,1)
+  pv(0:nxlim,0:nylim,nz,n)=pvh(0:nxlim,0:nylim,nuvz)
 #ifndef ETA
-      qv(ix,jy,1,n)=qvh(ix,jy,1,n)
-      qv(ix,jy,nz,n)=qvh(ix,jy,nuvz,n)
-      !hg adding the cloud water 
-      if (readclouds) then
-        clwc(ix,jy,1,n)=clwch(ix,jy,1,n)
-        clwc(ix,jy,nz,n)=clwch(ix,jy,nuvz,n)
-        if (.not.sumclouds) then 
-          ciwc(ix,jy,1,n)=ciwch(ix,jy,1,n)
-          ciwc(ix,jy,nz,n)=ciwch(ix,jy,nuvz,n)
-        endif
-      end if
-      !hg 
+  qv(0:nxlim,0:nylim,1,n)=qvh(0:nxlim,0:nylim,1,n)
+  qv(0:nxlim,0:nylim,nz,n)=qvh(0:nxlim,0:nylim,nuvz,n)
 #endif
-      rho(ix,jy,1,n)=rhoh(ix,jy,1)
-      rho(ix,jy,nz,n)=rhoh(ix,jy,nuvz)
-      ! RLT add pressure
-      prs(ix,jy,1,n)=prsh(ix,jy,1)
-      prs(ix,jy,nz,n)=prsh(ix,jy,nuvz)
-      ! RLT
+  rho(0:nxlim,0:nylim,1,n)=rhoh(0:nxlim,0:nylim,1)
+  rho(0:nxlim,0:nylim,nz,n)=rhoh(0:nxlim,0:nylim,nuvz)
+  ! RLT add pressure
+  prs(0:nxlim,0:nylim,1,n)=prsh(0:nxlim,0:nylim,1)
+  prs(0:nxlim,0:nylim,nz,n)=prsh(0:nxlim,0:nylim,nuvz)
+  ! RLT
+  ww(0:nxlim,0:nylim,1,n)=wwh(0:nxlim,0:nylim,1)*pinmconv(0:nxlim,0:nylim,1)
+  ww(0:nxlim,0:nylim,nz,n)=wwh(0:nxlim,0:nylim,nwz)*pinmconv(0:nxlim,0:nylim,nz)
+!$OMP END WORKSHARE NOWAIT
 
-      ww(ix,jy,1,n)=wwh(ix,jy,1)*pinmconv(ix,jy,1)
-      ww(ix,jy,nz,n)=wwh(ix,jy,nwz)*pinmconv(ix,jy,nz)
+#ifndef ETA
+  if (readclouds) then !hg adding the cloud water 
+!$OMP WORKSHARE
+    clwc(0:nxlim,0:nylim,1,n)=clwch(0:nxlim,0:nylim,1,n)
+    clwc(0:nxlim,0:nylim,nz,n)=clwch(0:nxlim,0:nylim,nuvz,n)
+!$OMP END WORKSHARE NOWAIT
+    if (.not. sumclouds) then
+!$OMP WORKSHARE
+      ciwc(0:nxlim,0:nylim,1,n)=ciwch(0:nxlim,0:nylim,1,n)
+      ciwc(0:nxlim,0:nylim,nz,n)=ciwch(0:nxlim,0:nylim,nuvz,n) 
+!$OMP END WORKSHARE NOWAIT
+    endif
+  endif
+#endif
 
-      do iz=2,nz-1
+!$OMP DO
+  do iz=2,nz-1
+    do jy=0,nylim
+      do ix=0,nxlim
         ! Levels, where uv is given
         !*************************
         if (height(iz).gt.etauvheight(ix,jy,nuvz,n)) then
@@ -524,6 +519,8 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
           vv(ix,jy,iz,n)=vv(ix,jy,nz,n)
           tt(ix,jy,iz,n)=tt(ix,jy,nz,n)
           pv(ix,jy,iz,n)=pv(ix,jy,nz,n)
+          rho(ix,jy,iz,n)=rho(ix,jy,nz,n)
+          prs(ix,jy,iz,n)=prs(ix,jy,nz,n)   ! RLT
 #ifndef ETA
           qv(ix,jy,iz,n)=qv(ix,jy,nz,n)
           !hg adding the cloud water
@@ -532,8 +529,6 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
             if (.not.sumclouds) ciwc(ix,jy,iz,n)=ciwc(ix,jy,nz,n)
           end if
 #endif
-          rho(ix,jy,iz,n)=rho(ix,jy,nz,n)
-          prs(ix,jy,iz,n)=prs(ix,jy,nz,n)   ! RLT
         else
           kz=idx(ix,jy,iz)
           dz1=height(iz)-etauvheight(ix,jy,kz-1,n)
@@ -544,6 +539,9 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
           tt(ix,jy,iz,n)=(tth(ix,jy,kz-1,n)*dz2 &
                +tth(ix,jy,kz,n)*dz1)/dz
           pv(ix,jy,iz,n)=(pvh(ix,jy,kz-1)*dz2+pvh(ix,jy,kz)*dz1)/dz
+          rho(ix,jy,iz,n)=(rhoh(ix,jy,kz-1)*dz2+rhoh(ix,jy,kz)*dz1)/dz
+  ! RLT add pressure
+          prs(ix,jy,iz,n)=(prsh(ix,jy,kz-1)*dz2+prsh(ix,jy,kz)*dz1)/dz
 #ifndef ETA
           qv(ix,jy,iz,n)=(qvh(ix,jy,kz-1,n)*dz2+qvh(ix,jy,kz,n)*dz1)/dz
   !hg adding the cloud water
@@ -555,10 +553,23 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
           end if
   !hg
 #endif
-          rho(ix,jy,iz,n)=(rhoh(ix,jy,kz-1)*dz2+rhoh(ix,jy,kz)*dz1)/dz
-  ! RLT add pressure
-          prs(ix,jy,iz,n)=(prsh(ix,jy,kz-1)*dz2+prsh(ix,jy,kz)*dz1)/dz
         endif
+      end do
+    end do
+  end do
+!$OMP END DO
+!$OMP END PARALLEL
+
+!$OMP PARALLEL PRIVATE(jy,ix,iz,kz,dz1,dz2,dz,ix1,jy1,ixp,jyp,dzdx1,dzdx2,dzdx, &
+!$OMP dzdy1,dzdy2,dzdy,dpdeta)
+
+!$OMP DO
+  do jy=0,nymin1
+    cosf(jy)=1./cos((real(jy)*dy+ylat0)*pi180) ! Needed in slope computations
+
+    do ix=0,nxmin1
+      do iz=2,nz-1
+
 
         ! Levels, where w is given
         !*************************
