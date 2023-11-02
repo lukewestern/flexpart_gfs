@@ -374,10 +374,72 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
   real :: dzdx,dzdy
   real :: dzdx1,dzdx2,dzdy1,dzdy2
 
+#ifdef ETA
+!$OMP PARALLEL PRIVATE(ix,jy,kz)
+!$OMP WORKSHARE
+  uueta(0:nxlim,0:nylim,:,n) = uuh(0:nxlim,0:nylim,:)
+  vveta(0:nxlim,0:nylim,:,n) = vvh(0:nxlim,0:nylim,:)
+  tteta(0:nxlim,0:nylim,:,n) = tth(0:nxlim,0:nylim,:,n)
+  qv(0:nxlim,0:nylim,:,n)    = qvh(0:nxlim,0:nylim,:,n)
+  pveta(0:nxlim,0:nylim,:,n) = pvh(0:nxlim,0:nylim,:)
+  rhoeta(0:nxlim,0:nylim,:,n) = rhoh(0:nxlim,0:nylim,:)
+  prseta(0:nxlim,0:nylim,:,n) = prsh(0:nxlim,0:nylim,:)
+
+  forall (ix=0:nxlim,jy=0:nylim,kz=2:nz-1)
+    drhodzeta(ix,jy,kz,n)= &
+         (rhoh(ix,jy,kz+1)-rhoh(ix,jy,kz-1))/ &
+         (height(kz+1)-height(kz-1)) 
+         ! Note that this is still in SI units and not in eta
+  end forall
+  drhodzeta(0:nxlim,0:nylim,1,n)=(rhoh(0:nxlim,0:nylim,2)-rhoh(0:nxlim,0:nylim,1))/(height(2)-height(1))
+  drhodzeta(0:nxlim,0:nylim,nz,n)=drhodzeta(0:nxlim,0:nylim,nz-1,n)
+  ! tvirtual(ix,jy,1,n)=tt2(ix,jy,1,n)* &
+  !   (1.+0.378*ew(td2(ix,jy,1,n),ps(ix,jy,1,n))/ps(ix,jy,1,n))
+  ! Convert w from Pa/s to eta/s, following FLEXTRA
+  !************************************************
+  ! z=1
+  wweta(0:nxlim,0:nylim,1,n)=wwh(0:nxlim,0:nylim,1)/ &
+    ((akm(kz+1)-akm(kz)+(bkm(kz+1)-bkm(kz))*ps(0:nxlim,0:nylim,1,n))/ &
+        (wheight(kz+1)-wheight(kz)))
+  ! z=nuvz-1
+  wweta(0:nxlim,0:nylim,nuvz-1,n)=wwh(0:nxlim,0:nylim,nuvz-1)/ &
+    ((akm(kz)-akm(kz-1)+(bkm(kz)-bkm(kz-1))*ps(0:nxlim,0:nylim,1,n))/ &
+        (wheight(kz)-wheight(kz-1)))
+  ! 1<z<nuvz-1
+  forall (ix=0:nxlim,jy=0:nylim,kz=2:nuvz-2)
+    wweta(ix,jy,kz,n)=wwh(ix,jy,kz)/ &
+      ((akm(kz+1)-akm(kz-1)+(bkm(kz+1)-bkm(kz-1))*ps(ix,jy,1,n))/ &
+        (wheight(kz+1)-wheight(kz-1)))
+  end forall
+  ! do kz=1,nuvz-1
+  !   ! if (kz.eq.1) then
+  !   !   dpdeta=(akm(kz+1)-akm(kz)+(bkm(kz+1)-bkm(kz))*ps(ix,jy,1,n))/ &
+  !   !     (wheight(kz+1)-wheight(kz))
+  !   else if (kz.eq.nuvz-1) then
+  !     dpdeta=(akm(kz)-akm(kz-1)+(bkm(kz)-bkm(kz-1))*ps(ix,jy,1,n))/ &
+  !       (wheight(kz)-wheight(kz-1))
+  !   else
+  !     dpdeta=(akm(kz+1)-akm(kz-1)+(bkm(kz+1)-bkm(kz-1))*ps(ix,jy,1,n))/ &
+  !       (wheight(kz+1)-wheight(kz-1))
+  !   endif
+  !   wweta(ix,jy,kz,n)=wwh(ix,jy,kz)/dpdeta
+  ! end do
+  ! wweta(0:nxlim,0:nylim,nuvz,n)=wweta(0:nxlim,0:nylim,nuvz-1,n) 
+!$OMP END WORKSHARE NOWAIT
+
+  if (readclouds) then
+!$OMP DO
+    do kz=1,nz
+      clwc(0:nxlim,0:nylim,kz,n)=clwch(0:nxlim,0:nylim,kz,n)
+      if (.not. sumclouds) ciwc(0:nxlim,0:nylim,kz,n)=ciwch(0:nxlim,0:nylim,kz,n)
+    end do
+!$OMP END DO
+  endif
+!$OMP END PARALLEL
+#endif
 
 !$OMP PARALLEL PRIVATE(jy,ix,iz,kz,dz1,dz2,dz,ix1,jy1,ixp,jyp,dzdx1,dzdx2,dzdx, &
 !$OMP dzdy1,dzdy2,dzdy,dpdeta)
-
 
 !$OMP DO
   do jy=0,nymin1
@@ -546,13 +608,13 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
 #ifdef ETA
   ! Keep original fields if wind_coord_type==ETA
       do kz=1,nz
-        uueta(ix,jy,kz,n) = uuh(ix,jy,kz)
-        vveta(ix,jy,kz,n) = vvh(ix,jy,kz)
-        tteta(ix,jy,kz,n) = tth(ix,jy,kz,n)
-        qv(ix,jy,kz,n)    = qvh(ix,jy,kz,n)
-        pveta(ix,jy,kz,n) = pvh(ix,jy,kz)
-        rhoeta(ix,jy,kz,n) = rhoh(ix,jy,kz)
-        prseta(ix,jy,kz,n) = prsh(ix,jy,kz)
+        ! uueta(ix,jy,kz,n) = uuh(ix,jy,kz)
+        ! vveta(ix,jy,kz,n) = vvh(ix,jy,kz)
+        ! tteta(ix,jy,kz,n) = tth(ix,jy,kz,n)
+        ! qv(ix,jy,kz,n)    = qvh(ix,jy,kz,n)
+        ! pveta(ix,jy,kz,n) = pvh(ix,jy,kz)
+        ! rhoeta(ix,jy,kz,n) = rhoh(ix,jy,kz)
+        ! prseta(ix,jy,kz,n) = prsh(ix,jy,kz)
         ! eq A11 from Mid-latitude atmospheric dynamics by Jonathan E. Martin
         ! tvirtual(ix,jy,kz,n)=tteta(ix,jy,kz,n)* &  
         !   ((qv(ix,jy,kz,n)+0.622)/(0.622*qv(ix,jy,kz,n)+0.622))
@@ -560,10 +622,10 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
              (rhoh(ix,jy,kz+1)-rhoh(ix,jy,kz-1))/ &
              (height(kz+1)-height(kz-1)) 
              ! Note that this is still in SI units and not in eta
-        if (readclouds) then
-          clwc(ix,jy,kz,n)=clwch(ix,jy,kz,n)
-          if (.not. sumclouds) ciwc(ix,jy,kz,n)=ciwch(ix,jy,kz,n)
-        endif
+        ! if (readclouds) then
+        !   clwc(ix,jy,kz,n)=clwch(ix,jy,kz,n)
+        !   if (.not. sumclouds) ciwc(ix,jy,kz,n)=ciwch(ix,jy,kz,n)
+        ! endif
       end do
       drhodzeta(ix,jy,1,n)=(rhoh(ix,jy,2)-rhoh(ix,jy,1))/(height(2)-height(1))
       drhodzeta(ix,jy,nz,n)=drhodzeta(ix,jy,nz-1,n)
