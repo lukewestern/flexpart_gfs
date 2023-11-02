@@ -388,14 +388,17 @@ subroutine convmix(itime)
 
         if (iflux.eq.1) then
           lcalcflux=.true.
-          nage=1
           if (lagespectra.eq.1) then
+            nage=0
             itage=abs(itime-part(ipart)%tstart)
             do inage=1,nageclass
-              if ((itage.lt.lage(nage)).and.(part(ipart)%alive)) exit
+              if ((itage.lt.lage(inage)).and.(part(ipart)%alive)) exit
               nage=inage
             end do
             if (nage.eq.nageclass) lcalcflux=.false.
+            nage=nage+1
+          else
+            nage=1
           endif
 
           if (lcalcflux) &
@@ -487,13 +490,16 @@ subroutine convmix(itime)
         if (iflux.eq.1) then
           lcalcflux=.true.
           if (lagespectra.eq.1) then
+            nage=0
             itage=abs(itime-part(ipart)%tstart)
-            nage=1
             do inage=1,nageclass
-              if ((itage.lt.lage(nage)).and.(part(ipart)%alive)) exit
+              if ((itage.lt.lage(inage)).and.(part(ipart)%alive)) exit
               nage=inage
             end do
             if (nage.eq.nageclass) lcalcflux=.false.
+            nage=nage+1
+          else
+            nage=1
           endif
 
           if (lcalcflux) &

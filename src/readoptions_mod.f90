@@ -2270,6 +2270,7 @@ subroutine readreleases
   DRYDEP=.false.
   WETDEP=.false.
   OHREA=.false.
+  LDECAY=.false.
   do i=1,maxspec
     DRYDEPSPEC(i)=.false.
     WETDEPSPEC(i)=.false.
@@ -2307,9 +2308,10 @@ subroutine readreleases
 
   ! Radioactive decay
   !******************
-
-    decay(i)=0.693147/decay(i) !conversion half life to decay constant
-
+    if (decay(i).gt.0) then
+      LDECAY=.true.
+      decay(i)=0.693147/decay(i) !conversion half life to decay constant
+    endif
 
   ! Dry deposition of gases
   !************************

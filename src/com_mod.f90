@@ -337,7 +337,7 @@ module com_mod
   real :: dxoutn,dyoutn,outlon0n,outlat0n,xoutshiftn,youtshiftn
   !real outheight(maxzgrid),outheighthalf(maxzgrid)
 
-  logical :: DEP,DRYDEP,WETDEP,OHREA,ASSSPEC
+  logical :: DEP,DRYDEP,WETDEP,OHREA,ASSSPEC,LDECAY
   logical,allocatable,dimension(:) :: DRYDEPSPEC,WETDEPSPEC
   logical :: DRYBKDEP,WETBKDEP
 

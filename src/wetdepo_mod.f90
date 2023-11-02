@@ -105,10 +105,12 @@ subroutine wetdepo(itime,ltsample,loutnext)
   !******************************************************************
     itage=abs(itime-part(jpart)%tstart)
     nage=1
-    do inage=1,nageclass
-      nage=inage
-      if (itage.lt.lage(nage)) exit
-    end do
+    if (lagespectra.eq.1) then
+      do inage=1,nageclass
+        nage=inage
+        if (itage.lt.lage(nage)) exit
+      end do
+    endif
 
     do ks=1,nspec      ! loop over species
 

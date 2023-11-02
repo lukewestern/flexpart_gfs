@@ -663,10 +663,12 @@ subroutine conccalc(itime,weight)
   ! Determine age class of the particle
     itage=abs(itime-part(i)%tstart)
     nage=1
-    do inage=1,nageclass
-      nage=inage
-      if (itage.lt.lage(nage)) exit
-    end do
+    if (lagespectra.eq.1) then
+      do inage=1,nageclass
+        nage=inage
+        if (itage.lt.lage(nage)) exit
+      end do
+    endif
 
   !  if (xscav_frac1(i,1).lt.0) xscav_count=xscav_count+1
            
