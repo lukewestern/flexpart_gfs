@@ -209,7 +209,7 @@ subroutine timemanager
 #ifdef ETA
     if ((itime.eq.itime_init).and.((ipin.eq.1).or.(ipin.eq.3).or.(ipin.eq.4))) then 
       
-      if (numpart.le.0) error stop 'Something is going wrong reading the old particle file! &
+      if (count%allocated.le.0) error stop 'Something is going wrong reading the old particle file! &
         &No particles found.'
 !$OMP PARALLEL PRIVATE(i)
 !$OMP DO
