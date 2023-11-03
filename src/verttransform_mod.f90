@@ -2138,7 +2138,7 @@ subroutine verttransform_ecmwf_windfields_nest(l,n, &
       qvn(ix,jy,nz,n,l)=qvhn(ix,jy,nuvz,n,l)
       if (lcw_nest(l)) then
         clwcn(ix,jy,nz,n,l)=clwchn(ix,jy,nuvz,n,l)
-        if (.not.sumclouds_nest(l)) ciwcn(ix,jy,nz,n,l)=ciwchn(ix,jy,nuvz,n,l)
+        if (.not.lcwsum_nest(l)) ciwcn(ix,jy,nz,n,l)=ciwchn(ix,jy,nuvz,n,l)
       endif
 #endif
       pvn(ix,jy,nz,n,l)=pvhn(ix,jy,nuvz,l)
@@ -2164,7 +2164,7 @@ subroutine verttransform_ecmwf_windfields_nest(l,n, &
           !hg adding the cloud water
           if (lcw_nest(l)) then
             clwcn(ix,jy,iz,n,l)=clwcn(ix,jy,nz,n,l)
-            if (.not.sumclouds_nest(l)) ciwcn(ix,jy,iz,n,l)=ciwcn(ix,jy,nz,n,l)
+            if (.not.lcwsum_nest(l)) ciwcn(ix,jy,iz,n,l)=ciwcn(ix,jy,nz,n,l)
           endif
 #endif
           rhon(ix,jy,iz,n,l)=rhon(ix,jy,nz,n,l)
@@ -2196,7 +2196,7 @@ subroutine verttransform_ecmwf_windfields_nest(l,n, &
           !hg adding the cloud water
           if (lcw_nest(l)) then
             clwcn(ix,jy,iz,n,l)=(clwchn(ix,jy,kz-1,n,l)*dz2+clwchn(ix,jy,kz,n,l)*dz1)/dz
-            if (.not.sumclouds_nest(l)) ciwcn(ix,jy,iz,n,l) = &
+            if (.not.lcwsum_nest(l)) ciwcn(ix,jy,iz,n,l) = &
               (ciwchn(ix,jy,kz-1,n,l)*dz2+ciwchn(ix,jy,kz,n,l)*dz1)/dz
           end if
 #endif
