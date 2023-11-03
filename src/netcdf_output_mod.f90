@@ -2571,6 +2571,118 @@ subroutine readinitconditions_netcdf()
   call nf90_err(nf90_inquire_attribute(ncid=ncidend,name='species',varid=NF90_GLOBAL))
   call nf90_err(nf90_get_att(ncid=ncidend,varid=NF90_GLOBAL,name='species',values=specnum_rel(1:nspec)))
 
+  ! Read species and derive initial conditions
+  !****************************************************
+  DEP=.false.
+  DRYDEP=.false.
+  WETDEP=.false.
+  OHREA=.false.
+  do nsp=1,maxspec
+    DRYDEPSPEC(nsp)=.false.
+    WETDEPSPEC(nsp)=.false.
+  end do
+
+  do nsp=1,nspec
+    call readspecies(specnum_rel(nsp),nsp)
+  end do
+
+  ! Allocate fields that depend on ndia
+  call alloc_com_ndia
+
+  do nsp=1,nspec
+    ! Allocate temporary memory necessary for the different diameter bins
+    !********************************************************************
+    allocate(vsh(ndia(nsp)),fracth(ndia(nsp)),schmih(ndia(nsp)), stat=stat)
+    if (stat.ne.0) error stop "Could not allocate vsh,fracth,schmih"
+
+    ! Molecular weight
+    !*****************
+    if (((iout.eq.2).or.(iout.eq.3)).and.(weightmolar(nsp).lt.0.)) then
+      write(*,*) 'For mixing ratio output, valid molar weight'
+      write(*,*) 'must be specified for all simulated species.'
+      write(*,*) 'Check table SPECIES or choose concentration'
+      write(*,*) 'output instead if molar weight is not known.'
+      error stop
+    endif
+
+    ! Radioactive decay
+    !******************
+    decay(nsp)=0.693147/decay(nsp) !conversion half life to decay constant
+
+  ! Dry deposition of gases
+  !************************
+
+    if (reldiff(nsp).gt.0.) rm(nsp)=1./(henry(nsp)/3000.+100.*f0(nsp))    ! mesophyll resistance
+
+  ! Dry deposition of particles
+  !****************************
+
+    vsetaver(nsp)=0.
+    cunningham(nsp)=0.
+    dquer(nsp)=dquer(nsp)*1000000.         ! Conversion m to um
+    if (density(nsp).gt.0.) then         ! Additional parameters
+      call part0(dquer(nsp),dsigma(nsp),density(nsp),ndia(nsp),fracth,schmih,cun,vsh)
+      do j=1,ndia(nsp)
+        fract(nsp,j)=fracth(j)
+        schmi(nsp,j)=schmih(j)
+        vset(nsp,j)=vsh(j)
+        cunningham(nsp)=cunningham(nsp)+cun*fract(nsp,j)
+        vsetaver(nsp)=vsetaver(nsp)-vset(nsp,j)*fract(nsp,j)
+      end do
+      if (lroot) write(*,*) 'Average settling velocity: ',i,vsetaver(nsp)
+    endif
+
+    ! Dry deposition for constant deposition velocity
+    !************************************************
+
+    dryvel(nsp)=dryvel(nsp)*0.01         ! conversion to m/s
+
+    ! Check if wet deposition or OH reaction shall be calculated
+    !***********************************************************
+
+    ! ESO 04.2016 check for below-cloud scavenging (gas or aerosol)
+    if ((dquer(nsp).le.0..and.(weta_gas(nsp).gt.0. .or. wetb_gas(nsp).gt.0.)) .or. &
+         &(dquer(nsp).gt.0. .and. (crain_aero(nsp) .gt. 0. .or. csnow_aero(nsp).gt.0.)))  then
+      WETDEP=.true.
+      WETDEPSPEC(nsp)=.true.
+      if (lroot) then
+        write (*,*) '  Below-cloud scavenging: ON'
+      end if
+    else
+      if (lroot) write (*,*) '  Below-cloud scavenging: OFF'
+    endif
+
+    ! NIK 31.01.2013 + 10.12.2013 + 15.02.2015
+    if (dquer(nsp).gt.0..and.(ccn_aero(nsp).gt.0. .or. in_aero(nsp).gt.0.))  then
+      WETDEP=.true.
+      WETDEPSPEC(nsp)=.true.
+      if (lroot) then
+        write (*,*) '  In-cloud scavenging: ON'
+      end if
+    else
+      if (lroot) write (*,*) '  In-cloud scavenging: OFF' 
+    endif
+
+    if (ohcconst(nsp).gt.0.) then
+      OHREA=.true.
+      if (lroot) write (*,*) '  OHreaction switched on: ',ohcconst(nsp),nsp
+    endif
+
+    if ((reldiff(nsp).gt.0.).or.(density(nsp).gt.0.).or.(dryvel(nsp).gt.0.)) then
+      DRYDEP=.true.
+      DRYDEPSPEC(nsp)=.true.
+    endif
+
+    deallocate(vsh,fracth,schmih)
+  end do ! end loop over species
+
+  if (WETDEP.or.DRYDEP) then 
+   DEP=.true.
+  endif
+
+  deallocate(specnum_rel)
+  !********************************* END READING SPECIES
+
   ! Get the particle dimension
   call nf90_err(nf90_inq_dimid(ncid=ncidend,name='particle',dimid=pIDend))
   call nf90_err(nf90_inquire_dimension(ncid=ncidend,dimid=pIDend,len=plen))
@@ -2787,119 +2899,6 @@ subroutine readinitconditions_netcdf()
   numparticlecount=numpart
   call nf90_err(nf90_close(ncidend))
 
-
-  ! Read species and derive initial conditions
-
-  !now save the information
-  DEP=.false.
-  DRYDEP=.false.
-  WETDEP=.false.
-  OHREA=.false.
-  do nsp=1,maxspec
-    DRYDEPSPEC(nsp)=.false.
-    WETDEPSPEC(nsp)=.false.
-  end do
-
-  do nsp=1,nspec
-    call readspecies(specnum_rel(nsp),nsp)
-  end do
-
-  ! Allocate fields that depend on ndia
-  call alloc_com_ndia
-
-  do nsp=1,nspec
-    ! Allocate temporary memory necessary for the different diameter bins
-    !********************************************************************
-    allocate(vsh(ndia(nsp)),fracth(ndia(nsp)),schmih(ndia(nsp)), stat=stat)
-    if (stat.ne.0) error stop "Could not allocate vsh,fracth,schmih"
-
-    ! Molecular weight
-    !*****************
-    if (((iout.eq.2).or.(iout.eq.3)).and.(weightmolar(nsp).lt.0.)) then
-      write(*,*) 'For mixing ratio output, valid molar weight'
-      write(*,*) 'must be specified for all simulated species.'
-      write(*,*) 'Check table SPECIES or choose concentration'
-      write(*,*) 'output instead if molar weight is not known.'
-      error stop
-    endif
-
-    ! Radioactive decay
-    !******************
-    decay(nsp)=0.693147/decay(nsp) !conversion half life to decay constant
-
-  ! Dry deposition of gases
-  !************************
-
-    if (reldiff(nsp).gt.0.) rm(nsp)=1./(henry(nsp)/3000.+100.*f0(nsp))    ! mesophyll resistance
-
-  ! Dry deposition of particles
-  !****************************
-
-    vsetaver(nsp)=0.
-    cunningham(nsp)=0.
-    dquer(nsp)=dquer(nsp)*1000000.         ! Conversion m to um
-    if (density(nsp).gt.0.) then         ! Additional parameters
-      call part0(dquer(nsp),dsigma(nsp),density(nsp),ndia(nsp),fracth,schmih,cun,vsh)
-      do j=1,ndia(nsp)
-        fract(nsp,j)=fracth(j)
-        schmi(nsp,j)=schmih(j)
-        vset(nsp,j)=vsh(j)
-        cunningham(nsp)=cunningham(nsp)+cun*fract(nsp,j)
-        vsetaver(nsp)=vsetaver(nsp)-vset(nsp,j)*fract(nsp,j)
-      end do
-      if (lroot) write(*,*) 'Average settling velocity: ',i,vsetaver(nsp)
-    endif
-
-    ! Dry deposition for constant deposition velocity
-    !************************************************
-
-    dryvel(nsp)=dryvel(nsp)*0.01         ! conversion to m/s
-
-    ! Check if wet deposition or OH reaction shall be calculated
-    !***********************************************************
-
-    ! ESO 04.2016 check for below-cloud scavenging (gas or aerosol)
-    if ((dquer(nsp).le.0..and.(weta_gas(nsp).gt.0. .or. wetb_gas(nsp).gt.0.)) .or. &
-         &(dquer(nsp).gt.0. .and. (crain_aero(nsp) .gt. 0. .or. csnow_aero(nsp).gt.0.)))  then
-      WETDEP=.true.
-      WETDEPSPEC(nsp)=.true.
-      if (lroot) then
-        write (*,*) '  Below-cloud scavenging: ON'
-      end if
-    else
-      if (lroot) write (*,*) '  Below-cloud scavenging: OFF'
-    endif
-
-    ! NIK 31.01.2013 + 10.12.2013 + 15.02.2015
-    if (dquer(nsp).gt.0..and.(ccn_aero(nsp).gt.0. .or. in_aero(nsp).gt.0.))  then
-      WETDEP=.true.
-      WETDEPSPEC(nsp)=.true.
-      if (lroot) then
-        write (*,*) '  In-cloud scavenging: ON'
-      end if
-    else
-      if (lroot) write (*,*) '  In-cloud scavenging: OFF' 
-    endif
-
-    if (ohcconst(nsp).gt.0.) then
-      OHREA=.true.
-      if (lroot) write (*,*) '  OHreaction switched on: ',ohcconst(nsp),nsp
-    endif
-
-    if ((reldiff(nsp).gt.0.).or.(density(nsp).gt.0.).or.(dryvel(nsp).gt.0.)) then
-      DRYDEP=.true.
-      DRYDEPSPEC(nsp)=.true.
-    endif
-
-    deallocate(vsh,fracth,schmih)
-  end do ! end loop over species
-
-  if (WETDEP.or.DRYDEP) then 
-   DEP=.true.
-  endif
-
-
-  deallocate(specnum_rel)
 end subroutine readinitconditions_netcdf
 
 end module netcdf_output_mod
