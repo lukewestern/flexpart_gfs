@@ -2411,7 +2411,7 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
 
   integer, intent(in) :: ibtime,ibdate
   integer             :: ncidend,tIDend,pIDend,tempIDend
-  integer             :: tlen,plen,tend,i,j,stat
+  integer             :: tlen,plen,tend,i,j,stat,iterminate
   integer             :: idate_start,itime_start
   character           :: adate*8,atime*6,timeunit*32,adate_start*8,atime_start*6
   character(len=3)    :: anspec
@@ -2498,10 +2498,12 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
   endif
   ! deallocate( mass_temp )
 
+  iterminate=0
   do i=1,plen
     if (part(i)%z.lt.0) then 
       call terminate_particle(i,0)
       write(*,*) 'Particle ',i,'is not alive in the restart file.'
+      iterminate=iterminate+1
     endif
     part(i)%nclass=min(int(ran1(idummy,0)*real(nclassunc))+1, &
          nclassunc)    
@@ -2509,6 +2511,8 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
     part(i)%npoint=1
   end do
 
+  if (iterminate.gt.0) call rewrite_ialive()
+  
   call nf90_err(nf90_close(ncidend))
 
 end subroutine readpartpositions_netcdf
@@ -2759,6 +2763,7 @@ subroutine readinitconditions_netcdf()
           write(*,*) "start of your simulation. Negative values will be converted to"
           write(*,*) "positive starting times..."
         endif
+        lstart=.false.
       endif
       part(i)%tstart = part(i)%tstart*-1
     endif

@@ -100,7 +100,7 @@ subroutine wetdepo(itime,ltsample,loutnext)
   do i=1,count%alive
 
     jpart=count%ialive(i)
-
+    
   ! Determine age class of the particle - nage is used for the kernel
   !******************************************************************
     itage=abs(itime-part(jpart)%tstart)

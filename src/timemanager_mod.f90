@@ -109,6 +109,7 @@ subroutine timemanager
     e_inv = 1.0/exp(1.0)  
   integer ::                &
     j,i,                    & ! loop variables
+    iterminate,             & ! Keep track of terminated particles per timestep
     ks,                     & ! loop variable species
     kp,                     & ! loop variable for maxpointspec_act
     itime=0,                & ! time index
@@ -437,12 +438,14 @@ subroutine timemanager
 #endif
 
   ! Terminating particles flagged in advance call
+  iterminate=0
   do i=1,count%allocated
     if ((part(i)%nstop).and.(part(i)%alive)) then
       call terminate_particle(i,itime)
+      iterminate=iterminate+1
     endif
   end do
-
+  if (iterminate.gt.0) call rewrite_ialive()
 
   if (DRYDEP.or.WETDEP.or.LDECAY.or.(lagespectra.eq.1)) then
 !$OMP PARALLEL PRIVATE(prob_rec,nage,inage,itage,ks,kp,thread,i,j,xmassfract,drytmp)
@@ -549,17 +552,20 @@ subroutine timemanager
     end do !loop over particles
 
 !$OMP END DO
-  if (DRYDEP) deallocate(drytmp)
+    if (DRYDEP) deallocate(drytmp)
 !$OMP END PARALLEL
   
-  ! Terminating particles flagged due to insufficient mass or exceeded max age
-  do i=1,count%allocated
-    if ((part(i)%nstop).and.(part(i)%alive)) then
-      call terminate_particle(i,itime)
-    endif
-  end do
+    ! Terminating particles flagged due to insufficient mass or exceeded max age
+    iterminate=0
+    do i=1,count%allocated
+      if ((part(i)%nstop).and.(part(i)%alive)) then
+        call terminate_particle(i,itime)
+        iterminate=iterminate+1
+      endif
+    end do
+    if (iterminate.gt.0) call rewrite_ialive()
 
-  endif
+  endif !(DRYDEP.or.WETDEP.or.LDECAY.or.(lagespectra.eq.1))
 
 #ifdef _OPENMP
   call omp_set_num_threads(numthreads)

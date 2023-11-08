@@ -11,7 +11,8 @@
   !*****************************************************************************
 
 module particle_mod
-  use com_mod, only: maxspec,DRYDEP,WETDEP,DRYBKDEP,WETBKDEP,iout,n_average,nspec
+  use com_mod, only: maxspec,DRYDEP,WETDEP,DRYBKDEP,WETBKDEP,iout, &
+    n_average,nspec,ipout,ipin
   use par_mod, only: dp
 
   implicit none
@@ -132,6 +133,7 @@ module particle_mod
     dealloc_particle,             &
     dealloc_all_particles,        &
     terminate_particle,           &
+    rewrite_ialive,               &
     spawn_particle,               &
     spawn_particles,              &
     get_totalpart_num,            &
@@ -214,8 +216,20 @@ contains
     implicit none
 
     integer, intent(inout) :: ipart   ! First free index
+    integer :: i
 
-    ipart = count%spawned + 1
+    if (ipin.le.1 .and. ipout.eq.0) then
+      ! Find dead particles to replace
+      ipart=count%allocated+1
+      do i=1,count%allocated
+        if (.not. part(i)%alive) then
+          ipart=i
+          exit
+        endif
+      end do
+    else
+      ipart = count%spawned + 1
+    endif
   end subroutine get_newpart_index
 
   subroutine get_totalpart_num(npart)
@@ -337,9 +351,6 @@ contains
     integer, intent(in) :: &
       ipart,               & ! to be terminated particle index
       itime                  ! Time at which particle is terminated
-    integer ::             &
-      i,                   & ! loop variable
-      iloc                   ! location of ipart in count%ialive
 
     ! Flagging the particle as having been terminated
     !************************************************
@@ -349,24 +360,55 @@ contains
     ! Update the number of current particles that are alive
     !******************************************************
     count%alive = count%alive - 1
+
+    ! Update the total number of terminated particles during the whole run
+    !**********************************************************************
+    count%terminated = count%terminated + 1
+  end subroutine terminate_particle
+
+  subroutine rewrite_ialive()
+    implicit none
+
+    integer :: i,j
+
+    j=1
+    do i=1,count%allocated
+      if (part(i)%alive) then
+        count%ialive(j)=i
+        j=j+1
+      endif
+    end do
+
+    count%alive=j-1
+  end subroutine rewrite_ialive
+
+  subroutine rewrite_ialive_single(ipart)
+    implicit none
+
+    integer, intent(in) :: &
+      ipart                  ! to be terminated particle index    
+    integer ::             &
+      i,                   & ! loop variable
+      iloc                   ! location of ipart in count%ialive
+
     ! And remove from the ialive array
     !*********************************
     ! iloc=findloc(count%ialive,ipart,1) ! findloc not supported in gcc<v9
     iloc=count%allocated
-    do i=1,count%alive+1
+    do i=1,count%alive+2
       if (count%ialive(i).eq.ipart) then
         iloc=i
         exit
       endif
     end do
     if (iloc.ne.count%allocated) then
+!$OMP PARALLEL
+!$OMP WORKSHARE
       count%ialive(iloc:count%allocated-1)=count%ialive(iloc+1:count%allocated)
+!$OMP END WORKSHARE
+!$OMP END PARALLEL
     endif
-
-    ! Update the total number of terminated particles during the whole run
-    !**********************************************************************
-    count%terminated = count%terminated + 1
-  end subroutine terminate_particle
+  end subroutine rewrite_ialive_single
  
   subroutine alloc_particles(nmpart)
 
@@ -380,7 +422,7 @@ contains
     integer, allocatable       :: tmpnclust(:)
     integer                    :: i,stat
 
-    if (nmpart.gt.100) &
+    !if (nmpart.gt.100) &
       write(*,*) 'Allocating ',nmpart,' particles', count%allocated, count%terminated, count%spawned
 
     ! Keeping track of the allocated memory in case 

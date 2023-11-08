@@ -129,20 +129,22 @@ subroutine releaseparticles(itime)
   ! For every release point, check whether we are in the release time interval
   !***************************************************************************
   ! First allocate all particles that are going to be in the simulation
-
-  if (itime.eq.0) then
-    totpart=0
-    do i=1,numpoint
-      totpart = totpart+npart(i)
-    end do
-    call alloc_particles(totpart)
-  else if (itime.eq.itime_init) then !From restart point only allocate particles that are yet to be born
-    totpart=0
-    do i=1,numpoint
-      totpart = totpart+npart(i)
-    end do
-    if (totpart.gt.count%allocated) call alloc_particles(totpart-count%allocated)
-  end if 
+  ! If ipin==0,1, and ipout==0, then dead particles can be overwritten to save memory
+  if (ipin.gt.1 .or. ipout.ne.0) then
+    if (itime.eq.0) then
+      totpart=0
+      do i=1,numpoint
+        totpart = totpart+npart(i)
+      end do
+      call alloc_particles(totpart)
+    else if (itime.eq.itime_init) then !From restart point only allocate particles that are yet to be born
+      totpart=0
+      do i=1,numpoint
+        totpart = totpart+npart(i)
+      end do
+      if (totpart.gt.count%allocated) call alloc_particles(totpart-count%allocated)
+    end if 
+  endif
 
   call get_totalpart_num(istart)
   minpart=1
@@ -211,6 +213,10 @@ subroutine releaseparticles(itime)
       yaux=ypoint2(i)-ypoint1(i)
       zaux=zpoint2(i)-zpoint1(i)
 
+      if (ipin.le.1 .and. ipout.eq.0) then
+        totpart = numrel-(count%allocated-count%alive)
+        if (totpart.gt.0) call alloc_particles(totpart)
+      endif
       do j=1,numrel             ! loop over particles to be released this time
         call get_newpart_index(ipart)
         call spawn_particle(itime, ipart)
@@ -866,7 +872,7 @@ subroutine init_domainfill
 
   implicit none
 
-  integer :: j,kz,lix,ljy,ncolumn,numparttot,stat
+  integer :: j,kz,lix,ljy,ncolumn,numparttot,stat,iterminate
   real :: ylat,ylatp,ylatm,hzone
   real :: cosfactm,cosfactp,deltacol,dz1,dz2,dz,pnew,pnew_temp,fractus
   real,parameter :: pih=pi/180.
@@ -1019,6 +1025,7 @@ subroutine init_domainfill
 
   ! Determine the particle positions
   !*********************************
+  iterminate=0
   do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
     ylat=ylat0+real(ljy)*dy
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
@@ -1146,6 +1153,7 @@ subroutine init_domainfill
               else
                 call terminate_particle(numpart+jj, 0)
                 jj=jj-1
+                iterminate=iterminate+1
               endif
             endif
           endif
@@ -1170,10 +1178,13 @@ subroutine init_domainfill
     if ((part(j)%xlon.lt.0.).or.(part(j)%xlon.ge.real(nxmin1,kind=dp)).or. &
          (part(j)%ylat.lt.0.).or.(part(j)%ylat.ge.real(nymin1,kind=dp))) then
       call terminate_particle(j,0) ! Cannot be within an OMP region
+      iterminate=iterminate+1
       ! alive_tmp=alive_tmp-1
       ! terminated_tmp=terminated_tmp+1
     endif
   end do
+
+  if (iterminate.gt.0) call rewrite_ialive()
 ! !$OMP END DO
 ! !$OMP END PARALLEL
 
@@ -1340,7 +1351,7 @@ subroutine boundcond_domainfill(itime,loutend)
   real :: dz,dz1,dz2,dt1,dt2,dtt,ylat,cosfact,accmasst
   integer :: itime,ii,indz,indzp,i,loutend,numparticlecount_tmp
   integer :: j,k,ix,jy,m,indzh,indexh,ipart,mmass,ithread
-  integer :: numactiveparticles
+  integer :: numactiveparticles,iterminate
 
   real :: windl(2),rhol(2)
   real :: windhl(2),rhohl(2)
@@ -1371,18 +1382,23 @@ subroutine boundcond_domainfill(itime,loutend)
   ! Terminate trajectories that have left the domain, if domain-filling
   ! trajectory calculation domain is not global
   !********************************************************************
-
+  iterminate=0
   do i=1,count%allocated
     if (.not. part(i)%alive) cycle
 
-    if ((part(i)%ylat.gt.real(ny_sn(2))).or. &
-         (part(i)%ylat.lt.real(ny_sn(1)))) call terminate_particle(i,itime)
+    if ((part(i)%ylat.gt.real(ny_sn(2))).or.(part(i)%ylat.lt.real(ny_sn(1)))) then
+      call terminate_particle(i,itime)
+      iterminate=iterminate+1
+    endif
     if (((.not.xglobal).or.(nx_we(2).ne.(nx-2))).and. &
          ((part(i)%xlon.lt.real(nx_we(1))).or. &
-         (part(i)%xlon.gt.real(nx_we(2))))) call terminate_particle(i,itime)
+         (part(i)%xlon.gt.real(nx_we(2))))) then
+      call terminate_particle(i,itime)
+      iterminate=iterminate+1
+    endif
     if (part(i)%alive) numactiveparticles = numactiveparticles+1
   end do
-
+  if (iterminate.gt.0) call rewrite_ialive()
   !***************************************
   ! Western and eastern boundary condition
   !***************************************
