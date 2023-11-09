@@ -2779,20 +2779,25 @@ subroutine readinitconditions_netcdf()
 
   ! Count number of releases
   numpoint=0
+  ! Allocate plen of numpoint_max, since each particle could in principle have 
+  ! a unique release number
   allocate(numpoint_max(plen), stat=stat)
   if (stat.ne.0) error stop "Could not allocate numpoint_max"
   numpoint_max=0
   release_max=0
 
+  ! Count number of releases
   l1: do i=1,plen
+    ! See if the release number already exists
     l2: do j=1,numpoint
       if (part(i)%npoint.eq.numpoint_max(numpoint)) then
         cycle l1
       endif
     end do l2
-    numpoint = numpoint+1
-    numpoint_max(numpoint)=part(i)%npoint
-    if (part(i)%npoint.gt.release_max) release_max=part(i)%npoint
+    numpoint = numpoint+1 ! Counting the number of releases
+    numpoint_max(numpoint)=part(i)%npoint ! Save the release numbers
+    ! Save maximum release number
+    if (part(i)%npoint.gt.release_max) release_max=part(i)%npoint 
   end do l1
 
   if (numpoint.eq.0) numpoint=1
@@ -2821,12 +2826,12 @@ subroutine readinitconditions_netcdf()
   if (release_max.gt.numpoint) then
     write(*,*) "WARNING: release numbers in part_ic.nc are not consecutive:", &
       release_max, "is larger than the total number of releases:", numpoint, &
-      " Releases will be renumbered."
+      " Releases will be renumbered starting from 1."
 
     do j=1,numpoint
       do i=1,plen
         if (part(i)%npoint.eq.numpoint_max(j)) then
-          part(i)%npoint=numpoint_max(j)
+          part(i)%npoint=j
         endif
       end do
     end do
