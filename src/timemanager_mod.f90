@@ -308,7 +308,7 @@ subroutine timemanager
 
         if ((iout.eq.4).or.(iout.eq.5)) call plumetraj(itime)
         if (iflux.eq.1) call fluxoutput(itime)
-        if (ipout.ge.1) then
+        if (ipout.eq.1) then
           if (mod(itime,ipoutfac*loutstep).eq.0) then
 
             call output_particles(itime)!,active_per_rel) ! dump particle positions
