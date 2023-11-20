@@ -248,6 +248,10 @@ module par_mod
   integer, parameter :: conv_clrange(2) = (/ 3000, 6000 /)
   integer, parameter :: highconvp_clrange(2) = (/ 0, 10000 /)
   integer, parameter :: lowconvp_clrange(2) = (/ 500, 8000 /)
+  real, parameter :: rhmin = 0.90 ! Condition for presence of clouds in the nested fields
+          ! PS note that original by Sabine Eckhart was 80%
+          ! PS however, for T<-20 C we consider saturation over ice
+          ! PS so I think 90% should be enough
 
   !**************************************************************************
   ! Maximum number of particles to be released in a single atmospheric column

@@ -92,8 +92,8 @@ module windfields_mod
   real, allocatable,dimension(:,:,:) ::   &
     ctwc                                    ! ESO: =icloud_stats(:,:,4,:) total cloud water content
   integer,allocatable,dimension(:,:,:) :: & ! new scavenging AT 2021
-    icloudbot,                            & ! cloud bottom height [m]
-	  icloudthck                              ! cloud thickness [m]
+    icloudbot,                            & ! cloud bottom height [m/eta]
+	  icloudtop                               ! cloud top [m/eta]
 
   ! 3d nested fields
   !*****************
@@ -128,8 +128,8 @@ module windfields_mod
   real,allocatable,dimension(:,:,:,:) ::   &
     ctwcn                                    ! ESO: =icloud_stats(:,:,4,:) total cloud water content
   integer,allocatable,dimension(:,:,:,:) :: & ! new scavenging AT 2021
-    icloudbotn,                             & ! cloud bottom height [m]
-  	icloudthckn                               ! cloud thickness [m]
+    icloudbotn,                             & ! cloud bottom height [m/eta]
+  	icloudtopn                                ! cloud thickness [m/eta]
 
   ! 2d fields
   !**********
@@ -3994,8 +3994,8 @@ subroutine alloc_windfields
   if (stat.ne.0) error stop "Could not allocate ctwc"
   allocate(icloudbot(0:nxmax-1,0:nymax-1,numwfmem),stat=stat)
   if (stat.ne.0) error stop "Could not allocate icloudbot"
-  allocate(icloudthck(0:nxmax-1,0:nymax-1,numwfmem),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate icloudbot"
+  allocate(icloudtop(0:nxmax-1,0:nymax-1,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate icloudtop"
 
   ! 2d fields
   !**********
@@ -4098,8 +4098,8 @@ subroutine alloc_windfields_nest
 
   allocate(icloudbotn(0:nxmax-1,0:nymax-1,numwfmem,numbnests),stat=stat)
   if (stat.ne.0) error stop "Could not allocate icloudbotn"
-  allocate(icloudthckn(0:nxmax-1,0:nymax-1,numwfmem,numbnests),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate icloudthckn"
+  allocate(icloudtopn(0:nxmax-1,0:nymax-1,numwfmem,numbnests),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate icloudtopn"
   allocate(prsn(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)
   if (stat.ne.0) error stop "Could not allocate prsn"
   allocate(rhon(0:nxmaxn-1,0:nymaxn-1,nzmax,numwfmem,numbnests),stat=stat)

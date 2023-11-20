@@ -318,6 +318,7 @@ subroutine get_wetscav(itime,jpart,ks,gridfract,wetscav)
   call find_grid_distances(xts,yts)
   
 #ifdef ETA
+    call update_zeta_to_z(itime,jpart)
     call find_z_level_eta_uv(real(part(jpart)%zeta))
     kz=induv
 #else
@@ -325,7 +326,7 @@ subroutine get_wetscav(itime,jpart,ks,gridfract,wetscav)
     kz=indz
 #endif
   
-  ! WHERE IS ICMV DEFINED?
+  ! Interpolate cloud information
 	call interpol_rain(itime,kz,lsp,convp,cc,t_particle,cl,icbot,ictop,icmv)
 
 ! If total precipitation is less than precsub=0.01 mm/h - no scavenging
@@ -350,9 +351,14 @@ subroutine get_wetscav(itime,jpart,ks,gridfract,wetscav)
 !------------------------------------------------------
 ! PS: part of 2011/2012 fix 
 ! NOTE this is just for z coordinate
-! TODO convert for ETA coordinate too
+! Reverse sign for eta
+#ifdef ETA
+  if   (part(jpart)%zeta .gt. float(ictop)) then
+    if (part(jpart)%zeta .le. float(icbot)) then
+#else
   if   (part(jpart)%z .le. float(ictop)) then
     if (part(jpart)%z .gt. float(icbot)) then
+#endif
       indcloud = 2 ! in-cloud
     else
       indcloud = 1 ! below-cloud
@@ -619,20 +625,25 @@ subroutine get_wetscav(itime,jpart,ks,gridfract,wetscav)
     if (in_aero(ks).lt.0.) in_aero(ks)=0.
 	  
     !ZHG 2015 use cloud liquid & ice water (CLWC+CIWC) from ECMWF
-    if (ngrid.eq.0 .and. lcw .or. & ! mother grid
-        ngrid.gt.0 .and. lcw_nest(ngrid)) then ! nested grid
+    ! Mother grid
+    if (ngrid.eq.0 .and. lcw) then ! nested grid
 
-        cl=cl*(gridfract/cc)
-    else ! no cloud water available, use parameterisation for cloud water [m2/m3]
+      cl=cl*(gridfract/cc)
+    else if (ngrid.eq.0 ) then ! no cloud water available, use parameterisation for cloud water [m2/m3]
       ! A.Plach 2021 cl should not become too small
-        cl=max(0.2*prec**0.36, cl*(gridfract/cc))
+        cl=0.2*prec**0.36 !max(0.2*prec**0.36, cl*(gridfract/cc))
       ! ZHG updated parameterization to better reproduce the values from ECMWF
       ! cl = 1.E6*2E-7*prec**0.36 ! SEC ECMWF new, is also suitable for GFS
       ! SEC test:
       ! cl=1.E6*1.E-7*prec**0.3  ! SEC GFS new
       ! cl=     2.E-7*prec**0.36 ! Andreas
       ! cl=    1.6E-6*prec**0.36 ! Henrik
+    else if (ngrid.gt.0 .and. lcw_nest(ngrid)) then ! Nested grid
+      cl=cl*(gridfract/cc)
+    else
+      cl=0.2*prec**0.36
     endif
+    
 	 
 	  ! AT use of correct Kelvin temperature for T_ice; after ECMWF
     if (t_particle .le. 250.16) then ! ice 
