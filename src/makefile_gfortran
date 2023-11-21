@@ -78,8 +78,23 @@ endif
 O_LEV = 3 # [0,1,2,3,g,s,fast]
 O_LEV_DBG = g # [0,g]
 # -fopenmp #-pg -fbacktrace -fcheck=all -fbounds-check #-fopenmp#-p -fbacktrace -fopenmp #-tau_options=-optCompInst -tau_makefile=/home/lucie/Codes/Tau/x86_64/lib/Makefile.tau-mpi-pdt-openmp-opari#-fdefault-real-8# -freal-8-real-4#-pg -fcheck=all
-#FUSER = -g -fopenmp -march=skylake-avx512
-FUSER = -g -fopenmp -march=native -mtune=native
+#
+# Different CPU microarchitectures
+# check https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
+# using generic (AVX2)
+# using skylake (AVX512)
+# using native is the default, which will use whatever it can 
+# (defined by the machine where you are compiling it)
+#
+ifeq ($(arch), generic)
+	FUSER = -g -fopenmp -march=core-avx2
+else ifeq ($(arch), skylake)
+	FUSER = -g -fopenmp -march=skylake-avx512
+else
+	FUSER = -g -fopenmp -march=native -mtune=native
+endif
+
+
 mpi: FUSER := $(FUSER) -Dusempi #-MM -MT -MD
 ## LIBRARIES
 LIBS = -leccodes -leccodes_f90 -lm $(NCOPT) $(ETAOPT) #MD -ljasper

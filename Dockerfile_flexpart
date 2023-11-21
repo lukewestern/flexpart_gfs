@@ -4,7 +4,7 @@
 #	- COMMIT = ... (use git log --pretty=format:'%h %D (%s %at)' -n 1)
 #			   with this option Flexpart is build inside the container
 # Build Examples:
-#	- podman build -t harbor.wolke.img.univie.ac.at/flexpart/flexpartv11:$(git rev-parse --abbrev-ref HEAD) -f Dockerfile_flexpart --build-arg COMMIT=$(git log --pretty=format:'%h %D %ad' -n 1)
+#	- podman build -t harbor.wolke.img.univie.ac.at/flexpart/flexpartv11:$(git rev-parse --abbrev-ref HEAD) -f Dockerfile_flexpart --build-arg COMMIT="$(git log --pretty=format:'%h %D %ad' -n 1)"
 #
 #
 # Build image with Flexpart inside
@@ -17,7 +17,15 @@ COPY ./tests/default_options /options
 COPY ./tests/default_winds /inputs
 COPY ./entrypoint.sh /entrypoint.sh
 WORKDIR /src
-RUN make -f makefile_gfortran && \
-	mkdir -p /output && \
-	echo -e "/options/\n/output/\n/inputs/\n/inputs/AVAILABLE" > /pathnames
+#
+# compile using a standardized 
+# need to fix march to x86_64_v3 , remove mtune
+RUN make -f makefile_gfortran eta=no arch=generic \
+	&& make -f makefile_gfortran arch=generic \
+	&& mkdir -p /output \
+	&& echo -e "/options/\n/output/\n/inputs/\n/inputs/AVAILABLE" > /pathnames
+# In the Dockerfile, the ENTRYPOINT command defines the executable, 
+# while CMD sets the default parameter. 
+# so here our entrypoint run script and default FLEXPART_ETA or FLEXPART
 ENTRYPOINT ["/entrypoint.sh"]
+CMD ["FLEXPART_ETA"]

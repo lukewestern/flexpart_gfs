@@ -9,7 +9,7 @@ FROM almalinux:8-minimal
 # jasper was used in FP 10.4 (eccodes, emoslib)
 #
 RUN microdnf install -y epel-release && \
-	microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 netcdf.x86_64 cmake tar gcc-c++ perl && \
+	microdnf install -y --enablerepo=powertools make netcdf-fortran-devel.x86_64 netcdf.x86_64 cmake tar gcc-c++ perl git && \
 	microdnf clean all -y
 
 #
