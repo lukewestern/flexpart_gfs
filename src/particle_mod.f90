@@ -99,6 +99,7 @@ module particle_mod
       spawned=0,                  & ! Total number of spawned particles
       terminated=0,               & ! Total number of particles that have been terminated
       allocated=0,                & ! Number of total allocated particle spaces
+      iterm_max=0,                & ! Number of empty spaces for overwriting particles
       ninmem=0                      ! Number of particles currently in memory
     logical,allocatable  ::       &
       inmem(:)                      ! Logical to keep track which particle numbers are allocated
@@ -135,6 +136,7 @@ module particle_mod
     dealloc_all_particles,        &
     terminate_particle,           &
     rewrite_ialive,               &
+    rewrite_iterm,                &
     spawn_particle,               &
     spawn_particles,              &
     get_totalpart_num,            &
@@ -224,14 +226,16 @@ contains
       if ((ipin.eq.0 .and. count%terminated.eq.0) .or. &
         (count%allocated.gt.count%spawned)) then
         ipart = count%spawned + 1
-      else if ((count%spawned-count%terminated) .lt. count%allocated) then
+      else if (iterm_index.le.count%iterm_max) then
         ! Find dead particles to replace
         if (count%iterm(iterm_index).eq.-1) then
           error stop 'BUG: Attempting to overwrite particle: get_newpart_index.'
         endif
+        ipart=count%iterm(iterm_index)
         count%iterm(iterm_index) = -1
         iterm_index = iterm_index+1
       else
+        write(*,*) ipart
         ipart=count%allocated + 1
       endif
     else
@@ -324,7 +328,10 @@ contains
     !*******************************************
     if (.not. particle_allocated(ipart)) call alloc_particle(ipart)
 
-    if (part(ipart)%alive) error stop 'Attempting to overwrite existing particle'
+    if (part(ipart)%alive) then
+      write(*,*) ipart, count%alive, count%terminated, count%allocated
+      error stop 'Attempting to overwrite existing particle'
+    endif
 
     ! Update the number of particles that are currently alive
     !********************************************************
@@ -403,6 +410,8 @@ contains
         j=j+1
       endif
     end do
+
+    count%iterm_max=j-1
 
   end subroutine rewrite_iterm
 

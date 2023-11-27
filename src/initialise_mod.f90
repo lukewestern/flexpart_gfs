@@ -147,8 +147,8 @@ subroutine releaseparticles(itime)
   endif
 
   call get_totalpart_num(istart)
+  if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm()
   minpart=1
-  iterm_index=1
   do i=1,numpoint
     if ((itime.ge.ireleasestart(i)).and. &! are we within release interval?
          (itime.le.ireleaseend(i))) then
@@ -215,8 +215,11 @@ subroutine releaseparticles(itime)
       zaux=zpoint2(i)-zpoint1(i)
 
       if (ipin.le.1 .and. ipout.eq.0) then
-        totpart = numrel-(count%allocated-count%alive)
+        call rewrite_iterm()
+        totpart = numrel-count%iterm_max
         if (totpart.gt.0) call alloc_particles(totpart)
+        call rewrite_iterm()
+        iterm_index=1
       endif
       do j=1,numrel             ! loop over particles to be released this time
         call get_newpart_index(ipart,iterm_index)
@@ -1385,6 +1388,8 @@ subroutine boundcond_domainfill(itime,loutend)
   ! Terminate trajectories that have left the domain, if domain-filling
   ! trajectory calculation domain is not global
   !********************************************************************
+  if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm()
+
   iterminate=0
   do i=1,count%allocated
     if (.not. part(i)%alive) cycle
