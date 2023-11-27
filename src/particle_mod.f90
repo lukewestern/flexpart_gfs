@@ -226,12 +226,9 @@ contains
         ipart = count%spawned + 1
       else if ((count%spawned-count%terminated) .lt. count%allocated) then
         ! Find dead particles to replace
-        do i=iterm_index,count%allocated
-          if (count%iterm(iterm_index).ne.-1) then
-            ipart=count%iterm(iterm_index)
-            exit
-          endif
-        end do
+        if (count%iterm(iterm_index).eq.-1) then
+          error stop 'BUG: Attempting to overwrite particle: get_newpart_index.'
+        endif
         count%iterm(iterm_index) = -1
         iterm_index = iterm_index+1
       else
@@ -391,17 +388,23 @@ contains
 
     count%alive=j-1
 
-    if (ipin.le.1 .and. ipout.eq.0) then
-      j=1
-      do i=1,count%allocated
-        if (.not. part(i)%alive) then
-          count%iterm(j)=i
-          j=j+1
-        endif
-      end do
-    endif
-
+    if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm
   end subroutine rewrite_ialive
+
+  subroutine rewrite_iterm()
+    implicit none
+
+    integer :: i,j
+
+    j=1
+    do i=1,count%allocated
+      if (.not. part(i)%alive) then
+        count%iterm(j)=i
+        j=j+1
+      endif
+    end do
+
+  end subroutine rewrite_iterm
 
   subroutine rewrite_ialive_single(ipart)
     implicit none

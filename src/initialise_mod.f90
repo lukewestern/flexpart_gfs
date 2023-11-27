@@ -354,6 +354,8 @@ subroutine releaseparticles(itime)
     endif ! releasepoint
   end do ! numpoint
 
+  if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm()
+
   call get_totalpart_num(iend)
 
   ! NetCDF only: write initial positions of new particles
@@ -1838,6 +1840,7 @@ subroutine boundcond_domainfill(itime,loutend)
   end do ! north south
 ! !$OMP END DO
 ! !$OMP END PARALLEL
+  if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm()
   numparticlecount = numparticlecount_tmp
   ! If particles shall be dumped, then accumulated masses at the domain boundaries
   ! must be dumped, too, to be used for later runs
