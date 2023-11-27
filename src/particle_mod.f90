@@ -226,7 +226,13 @@ contains
         ipart = count%spawned + 1
       else if ((count%spawned-count%terminated) .lt. count%allocated) then
         ! Find dead particles to replace
-        ipart=count%iterm(iterm_index)
+        do i=iterm_index,count%allocated
+          if (count%iterm(iterm_index).ne.-1) then
+            ipart=count%iterm(iterm_index)
+            exit
+          endif
+        end do
+        count%iterm(iterm_index) = -1
         iterm_index = iterm_index+1
       else
         ipart=count%allocated + 1
