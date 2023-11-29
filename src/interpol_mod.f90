@@ -1380,11 +1380,23 @@ subroutine interpol_rain(itime,kz,yint1,yint2,yint3,ytint,yint4,intiy1,intiy2,ic
       ip2=1
       ip3=1
       ip4=1
-      if (icloudbot(ix ,jy ,mm) .eq. icmv) ip1=0
-      if (icloudbot(ixp,jy ,mm) .eq. icmv) ip2=0
-      if (icloudbot(ix ,jyp,mm) .eq. icmv) ip3=0
-      if (icloudbot(ixp,jyp,mm) .eq. icmv) ip4=0
-      ipsum= ip1+ip2+ip3+ip4
+      ipsum=1
+      if (icloudbot(ix ,jy ,mm) .eq. icmv) then
+        ip1=0
+        ipsum=ipsum-p1
+      endif
+      if (icloudbot(ixp,jy ,mm) .eq. icmv) then
+        ip2=0
+        ipsum=ipsum-p2
+      endif
+      if (icloudbot(ix ,jyp,mm) .eq. icmv) then
+        ip3=0
+        ipsum=ipsum-p3
+      endif
+      if (icloudbot(ixp,jyp,mm) .eq. icmv) then
+        ip4=0
+        ipsum=ipsum-p4
+      endif
       if (ipsum .eq. 0) then
         yi1(m)=icmv
       else
@@ -1405,10 +1417,23 @@ subroutine interpol_rain(itime,kz,yint1,yint2,yint3,ytint,yint4,intiy1,intiy2,ic
       ip2=1
       ip3=1
       ip4=1
-      if (icloudtop(ix ,jy ,mm) .eq. icmv) ip1=0
-      if (icloudtop(ixp,jy ,mm) .eq. icmv) ip2=0
-      if (icloudtop(ix ,jyp,mm) .eq. icmv) ip3=0
-      if (icloudtop(ixp,jyp,mm) .eq. icmv) ip4=0
+      ipsum=1
+      if (icloudtop(ix ,jy ,mm) .eq. icmv) then
+        ip1=0
+        ipsum=ipsum-p1
+      endif
+      if (icloudtop(ixp,jy ,mm) .eq. icmv) then
+        ip2=0
+        ipsum=ipsum-p2
+      endif
+      if (icloudtop(ix ,jyp,mm) .eq. icmv) then
+        ip3=0
+        ipsum=ipsum-p3
+      endif
+      if (icloudtop(ixp,jyp,mm) .eq. icmv) then
+        ip4=0
+        ipsum=ipsum-p4
+      endif
       ipsum= ip1+ip2+ip3+ip4
       if (ipsum .eq. 0) then
         yi2(m)=icmv
@@ -1459,11 +1484,23 @@ subroutine interpol_rain(itime,kz,yint1,yint2,yint3,ytint,yint4,intiy1,intiy2,ic
       ip2=1
       ip3=1
       ip4=1
-      if (icloudbotn(ix ,jy ,mm,ngrid) .eq. icmv) ip1=0
-      if (icloudbotn(ixp,jy ,mm,ngrid) .eq. icmv) ip2=0
-      if (icloudbotn(ix ,jyp,mm,ngrid) .eq. icmv) ip3=0
-      if (icloudbotn(ixp,jyp,mm,ngrid) .eq. icmv) ip4=0
-      ipsum= ip1+ip2+ip3+ip4
+      ipsum=1
+      if (icloudbotn(ix ,jy ,mm,ngrid) .eq. icmv) then
+        ip1=0
+        ipsum=ipsum-p1
+      endif
+      if (icloudbotn(ixp,jy ,mm,ngrid) .eq. icmv) then
+        ip2=0
+        ipsum=ipsum-p2
+      endif
+      if (icloudbotn(ix ,jyp,mm,ngrid) .eq. icmv) then
+        ip3=0
+        ipsum=ipsum-p3
+      endif
+      if (icloudbotn(ixp,jyp,mm,ngrid) .eq. icmv) then
+        ip4=0
+        ipsum=ipsum-p4
+      endif
       if (ipsum .eq. 0) then
         yi1(m)=icmv
       else
@@ -1477,11 +1514,23 @@ subroutine interpol_rain(itime,kz,yint1,yint2,yint3,ytint,yint4,intiy1,intiy2,ic
       ip2=1
       ip3=1
       ip4=1
-      if (icloudtopn(ix ,jy ,mm,ngrid) .eq. icmv) ip1=0
-      if (icloudtopn(ixp,jy ,mm,ngrid) .eq. icmv) ip2=0
-      if (icloudtopn(ix ,jyp,mm,ngrid) .eq. icmv) ip3=0
-      if (icloudtopn(ixp,jyp,mm,ngrid) .eq. icmv) ip4=0
-      ipsum= ip1+ip2+ip3+ip4
+      ipsum=1
+      if (icloudtopn(ix ,jy ,mm,ngrid) .eq. icmv) then
+        ip1=0
+        ipsum=ipsum-p1
+      endif
+      if (icloudtopn(ixp,jy ,mm,ngrid) .eq. icmv) then
+        ip2=0
+        ipsum=ipsum-p2
+      endif
+      if (icloudtopn(ix ,jyp,mm,ngrid) .eq. icmv) then
+        ip3=0
+        ipsum=ipsum-p3
+      endif
+      if (icloudtopn(ixp,jyp,mm,ngrid) .eq. icmv) then
+        ip4=0
+        ipsum=ipsum-p4
+      endif
       if (ipsum .eq. 0) then
         yi2(m)=icmv
       else

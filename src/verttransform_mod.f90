@@ -1124,11 +1124,11 @@ subroutine identify_cloud(ix,jy,lcw_tmp,lcwsum_tmp,nxlim,nylim, &
 #ifdef ETA
         if (icloudbot_tmp(ix,jy) .eq. icmv) & !cloud bottom set to first cloud instance
           icloudbot_tmp(ix,jy) = uvheight(kz)
-        icloudtop_tmp(ix,jy) = uvheight(kz) !After the loop, thck will be the top
+        icloudtop_tmp(ix,jy) = uvheight(kz) !After the loop, icloudtop will be the top
 #else
         if (icloudbot_tmp(ix,jy) .eq. icmv) &
-            icloudbot_tmp(ix,jy) = nint(height(kz))
-          icloudtop_tmp(ix,jy) = nint(height(kz))
+            icloudbot_tmp(ix,jy) = height(kz)
+          icloudtop_tmp(ix,jy) = height(kz)
 #endif
       endif
     end do
@@ -1245,14 +1245,13 @@ subroutine apply_cloud_bounds(ix,jy,nxlim,nylim,lsprec_tmp,convprec_tmp,uvzlev, 
 
   !---------------------------------------------------------------------------------------
 #else
-  if (icloudbot_tmp(ix,jy) .eq. icmv) then
+  if (icloudbot_tmp(ix,jy) .eq. icmv) then ! if no bottom found, no top either
     icloudtop_tmp(ix,jy)=icmv
-  else if (icloudtop_tmp(ix,jy) .gt. max_cloudthck) then
+  else if (icloudtop_tmp(ix,jy) .gt. max_cloudthck) then ! max cloud height
     icloudtop_tmp(ix,jy) = max_cloudthck
   endif
- ! PS  get rid of too thin clouds   
-  if (icloudtop_tmp(ix,jy) .lt. &
-    icloudbot_tmp(ix,jy) + min_cloudthck) then
+ ! PS  get rid of too thin clouds
+  if (icloudtop_tmp(ix,jy) .lt. icloudbot_tmp(ix,jy) + min_cloudthck) then
     icloudbot_tmp(ix,jy)=icmv
     icloudtop_tmp(ix,jy)=icmv
   endif
