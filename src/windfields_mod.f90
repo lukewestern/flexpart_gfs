@@ -995,6 +995,7 @@ subroutine gridcheck_gfs
   ifield=0
   do
     ifield=ifield+1
+    print*,'ifield GFS=',ifield 
     !
     ! GET NEXT FIELDS
     !
@@ -1203,7 +1204,8 @@ subroutine gridcheck_gfs
 
     if((isec1(6).eq.007).and.(isec1(7).eq.001)) then
     ! IP 8/5/23 allocate fields missing for GFS reading 
-    call alloc_fixedfields
+    ! print*, 'allocated oro?', allocated(oro) 28/11/23
+    ! call alloc_fixedfields
     ! IP 8/5/23
       do jy=0,ny-1
         do ix=0,nxfield-1
@@ -1236,7 +1238,7 @@ subroutine gridcheck_gfs
     endif
 
     call grib_release(igrib)
-    deallocate( zsec4 )
+    if (isec1(6).ne.-1) deallocate( zsec4 ) !IP 28/11/23 fix to run GFS tests
   end do                      !! READ NEXT LEVEL OR PARAMETER
   !
   ! CLOSING OF INPUT DATA FILE
@@ -2920,6 +2922,10 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
               end do
           endif
           help=zsec4(nxfield*(ny-j-1)+i+1)
+          if (help.le.0) then
+            write (*, *) 'i, j: ', i, j
+            stop 'help <= 0.0 from zsec4'
+          endif
           if(i.le.i180) then
             tth(i179+i,j,numpt,n)=help
           else
@@ -3172,7 +3178,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 
     call grib_release(igrib)
 
-    deallocate( zsec4 )
+    if (isec1(6).ne.-1) deallocate( zsec4 ) !IP 28/11/23 fix deallocation error
   end do                      !! READ NEXT LEVEL OR PARAMETER
   !
   ! CLOSING OF INPUT DATA FILE
@@ -3224,6 +3230,12 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
       do k=1,nuvz
         help=qvh(i,j,k,n)
         temp=tth(i,j,k,n)
+        if (temp .le. 0.0) then 
+          write (*, *) temp, i, j, k, n
+!          temp = 273.0
+          stop
+        endif
+
         plev1=akm(k)+bkm(k)*ps(i,j,1,n)
         elev=ew(temp,plev1)*help/100.0
         qvh(i,j,k,n)=xmwml*(elev/(plev1-((1.0-xmwml)*elev)))
