@@ -47,6 +47,7 @@ options-test:
   stage: test
   needs:
     - alma8-build
+    - rocky9-build
 
   script:
     - ulimit -s unlimited
