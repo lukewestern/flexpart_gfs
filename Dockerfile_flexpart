@@ -9,7 +9,8 @@
 #
 # Build image with Flexpart inside
 #
-FROM harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+#FROM harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+FROM harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
 ARG COMMIT=0
 ENV COMMIT=$COMMIT
 COPY ./src /src
@@ -20,6 +21,7 @@ WORKDIR /src
 #
 # compile using a standardized 
 # need to fix march to x86_64_v3 , remove mtune
+# here generic means core_avx2
 RUN make -f makefile_gfortran eta=no arch=generic \
 	&& make -f makefile_gfortran arch=generic \
 	&& mkdir -p /output \
