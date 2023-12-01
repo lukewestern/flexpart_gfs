@@ -24,8 +24,26 @@ alma8-build:
       - ./src/FLEXPART_ETA
     expire_in: never
 
+rocky9-build:
+  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
+  stage: build
+
+  script:
+    - export FC=gfortran
+    - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
+    - export CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules
+    - make -j -C src -f makefile_gfortran eta=no
+    - make -j -C src -f makefile_gfortran
+  artifacts:
+    when: on_success
+    paths:
+      - ./src/FLEXPART
+      - ./src/FLEXPART_ETA
+    expire_in: never
+
 options-test:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   stage: test
   needs:
     - alma8-build
@@ -42,9 +60,9 @@ options-test:
       - ./tests/output_bkw_eta
     expire_in: 5 mins
 
-  
 openmp-simulation:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   stage: test
   needs:
     - alma8-build
@@ -52,7 +70,7 @@ openmp-simulation:
   script:
     - ulimit -s unlimited
     - bash ./tests/run_openmp_test.sh
-  
+
   artifacts:
     when: on_success
     paths:
@@ -63,7 +81,8 @@ openmp-simulation:
     expire_in: 5 mins
 
 etex-simulation:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   stage: test
   when: manual
   needs:
@@ -92,7 +111,7 @@ settling-test:
     when: always
     paths:
       - ./tests/settling_test.txt
-    expire_in: never  
+    expire_in: never
 
 bkw-test:
   image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
@@ -107,7 +126,7 @@ bkw-test:
     when: always
     paths:
       - ./tests/bkw_test.txt
-    expire_in: never  
+    expire_in: never
 
 openmp-test:
   image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
