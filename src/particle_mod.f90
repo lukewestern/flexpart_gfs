@@ -83,8 +83,8 @@ module particle_mod
     !   drydepo,                    & ! Dry deposition (cumulative)
     !   prob                          ! Probability of absorption at ground due to dry deposition
     
-    real,allocatable   ::         &
-      val_av(:)                     ! Averaged values; only used when average_output=.true.
+    ! real,allocatable   ::         &
+    !   val_av(:)                     ! Averaged values; only used when average_output=.true.
     real               ::         &
       ntime=0.,                   & ! Number of timesteps to average over
       cartx_av=0.,                & ! Averaged x pos;
