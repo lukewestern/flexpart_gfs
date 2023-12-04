@@ -1,8 +1,25 @@
 # Running
 
+<span style="color:red">
+**WARNING:**
+</span>
+For many systems it is required to print the following in the command line or to set it in your submit script before executing FLEXPART compiled with OpenMP:
+~~~
+ulimit -s unlimited
+~~~
+Not setting this can result in a segmentation fault close to the start of your simulation.
+
+Additionaly, one should set the following for optimal memory usage:
+~~~
+export OMP_PLACES=cores
+export OMP_PROC_BIND=true
+~~~
+Not setting these can result in unnecessary slow performance of your application.
+
 ## Command line usage
 
 FLEXPART accepts two command line options:
+
 - `pathnames`, setting all appropriate paths, as explained in [Configuration](configuration.md#config).
 - `-v <verbosity>`, currently not operational
 
