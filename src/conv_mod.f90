@@ -915,8 +915,10 @@ subroutine redist(itime,ipart,ktop,ipconv,ithread)
             (tconv(levold,ithread)-tconv(levold-1,ithread)) &
             *(pconv(levold-1,ithread)-phconv(levold,ithread))/ &
             (pconv(levold-1,ithread)-pconv(levold,ithread))
-        ! Bug fix: Added lsynctime to make units correct
-        sub_levold = sub(levold,ithread)/(1.-ga*sub(levold,ithread)*lsynctime/dpr(levold,ithread))
+        ! LB: the units seem to not add up correctly, but adding lsynctime gives incorrect mixing
+        ! in the lowest km and too many right above the ground
+        ! sub_levold = sub(levold,ithread)/(1.-ga*sub(levold,ithread)*lsynctime/dpr(levold,ithread))
+        sub_levold = sub(levold,ithread)/(1.-ga*sub(levold,ithread)/dpr(levold,ithread))
         wsub(levold,ithread)=-1.*sub_levold*r_air*temp_levold/(phconv(levold,ithread))
       else
         wsub(levold,ithread)=0.
@@ -927,7 +929,8 @@ subroutine redist(itime,ipart,ktop,ipconv,ithread)
           *(pconv(levold,ithread)-phconv(levold+1,ithread))/ &
           (pconv(levold,ithread)-pconv(levold+1,ithread))
       ! Bug fix: Added lsynctime to make units correct
-      sub_levold1 = sub(levold+1,ithread)/(1.-ga*sub(levold+1,ithread)*lsynctime/dpr(levold+1,ithread))
+      !sub_levold1 = sub(levold+1,ithread)/(1.-ga*sub(levold+1,ithread)*lsynctime/dpr(levold+1,ithread))
+      sub_levold1 = sub(levold+1,ithread)/(1.-ga*sub(levold+1,ithread)/dpr(levold+1,ithread))
       wsub(levold+1,ithread)=-1.*sub_levold1*r_air*temp_levold1/ &
           (phconv(levold+1,ithread))
 
