@@ -300,4 +300,6 @@ module par_mod
 
   integer,parameter ::  icmv=-9999
 
+  logical,parameter :: lpartoutputperfield=.false.
+
 end module par_mod

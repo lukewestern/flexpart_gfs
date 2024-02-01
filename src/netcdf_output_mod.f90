@@ -41,7 +41,7 @@ module netcdf_output_mod
                        wetgrid,wetgridsigma,drygrid,drygridsigma,grid,gridsigma,&
                        area,arean,volumen,orooutn
   use par_mod,   only: dep_prec, sp, dp, nclassunc,&
-                       unitoutrecept,unitoutreceptppt,unittmp
+                       unitoutrecept,unitoutreceptppt,unittmp,lpartoutputperfield
   use com_mod,   only: path,length,ldirect,ibdate,ibtime,iedate,ietime,itime_init, &
                        loutstep,loutaver,loutsample,outlon0,outlat0,&
                        numxgrid,numygrid,dxout,dyout,numzgrid, &
@@ -76,7 +76,7 @@ module netcdf_output_mod
   logical, parameter :: min_size = .false.   ! if set true, redundant fields (topography) are not written to minimize file size
 
   integer            :: tpointer=0,tpointer_part=0,ppointer_part=0,partinitpointer=0,partinitpointer1=0
-  character(len=255) :: ncfname, ncfnamen, ncfname_part, ncfname_partinit!(maxpoint)
+  character(len=255) :: ncfname, ncfnamen, ncfname_part, ncfname_partinit, ncfname_part_end
 
   ! netcdf dimension and variable IDs for main and nested output grid
   integer,allocatable,dimension(:) :: specID,specIDppt,wdspecID,ddspecID
@@ -86,15 +86,6 @@ module netcdf_output_mod
   integer, dimension(6)       :: dimids, dimidsn
   integer, dimension(5)       :: depdimids, depdimidsn
 
-  !IDs for partoutput
-  integer             :: partID
-  integer             :: itramemID,topoID,pvID,qvID,rhoID,prID,uID,vID,wID,vsetID
-  integer             :: hmixID,trID,ttID,lonIDpart,latIDpart,levIDpart
-  integer,allocatable,dimension(:) :: massID,wdID,ddID
-  ! For averaged output
-  integer  :: lonavIDpart,latavIDpart,levavIDpart,pvavID,qvavID,pravID, &
-    rhoavID,ttavID,topoavID,hmixavID,travID,uavID,vavID,wavID,vsetavID
-  integer,allocatable,dimension(:) :: massavID
   ! For initial particle outputs
   integer  :: partIDi,tIDi,lonIDi,latIDi,levIDi,relIDi,pvIDi,prIDi,qvIDi, &
     rhoIDi,ttIDi,uIDi,vIDi,wIDi,topoIDi,trIDi,hmixIDi
@@ -126,7 +117,7 @@ module netcdf_output_mod
        open_partoutput_file,close_partoutput_file,create_particles_initialoutput,&
        topo_written,mass_written,wrt_part_initialpos,partinit_netcdf,open_partinit_file, &
        readpartpositions_netcdf,readinitconditions_netcdf,partinitpointer1,tpointer, &
-       alloc_netcdf,dealloc_netcdf
+       alloc_netcdf,dealloc_netcdf,update_partoutput_pointers,ppointer_part
 
   ! Not written yet:
   ! concoutput_sfc_netcdf,concoutput_sfc_nest_netcdf,
@@ -141,15 +132,14 @@ subroutine alloc_netcdf
     recconcID(maxspec),recpptvID(maxspec), stat=stat)
   if (stat.ne.0) error stop "Could not allocate netcdf fields"
 
-  allocate( massID(maxspec),wdID(maxspec),ddID(maxspec),massavID(maxspec), &
-    massIDi(maxspec), stat=stat)
+  allocate( massIDi(maxspec), stat=stat)
   if (stat.ne.0) error stop "Could not allocate netcdf fields 2"
 end subroutine alloc_netcdf
 
 subroutine dealloc_netcdf
   deallocate( specID,specIDppt,wdspecID,ddspecID,specIDn,specIDnppt,wdspecIDn,ddspecIDn, &
     recconcID,recpptvID )
-  deallocate( massID,wdID,ddID,massavID,massIDi )
+  deallocate( massIDi )
 end subroutine dealloc_netcdf
 
 !****************************************************************
@@ -1674,19 +1664,19 @@ subroutine create_particles_initialoutput(itime,idate,itime_start,idate_start)
   call nf90_err(nf90_put_att(ncid, tIDi, 'description', 'time of release'))
 
   ! lon  
-  call write_to_file(ncid,'longitude',nf90_float,(/ partDimID /),lonIDi,(/ 1 /), &
+  call write_to_file(ncid,'lon',nf90_float,(/ partDimID /),lonIDi,(/ 1 /), &
     'degrees_east',.false.,'longitude','longitude in degree east')
   call nf90_err(nf90_put_att(ncid, lonIDi, 'axis', 'Lon'))
   call nf90_err(nf90_put_att(ncid, lonIDi, 'description', 'longitude of particles'))
 
   ! lat
-  call write_to_file(ncid,'latitude',nf90_float,(/ partDimID /),latIDi,(/ 1 /), &
+  call write_to_file(ncid,'lat',nf90_float,(/ partDimID /),latIDi,(/ 1 /), &
     'degrees_north',.false.,'latitude','latitude in degree north')
   call nf90_err(nf90_put_att(ncid, latIDi, 'axis', 'Lat'))
   call nf90_err(nf90_put_att(ncid, latIDi, 'description', 'latitude of particles'))
 
   ! height
-  call write_to_file(ncid,'height',nf90_float,(/ partDimID /),levIDi,(/ 1 /), &
+  call write_to_file(ncid,'z',nf90_float,(/ partDimID /),levIDi,(/ 1 /), &
    'meters',.true.,'height','height above ground')
 
   ! release
@@ -1697,44 +1687,44 @@ subroutine create_particles_initialoutput(itime,idate,itime_start,idate_start)
     if (.not. partopt(np)%print) cycle
     select case(partopt(np)%name)
       case ('PV') ! Potential vorticity
-        call write_to_file(ncid,'pv',nf90_float,(/ partDimID /),pvIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),pvIDi,(/ 1 /), &
           'pvu',.false.,'potential_vorticity','potential vorticity')
       case ('PR') ! Pressure
-        call write_to_file(ncid,'pr',nf90_float,(/ partDimID /),prIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),prIDi,(/ 1 /), &
           'Pa',.false.,'pressure','pressure')
       case ('QV') ! Specific humidity
-        call write_to_file(ncid,'qv',nf90_float,(/ partDimID /),qvIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),qvIDi,(/ 1 /), &
           '',.false.,'specific_humidity','specific humidity')
       case ('RH') ! Density
-        call write_to_file(ncid,'rho',nf90_float,(/ partDimID /),rhoIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),rhoIDi,(/ 1 /), &
           'kg/m3',.true.,'density','density')
       case ('TT') ! Temperature
-        call write_to_file(ncid,'temperature',nf90_float,(/ partDimID /),ttIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),ttIDi,(/ 1 /), &
           'K',.true.,'temperature','temperature')
       case ('UU')
-        call write_to_file(ncid,'u',nf90_float,(/ partDimID /),uIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),uIDi,(/ 1 /), &
           'm/s',.false.,'u','longitudinal velocity')
       case ('VV')
-        call write_to_file(ncid,'v',nf90_float,(/ partDimID /),vIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),vIDi,(/ 1 /), &
           'm/s',.false.,'v','latitudinal velocity')
       case ('WW')
-        call write_to_file(ncid,'w',nf90_float,(/ partDimID /),wIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),wIDi,(/ 1 /), &
           'm/s',.false.,'w','vertical velocity')
       case ('MA')
         do j=1,nspec
           ! Masses
           write(anspec, '(i3.3)') j
-          call write_to_file(ncid,'mass'//anspec,nf90_float,(/ partDimID /),massIDi(j), &
+          call write_to_file(ncid,trim(partopt(np)%short_name)//anspec,nf90_float,(/ partDimID /),massIDi(j), &
             (/ 1 /),'kg',.true.,'mass'//anspec,'mass for nspec'//anspec) 
         end do        
       case ('TO')
-        call write_to_file(ncid,'topo',nf90_float,(/ partDimID /),topoIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),topoIDi,(/ 1 /), &
           'meters',.false.,'topography','topography above sealevel')
       case ('TR')
-        call write_to_file(ncid,'tr',nf90_float,(/ partDimID /),trIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),trIDi,(/ 1 /), &
           'meters',.true.,'htropo','height above ground of tropopause')
       case ('HM') ! Mixing layer height
-        call write_to_file(ncid,'hmix',nf90_float,(/ partDimID /),hmixIDi,(/ 1 /), &
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ partDimID /),hmixIDi,(/ 1 /), &
           'meters',.true.,'hmix','height above ground of mixing layer')        
       case default
         cycle
@@ -1882,11 +1872,9 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   integer             :: ncid,j,i,totpart,np
   integer             :: timeDimID,partDimID,tID
   integer             :: latDimID, lonDimID, lonID, latID
-  character(len=11)   :: fprefix
+  character(len=255)  :: fprefix_part
   character(len=3)    :: anspec
   character           :: adate*8,atime*6,adate_start*8,atime_start*6,timeunit*32
-  character(len=255)  :: fname_partoutput
-  real                :: fillval
   real, allocatable, dimension(:) :: coord
 
   logical,save :: first_time=.true.
@@ -1899,22 +1887,16 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   write(atime,'(i6.6)') itime
   write(adate_start,'(i8.8)') idate_start
   write(atime_start,'(i6.6)') itime_start
+
+  timeunit = 'seconds since '//adate_start(1:4)//'-'//adate_start(5:6)// &
+     '-'//adate_start(7:8)//' '//atime_start(1:2)//':'//atime_start(3:4)
   ! write(arelease, '(i3.3)') irelease
-  fprefix = 'partoutput_'!rel'//arelease//'_'
+  fprefix_part = 'partoutput_'//adate//atime !rel'//arelease//'_'
 
   ! Reset logicals that ensure ony 1 write out in case of domainfill
   topo_written=.false.
   mass_written=.false.
   massav_written=.false.
-
-  if (first_time) then
-    fname_partoutput = path(2)(1:length(2))//trim(fprefix)//adate//atime//'_init.nc'
-    first_time=.false.
-  else
-    fname_partoutput = path(2)(1:length(2))//trim(fprefix)//adate//atime//'.nc'
-  endif
-  !ncfname_part(irelease) = fname_partoutput
-  ncfname_part = fname_partoutput
 
   totpart=0
   if (ipin.gt.1) then ! Not reading from a release has no npart
@@ -1926,55 +1908,103 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   endif
   !totpart = maxpart!max(numpart,totpart)
   !cache_size = 4 * 1 * (12+nspec)
+  ncfname_part = path(2)(1:length(2))//trim(fprefix_part)
+  if (lpartoutputperfield) then
+    do np=1,num_partopt
+      if (.not. partopt(np)%print ) cycle
+      if (first_time) then
+        call nf90_err(nf90_create(trim(ncfname_part)//'_'//trim(partopt(np)%long_name)//'_init.nc', &
+          cmode = nf90_hdf5, ncid = partopt(np)%ncid))
+        ncfname_part_end = '_init.nc'
+      else
+        call nf90_err(nf90_create(trim(ncfname_part)//'_'//trim(partopt(np)%long_name)//'.nc', &
+          cmode = nf90_hdf5, ncid = partopt(np)%ncid))
+        ncfname_part_end = '.nc'
+      endif
+    end do
+    first_time=.false.
+  else 
+    if (first_time) then
+      ncfname_part = path(2)(1:length(2))//trim(fprefix_part)//'_init.nc'
+      first_time=.false.
+    else
+      ncfname_part = path(2)(1:length(2))//trim(fprefix_part)//'.nc'
+    endif
+    call nf90_err(nf90_create(trim(ncfname_part), cmode = nf90_hdf5, ncid = ncid))!, &
+      ! cache_size = cache_size))    
+  endif
 
   write(*,*) 'Write header, nspec,numpart,totpart: ', nspec,numpart,totpart
 
-  call nf90_err(nf90_create(trim(fname_partoutput), cmode = nf90_hdf5, ncid = ncid))!, &
-    ! cache_size = cache_size))
+  if (lpartoutputperfield) then
+    do np=1,num_partopt
+      if (.not. partopt(np)%print) cycle
+      call writeheader_partoutput_dims(np,partopt(np)%ncid,timeunit,timeDimID,partDimID,latDimID,lonDimID)
+      call writeheader_partoutput_vars(np,partopt(np)%ncid,totpart,timeDimID,partDimID,latDimID,lonDimID)
+
+      ! moves the file from define to data mode
+      call nf90_err(nf90_enddef(partopt(np)%ncid))
+      call nf90_err(nf90_close(partopt(np)%ncid))
+    end do
+  else
+    call writeheader_partoutput_dims(1,ncid,timeunit,timeDimID,partDimID,latDimID,lonDimID)
+    do np=1,num_partopt
+      if (.not. partopt(np)%print) cycle
+      call writeheader_partoutput_vars(np,ncid,totpart,timeDimID,partDimID,latDimID,lonDimID)
+    end do
+
+    ! moves the file from define to data mode
+    call nf90_err(nf90_enddef(ncid))
+    call nf90_err(nf90_close(ncid))
+  endif
+
+  return
+110 write(*,FMT='(80("#"))') 
+  write(*,*) 'ERROR: output directory ', trim(path(2)(1:length(2))), ' does not exist&
+       & (or failed to write there).' 
+  write(*,*) 'EXITING' 
+  write(*,FMT='(80("#"))')
+  error stop
+end subroutine writeheader_partoutput
+
+subroutine writeheader_partoutput_dims(np,ncid,timeunit,timeDimID,partDimID,latDimID,lonDimID)
+
+  implicit none
+  integer,intent(in)  :: ncid,np
+  character,intent(in) :: timeunit*32
+  integer,intent(out) :: timeDimID,partDimID
+  integer,intent(out) :: latDimID, lonDimID
+  integer             :: tID,partID
+
+
+  logical,save :: first_time=.true.
 
   ! create dimensions:
   !*************************
   ! time
   call nf90_err(nf90_def_dim(ncid, 'time', nf90_unlimited, timeDimID))
-  timeunit = 'seconds since '//adate_start(1:4)//'-'//adate_start(5:6)// &
-     '-'//adate_start(7:8)//' '//atime_start(1:2)//':'//atime_start(3:4)
 
   ! particle
-  call nf90_err(nf90_def_dim(ncid, 'particle', nf90_unlimited, partDimID)) !totpart needs to be the actual number of particles
 
   ! If domainfill, save topo, hmix, and htropo to grid to save space
   !*****************************************************************
-  if (mdomainfill.ge.1) then
-    call nf90_err(nf90_def_dim(ncid, 'lon', nx, lonDimID))
-    call nf90_err(nf90_def_dim(ncid, 'lat', ny, latDimID))
+  if (lpartoutputperfield.and.(mdomainfill.eq.1).and. &
+    ((partopt(np)%name.eq.'TO') .or. &
+    (partopt(np)%name.eq.'HM') .or. &
+    (partopt(np)%name.eq.'TR'))) then
+    call writeheader_partoutput_grid(ncid,lonDimID,latDimID)
+  else 
+    if (.not. lpartoutputperfield .and. (mdomainfill.eq.1)) then
+      call writeheader_partoutput_grid(ncid,lonDimID,latDimID)
+    endif
 
-    ! lon
-    call write_to_file(ncid,'lon',nf90_float,(/ lonDimID /),lonID,(/ 1 /), &
-      'degrees_east',.false.,'grid_longitude','longitude in degree east')
-    call nf90_err(nf90_put_att(ncid, lonID, 'axis', 'Lon'))
-    call nf90_err(nf90_put_att(ncid, lonID, 'description', 'grid cell centers'))
+    call nf90_err(nf90_def_dim(ncid, 'particle', nf90_unlimited, partDimID))
+    ! particles variables
+    call nf90_err(nf90_def_var(ncid, 'particle', nf90_int, (/ partDimID/), partID))
+    call nf90_err(nf90_put_att(ncid, partID, 'long_name', 'particle index'))
 
-    ! lat
-    call write_to_file(ncid,'lat',nf90_float,(/ latDimID /),latID,(/ 1 /), &
-      'degrees_east',.false.,'grid_latitude','latitude in degree north')
-    call nf90_err(nf90_put_att(ncid, latID, 'axis', 'Lat'))
-    call nf90_err(nf90_put_att(ncid, latID, 'description', 'grid cell centers'))
+  endif 
 
-    if (.not.allocated(coord)) allocate(coord(nx))
-     do i = 1,nx
-        coord(i) = xlon0 + i*dx
-     enddo
-     call nf90_err(nf90_put_var(ncid, lonID, coord(1:nx)))
-     deallocate(coord)
-
-    if (.not.allocated(coord)) allocate(coord(ny))
-     do i = 1,ny
-        coord(i) = ylat0 + i*dy
-     enddo
-     call nf90_err(nf90_put_var(ncid, latID, coord(1:ny)))
-     deallocate(coord)
-
-  endif
   ! create variables
   !*************************
 
@@ -1985,195 +2015,233 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   call nf90_err(nf90_put_att(ncid, tID, 'calendar', 'proleptic_gregorian'))
 
   timeIDpart=tID
-  ! particles
-  call nf90_err(nf90_def_var(ncid, 'particle', nf90_int, (/ partDimID/), partID))
-  call nf90_err(nf90_put_att(ncid, partID, 'long_name', 'particle index'))
 
-  fillval = -1.
-  do np=1,num_partopt
-    if (.not. partopt(np)%print) cycle
-    select case(partopt(np)%name)
-      case ('LO') ! Longitude
-        call write_to_file(ncid,'longitude',nf90_float,(/ timeDimID,partDimID /),lonIDpart,(/ 1,totpart /), &
-          'degrees_east',.false.,'longitude','longitude of particles')
-        call nf90_err(nf90_put_att(ncid, lonIDpart, 'axis', 'Lon'))
-        call nf90_err(nf90_put_att(ncid, lonIDpart, 'description', 'longitude of particles'))
-      case ('lo') ! Longitude averaged
-        call write_to_file(ncid,'longitude_av',nf90_float,(/ timeDimID,partDimID /),lonavIDpart,(/ 1,totpart /), &
-          'degrees_east',.false.,'longitude_average','averaged longitude of particles')
-        call nf90_err(nf90_put_att(ncid, lonavIDpart, 'axis', 'Lon'))
-        call nf90_err(nf90_put_att(ncid, lonavIDpart, 'description', 'averaged longitude of particles'))
-      case ('LA') ! Latitude
-        call write_to_file(ncid,'latitude',nf90_float,(/ timeDimID,partDimID /),latIDpart,(/ 1,totpart /), &
-          'degrees_north',.false.,'latitude','latitude in degree north')
-        call nf90_err(nf90_put_att(ncid, latIDpart, 'axis', 'Lat'))
-        call nf90_err(nf90_put_att(ncid, latIDpart, 'description', 'latitude of particles'))
-      case ('la') ! Latitude averaged
-        call write_to_file(ncid,'latitude_av',nf90_float,(/ timeDimID,partDimID /),latavIDpart,(/ 1,totpart /), &
-          'degrees_north',.false.,'latitude_average','averaged latitude in degree north')
-        call nf90_err(nf90_put_att(ncid, latavIDpart, 'axis', 'Lat'))
-        call nf90_err(nf90_put_att(ncid, latavIDpart, 'description', 'averaged latitude of particles'))
-      case ('ZZ') ! Height
-        call write_to_file(ncid,'height',nf90_float,(/ timeDimID,partDimID /),levIDpart,(/ 1,totpart /), &
-          'meters',.false.,'height','height above ground')
-      case ('zz') ! Heights averaged
-        call write_to_file(ncid,'height_av',nf90_float,(/ timeDimID,partDimID /),levavIDpart,(/ 1,totpart /), &
-          'meters',.false.,'height_average','averaged height above ground')
-      case ('PV') ! Potential vorticity
-        call write_to_file(ncid,'pv',nf90_float,(/ timeDimID,partDimID /),pvID,(/ 1,totpart /), &
-          'pvu',.false.,'potential_vorticity','potential vorticity')
-      case ('pv') ! Potential vorticity averaged
-        call write_to_file(ncid,'pv_av',nf90_float,(/ timeDimID,partDimID /),pvavID,(/ 1,totpart /), &
-          'pvu',.false.,'potential_vorticity_average','averaged potential vorticity')
-      case ('PR') ! Pressure
-        call write_to_file(ncid,'pr',nf90_float,(/ timeDimID,partDimID /),prID,(/ 1,totpart /), &
-          'Pa',.false.,'pressure','pressure')
-      case ('pr') ! Pressure averaged
-        call write_to_file(ncid,'pr_av',nf90_float,(/ timeDimID,partDimID /),pravID,(/ 1,totpart /), &
-          'Pa',.false.,'pressure_average','averaged pressure')
-      case ('QV') ! Specific humidity
-        call write_to_file(ncid,'qv',nf90_float,(/ timeDimID,partDimID /),qvID,(/ 1,totpart /), &
-          '',.false.,'specific_humidity','specific humidity')
-      case ('qv') ! Specific humidity averaged
-        call write_to_file(ncid,'qv_av',nf90_float,(/ timeDimID,partDimID /),qvavID,(/ 1,totpart /), &
-          '',.false.,'specific_humidity_average','averaged specific humidity')
-      case ('RH') ! Density
-        call write_to_file(ncid,'rho',nf90_float,(/ timeDimID,partDimID /),rhoID,(/ 1,totpart /), &
-          'kg/m3',.true.,'density','density')
-      case ('rh') ! Density averaged
-        call write_to_file(ncid,'rho_av',nf90_float,(/ timeDimID,partDimID /),rhoavID,(/ 1,totpart /), &
-          'kg/m3',.true.,'density_average','averaged density')
-      case ('TT') ! Temperature
-        call write_to_file(ncid,'temperature',nf90_float,(/ timeDimID,partDimID /),ttID,(/ 1,totpart /), &
-          'K',.true.,'temperature','temperature') 
-      case ('tt') ! Temperature averaged
-        call write_to_file(ncid,'temperature_av',nf90_float,(/ timeDimID,partDimID /),ttavID,(/ 1,totpart /), &
-          'K',.true.,'temperature_average','averaged temperature') 
-      case ('UU')
-        call write_to_file(ncid,'u',nf90_float,(/ timeDimID,partDimID /),uID,(/ 1,totpart /), &
-          'm/s',.false.,'u','longitudinal velocity')    
-      case ('uu')
-        call write_to_file(ncid,'u_av',nf90_float,(/ timeDimID,partDimID /),uavID,(/ 1,totpart /), &
-          'm/s',.false.,'u_av','averaged longitudinal velocity')
-      case ('VV')
-        call write_to_file(ncid,'v',nf90_float,(/ timeDimID,partDimID /),vID,(/ 1,totpart /), &
-          'm/s',.false.,'v','latitudinal velocity')
-      case ('vv')
-        call write_to_file(ncid,'v_av',nf90_float,(/ timeDimID,partDimID /),vavID,(/ 1,totpart /), &
-          'm/s',.false.,'v_average','latitudinal velocity averaged')
-      case ('WW')
-        call write_to_file(ncid,'w',nf90_float,(/ timeDimID,partDimID /),wID,(/ 1,totpart /), &
-          'm/s',.false.,'w','vertical velocity')
-      case ('ww')
-        call write_to_file(ncid,'w_av',nf90_float,(/ timeDimID,partDimID /),wavID,(/ 1,totpart /), &
-          'm/s',.false.,'w_average','vertical velocity averaged')
-      case ('VS')
-        call write_to_file(ncid,'settling',nf90_float,(/ timeDimID,partDimID /),vsetID,(/ 1,totpart /), &
-          'm/s',.false.,'settling_velocity','settling velocity')
-      case ('vs')
-        call write_to_file(ncid,'settling_av',nf90_float,(/ timeDimID,partDimID /),vsetavID,(/ 1,totpart /), &
-          'm/s',.false.,'settling_velocity_average','settling velocity averaged')
-      case ('MA') ! Mass
-        if (mdomainfill.ge.1) then
-          call nf90_err(nf90_def_var(ncid=ncid, name='mass', xtype=nf90_float, dimids=1, varid=massID(1)))
-          call nf90_err(nf90_put_att(ncid, massID(1), 'units', 'kg'))
-          call nf90_err(nf90_put_att(ncid, massID(1), '_FillValue', fillval))
-          call nf90_err(nf90_put_att(ncid, massID(1), 'positive', 'up'))
-          call nf90_err(nf90_put_att(ncid, massID(1), 'standard_name', 'mass'))
-          call nf90_err(nf90_put_att(ncid, massID(1), 'long_name', 'mass of each particle'))
-        else
-          do j=1,nspec
-            ! Masses
-            write(anspec, '(i3.3)') j
-            call write_to_file(ncid,'mass'//anspec,nf90_float,(/ timeDimID,partDimID /),massID(j), &
-              (/ 1,totpart /),'kg',.true.,'mass'//anspec,'mass for nspec'//anspec) 
-          end do
-        endif
-      case ('ma') ! Mass averaged
-        if (mdomainfill.ge.1) then
-          call nf90_err(nf90_def_var(ncid=ncid, name='mass_av', xtype=nf90_float, dimids=1, varid=massavID(1)))
-          call nf90_err(nf90_put_att(ncid, massavID(1), 'units', 'kg'))
-          call nf90_err(nf90_put_att(ncid, massavID(1), '_FillValue', fillval))
-          call nf90_err(nf90_put_att(ncid, massavID(1), 'positive', 'up'))
-          call nf90_err(nf90_put_att(ncid, massavID(1), 'standard_name', 'mass'))
-          call nf90_err(nf90_put_att(ncid, massavID(1), 'long_name', 'averaged mass of each particle'))
-        else
-          do j=1,nspec
-            ! Masses averaged
-            write(anspec, '(i3.3)') j
-            call write_to_file(ncid,'mass_av'//anspec,nf90_float,(/ timeDimID,partDimID /),massavID(j), &
-              (/ 1,totpart /),'kg',.true.,'mass'//anspec,'averaged mass for nspec'//anspec) 
-          end do
-        endif
-      case ('WD') ! Cumulative mass of wet deposition
-        do j=1,nspec
-          ! Masses
-          write(anspec, '(i3.3)') j
-          call write_to_file(ncid,'wetdepo'//anspec,nf90_float,(/ timeDimID,partDimID /),wdID(j), &
-            (/ 1,totpart /),'kg',.true.,'mass'//anspec,'cumulative wet deposition for nspec'//anspec) 
-        end do
-      case ('DD') ! Cumulative mass of dry deposition
-        do j=1,nspec
-          ! Masses
-          write(anspec, '(i3.3)') j
-          call write_to_file(ncid,'drydepo'//anspec,nf90_float,(/ timeDimID,partDimID /),ddID(j), &
-            (/ 1,totpart /),'kg',.true.,'mass'//anspec,'cumulative dry deposition for nspec'//anspec) 
-        end do
-      case ('TO')  ! Topography, written to grid if domainfill
-        if (mdomainfill.lt.1) then
-          call write_to_file(ncid,'topo',nf90_float,(/ timeDimID,partDimID /),topoID,(/ 1,totpart /), &
-            'meters',.false.,'topography','topography above sealevel')
-        else
-          call write_to_file(ncid,'topo',nf90_float,(/ lonDimID,latDimID /),topoID,(/ nx,ny /), &
-            'meters',.false.,'topography','topography above sealevel')
-        endif
-      case ('to') ! Topography averaged, no grid when domainfill
-        call write_to_file(ncid,'topo_av',nf90_float,(/ timeDimID,partDimID /),topoavID,(/ 1,totpart /), &
-          'meters',.false.,'topography','averaged topography above sealevel')
-      case ('HM') ! Mixing layer height
-        if (mdomainfill.lt.1) then
-          call write_to_file(ncid,'hmix',nf90_float,(/ timeDimID,partDimID /),hmixID,(/ 1,totpart /), &
-            'meters',.true.,'hmix','height above ground of mixing layer')
-        else
-          call write_to_file(ncid,'hmix',nf90_float,(/ timeDimID,lonDimID,latDimID /),hmixID,(/ 1,nx,ny /), &
-            'meters',.true.,'hmix','height above ground of mixing layer')  
-        endif
-      case ('hm') ! Mixing layer height averaged
-        call write_to_file(ncid,'hmix_av',nf90_float,(/ timeDimID,partDimID /),hmixavID,(/ 1,totpart /), &
-          'meters',.true.,'hmix_average','averaged height above ground of mixing layer')
-      case ('TR') ! Tropopause
-        if (mdomainfill.lt.1) then
-          call write_to_file(ncid,'tr',nf90_float,(/ timeDimID,partDimID /),trID,(/ 1,totpart /), &
-            'meters',.true.,'htropo','height above ground of tropopause')
-        else
-          call write_to_file(ncid,'tr',nf90_float,(/ timeDimID,lonDimID,latDimID /),trID,(/ 1,nx,ny /), &
-            'meters',.true.,'htropo','height above ground of tropopause')
-        endif
-      case ('tr') ! Tropopause averaged
-        call write_to_file(ncid,'tr_av',nf90_float,(/ timeDimID,partDimID /),travID,(/ 1,totpart /), &
-          'meters',.true.,'htropo_average','averaged height above ground of tropopause')
-      case default
-        write(*,*) 'The field you are trying to write to file is not coded in yet: ', partopt(np)%long_name
-        error stop
-    end select
-  end do
   ! global (metadata) attributes
   !*******************************
   call writemetadata(ncid,lnest=.false.)
 
-  ! moves the file from define to data mode
-  call nf90_err(nf90_enddef(ncid))
+end subroutine writeheader_partoutput_dims
 
-  call nf90_err(nf90_close(ncid))
+subroutine writeheader_partoutput_vars(np,ncid,totpart,timeDimID,partDimID,latDimID,lonDimID)
 
-  return
-110 write(*,FMT='(80("#"))') 
-  write(*,*) 'ERROR: output directory ', trim(path(2)(1:length(2))), ' does not exist&
-       & (or failed to write there).' 
-  write(*,*) 'EXITING' 
-  write(*,FMT='(80("#"))')
-  error stop
-end subroutine writeheader_partoutput
+  implicit none
+  integer,intent(in)  :: ncid,totpart,np
+  integer,intent(in)  :: timeDimID,partDimID
+  integer,intent(in)  :: latDimID, lonDimID
+  integer             :: j,i,varid
+  character(len=3)    :: anspec
+  real                :: fillval
+
+
+  fillval = -1.
+  select case(partopt(np)%name)
+    case ('LO') ! Longitude
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'degrees_east',.false.,'longitude','longitude of particles')
+      call nf90_err(nf90_put_att(ncid, varid, 'axis', 'Lon'))
+      call nf90_err(nf90_put_att(ncid, varid, 'description', 'longitude of particles'))
+    case ('lo') ! Longitude averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'degrees_east',.false.,'longitude_average','averaged longitude of particles')
+      call nf90_err(nf90_put_att(ncid, varid, 'axis', 'Lon'))
+      call nf90_err(nf90_put_att(ncid, varid, 'description', 'averaged longitude of particles'))
+    case ('LA') ! Latitude
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'degrees_north',.false.,'latitude','latitude in degree north')
+      call nf90_err(nf90_put_att(ncid, varid, 'axis', 'Lat'))
+      call nf90_err(nf90_put_att(ncid, varid, 'description', 'latitude of particles'))
+    case ('la') ! Latitude averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'degrees_north',.false.,'latitude_average','averaged latitude in degree north')
+      call nf90_err(nf90_put_att(ncid, varid, 'axis', 'Lat'))
+      call nf90_err(nf90_put_att(ncid, varid, 'description', 'averaged latitude of particles'))
+    case ('ZZ') ! Height
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'meters',.false.,'height','height above ground')
+    case ('zz') ! Heights averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'meters',.false.,'height_average','averaged height above ground')
+    case ('PV') ! Potential vorticity
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'pvu',.false.,'potential_vorticity','potential vorticity')
+    case ('pv') ! Potential vorticity averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'pvu',.false.,'potential_vorticity_average','averaged potential vorticity')
+    case ('PR') ! Pressure
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'Pa',.false.,'pressure','pressure')
+    case ('pr') ! Pressure averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'Pa',.false.,'pressure_average','averaged pressure')
+    case ('QV') ! Specific humidity
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'',.false.,'specific_humidity','specific humidity')
+    case ('qv') ! Specific humidity averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'',.false.,'specific_humidity_average','averaged specific humidity')
+    case ('RH') ! Density
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'kg/m3',.true.,'density','density')
+    case ('rh') ! Density averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'kg/m3',.true.,'density_average','averaged density')
+    case ('TT') ! Temperature
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'K',.true.,'temperature','temperature') 
+    case ('tt') ! Temperature averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'K',.true.,'temperature_average','averaged temperature') 
+    case ('UU')
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'m/s',.false.,'u','longitudinal velocity')    
+    case ('uu')
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'m/s',.false.,'u_av','averaged longitudinal velocity')
+    case ('VV')
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'m/s',.false.,'v','latitudinal velocity')
+    case ('vv')
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'m/s',.false.,'v_average','latitudinal velocity averaged')
+    case ('WW')
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'m/s',.false.,'w','vertical velocity')
+    case ('ww')
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'m/s',.false.,'w_average','vertical velocity averaged')
+    case ('VS')
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'m/s',.false.,'settling_velocity','settling velocity')
+    case ('vs')
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
+        varid,(/ 1,totpart /),'m/s',.false.,'settling_velocity_average','settling velocity averaged')
+    case ('MA') ! Mass
+      if (mdomainfill.ge.1) then
+        call nf90_err(nf90_def_var(ncid=ncid, name=trim(partopt(np)%short_name), xtype=nf90_float, &
+          dimids=1, varid=varid))
+        call nf90_err(nf90_put_att(ncid, varid, 'units', 'kg'))
+        call nf90_err(nf90_put_att(ncid, varid, '_FillValue', fillval))
+        call nf90_err(nf90_put_att(ncid, varid, 'positive', 'up'))
+        call nf90_err(nf90_put_att(ncid, varid, 'standard_name', 'mass'))
+        call nf90_err(nf90_put_att(ncid, varid, 'long_name', 'mass of each particle'))
+      else
+        do j=1,nspec
+          ! Masses
+          write(anspec, '(i3.3)') j
+          call write_to_file(ncid,trim(partopt(np)%short_name)//anspec,nf90_float, &
+            (/ timeDimID,partDimID /),varid, &
+            (/ 1,totpart /),'kg',.true.,'mass'//anspec,'mass for nspec'//anspec) 
+        end do
+      endif
+    case ('ma') ! Mass averaged
+      if (mdomainfill.ge.1) then
+        call nf90_err(nf90_def_var(ncid=ncid, name=trim(partopt(np)%short_name), xtype=nf90_float, dimids=1, varid=varid))
+        call nf90_err(nf90_put_att(ncid, varid, 'units', 'kg'))
+        call nf90_err(nf90_put_att(ncid, varid, '_FillValue', fillval))
+        call nf90_err(nf90_put_att(ncid, varid, 'positive', 'up'))
+        call nf90_err(nf90_put_att(ncid, varid, 'standard_name', 'mass'))
+        call nf90_err(nf90_put_att(ncid, varid, 'long_name', 'averaged mass of each particle'))
+      else
+        do j=1,nspec
+          ! Masses averaged
+          write(anspec, '(i3.3)') j
+          call write_to_file(ncid,trim(partopt(np)%short_name)//anspec,nf90_float,(/ timeDimID,partDimID /),varid, &
+            (/ 1,totpart /),'kg',.true.,'mass'//anspec,'averaged mass for nspec'//anspec) 
+        end do
+      endif
+    case ('WD') ! Cumulative mass of wet deposition
+      do j=1,nspec
+        ! Masses
+        write(anspec, '(i3.3)') j
+        call write_to_file(ncid,trim(partopt(np)%short_name)//anspec,nf90_float,(/ timeDimID,partDimID /),varid, &
+          (/ 1,totpart /),'kg',.true.,'mass'//anspec,'cumulative wet deposition for nspec'//anspec) 
+      end do
+    case ('DD') ! Cumulative mass of dry deposition
+      do j=1,nspec
+        ! Masses
+        write(anspec, '(i3.3)') j
+        call write_to_file(ncid,trim(partopt(np)%short_name)//anspec,nf90_float,(/ timeDimID,partDimID /),varid, &
+          (/ 1,totpart /),'kg',.true.,'mass'//anspec,'cumulative dry deposition for nspec'//anspec) 
+      end do
+    case ('TO')  ! Topography, written to grid if domainfill
+      if (mdomainfill.lt.1) then
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /),varid,(/ 1,totpart /), &
+          'meters',.false.,'topography','topography above sealevel')
+      else
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ lonDimID,latDimID /),varid,(/ nx,ny /), &
+          'meters',.false.,'topography','topography above sealevel')
+      endif
+    case ('to') ! Topography averaged, no grid when domainfill
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /),varid,(/ 1,totpart /), &
+        'meters',.false.,'topography','averaged topography above sealevel')
+    case ('HM') ! Mixing layer height
+      if (mdomainfill.lt.1) then
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /),varid,(/ 1,totpart /), &
+          'meters',.true.,'hmix','height above ground of mixing layer')
+      else
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,lonDimID,latDimID /),varid,(/ 1,nx,ny /), &
+          'meters',.true.,'hmix','height above ground of mixing layer')  
+      endif
+    case ('hm') ! Mixing layer height averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /),varid,(/ 1,totpart /), &
+        'meters',.true.,'hmix_average','averaged height above ground of mixing layer')
+    case ('TR') ! Tropopause
+      if (mdomainfill.lt.1) then
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /),varid,(/ 1,totpart /), &
+          'meters',.true.,'htropo','height above ground of tropopause')
+      else
+        call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,lonDimID,latDimID /),varid,(/ 1,nx,ny /), &
+          'meters',.true.,'htropo','height above ground of tropopause')
+      endif
+    case ('tr') ! Tropopause averaged
+      call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /),varid,(/ 1,totpart /), &
+        'meters',.true.,'htropo_average','averaged height above ground of tropopause')
+    case default
+      write(*,*) 'The field you are trying to write to file is not coded in yet: ', partopt(np)%name,partopt(np)%long_name
+      error stop
+  end select
+
+end subroutine writeheader_partoutput_vars
+
+subroutine writeheader_partoutput_grid(ncid,lonDimID,latDimID)
+
+  implicit none
+
+  integer,intent(in)  :: ncid
+  integer,intent(out) :: lonDimID,latDimID
+  real, allocatable, dimension(:) :: coord
+  integer :: lonID, latID, i
+
+  call nf90_err(nf90_def_dim(ncid, 'longitude', nx, lonDimID))
+  call nf90_err(nf90_def_dim(ncid, 'latitude', ny, latDimID))
+
+  ! lon
+  call write_to_file(ncid,'longitude',nf90_float,(/ lonDimID /),lonID,(/ 1 /), &
+    'degrees_east',.false.,'grid_longitude','longitude in degree east')
+  call nf90_err(nf90_put_att(ncid, lonID, 'axis', 'Lon'))
+  call nf90_err(nf90_put_att(ncid, lonID, 'description', 'grid cell centers'))
+
+  ! lat
+  call write_to_file(ncid,'latitude',nf90_float,(/ latDimID /),latID,(/ 1 /), &
+    'degrees_east',.false.,'grid_latitude','latitude in degree north')
+  call nf90_err(nf90_put_att(ncid, latID, 'axis', 'Lat'))
+  call nf90_err(nf90_put_att(ncid, latID, 'description', 'grid cell centers'))
+
+  if (.not.allocated(coord)) allocate(coord(nx))
+  do i = 1,nx
+    coord(i) = xlon0 + i*dx
+  enddo
+  call nf90_err(nf90_put_var(ncid, lonID, coord(1:nx)))
+  deallocate(coord)
+
+  if (.not.allocated(coord)) allocate(coord(ny))
+  do i = 1,ny
+    coord(i) = ylat0 + i*dy
+  enddo
+  call nf90_err(nf90_put_var(ncid, latID, coord(1:ny)))
+  deallocate(coord)
+
+end subroutine writeheader_partoutput_grid
 
 subroutine write_to_file(ncid,short_name,xtype,dimids,varid,chunksizes,units,l_positive, &
   standard_name,long_name)
@@ -2208,14 +2276,19 @@ subroutine write_to_file(ncid,short_name,xtype,dimids,varid,chunksizes,units,l_p
   call nf90_err(nf90_put_att(ncid, varid, 'long_name', long_name))
 end subroutine write_to_file
 
-subroutine open_partoutput_file(ncid)!,irelease)
+subroutine open_partoutput_file(ncid,np)
   
   implicit none 
 
-  integer, intent(inout)         :: ncid
-  !integer, intent(in)            :: irelease
+  integer, intent(out)               :: ncid
+  integer, intent(in),optional         :: np
 
-  call nf90_err(nf90_open(trim(ncfname_part), nf90_write, ncid))
+  if (lpartoutputperfield) then
+    call nf90_err(nf90_open(trim(ncfname_part)//'_'//trim(partopt(np)%long_name)//trim(ncfname_part_end), &
+      nf90_write, ncid))
+  else
+    call nf90_err(nf90_open(trim(ncfname_part), nf90_write, ncid))
+  endif
 end subroutine open_partoutput_file
 
 subroutine close_partoutput_file(ncid)
@@ -2227,17 +2300,94 @@ subroutine close_partoutput_file(ncid)
   call nf90_err(nf90_close(ncid))
 end subroutine close_partoutput_file
 
-subroutine open_partinit_file(ncid)!,irelease)
+subroutine open_partinit_file(ncid)
   
   implicit none 
 
   integer, intent(inout)         :: ncid
-  !integer, intent(in)            :: irelease
 
   call nf90_err(nf90_open(trim(ncfname_partinit), nf90_write, ncid))
 end subroutine open_partinit_file
 
-subroutine partoutput_netcdf(itime,field,fieldname,imass,ncid)
+subroutine update_partoutput_pointers(itime,ncid)
+
+  use particle_mod
+
+  implicit none
+
+  integer, intent(in)         :: itime
+  integer, intent(in),optional :: ncid
+  integer, allocatable           :: partindices(:)
+  integer                     :: j,tempIDend,newpart,np
+
+  ! Time
+  tpointer_part = tpointer_part + 1
+
+  if (lpartoutputperfield) then
+    do np=1,num_partopt
+      if (.not. partopt(np)%print) cycle
+      call nf90_err(nf90_inq_varid(ncid=partopt(np)%ncid,name='time',varid=tempIDend))
+      call nf90_err(nf90_put_var(partopt(np)%ncid, tempIDend, itime, (/ tpointer_part /)))
+    end do
+  else
+    call nf90_err(nf90_inq_varid(ncid=ncid,name='time',varid=tempIDend))
+    call nf90_err(nf90_put_var(ncid, tempIDend, itime, (/ tpointer_part /)))
+  endif
+
+  ! Particles
+  newpart = count%allocated - ppointer_part
+
+  if (tpointer_part.eq.1) then 
+    allocate ( partindices(count%allocated) )
+    do j=1,count%allocated 
+      partindices(j)=j
+    end do 
+    if (lpartoutputperfield) then
+      do np=1,num_partopt
+        if (.not. partopt(np)%print) cycle
+        if ((mdomainfill.eq.1).and. &
+          ((partopt(np)%name.eq.'TO') .or. &
+          (partopt(np)%name.eq.'HM') .or. &
+          (partopt(np)%name.eq.'TR'))) cycle
+        call nf90_err(nf90_inq_varid(ncid=partopt(np)%ncid,name='particle',varid=tempIDend))
+        call nf90_err(nf90_put_var(partopt(np)%ncid, tempIDend,partindices, (/ 1 /),(/ count%allocated /)))
+      end do
+    else
+      call nf90_err(nf90_inq_varid(ncid=ncid,name='particle',varid=tempIDend))
+      call nf90_err(nf90_put_var(ncid, tempIDend,partindices, (/ 1 /),(/ count%allocated /)))
+    endif
+    deallocate (partindices)
+
+    ppointer_part = count%allocated
+
+  else if (newpart.ge.0) then
+
+    allocate ( partindices(newpart) )
+    do j=1,newpart
+      partindices(j)=j+ppointer_part
+    end do
+    if (lpartoutputperfield) then
+      do np=1,num_partopt
+        if (.not. partopt(np)%print) cycle
+        if ((mdomainfill.eq.1).and. &
+          ((partopt(np)%name.eq.'TO') .or. &
+          (partopt(np)%name.eq.'HM') .or. &
+          (partopt(np)%name.eq.'TR'))) cycle
+        call nf90_err(nf90_inq_varid(ncid=partopt(np)%ncid,name='particle',varid=tempIDend))
+        call nf90_err(nf90_put_var(partopt(np)%ncid, tempIDend,partindices, (/ ppointer_part+1 /),(/ newpart /)))
+      end do
+    else
+      call nf90_err(nf90_inq_varid(ncid=ncid,name='particle',varid=tempIDend))
+      call nf90_err(nf90_put_var(ncid, tempIDend,partindices, (/ ppointer_part+1 /),(/ newpart /)))
+    endif
+    deallocate (partindices)
+
+    ppointer_part = count%allocated
+  endif 
+
+end subroutine update_partoutput_pointers
+
+subroutine partoutput_netcdf(itime,field,np,imass,ncid)
   
   use particle_mod
   !*****************************************************************************
@@ -2251,142 +2401,60 @@ subroutine partoutput_netcdf(itime,field,fieldname,imass,ncid)
 
   implicit none
 
-  integer, intent(in)            :: itime,imass
+  integer, intent(in)            :: itime,imass,ncid
   real, intent(in)               :: field(:)
-  character(2), intent(in)       :: fieldname  ! input field to interpolate over
-  integer, allocatable           :: partindices(:)
-  integer                        :: ncid,newpart,j
+  integer, intent(in)            :: np  ! input field to interpolate over
+  integer                        :: tempIDend
+  character(len=3)               :: anspec
   ! ! open output file
   ! call nf90_err(nf90_open(trim(ncfname_part), nf90_write, ncid))
-  select case(fieldname)
-    case('TI')
-      ! write time
-      tpointer_part = tpointer_part + 1
-      call nf90_err(nf90_put_var(ncid, timeIDpart, itime, (/ tpointer_part /)))
-    case('PA')
-      newpart = count%allocated - ppointer_part
-      
-      if (tpointer_part.eq.1) then 
-        allocate ( partindices(count%allocated) )
-        do j=1,count%allocated 
-          partindices(j)=j
-        end do 
 
-        call nf90_err(nf90_put_var(ncid, partID,partindices, (/ 1 /),(/ count%allocated /)))
-
-        deallocate (partindices)
-
-        ppointer_part = count%allocated
-
-      else if (newpart.ge.0) then
-
-        allocate ( partindices(newpart) )
-        do j=1,newpart
-          partindices(j)=j+ppointer_part
-        end do
-
-        call nf90_err(nf90_put_var(ncid, partID,partindices, (/ ppointer_part+1 /),(/ newpart /)))
-        
-        deallocate (partindices)
-
-        ppointer_part = count%allocated
-      endif 
-    case('LO') ! Longitude
-      call nf90_err(nf90_put_var(ncid,lonIDpart,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('lo') ! Longitude averaged
-      call nf90_err(nf90_put_var(ncid,lonavIDpart,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('LA') ! Latitude
-      call nf90_err(nf90_put_var(ncid,latIDpart,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('la') ! Latitude averaged
-      call nf90_err(nf90_put_var(ncid,latavIDpart,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('ZZ') ! Height
-      call nf90_err(nf90_put_var(ncid,levIDpart,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('zz') ! Height averaged
-      call nf90_err(nf90_put_var(ncid,levavIDpart,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('IT') ! Itramem (not in use atm)
-      call nf90_err(nf90_put_var(ncid,itramemID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('TO') ! Topography
-      if (mdomainfill.ge.1) then 
-        if (topo_written.eqv..false.) call nf90_err(nf90_put_var(ncid,topoID,oro(0:nx-1,0:ny-1), (/ 1,1 /),(/ nx,ny /)))
+  if ((mdomainfill.ge.1).and. ((partopt(np)%name.eq.'TO').or. &
+    (partopt(np)%name.eq.'HM').or.(partopt(np)%name.eq.'TR'))) then
+    if (partopt(np)%name.eq.'TO')  then
+      if (topo_written.eqv..false.) then
+        call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
+        call nf90_err(nf90_put_var(ncid,tempIDend,oro(0:nx-1,0:ny-1), (/ 1,1 /),(/ nx,ny /)))
         topo_written=.true.
-      else
-        call nf90_err(nf90_put_var(ncid,topoID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
       endif
-    case('to') ! topography averaged
-      call nf90_err(nf90_put_var(ncid,topoavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('PV') ! Potential vorticity
-      call nf90_err(nf90_put_var(ncid,pvID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('pv') ! Potential vorticity averaged
-      call nf90_err(nf90_put_var(ncid,pvavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('PR') ! Pressure
-      call nf90_err(nf90_put_var(ncid,prID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('pr') ! Pressure averaged
-      call nf90_err(nf90_put_var(ncid,pravID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('QV') ! Specific humidity
-      call nf90_err(nf90_put_var(ncid,qvID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('qv') ! Specific humidity averaged
-      call nf90_err(nf90_put_var(ncid,qvavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('RH') ! Air density
-      call nf90_err(nf90_put_var(ncid,rhoID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('rh') ! Air density averaged
-      call nf90_err(nf90_put_var(ncid,rhoavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('UU') ! Longitudinal velocity
-      call nf90_err(nf90_put_var(ncid,uID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('uu') ! Longitudinal velocity averaged
-      call nf90_err(nf90_put_var(ncid,uavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('VV') ! Latitudinal velocity
-      call nf90_err(nf90_put_var(ncid,vID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('vv') ! Latitudinal velocity averaged
-      call nf90_err(nf90_put_var(ncid,vavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('WW') ! Vertical velocity
-      call nf90_err(nf90_put_var(ncid,wID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('ww') ! Vertical velocity averaged
-      call nf90_err(nf90_put_var(ncid,wavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('VS') ! Settling velocity
-      call nf90_err(nf90_put_var(ncid,vsetID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('vs') ! Settling velocity averaged
-      call nf90_err(nf90_put_var(ncid,vsetavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('HM') ! Mixing height
-      if (mdomainfill.ge.1) then 
-        call nf90_err(nf90_put_var(ncid,hmixID,hmix(0:nx-1,0:ny-1,1,memind(1)), &
-          (/ tpointer_part,1,1 /),(/ 1,nx,ny /)))
-      else
-        call nf90_err(nf90_put_var(ncid,hmixID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
+    else !HM or TR
+      call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
+      call nf90_err(nf90_put_var(ncid,tempIDend,hmix(0:nx-1,0:ny-1,1,memind(1)), &
+        (/ tpointer_part,1,1 /),(/ 1,nx,ny /)))
+    endif
+
+  else if (partopt(np)%name.eq.'MA') then
+    if ((mdomainfill.ge.1).and.(imass.eq.1)) then
+      if (mass_written.eqv..false.) then 
+        call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
+        call nf90_err(nf90_put_var(ncid=ncid,varid=tempIDend,values=field(1)))
       endif
-    case('hm') ! Mixing height averaged
-      call nf90_err(nf90_put_var(ncid,hmixavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('TR') ! Tropopause
-      if (mdomainfill.ge.1) then 
-        call nf90_err(nf90_put_var(ncid,trID,tropopause(0:nx-1,0:ny-1,1,memind(1)), &
-          (/ tpointer_part,1,1 /),(/ 1,nx,ny /)))
-      else
-        call nf90_err(nf90_put_var(ncid,trID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
+      mass_written=.true.
+    else
+      write(anspec, '(i3.3)') imass
+      call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name)//anspec,varid=tempIDend))
+      call nf90_err(nf90_put_var(ncid,tempIDend,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
+    endif
+  else if (partopt(np)%name.eq.'ma') then
+    if ((mdomainfill.ge.1).and.(imass.eq.1)) then
+      if (mass_written.eqv..false.) then 
+        call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
+        call nf90_err(nf90_put_var(ncid=ncid,varid=tempIDend,values=field(1)))
       endif
-    case('tr') ! Tropopause averaged
-      call nf90_err(nf90_put_var(ncid,travID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('TT') ! Temperature
-      call nf90_err(nf90_put_var(ncid,ttID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('tt') ! Temperature averaged
-      call nf90_err(nf90_put_var(ncid,ttavID,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('MA') ! Mass
-      if ((mdomainfill.ge.1).and.(imass.eq.1)) then
-        if (mass_written.eqv..false.) call nf90_err(nf90_put_var(ncid=ncid,varid=massID(1),values=field(1)))
-        mass_written=.true.
-      else
-        call nf90_err(nf90_put_var(ncid,massID(imass),field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-      endif
-    case('ma') ! Mass averaged
-      if ((mdomainfill.ge.1).and.(imass.eq.1)) then
-        if (mass_written.eqv..false.) call nf90_err(nf90_put_var(ncid=ncid,varid=massavID(1),values=field(1)))
-        massav_written=.true.
-      else
-        call nf90_err(nf90_put_var(ncid,massavID(imass),field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-      endif
-    case('WD') ! Cumulative mass of wet deposition
-      call nf90_err(nf90_put_var(ncid,wdID(imass),field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-    case('DD') ! Cumulative mass of wet deposition
-      call nf90_err(nf90_put_var(ncid,ddID(imass),field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
-  end select
+      massav_written=.true.
+    else
+      write(anspec, '(i3.3)') imass
+      call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name)//anspec,varid=tempIDend))
+      call nf90_err(nf90_put_var(ncid,tempIDend,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
+    endif
+  else if ((partopt(np)%name.eq.'WD').or.(partopt(np)%name.eq.'DD')) then
+    write(anspec, '(i3.3)') imass
+    call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name)//anspec,varid=tempIDend))
+    call nf90_err(nf90_put_var(ncid,tempIDend,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
+  else 
+    call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
+    call nf90_err(nf90_put_var(ncid,tempIDend,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
+  endif
 
   ! call nf90_err(nf90_close(ncid))
 end subroutine partoutput_netcdf

@@ -853,11 +853,9 @@ subroutine redist(itime,ipart,ktop,ipconv,ithread)
     loop1: do k = 1,nconvtop
     ! for backward runs use the transposed matrix
      if (ldirect.eq.1) then
-       ffraction=ffraction+fmassfrac(levold,k,ithread) &
-            /totlevmass
+       ffraction=ffraction+fmassfrac(levold,k,ithread) / totlevmass
      else
-       ffraction=ffraction+fmassfrac(k,levold,ithread) &
-            /totlevmass
+       ffraction=ffraction+fmassfrac(k,levold,ithread) / totlevmass
      endif
      if (rn.le.ffraction) then
        levnew=k
@@ -916,8 +914,10 @@ subroutine redist(itime,ipart,ktop,ipconv,ithread)
             *(pconv(levold-1,ithread)-phconv(levold,ithread))/ &
             (pconv(levold-1,ithread)-pconv(levold,ithread))
         ! Bug fix: Added lsynctime to make units correct
-        sub_levold = sub(levold,ithread)/(1.-ga*sub(levold,ithread)*lsynctime/dpr(levold,ithread))
-        wsub(levold,ithread)=-1.*sub_levold*r_air*temp_levold/(phconv(levold,ithread))
+        sub_levold = sub(levold,ithread)/ &
+          (1.-ga*sub(levold,ithread)*lsynctime/dpr(levold,ithread))
+        wsub(levold,ithread)= &
+          -1.*sub_levold*r_air*temp_levold/(phconv(levold,ithread))
       else
         wsub(levold,ithread)=0.
       endif
@@ -927,7 +927,8 @@ subroutine redist(itime,ipart,ktop,ipconv,ithread)
           *(pconv(levold,ithread)-phconv(levold+1,ithread))/ &
           (pconv(levold,ithread)-pconv(levold+1,ithread))
       ! Bug fix: Added lsynctime to make units correct
-      sub_levold1 = sub(levold+1,ithread)/(1.-ga*sub(levold+1,ithread)*lsynctime/dpr(levold+1,ithread))
+      sub_levold1 = sub(levold+1,ithread)/ &
+        (1.-ga*sub(levold+1,ithread)*lsynctime/dpr(levold+1,ithread))
       wsub(levold+1,ithread)=-1.*sub_levold1*r_air*temp_levold1/ &
           (phconv(levold+1,ithread))
 
@@ -971,11 +972,11 @@ subroutine redist(itime,ipart,ktop,ipconv,ithread)
   !*******************************************************
 
 #ifdef ETA
-    if (part(abs(ipart))%zeta .lt. uvheight(nz)) call set_zeta(ipart,uvheight(nz)+1.e-4)
-    if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
-    if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
+  if (part(abs(ipart))%zeta .lt. uvheight(nz)) call set_zeta(ipart,uvheight(nz)+1.e-4)
+  if (part(abs(ipart))%zeta.ge.1.) call set_zeta(ipart,1.-(part(abs(ipart))%zeta-1.))
+  if (part(abs(ipart))%zeta.eq.1.) call update_zeta(ipart,-1.e-4)
 #else
-    if (part(abs(ipart))%z .gt. height(nz)-0.5) call set_z(ipart,height(nz)-0.5)
+  if (part(abs(ipart))%z .gt. height(nz)-0.5) call set_z(ipart,height(nz)-0.5)
 #endif
 
 end subroutine redist

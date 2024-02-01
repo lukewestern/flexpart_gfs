@@ -3256,154 +3256,188 @@ subroutine readpartoptions
   ! Save values in particle options derived type
   !*********************************************
   partopt(1)%long_name='longitude'
+  partopt(1)%short_name='lon'
   partopt(1)%name='LO'
   partopt(1)%print=longitude
 
   partopt(2)%long_name='longitude_average'
+  partopt(2)%short_name='lon_av'
   partopt(2)%name='lo'
   partopt(2)%print=longitude_average
   partopt(2)%average=.true.
 
   partopt(3)%long_name='latitude'
+  partopt(3)%short_name='lat'
   partopt(3)%name='LA'
   partopt(3)%print=latitude
 
   partopt(4)%long_name='latitude_average'
+  partopt(4)%short_name='lat_av'
   partopt(4)%name='la'
   partopt(4)%print=latitude_average
   partopt(4)%average=.true.
 
   partopt(5)%long_name='height'
+  partopt(5)%short_name='z'
   partopt(5)%name='ZZ'
   partopt(5)%print=height
 
   partopt(6)%long_name='height_average'
+  partopt(6)%short_name='z_av'
   partopt(6)%name='zz'
   partopt(6)%print=height_average
   partopt(6)%average=.true.
 
-  partopt(7)%long_name='pv'
+  partopt(7)%long_name='potential_vorticity'
+  partopt(7)%short_name='pv'
   partopt(7)%name='PV'
   partopt(7)%print=pv
 
-  partopt(8)%long_name='pv_average'
+  partopt(8)%long_name='potential_vorticity_average'
+  partopt(8)%short_name='pv_av'
   partopt(8)%name='pv'
   partopt(8)%print=pv_average
   partopt(8)%average=.true.
 
-  partopt(9)%long_name='qv'
+  partopt(9)%long_name='specific_humidity'
+  partopt(9)%short_name='qv'
   partopt(9)%name='QV'
   partopt(9)%print=qv
 
-  partopt(10)%long_name='qv_average'
+  partopt(10)%long_name='specific_humidity_average'
+  partopt(10)%short_name='qv_av'
   partopt(10)%name='qv'
   partopt(10)%print=qv_average
   partopt(10)%average=.true.
 
   partopt(11)%long_name='density'
+  partopt(11)%short_name='rho'
   partopt(11)%name='RH'
   partopt(11)%print=density
 
   partopt(12)%long_name='density_average'
+  partopt(12)%short_name='rho_av'
   partopt(12)%name='rh'
   partopt(12)%print=density_average
   partopt(12)%average=.true.
 
   partopt(13)%long_name='temperature'
+  partopt(13)%short_name='T'
   partopt(13)%name='TT'
   partopt(13)%print=temperature
 
   partopt(14)%long_name='temperature_average'
+  partopt(14)%short_name='T_av'
   partopt(14)%name='tt'
   partopt(14)%print=temperature_average
   partopt(14)%average=.true.
 
   partopt(15)%long_name='pressure'
+  partopt(15)%short_name='prs'
   partopt(15)%name='PR'
   partopt(15)%print=pressure
 
   partopt(16)%long_name='pressure_average'
+  partopt(16)%short_name='prs_av'
   partopt(16)%name='pr'
   partopt(16)%print=pressure_average
   partopt(16)%average=.true.
 
   partopt(17)%long_name='mixingheight'
+  partopt(17)%short_name='hmix'
   partopt(17)%name='HM'
   partopt(17)%print=mixingheight
 
   partopt(18)%long_name='mixingheight_average'
+  partopt(18)%short_name='hmix_av'
   partopt(18)%name='hm'
   partopt(18)%print=mixingheight_average
   partopt(18)%average=.true.
 
   partopt(19)%long_name='tropopause'
+  partopt(19)%short_name='tro'
   partopt(19)%name='TR'
   partopt(19)%print=tropopause
 
   partopt(20)%long_name='tropopause_average'
+  partopt(20)%short_name='tro_av'
   partopt(20)%name='tr'
   partopt(20)%print=tropopause_average
   partopt(20)%average=.true.
 
   partopt(21)%long_name='topography'
+  partopt(21)%short_name='to'
   partopt(21)%name='TO'
   partopt(21)%print=topography
 
   partopt(22)%long_name='topography_average'
+  partopt(22)%short_name='to_av'
   partopt(22)%name='to'
   partopt(22)%print=topography_average
   partopt(22)%average=.true.
 
   partopt(23)%long_name='mass'
+  partopt(23)%short_name='m'
   partopt(23)%name='MA'
   partopt(23)%print=mass
 
   partopt(24)%long_name='mass_average'
+  partopt(24)%short_name='m_av'
   partopt(24)%name='ma'
   partopt(24)%print=mass_average
   partopt(24)%average=.true.
   
-  partopt(25)%long_name='u'
+  partopt(25)%long_name='longitudinal_velocity'
+  partopt(25)%short_name='u'
   partopt(25)%name='UU'
   partopt(25)%print=u
 
-  partopt(26)%long_name='u_average'
+  partopt(26)%long_name='longitudinal_velocity_average'
+  partopt(26)%short_name='u_av'
   partopt(26)%name='uu'
   partopt(26)%print=u_average
   partopt(26)%average=.true.
 
-  partopt(27)%long_name='v'
+  partopt(27)%long_name='latitudinal_velocity'
+  partopt(27)%short_name='v'
   partopt(27)%name='VV'
   partopt(27)%print=v
 
-  partopt(28)%long_name='v_average'
+  partopt(28)%long_name='latitudinal_velocity_average'
+  partopt(28)%short_name='v_av'
   partopt(28)%name='vv'
   partopt(28)%print=v_average
   partopt(28)%average=.true.
 
-  partopt(29)%long_name='w'
+  partopt(29)%long_name='vertical_velocity'
+  partopt(29)%short_name='w'
   partopt(29)%name='WW'
   partopt(29)%print=w
 
-  partopt(30)%long_name='w_average'
+  partopt(30)%long_name='vertical_velocity_average'
+  partopt(30)%short_name='w_av'
   partopt(30)%name='ww'
   partopt(30)%print=w_average
   partopt(30)%average=.true.
 
-  partopt(31)%long_name='vsettling'
+  partopt(31)%long_name='settling_velocity'
+  partopt(31)%short_name='vset'
   partopt(31)%name='VS'
   partopt(31)%print=vsettling
 
-  partopt(32)%long_name='vsettling_average'
+  partopt(32)%long_name='settling_velocity_average'
+  partopt(32)%short_name='vset_av'
   partopt(32)%name='vs'
   partopt(32)%print=vsettling_average
   partopt(32)%average=.true.
 
   partopt(33)%long_name='wetdeposition'
+  partopt(33)%short_name='wetdepo'
   partopt(33)%name='WD'
   partopt(33)%print=wetdeposition
 
   partopt(34)%long_name='drydeposition'
+  partopt(34)%short_name='drydepo'
   partopt(34)%name='DD'
   partopt(34)%print=drydeposition
   ! Numbers are assigned to the averaged fields for proper

@@ -356,12 +356,12 @@ subroutine releaseparticles(itime)
   call get_totalpart_num(iend)
 
   ! NetCDF only: write initial positions of new particles
-#ifdef USE_NCF
-  if ((iend-istart.gt.0).and.(ipout.ge.1)) then 
-    call wrt_part_initialpos(itime,istart,iend)
-    call output_particles(itime,.true.)
-  endif
-#endif
+! #ifdef USE_NCF
+!   if ((iend-istart.gt.0).and.(ipout.ge.1)) then 
+!     call wrt_part_initialpos(itime,istart,iend)
+!     call output_particles(itime,.true.)
+!   endif
+! #endif
   return
 
 ! 996   continue

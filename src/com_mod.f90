@@ -24,10 +24,12 @@ module com_mod
   !**********************************************************************************
   type :: particleoptions
     character(2) :: name
-    character(20) :: long_name
+    character(28) :: long_name
+    character(7) :: short_name
     logical :: print
     logical :: average=.false.
     integer :: i_average=0
+    integer :: ncid
   end type particleoptions
 
   integer :: num_partopt=34
