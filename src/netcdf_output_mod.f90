@@ -2631,6 +2631,10 @@ subroutine readinitconditions_netcdf()
   maxspec=nspec
   call alloc_com()
 
+  ! Read number of fields that need to be output. This needs to happen after maxspec is defined
+  ! but before particles are allocated (n_average is necessary).
+  if (ipout.ne.0) call readpartoptions 
+
   ! allocate with maxspec for first input loop
   allocate(specnum_rel(maxspec),stat=stat)
   if (stat.ne.0) error stop 'ERROR: could not allocate specnum_rel'
