@@ -284,7 +284,7 @@ sed -i "/IPIN=/c\ IPIN=  3," ./current/COMMAND
 sed -i "/LDIRECT=/c\ LDIRECT=   -1," ./current/COMMAND
 sed -i "/IOUTPUTFOREACHRELEASE=/c\ IOUTPUTFOREACHRELEASE=  1," ./current/COMMAND
 sed -i "/IOUT=/c\ IOUT=  1," ./current/COMMAND
-sed -i "/IETIME=/c\ LOUTSTEP=  010000," ./current/COMMAND
+sed -i "/IBTIME=/c\ IBTIME=  020000," ./current/COMMAND
 sed -i "/LOUTSTEP=/c\ LOUTSTEP=  3600," ./current/COMMAND
 sed -i "/LOUTAVER=/c\ LOUTAVER=  3600," ./current/COMMAND
 cp -rf part_ic.nc output/
