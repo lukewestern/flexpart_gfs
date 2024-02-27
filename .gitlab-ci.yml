@@ -61,6 +61,23 @@ options-test:
       - ./tests/output_bkw_eta
     expire_in: 5 mins
 
+nests-test:
+  # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
+  stage: test
+  when: manual
+  needs:
+    - alma8-build
+    - rocky9-build
+
+  script:
+    - ulimit -s unlimited
+    - bash ./tests/run_nests_test.sh
+  artifacts:
+    when: on_success
+    paths:
+
+
 openmp-simulation:
   # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
