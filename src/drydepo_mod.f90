@@ -85,16 +85,19 @@ subroutine assignland
 
   implicit none
 
-  integer :: ix,jy,k,l,li,nrefine,iix,jjy
+  integer :: ix,jy,k,l,li,nrefine,iix,jjy,stat
   integer,parameter :: lumaxx=1200,lumaxy=600
   integer,parameter :: xlon0lu=-180,ylat0lu=-90
   real,parameter :: dxlu=0.3
   real :: xlon,ylat,sumperc,p,xi,yj
-  real :: xlandusep(lumaxx,lumaxy,numclass)
+  real,allocatable,dimension(:,:,:) :: xlandusep
   ! character*2 ck
 
   if (.not.DRYDEP) return
   
+  allocate( xlandusep(lumaxx,lumaxy,numclass), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xlandusep in assignland"
+
   do ix=1,lumaxx
     do jy=1,lumaxy
        do k=1,numclass
