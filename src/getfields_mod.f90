@@ -155,17 +155,22 @@ subroutine getfields(itime,nstop)
     return
   endif
 
+  print*, 'in gertfields'
+  !stop
+
   if ((ldirect*memtime(1).le.ldirect*itime).and. &
        (ldirect*memtime(2).gt.ldirect*itime)) then
 
   ! The right wind fields are already in memory -> don't do anything
   !*****************************************************************
+ print*, 'in gertfields 2'
 
     continue
 
   else if ((ldirect*memtime(2).le.ldirect*itime).and. &
        (memtime(2).ne.999999999)) then
 
+ print*, 'in gertfields 3'
 
   ! Current time is after 2nd wind field
   ! -> Resort wind field pointers, so that current time is between 1st and 2nd
@@ -181,6 +186,7 @@ subroutine getfields(itime,nstop)
   !******************************************************
 
     do indj=indmin,numbwf-1
+      print*,'### getfields indj ###', indj
       if (ldirect*wftime(indj+1).gt.ldirect*itime) then
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call SYSTEM_CLOCK(count_clock, count_rate, count_max)
@@ -189,8 +195,11 @@ subroutine getfields(itime,nstop)
           call SYSTEM_CLOCK(count_clock, count_rate, count_max)
           s_readwind = s_readwind + ((count_clock - count_clock0)/real(count_rate)-s_temp)
         else
+          print*, 'getfields call readwind_gfs 1'
+          stop
           call readwind_gfs(indj+1,memind(2),uuh,vvh,wwh)
         end if
+        print*, 'getfields call readwind_gfs 1'
         call readwind_nest(indj+1,memind(2),uuhn,vvhn,wwhn)
         call calcpar(memind(2))
         call calcpar_nest(memind(2))
@@ -235,7 +244,8 @@ subroutine getfields(itime,nstop)
 !$OMP END PARALLEL
     endif
   else
-
+   print*, 'in getfields 4'
+ 
   ! No wind fields, which can be used, are currently in memory
   ! -> read both wind fields
   !***********************************************************
@@ -251,16 +261,29 @@ subroutine getfields(itime,nstop)
           call SYSTEM_CLOCK(count_clock, count_rate, count_max)
           s_readwind = s_readwind + ((count_clock - count_clock0)/real(count_rate)-s_temp)
         else
+          print*, 'to call readwind_gfs' 
           call readwind_gfs(indj,memind(1),uuh,vvh,wwh)
+          print*, 'exit readwind_gfs' 
+
         end if
+        print*, 'to call readwind_nest' 
         call readwind_nest(indj,memind(1),uuhn,vvhn,wwhn)
+        print*, 'to call readwind_nest 2' 
         call calcpar(memind(1))
         call calcpar_nest(memind(1))
+        print*, 'getfields 3' 
+
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(1),uuh,vvh,wwh,pvh)
         else
+          print*, 'verttransform_gfs a' 
+
           call verttransform_gfs(memind(1),uuh,vvh,wwh,pvh)
+          print*, 'verttransform_gfs d' 
+
         end if
+        print*, 'getfields 4' 
+        
         call verttransform_nest(memind(1),uuhn,vvhn,wwhn,pvhn)
         memtime(1)=wftime(indj)
         memind(2)=2

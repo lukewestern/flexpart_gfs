@@ -196,9 +196,11 @@ subroutine read_options_and_initialise_flexpart
   ! Reading the number of threads available and print them for user
   !****************************************************************
 #ifdef _OPENMP
-    numthreads = OMP_GET_MAX_THREADS()
-    numthreads_grid = min(numthreads,maxthreadgrid)
+    !numthreads = OMP_GET_MAX_THREADS()
+    numthreads = 1 !OMP_GET_MAX_THREADS()
+    !numthreads_grid = min(numthreads,maxthreadgrid)
     !numthreads = min(40,numthreads)
+    numthreads_grid = 1
 #else
     numthreads = 1
     numthreads_grid = 1
