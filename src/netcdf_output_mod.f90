@@ -2882,10 +2882,17 @@ subroutine readinitconditions_netcdf()
   
   kindz=zkind
   do j=1,numpoint
-   if ((kindz(j).le.0).or.(kindz(j).ge.4)) then
+    if ((kindz(j).le.0).or.(kindz(j).ge.4)) then
       write(*,*) 'ERROR: kindz should be an integer between 1 and 3, not', kindz(nsp)
       error stop
-   endif
+    endif
+    if (kindz(j).eq.3) then
+      do i=1,plen
+        if (part(i)%z.gt.1500.) then
+          error stop 'Pressure heights should be given in hPa units. Input value exceeds surface pressure!'
+        endif
+      end do
+    endif
   end do
 
   if (ioutputforeachrelease.eq.1) then
