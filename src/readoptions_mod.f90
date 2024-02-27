@@ -253,14 +253,14 @@ subroutine readavailable
         jul=juldate(ldat,ltim)
         if ((jul.ge.beg).and.(jul.le.endl)) then
           numbwfn(k)=numbwfn(k)+1
-          allocate( tmpwfnamen(numbnests,numbwf),tmpwftimen(numbnests,numbwf), &
+          allocate( tmpwfnamen(numbnests,numbwfn(k)),tmpwftimen(numbnests,numbwfn(k)), &
             stat=stat)
           if (stat.ne.0) error stop 'ERROR: could not allocate tmpwfnamen'
           if (numbwfn(k).gt.1) then
-            tmpwfnamen(:,1:numbwf-1)=wfname1n
-            tmpwftimen(:,1:numbwf-1)=wftime1n
+            tmpwfnamen(:,1:numbwfn(k)-1)=wfname1n
+            tmpwftimen(:,1:numbwfn(k)-1)=wftime1n
           endif
-          tmpwfnamen(k,numbwfn(k))=fname
+          tmpwfnamen(k,numbwfn(k))=fname(1:index(fname,' '))
           tmpwftimen(k,numbwfn(k))=nint((jul-bdate)*86400._dp)
           call move_alloc(tmpwfnamen,wfname1n)
           call move_alloc(tmpwftimen,wftime1n)

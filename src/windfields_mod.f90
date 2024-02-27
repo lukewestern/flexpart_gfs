@@ -3430,6 +3430,7 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
 
     gotGrid=0
     ifield=0
+
     do
       ifield=ifield+1
       !
@@ -3449,6 +3450,7 @@ subroutine readwind_nest(indj,n,uuhn,vvhn,wwhn)
       ! AT stepRange is used to identify additional precip fields
       call grib_get_int(igrib,'stepRange',istep,iret)
       call grib_check(iret,thisSubr,gribErrorMsg)
+      ipf=istep+1
 
       if (gribVer.eq.1) then ! GRIB Edition 1
 
