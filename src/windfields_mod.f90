@@ -4102,8 +4102,6 @@ subroutine alloc_fixedfields
   if (stat.ne.0) error stop "Could not allocate excessoro"
   allocate(lsm(0:nxmax-1,0:nymax-1),stat=stat)
   if (stat.ne.0) error stop "Could not allocate lsm"
-  allocate(pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate pv"
 end subroutine alloc_fixedfields
 
 subroutine alloc_fixedfields_nest
@@ -4166,6 +4164,8 @@ subroutine alloc_windfields
   if (stat.ne.0) error stop "Could not allocate tt"
   allocate(tth(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
   if (stat.ne.0) error stop "Could not allocate tth"
+  allocate(pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate pv"
   allocate(qv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
   if (stat.ne.0) error stop "Could not allocate qv"
   allocate(qvh(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
