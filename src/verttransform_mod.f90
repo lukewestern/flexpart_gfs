@@ -1654,7 +1654,6 @@ print*, 'in loop 4.1', jy, ix
         print*, '3.1] slope of eta levels jy, ix,iz, nz=',jy, ix,iz,nz 
         klp=nz+1
         do kz=kmin,nz
-          print*,kz,nz
  
           if ((height(iz).gt.uvwzlev(ix,jy,kz-1)).and. &
           (height(iz).le.uvwzlev(ix,jy,kz))) then
@@ -1663,11 +1662,8 @@ print*, 'in loop 4.1', jy, ix
             dz=dz1+dz2
             kl=kz-1
             klp=kz
-            print*, kz, kl, klp
             exit
           endif
-
-          print*,kz,nz
 
         enddo
         print*, '3.2] slope of eta levels jy, ix,iz,nz, klp =',jy, ix,iz,nz,klp  
@@ -1676,14 +1672,10 @@ print*, 'in loop 4.1', jy, ix
           klp=nz
           kl=nz-1
 
-        print*, '3.2.1] slope of eta levels ix, jy, iz, kz, nz =',ix,jy, iz, kz, nz 
-         print*, nxmax,nymax,nzmax !  361         181          26
-         print*, uvwzlev(ix,jy,kz)
-         print*, uvwzlev(ix,jy,kz-1)
          ! real,dimension(0:nxmax-1,0:nymax-1,nzmax) :: uvwzlev
          
-          dz1=uvwzlev(ix,jy,kz)-uvwzlev(ix,jy,kz-1)
-        print*, '3.2.2] slope of eta levels jy, ix,iz=',jy, ix,iz 
+          dz1=uvwzlev(ix,jy,klp)-uvwzlev(ix,jy,kl)
+          print*, '3.2.2] slope of eta levels jy, ix,iz=',jy, ix,iz 
 
 
           dz2=0.
