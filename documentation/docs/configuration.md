@@ -137,7 +137,7 @@ The following specifies the parameters associated with each physicochemical proc
 |PCCN_AERO | In-cloud scavenging (particles) - CCNeff (ccn_aero) | real |
 |PIN_AERO | In-cloud scavenging (particles) - INeff (in_aero) | real |
 |PDENSITY | Dry deposition (particles) - rho | real |
-|PDQUER | Dry deposition (particles) - dquer (equivalent diameter for shape) | real |
+|PDQUER | Dry deposition (particles) - diameter or equivalent diameter for shape (meter) | real |
 |PDSIGMA | Dry deposition (particles) - dsig | real |
 |PNDIA | Dry deposition (particles) - ndia | integer |
 |PDRYVEL | Alternative: dry deposition velocity | real |
@@ -150,9 +150,9 @@ The following specifies the parameters associated with each physicochemical proc
 |POHNCONST | OH Reaction rate - C [cm^3/molecule/sec] | real |
 |PSHAPE | Defining the shape of a particle | integer: **0=sphere (default)**, 1=any shape (defined by axes PLA,PIA,PSA), 2=cylinder, 3=cube, 4=tetrahedron, 5=octahedron, 6=ellipsoid |
 |PASPECTRATIO | Aspect ratio of cylinders: works for PSHAPE=2 only | real |
-|PLA | Longest axis in micrometer (Bagheri & Bonadonna 2016): only for PSHAPE=1 | real |
-|PIA | Intermediate axis in micrometer: only for PSHAPE=1 | real |
-|PSA | Smallest axis in micrometer: only for PSHAPE=1 | real |
+|PLA | Longest axis in meter (Bagheri & Bonadonna 2016): only for PSHAPE=1 | real |
+|PIA | Intermediate axis in meter: only for PSHAPE=1 | real |
+|PSA | Smallest axis in meter: only for PSHAPE=1 | real |
 |PORIENT | Falling orientation for aerosol particles of shape != 0 | integer: **0=horizontal (default)**, 1=random orientation of particles, 2=average between random and horizontal |
 
 <br/>
