@@ -1060,6 +1060,7 @@ subroutine gridcheck_gfs
       ! fixgfs11
       call grib_get_size(igrib,'values',size1,iret)
       allocate( zsec4(size1),stat=stat )
+      if (stat.ne.0) error stop "Could not allocate zsec4"
       call grib_get_real4_array(igrib,'values',zsec4,iret)
       call grib_check(iret,gribFunction,gribErrorMsg)
       print*, 'gridcheck zsec4 for U in check gfs in',  trim(wfname(ifn))
@@ -1221,13 +1222,12 @@ subroutine gridcheck_gfs
       print*, iumax
       allocate( tmppres(iumax), stat=stat)
       if (stat.ne.0) error stop "Could not allocate tmppres"
-      if (iumax.gt.1) tmppres(1:iumax)=pres
+      if (iumax.gt.1) tmppres(1:iumax-1)=pres
       !pres(iumax)=real(isec1(8))*100.0
       call move_alloc(tmppres,pres)
       pres(iumax)=xsec18*100.0 
       ! ip 30.1.24 fix vertical coordinate reading bug   
     endif
-
 
     ! fixgfs11 TODO: finish cleanup
     i179=nint(179./dx)
@@ -1295,12 +1295,14 @@ subroutine gridcheck_gfs
   nuvz=iumax
   nwz =iumax
   nlev_ec=iumax
-
+  
   ! Allocate memory for windfields
   !*******************************
   nwzmax=nwz
   nuvzmax=nuvz
   nzmax=nuvz
+  nconvlevmax=iumax
+  na=nuvzmax
   call alloc_windfields
 
   if (nx.gt.nxmax) then
@@ -1763,7 +1765,7 @@ subroutine gridcheck_nest
       endif
 
       call grib_release(igrib)
-      deallocate( zsec4 )
+      if (is6.ne.-1) deallocate( zsec4 )
     end do                 !! READ NEXT LEVEL OR PARAMETER
     !
     ! CLOSING OF INPUT DATA FILE
@@ -3114,7 +3116,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 !              do ii=1,nuvz
 !                if ((isec1(8)*100.0).eq.akz(ii)) numprh=ii
 !              end do
-            numpv=minloc(abs(xsec18*100.0-akz),dim=1)
+            numprh=minloc(abs(xsec18*100.0-akz),dim=1)
               
           endif
           help=zsec4(nxfield*(ny-j-1)+i+1)
@@ -3418,7 +3420,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   ! CALCULATE 2 M DEW POINT FROM 2 M RELATIVE HUMIDITY
   ! USING BOLTON'S (1980) FORMULA
   ! BECAUSE td2 IS NOT AVAILABLE FROM NCEP GFS DATA
-
+  k=1 ! CHECK THIS!!!
   do j=0,ny-1
     do i=0,nxfield-1
         help=qvh2(i,j)

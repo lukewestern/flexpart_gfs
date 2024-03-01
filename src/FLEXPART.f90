@@ -44,7 +44,7 @@ program flexpart
   real :: s_timemanager
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
-  character(len=256) :: gitversion_tmp="b26cbb1 Mon Nov 27 16:21:43 2023 +0100"
+  character(len=256) :: gitversion_tmp="undefined"
 
   ! Keeping track of the total running time of FLEXPART, printed out at the end.
   !*****************************************************************************
@@ -196,11 +196,9 @@ subroutine read_options_and_initialise_flexpart
   ! Reading the number of threads available and print them for user
   !****************************************************************
 #ifdef _OPENMP
-    !numthreads = OMP_GET_MAX_THREADS()
-    numthreads = 1 !OMP_GET_MAX_THREADS()
-    !numthreads_grid = min(numthreads,maxthreadgrid)
+    numthreads = OMP_GET_MAX_THREADS()
+    numthreads_grid = min(numthreads,maxthreadgrid)
     !numthreads = min(40,numthreads)
-    numthreads_grid = 1
 #else
     numthreads = 1
     numthreads_grid = 1
