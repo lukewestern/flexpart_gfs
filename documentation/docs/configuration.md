@@ -137,7 +137,7 @@ The following specifies the parameters associated with each physicochemical proc
 |PCCN_AERO | In-cloud scavenging (particles) - CCNeff (ccn_aero) | real |
 |PIN_AERO | In-cloud scavenging (particles) - INeff (in_aero) | real |
 |PDENSITY | Dry deposition (particles) - rho | real |
-|PDQUER | Dry deposition (particles) - diameter or equivalent diameter for shape (meter) | real |
+|PDIA | Dry deposition (particles) - diameter or equivalent diameter for shape (meter) | real |
 |PDSIGMA | Dry deposition (particles) - dsig | real |
 |PNDIA | Dry deposition (particles) - ndia | integer |
 |PDRYVEL | Alternative: dry deposition velocity | real |
