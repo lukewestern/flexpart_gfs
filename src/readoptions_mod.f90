@@ -2673,7 +2673,7 @@ subroutine readspecies(id_spec,pos_spec)
   character(len=16) :: pspecies
   character(len=50) :: line
   real :: pdecay, pweta_gas, pwetb_gas, preldiff, phenry, pf0, pdensity, pdquer
-  real :: pdsigma, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst
+  real :: pdsigma, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst, pdia
   real :: pcrain_aero, pcsnow_aero, pccn_aero, pin_aero
   real :: parea_dow(7), parea_hour(24), ppoint_dow(7), ppoint_hour(24)
   integer :: pndia
@@ -2686,7 +2686,7 @@ subroutine readspecies(id_spec,pos_spec)
   namelist /species_params/ &
        pspecies, pdecay, pweta_gas, pwetb_gas, &
        pcrain_aero, pcsnow_aero, pccn_aero, pin_aero, &
-       preldiff, phenry, pf0, pdensity, pdquer, &
+       preldiff, phenry, pf0, pdensity, pdquer, pdia, &
        pdsigma, pndia, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst, &
        parea_dow, parea_hour, ppoint_dow, ppoint_hour, &
        pshape, paspectratio, pla, pia, psa, porient
@@ -2704,6 +2704,7 @@ subroutine readspecies(id_spec,pos_spec)
   pf0=0.0
   pdensity=-9.9E09
   pdquer=0.0
+  pdia=0.0
   pdsigma=0.0
   pndia=1
   pdryvel=-9.99
@@ -2869,7 +2870,14 @@ subroutine readspecies(id_spec,pos_spec)
     henry(pos_spec)=phenry
     f0(pos_spec)=pf0
     density(pos_spec)=pdensity
-    dquer(pos_spec)=pdquer
+    if (pdia.ne.0.0) then
+      dquer(pos_spec)=pdia
+    else if (pdquer.ne.0.0) then
+      write(*,*) 'WARNING: PDQUER will be depricated, please use PDIA instead.'
+      dquer(pos_spec)=pdquer ! For backwards compatibility
+    else
+      dquer(pos_spec)=0.0
+    endif
     dsigma(pos_spec)=pdsigma
     ndia(pos_spec)=pndia
     dryvel(pos_spec)=pdryvel
