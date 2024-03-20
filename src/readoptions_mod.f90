@@ -485,6 +485,7 @@ subroutine readcommand
   character(len=50) :: line
   integer :: ios
   integer :: lturbulence_meso
+  character(len=50) :: ohfields_path ! deprecated
 
   namelist /command/ &
   ldirect, &
@@ -528,7 +529,8 @@ subroutine readcommand
   maxthreadgrid, &
   maxfilesize, &
   logvertinterp, &
-  bcscheme
+  bcscheme, &
+  ohfields_path
 
   ! Presetting namelist command
   ldirect=0
@@ -573,6 +575,7 @@ subroutine readcommand
   maxfilesize=10000
   logvertinterp=0
   bcscheme=2
+  ohfields_path=''
 
   !Af set release-switch
   WETBKDEP=.false.
@@ -2650,6 +2653,7 @@ subroutine readspecies(id_spec,pos_spec)
   character(len=10), allocatable, dimension(:) :: preactions
   real, allocatable, dimension(:) :: pcconst, pdconst, pnconst
   real :: pcrain_aero, pcsnow_aero, pccn_aero, pin_aero
+  real :: pohcconst,pohdconst,pohnconst ! deprecated
   real :: parea_dow(7), parea_hour(24), ppoint_dow(7), ppoint_hour(24)
   integer :: pndia
   integer :: ios
@@ -2662,8 +2666,8 @@ subroutine readspecies(id_spec,pos_spec)
        pspecies, pdecay, pweta_gas, pwetb_gas, &
        pcrain_aero, pcsnow_aero, pccn_aero, pin_aero, &
        preldiff, phenry, pf0, pdensity, pdquer, &
-       pdsigma, pndia, pdryvel, pweightmolar, &
-       preactions, pcconst, pdconst, pnconst, &
+       pdsigma, pndia, pdryvel, pweightmolar, pohnconst, &
+       preactions, pcconst, pdconst, pnconst, pohcconst, pohdconst, &
        pemis_path, pemis_file, pemis_name, pemis_unit, pemis_coeff, &
        parea_dow, parea_hour, ppoint_dow, ppoint_hour, &
        pshape, paspectratio, pla, pia, psa, porient
@@ -2707,6 +2711,9 @@ subroutine readspecies(id_spec,pos_spec)
   pcconst(:)=-9.99e-9
   pdconst(:)=-9.99
   pnconst(:)=-9.99
+  pohcconst=-9.99
+  pohdconst=-9.99
+  pohnconst=-9.99
   pweightmolar=-999.9
   parea_dow=-999.9
   parea_hour=-999.9
@@ -2765,6 +2772,9 @@ subroutine readspecies(id_spec,pos_spec)
     error stop
   endif
 
+  if ((pohcconst.ne.-9.99).or.(pohdconst.ne.-9.99).or.(pohnconst.ne.-9.99)) then
+    write(*,*) "WARNING: POHCCONST,POHDCONST, and POHNCONST in SPECIES file are deprecated."
+  endif
   species(pos_spec)=pspecies
   decay(pos_spec)=pdecay
   weta_gas(pos_spec)=pweta_gas

@@ -421,8 +421,6 @@ subroutine timemanager
     thread = 0
 #endif
 
-  print*, 'timemanager: thread = ',thread
-
 !$OMP DO SCHEDULE(dynamic,max(1,numpart/1000))
 ! SCHEDULE(dynamic, max(1,numpart/1000))
 !max(1,int(real(numpart)/numthreads/20.)))
@@ -692,10 +690,6 @@ subroutine timemanager
 
     ! Output totals
     !**************
-
-    !! test
-    print*, 'tot_em_up = ',tot_em_up(2)
-    print*, 'count%alive = ',count%alive
 
 #ifdef USE_NCF
     if (mdomainfill.eq.1) then

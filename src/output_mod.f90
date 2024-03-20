@@ -1261,9 +1261,6 @@ subroutine conccalc(itime,weight)
     end do
   endif
 
-  !! test
-  print*, 'range gridcnt = ',minval(gridcnt),maxval(gridcnt)
-
 #endif
 
 end subroutine conccalc
