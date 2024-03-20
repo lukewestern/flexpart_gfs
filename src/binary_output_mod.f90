@@ -1048,6 +1048,8 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   do ks=ks_start,nspec
 
+!$OMP BARRIER
+!$OMP SINGLE
     write(anspec,'(i3.3)') ks
 
     if (DRYBKDEP.or.WETBKDEP) then !scavdep output
@@ -1075,6 +1077,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
         write(unitoutgridppt) itime
       endif
     endif ! if deposition output
+!$OMP END SINGLE
 
     do kp=1,maxpointspec_act
       do nage=1,nageclass
@@ -1600,6 +1603,8 @@ subroutine concoutput_nest(itime,outnum)
 
   do ks=1,nspec
 
+!$OMP BARRIER
+!$OMP SINGLE
     write(anspec,'(i3.3)') ks
  
     if (DRYBKDEP.or.WETBKDEP) then !scavdep output
@@ -1624,7 +1629,6 @@ subroutine concoutput_nest(itime,outnum)
         write(unitoutgrid) itime
       endif
     endif
-
     if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
      open(unitoutgridppt,file=path(2)(1:length(2))//'grid_pptv_nest_' &
           //adate// &
@@ -1632,6 +1636,7 @@ subroutine concoutput_nest(itime,outnum)
 
       write(unitoutgridppt) itime
     endif
+!$OMP END SINGLE
 
     do kp=1,maxpointspec_act
       do nage=1,nageclass
