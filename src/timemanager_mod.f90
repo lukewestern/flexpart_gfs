@@ -293,12 +293,16 @@ subroutine timemanager
   ! Release particles
   !******************
     if (mdomainfill.ge.1) then
-      if (itime.eq.itime_init) then   
+      if (itime.eq.itime_init) then 
+        if (llcmoutput) then  
 #ifdef USE_NCF
-        call init_domainfill_ncf
+          call init_domainfill_ncf
 #else
-        call init_domainfill
+          call init_domainfill
 #endif
+        else
+          call init_domainfill
+        endif
       else 
         call boundcond_domainfill(itime,loutend)
       endif
@@ -698,7 +702,7 @@ subroutine timemanager
     !**************
 
 #ifdef USE_NCF
-    if (mdomainfill.eq.1) then
+    if ((mdomainfill.eq.1).and.(llcmoutput)) then
       do ks=1,nspec
         tot_mass(ks)=sum(real(mass(1:count%alive,ks),kind=dp))
       end do
