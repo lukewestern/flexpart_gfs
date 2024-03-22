@@ -325,6 +325,8 @@ subroutine get_wetscav(itime,jpart,ks,gridfract,wetscav)
   
   ! Interpolate cloud information
 	call interpol_rain(itime,kz,lsp,convp,cc,t_particle,cl,icbot,ictop,icmv)
+  ! cc = total cloud cover
+  ! cl = ctwc
 
 ! If total precipitation is less than precsub=0.01 mm/h - no scavenging
 ! Note: original PS version (in order avoid step at 0.01)
@@ -678,7 +680,8 @@ subroutine get_wetscav_incld_aerosol(ks,gridfract,prec,cl,cc,t_particle,wetscav)
   ! scavenging coefficient based on Hertel et al 1995 - 
   ! using si (S_i in paper) for both gas and aerosol
 
-  !SEC wetscav fix, the cloud height is no longer needed, it gives wrong results
+  ! wetscav = ratio_incloud*si*prec/3.6E6/cloud_thickness
+  ! cloud_thickness cancels out since cl is computed without
   wetscav=ratio_incloud*si* prec/3.6E6 ! mm/h -> m/s
 end subroutine get_wetscav_incld_aerosol
 
@@ -710,7 +713,8 @@ subroutine get_wetscav_incld_gas(ks,gridfract,prec,cl,cc,t_particle,wetscav)
   ! scavenging coefficient based on Hertel et al 1995 - 
   ! using si (S_i in paper) for both gas and aerosol
 
-  !SEC wetscav fix, the cloud height is no longer needed, it gives wrong results
+  ! wetscav = ratio_incloud*si*prec/3.6E6/cloud_thickness
+  ! cloud_thickness cancels out since cl is computed without
   wetscav=ratio_incloud*si* prec/3.6E6 ! mm/h -> m/s
 end subroutine get_wetscav_incld_gas
 
@@ -751,7 +755,12 @@ subroutine get_gridfract(lsp,convp,cc,gridfract)
   real, parameter :: lfr(5) = (/ 0.5,0.65,0.8,0.9,0.95/)
   real, parameter :: cfr(5) = (/ 0.4,0.55,0.7,0.8,0.9 /)
   integer :: i, j
-  
+
+  if (.not. lgridfraction) then
+    gridfract=1.0
+    return
+  endif
+
   if (lsp.gt.20.) then
     i=5
   else if (lsp.gt.8.) then
@@ -789,10 +798,23 @@ subroutine get_cloud_liquid(gridfract,prec,cc,cl)
   real, intent(in) :: prec,cc,gridfract ! precipitation in sub-grid cell
   real, intent(inout) :: cl ! scavenging coefficient
   !ZHG 2015 use cloud liquid & ice water (CLWC+CIWC) from ECMWF
+
+  ! MC -- Integrated water content:
+  ! CTWC = SUM(CLWC * rho_water * cloud_thickness) [kg/kg * kg/m3 * m]
+  ! -> Average water content: cl = CTWC/rho_water/cloud_thickness [m3(water)/m3(cloud)]
+
+  ! Note that cloud_thickness is not included, since this will cancel out when
+  ! computing the wetscavenging: Wetscav=ratio_incloud*S_i*(prec/3.6E6)/cloud_thickness
+  !                              S_i=1/cl
   ! Mother grid
   if (ngrid.le.0) then
     if (lcw) then
-      cl = cl*(gridfract/cc)
+      if (lgridfraction) then
+        cl=cl/rho_water*(gridfract/cc)
+      else
+        cl=cl/rho_water ! Grythe et al. eq (1), no cloud_thickness since this will cancel out later
+      endif
+      ! cl = cl*(gridfract/cc)
       ! A.Plach 2021 cl should not become too small
       ! cl=max(0.2*prec**0.36, cl*(gridfract/cc))
     else ! no cloud water available, use parameterisation for cloud water [m2/m3]
@@ -806,7 +828,12 @@ subroutine get_cloud_liquid(gridfract,prec,cc,cl)
     endif
   else
     if (lcw_nest(ngrid)) then
-      cl = cl*(gridfract/cc)
+      if (lgridfraction) then
+        cl=cl/rho_water*(gridfract/cc)
+      else
+        cl=cl/rho_water ! Grythe et al. eq (1), no cloud_thickness since this will cancel out later
+      endif
+      !cl = cl*(gridfract/cc)
     else
       cl=0.2*prec**0.36
     endif

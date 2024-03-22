@@ -633,7 +633,7 @@ subroutine receptorout_init_binary
         open(unitoutrecept,file=path(2)(1:length(2))//'receptor_conc', &
              form='unformatted',err=997)
         write(unitoutrecept)   numreceptor
-        if (lctmoutput) then
+        if (llcmoutput) then
           write(unitoutrecept) nspec-1 ! first species is mass of air
         else
           write(unitoutrecept) nspec
@@ -650,7 +650,7 @@ subroutine receptorout_init_binary
         open(unitoutreceptppt,file=path(2)(1:length(2))//'receptor_pptv', &
              form='unformatted',err=998)
         write(unitoutreceptppt)   numreceptor
-        if (lctmoutput) then
+        if (llcmoutput) then
           write(unitoutreceptppt) nspec-1 ! first species is mass of air
         else
           write(unitoutreceptppt) nspec
@@ -709,7 +709,7 @@ subroutine satelliteout_init_binary
       open(unitoutsatellite,file=path(2)(1:length(2))//'satellite_pptv', &
            form='unformatted',err=998)
       write(unitoutsatellite)   numsatreceptor
-      if (lctmoutput) then
+      if (llcmoutput) then
         write(unitoutsatellite) nspec-1 ! first species is mass of air
       else
         write(unitoutsatellite) nspec
@@ -744,7 +744,7 @@ subroutine write_receptor_binary(crec,cunc,nnrec,xkrec,nrec)
     real, dimension(nspec,nlayermax) :: crec, cunc
     real, dimension(nlayermax) :: nnrec, xkrec
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -793,7 +793,7 @@ subroutine write_satellite_binary(crec,cunc,nnrec,xkrec,nrec)
     real, dimension(nspec,nlayermax) :: crec, cunc
     real, dimension(nlayermax) :: nnrec, xkrec
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -961,7 +961,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
 !$OMP REDUCTION(+:wetgridtotal,wetgridsigmatotal, &
 !$OMP drygridtotal,drygridsigmatotal,gridtotal,gridsigmatotal)
 
-  if (.not.lctmoutput) then
+  if (.not.llcmoutput) then
     ! divide by density
     mind=memind(2)
 !$OMP DO
@@ -1008,7 +1008,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
     do kz=1,numzgrid
       do jy=0,numygrid-1
         do ix=0,numxgrid-1
-          if (lctmoutput) then
+          if (llcmoutput) then
             if (gridcnt(ix,jy,kz).gt.0.) then
               factor3d(ix,jy,kz)=1.e12/gridcnt(ix,jy,kz)
             else
@@ -1040,7 +1040,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   drygridsigmatotal=0.
   drygridtotalunc=0.
 
-  if (lctmoutput) then
+  if (llcmoutput) then
     ks_start=2
   else
     ks_start=1
@@ -1395,7 +1395,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   ! Write out conversion factor for dry air
   !****************************************
 
-  if (.not.lctmoutput) then
+  if (.not.llcmoutput) then
     inquire(file=path(2)(1:length(2))//'factor_drygrid',exist=lexist)
     if (lexist) then
       ! open and append

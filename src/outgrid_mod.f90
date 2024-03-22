@@ -351,7 +351,7 @@ subroutine outgrid_init
   endif
   ! Concentration fields
   if ((ipin.ne.1).and.(ipin.ne.4)) gridunc(:,:,:,:,:,:,:)=0.
-  ! Weighting for CTM output
+  ! Weighting for LCM output
   gridcnt(:,:,:)=0.
 #ifdef _OPENMP
   gridunc_omp(:,:,:,:,:,:,:,:)=0.

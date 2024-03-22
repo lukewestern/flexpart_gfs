@@ -80,7 +80,7 @@ module par_mod
   !real,parameter :: d_trop=50., d_strat=0.1
   real :: d_trop=50., d_strat=0.1, fturbmeso=0.16 ! turbulence factors can change for different runs
   real,parameter :: rho_water=1000. !ZHG 2015 [kg/m3]
-  real,parameter :: ratio_incloud=6.2   !ZHG MAR2016
+  real,parameter :: ratio_incloud=0.1   !MC 2024
   real,parameter :: wet_a=1.e-5, wet_b=0.8 !AT
 
   ! karman            Karman's constant
@@ -92,7 +92,7 @@ module par_mod
   !                   yield the scales for the mesoscale wind velocity fluctuations
   ! d_trop [m2/s]     Turbulent diffusivity for horiz components in the troposphere
   ! d_strat [m2/s]    Turbulent diffusivity for vertical component in the stratosphere
-  ! ratio_incloud     ZHG MAR2016
+  ! ratio_incloud     MC 2024, dimensionless ratio that should be <= 1
   ! wet_a, wet_b      for wetscav=wet_a*prec**wet_b if no cloud found, but precipitation occurs
 
   
@@ -199,7 +199,7 @@ module par_mod
   !              2 or 3 for MPI version
 
   !**************************************************************************
-  ! Variables for CTM
+  ! Variables for LCM
   !**************************************************************************
 
   integer,parameter :: maxreagent=5      ! Max number of reagents
@@ -311,5 +311,11 @@ module par_mod
   !******************************************************
 
   integer,parameter ::  icmv=-9999.
+
+  ! Temporary parameter to switch off the gridfaction calculation in the wetdeposition 
+  logical,parameter :: lgridfraction=.false. 
+
+  ! Particle dump: one file per field or all in one netcdf file
+  logical,parameter :: lpartoutputperfield=.false.
 
 end module par_mod

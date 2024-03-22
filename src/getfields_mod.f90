@@ -155,6 +155,7 @@ subroutine getfields(itime,nstop)
     return
   endif
 
+
   if ((ldirect*memtime(1).le.ldirect*itime).and. &
        (ldirect*memtime(2).gt.ldirect*itime)) then
 
@@ -165,7 +166,6 @@ subroutine getfields(itime,nstop)
 
   else if ((ldirect*memtime(2).le.ldirect*itime).and. &
        (memtime(2).ne.999999999)) then
-
 
   ! Current time is after 2nd wind field
   ! -> Resort wind field pointers, so that current time is between 1st and 2nd
@@ -235,7 +235,7 @@ subroutine getfields(itime,nstop)
 !$OMP END PARALLEL
     endif
   else
-
+ 
   ! No wind fields, which can be used, are currently in memory
   ! -> read both wind fields
   !***********************************************************
@@ -256,11 +256,13 @@ subroutine getfields(itime,nstop)
         call readwind_nest(indj,memind(1),uuhn,vvhn,wwhn)
         call calcpar(memind(1))
         call calcpar_nest(memind(1))
+
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(1),uuh,vvh,wwh,pvh)
         else
           call verttransform_gfs(memind(1),uuh,vvh,wwh,pvh)
         end if
+
         call verttransform_nest(memind(1),uuhn,vvhn,wwhn,pvhn)
         memtime(1)=wftime(indj)
         memind(2)=2

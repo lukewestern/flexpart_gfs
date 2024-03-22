@@ -76,7 +76,6 @@ nests-test:
   artifacts:
     when: on_success
     paths:
-    expire_in: 5 mins
 
 openmp-simulation:
   # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -172,3 +171,10 @@ etex-test:
     paths:
       - ./tests/etex_test.txt
     expire_in: never
+
+documentation:
+  image: harbor.wolke.img.univie.ac.at/podman/mkdocs-computer:latest
+  stage: build
+  script:
+    - cd ./documentation && mkdocs build -c --verbose
+    - sshpass -p "$WOLKE_PASSWORD" rsync -autv --delete -e "ssh -o StrictHostKeyChecking=no" /tmp/cr-site/* "$WOLKE_USER@wolke.img.univie.ac.at:/var/www/html/documentation/flexpart"

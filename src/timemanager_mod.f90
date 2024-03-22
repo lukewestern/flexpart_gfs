@@ -233,7 +233,13 @@ subroutine timemanager
 !$OMP PARALLEL PRIVATE(i)
 !$OMP DO
       do i=1,count%allocated ! Also includes particles that are not spawned yet
-        call update_z_to_zeta(itime, i)
+        ! If kindz>1, vertical positions computation
+        if (ipin.eq.3 .or. ipin.eq.4) call kindz_to_z(i) 
+#ifdef ETA
+        call z_to_zeta(itime,part(i)%xlon,part(i)%ylat,part(i)%z,part(i)%zeta)
+        part(i)%etaupdate = .true.
+        part(i)%meterupdate = .true.
+#endif
       end do
 !$OMP END DO
 !$OMP END PARALLEL

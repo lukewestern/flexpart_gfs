@@ -104,7 +104,7 @@ module receptor_mod
     integer, parameter :: unitoutrecdates=109
     logical :: lexist
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -198,7 +198,7 @@ module receptor_mod
           write(*,*) 'receptoroutput: lrecoutstart, lrecoutend, treceptor(n) = ',lrecoutstart, lrecoutend, treceptor(n)
           write(*,*) 'receptoroutput: n, cpointer(k), rpointer = ',n, cpointer(k), rpointer
 
-          if (.not.lctmoutput) then
+          if (.not.llcmoutput) then
 
             ! Compute air density
             !*********************
@@ -254,7 +254,7 @@ module receptor_mod
             ! no normalization by air density
             densityoutrecept(1)=1.
 
-          endif ! lctmoutput
+          endif ! llcmoutput
 
           ! Write receptor output
           !**********************
@@ -336,7 +336,7 @@ module receptor_mod
             endif
           end do
 
-          if (.not.lctmoutput) then
+          if (.not.llcmoutput) then
 
             ! Compute air density
             !*********************
@@ -397,7 +397,7 @@ module receptor_mod
             ! no normalization by density
             densityoutrecept(:)=1.
 
-          endif ! lctmoutput
+          endif ! llcmoutput
 
           ! Write receptor output
           !**********************
@@ -532,7 +532,7 @@ module receptor_mod
     ! initialization
     !***************
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -674,8 +674,8 @@ module receptor_mod
         endif
 
         do ks=ks_start,nspec
-          if (lctmoutput) then
-            ! special case CTM output use mass ratio species to airtracer
+          if (llcmoutput) then
+            ! special case LCM output use mass ratio species to airtracer
             ! species 1 is always airtracer
             conc(ks)=conc(ks) + mass(i,ks)/mass(i,1) * &
                       weight * xkern
@@ -814,8 +814,8 @@ module receptor_mod
           endif
 
           do ks=ks_start,nspec
-            if (lctmoutput) then
-              ! special case CTM output use mass ratio species to airtracer
+            if (llcmoutput) then
+              ! special case LCM output use mass ratio species to airtracer
               ! species 1 is always airtracer
               conc(ks)=conc(ks) + mass(i,ks)/mass(i,1) * &
                         weight * xkern

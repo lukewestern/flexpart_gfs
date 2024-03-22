@@ -1377,6 +1377,8 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
   ! NCEP version
   integer :: llev, i
 
+  integer :: rank_thread , nr_threads 
+
 
   !*************************************************************************
   ! If verttransform is called the first time, initialize heights of the   *
@@ -1401,9 +1403,12 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
 
   ! Loop over the whole grid
   !*************************
-
+!$OMP DO
   do jy=0,nymin1
     do ix=0,nxmin1
+
+
+!   if ((jy.eq.0).and.(ix.eq.0)) print*, 'in loop 1' 
 
   ! NCEP version: find first level above ground
       llev = 0
@@ -1426,6 +1431,8 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
       uvwzlev(ix,jy,llev)=0.
       rhoh(llev)=pold/(r_air*tvold)
 
+!    if ((jy.eq.0).and.(ix.eq.0)) print*, 'in loop 2'
+
       do kz=llev+1,nuvz
         pint=akz(kz)+bkz(kz)*ps(ix,jy,1,n)
         tv=tth(ix,jy,kz,n)*(1.+0.608*qvh(ix,jy,kz,n))
@@ -1444,6 +1451,7 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
       enddo
 
   ! pinmconv=(h2-h1)/(p2-p1)
+! if ((jy.eq.0).and.(ix.eq.0)) print*, 'in loop 3'
 
       pinmconv(llev)=(uvwzlev(ix,jy,llev+1)-uvwzlev(ix,jy,llev))/ &
            ((aknew(llev+1)+bknew(llev+1)*ps(ix,jy,1,n))- &
@@ -1460,11 +1468,15 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
 
   ! Levels, where u,v,t and q are given
   !************************************
+! if ((jy.eq.0).and.(ix.eq.0)) print*, 'in loop 4'
+
 
       uu(ix,jy,1,n)=uuh(ix,jy,llev)
       vv(ix,jy,1,n)=vvh(ix,jy,llev)
       tt(ix,jy,1,n)=tth(ix,jy,llev,n)
       qv(ix,jy,1,n)=qvh(ix,jy,llev,n)
+
+      
   ! IP & SEC, 201812 add clouds
       if (lcw) then
          clwc(ix,jy,1,n)=clwch(ix,jy,llev,n)
@@ -1477,6 +1489,8 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
       tt(ix,jy,nz,n)=tth(ix,jy,nuvz,n)
       qv(ix,jy,nz,n)=qvh(ix,jy,nuvz,n)
   ! IP & SEC, 201812 add clouds
+
+   
       if (lcw) then
          clwc(ix,jy,nz,n)=clwch(ix,jy,nuvz,n)
       endif
@@ -1484,9 +1498,12 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
       rho(ix,jy,nz,n)=rhoh(nuvz)
       pplev(ix,jy,nz,n)=akz(nuvz)
       kmin=llev+1
+
+       
       do iz=2,nz-1
         do kz=kmin,nuvz
-          if (height(iz).gt.uvwzlev(ix,jy,nuvz)) then
+          ! print*, 'in loop 4.3.1', jy, ix, iz, kz  
+          if (height(iz).gt.uvwzlev(ix,jy,nuvz)) then 
             uu(ix,jy,iz,n)=uu(ix,jy,nz,n)
             vv(ix,jy,iz,n)=vv(ix,jy,nz,n)
             tt(ix,jy,iz,n)=tt(ix,jy,nz,n)
@@ -1502,6 +1519,7 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
           endif
           if ((height(iz).gt.uvwzlev(ix,jy,kz-1)).and. &
            (height(iz).le.uvwzlev(ix,jy,kz))) then
+            !real,dimension(0:nxmax-1,0:nymax-1,nzmax) :: uvwzlev
             dz1=height(iz)-uvwzlev(ix,jy,kz-1)
             dz2=uvwzlev(ix,jy,kz)-height(iz)
             dz=dz1+dz2
@@ -1509,19 +1527,23 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
             vv(ix,jy,iz,n)=(vvh(ix,jy,kz-1)*dz2+vvh(ix,jy,kz)*dz1)/dz
             tt(ix,jy,iz,n)=(tth(ix,jy,kz-1,n)*dz2+tth(ix,jy,kz,n)*dz1)/dz
             qv(ix,jy,iz,n)=(qvh(ix,jy,kz-1,n)*dz2+qvh(ix,jy,kz,n)*dz1)/dz
+
   ! IP & SEC, 201812 add clouds
             if (lcw) then
               clwc(ix,jy,iz,n)= &
                 (clwch(ix,jy,kz-1,n)*dz2+clwch(ix,jy,kz,n)*dz1)/dz
             endif
             pv(ix,jy,iz,n)=(pvh(ix,jy,kz-1)*dz2+pvh(ix,jy,kz)*dz1)/dz
+
             rho(ix,jy,iz,n)=(rhoh(kz-1)*dz2+rhoh(kz)*dz1)/dz
+
             pplev(ix,jy,iz,n)=(akz(kz-1)*dz2+akz(kz)*dz1)/dz
+
           endif
         enddo
       enddo
 
-
+ 
   ! Interpolation of vertical motion (levels where w is given)
   !***********************************************************
 
@@ -1541,7 +1563,7 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
         enddo
       enddo
 
-
+!if ((jy.eq.0).and.(ix.eq.0)) print*, 'in loop 6'
   ! Compute density gradients at intermediate levels
   !*************************************************
 
@@ -1552,18 +1574,27 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
       enddo
       drhodz(ix,jy,nz,n)=drhodz(ix,jy,nz-1,n)
 
+    !if ((jy.eq.0).and.(ix.eq.0)) 
+
+
     enddo
   enddo
-
+!$OMP END DO
 
   !****************************************************************
   ! Compute slope of eta levels in windward direction and resulting
   ! vertical wind correction
   !****************************************************************
 
+
+!$OMP DO
   do jy=1,ny-2
     cosf=cos((real(jy)*dy+ylat0)*pi180)
+
     do ix=1,nx-2
+   ! print*, '1] slope of eta levels jy, ix=',jy, ix 
+
+   !if ((jy.le.2).and.(ix.eq.1)) print*, 'in eta loop 1'
 
   ! NCEP version: find first level above ground
       llev = 0
@@ -1571,12 +1602,19 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
        if (ps(ix,jy,1,n).lt.akz(i)) llev=i
       end do
       llev = llev+1
+
+!if ((jy.le.2).and.(ix.eq.1)) print*, 'in eta loop 2'
+
+
       if (llev.gt.nuvz-2) llev = nuvz-2
   !     if (llev.eq.nuvz-2) write(*,*) 'verttransform
   !    +WARNING: LLEV eq NUZV-2'
   ! NCEP version
 
       kmin=llev+1
+
+      !if ((jy.le.3).and.(ix.gt.250)) print*, 'in eta loop 3'
+
       do iz=2,nz-1
 
         ui=uu(ix,jy,iz,n)*dxconst/cosf
@@ -1584,6 +1622,7 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
 
         klp=nz+1
         do kz=kmin,nz
+ 
           if ((height(iz).gt.uvwzlev(ix,jy,kz-1)).and. &
           (height(iz).le.uvwzlev(ix,jy,kz))) then
             dz1=height(iz)-uvwzlev(ix,jy,kz-1)
@@ -1593,12 +1632,18 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
             klp=kz
             exit
           endif
+
         enddo
 
         if (klp.eq.nz+1) then
           klp=nz
           kl=nz-1
-          dz1=uvwzlev(ix,jy,kz)-uvwzlev(ix,jy,kz-1)
+
+         ! real,dimension(0:nxmax-1,0:nymax-1,nzmax) :: uvwzlev
+         
+          dz1=uvwzlev(ix,jy,klp)-uvwzlev(ix,jy,kl)
+
+
           dz2=0.
         endif
 
@@ -1617,10 +1662,16 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
 
         ww(ix,jy,iz,n)=ww(ix,jy,iz,n)+(dzdx*ui+dzdy*vi)
 
-      enddo
+      enddo ! z
+
+      !if ((jy.le.3).and.(ix.eq.1)) print*, 'in eta loop end z jy=',jy
+
 
     enddo
+
+
   enddo
+!$OMP END DO
 
 
   ! If north pole is in the domain, calculate wind velocities in polar
@@ -1843,7 +1894,6 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
 !**************************************************************************
   else       ! identify clouds using relative humidity
 !**************************************************************************
-
 !   clouds occur where rh>90% (using rh_ice for T<-20 deg C)
 
     write(*,*) 'NCEP fields: using relative humidity for cloud &

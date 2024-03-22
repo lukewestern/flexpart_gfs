@@ -42,4 +42,5 @@
  MAXFILESIZE=       10000, ! Maximum output of each partoutput NetCDF-4 file in Mb before a new one is created
  LOGVERTINTERP=         0, ! Flag to set all vertical interpolation to logarithmic instead of linear
  BCSCHEME=              1, ! Below-cloud scheme; [1] Laakso & Kyro [2] Wang et al [3] modified Wang et al
+ LCMOUTPUT=             0, ! Switch for the Linear Chemistry Module; [0] off [1] on
  /

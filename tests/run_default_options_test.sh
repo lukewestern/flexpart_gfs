@@ -295,7 +295,6 @@ TESTSRUN=$((TESTSRUN + 1))
 # clean up
 rm -rf ./current ./output/*
 #
-''
 #IFLUX
 cp -rf ./default_options ./current
 sed -i "/IFLUX=/c\ IFLUX=  1," ./current/COMMAND

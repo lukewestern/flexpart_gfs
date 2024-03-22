@@ -436,6 +436,8 @@ subroutine initialise_particles
 
   if (ipin.le.2) then 
     call readreleases
+    ! needs to be called after maxspec is defined in readreleases or readinitconditions
+    if (ipout.ne.0) call readpartoptions 
   else
 #ifdef USE_NCF
     call readinitconditions_netcdf
@@ -443,8 +445,6 @@ subroutine initialise_particles
     error stop 'Compile with netCDF if you would like to use the ipin=3,4 options.'
 #endif
   endif
-
-  if (ipout.ne.0) call readpartoptions
 
   if (iout.ne.0) then
     call alloc_grid

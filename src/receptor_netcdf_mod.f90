@@ -66,7 +66,7 @@ module receptor_netcdf_mod
       return
     endif
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -227,7 +227,7 @@ module receptor_netcdf_mod
       return
     endif
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -387,7 +387,7 @@ module receptor_netcdf_mod
     ! Get variable ids
     !*****************
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -432,7 +432,7 @@ module receptor_netcdf_mod
     ! Get variable ids
     !*****************
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -466,7 +466,7 @@ module receptor_netcdf_mod
     real, dimension(nspec,nlayermax) :: crec, cunc
     real, dimension(nlayermax) :: nnrec, xkrec
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1
@@ -514,7 +514,7 @@ module receptor_netcdf_mod
     real, dimension(nspec,nlayermax) :: crec, cunc
     real, dimension(nlayermax) :: nnrec, xkrec
 
-    if (lctmoutput) then
+    if (llcmoutput) then
       ks_start=2
     else
       ks_start=1

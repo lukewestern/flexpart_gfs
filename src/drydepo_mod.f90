@@ -827,7 +827,7 @@ subroutine drydepo_probability(ipart,dt,zts,vdepo,ithread)
 
   integer,intent(in) :: ithread ! OMP thread starting at 1
   integer,intent(in) :: ipart ! particle index
-  real,intent(inout) :: vdepo(maxspec)  ! deposition velocities for all species
+  real,intent(out) :: vdepo(maxspec)  ! deposition velocities for all species
   real,intent(in) :: dt,zts             ! real(ldt), real(zt)
   integer :: ns,m                      ! loop variable over species
   real :: vdeptemp(2)
@@ -1304,11 +1304,35 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep_tmp)
       do j=1,ndia(ic)         ! loop over all diameter intervals
         if (ustar.gt.eps) then          
           if (ishape(ic).eq.0) then
-                  
+
+            reynolds=dquer(ic)/1.e6*vset(ic,j)/nyl
+            settling_old=-1.0*vset(ic,j)
+
+            do i=1,20
+
+              if (reynolds.le.0.02) then
+                c_d=(24.0/reynolds)
+
+              else ! Clif and Gauvin scheme is used
+                c_d=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
+                  0.42/(1.0+42500.0/(reynolds**1.16))
+              endif
+
+
+            ! Settling velocity of a particle is defined by the Newton's impact law:
+              settling=-1.* &
+                      sqrt(4.*ga*dquer(ic)/1.e6*density(ic)*cunningham(ic)/ &
+                      (3.*c_d*rhoa))
+
+              if (abs((settling-settling_old)/settling).lt.0.01) exit     
+              reynolds=dquer(ic)/1.e6*abs(settling)/nyl
+              settling_old=settling
+            end do
+      
             ! Stokes number for each diameter interval
             !*****************************************
             ! Use this stokes number for different shapes
-            stokes=vset(ic,j)/ga*ustar*ustar/nyl
+            stokes=abs(settling)/ga*ustar*ustar/nyl
             alpha=-3./stokes
 
             ! Deposition layer resistance
@@ -1320,7 +1344,7 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep_tmp)
               rdp=1./((schmi(ic,j)+10.**alpha)*ustar)
             endif
 
-            vdepj=vset(ic,j)+1./(ra+rdp+ra*rdp*vset(ic,j))
+            vdepj=abs(settling)+1./(ra+rdp+ra*rdp*abs(settling))
 
           else ! Daria Tatsii: Drag coefficient scheme by Bagheri & Bonadonna 2016
                ! Settling velocities of other shapes

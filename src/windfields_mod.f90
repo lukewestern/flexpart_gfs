@@ -790,7 +790,7 @@ subroutine gridcheck_ecmwf
     write(*,*) 'Reduce resolution of wind fields.'
     write(*,*) 'Or change parameter settings in file par_mod.f90'
     write(*,*) nwz,nwzmax
-    stop
+    error stop
   endif
 
 
@@ -935,6 +935,7 @@ subroutine gridcheck_gfs
   use grib_api
   use cmapf_mod, only: stlmbr,stcm2p
 
+
   implicit none
 
   !HSO  parameters for grib_api
@@ -947,6 +948,7 @@ subroutine gridcheck_gfs
   !HSO  end
   integer :: ix,jy,i,ifn,ifield,j,k,iumax,iwmax,numskip
   real :: sizesouth,sizenorth,xauxa
+  real :: xsec18 !ip 
   real,allocatable,dimension(:) :: akm_usort,pres,tmppres
   real,parameter :: eps=0.0001
 
@@ -964,7 +966,13 @@ subroutine gridcheck_gfs
   !HSO  grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
   character(len=20) :: gribFunction = 'gridcheckwind_gfs'
-  !
+
+!  real(kind=4),allocatable,dimension(:) :: zsec4
+!  integer :: iret,size1,size2,stat
+
+
+
+!
   if (numbnests.ge.1) then
   write(*,*) ' ###########################################'
   write(*,*) ' FLEXPART ERROR SUBROUTINE GRIDCHECK:'
@@ -1019,6 +1027,8 @@ subroutine gridcheck_gfs
       call grib_get_int(igrib,'level',isec1(8),iret)
       call grib_check(iret,gribFunction,gribErrorMsg)
 
+      xsec18 = real(isec1(8))
+      
     else ! GRIB Edition 2
 
       !read the grib2 identifiers
@@ -1038,19 +1048,36 @@ subroutine gridcheck_gfs
       isec1(6)=-1
       isec1(7)=-1
       isec1(8)=-1
+      xsec18 = -1.0
+      
       if ((parCat.eq.2).and.(parNum.eq.2).and.(typSfc.eq.100)) then ! U
         isec1(6)=33          ! indicatorOfParameter
         isec1(7)=100         ! indicatorOfTypeOfLevel
         isec1(8)=valSurf/100 ! level, convert to hPa
+        xsec18=valSurf/100.0 ! level, convert to hPa
+        
+      ! fixgfs11
+      call grib_get_size(igrib,'values',size1,iret)
+      allocate( zsec4(size1),stat=stat )
+      if (stat.ne.0) error stop "Could not allocate zsec4"
+      call grib_get_real4_array(igrib,'values',zsec4,iret)
+      call grib_check(iret,gribFunction,gribErrorMsg)
+      !PRINT*,zsec4(1:15)
+      !stop    'MIP2 in gridcheck' 
+      deallocate(zsec4)
+        
       elseif ((parCat.eq.3).and.(parNum.eq.5).and.(typSfc.eq.1)) then ! TOPO
         isec1(6)=7           ! indicatorOfParameter
         isec1(7)=1           ! indicatorOfTypeOfLevel
         isec1(8)=0
+        xsec18=real(0)
+        
       elseif ((parCat.eq.0).and.(parNum.eq.0).and.(typSfc.eq.1) &
            .and.(discipl.eq.2)) then ! LSM
         isec1(6)=81          ! indicatorOfParameter
         isec1(7)=1           ! indicatorOfTypeOfLevel
         isec1(8)=0
+        xsec18=real(0)
       endif
 
     endif ! gribVer
@@ -1078,6 +1105,8 @@ subroutine gridcheck_gfs
            yaux2in,iret)
       call grib_check(iret,gribFunction,gribErrorMsg)
 
+
+
       ! Fix for flexpart.eu ticket #48
       if (xaux2in.lt.0) xaux2in = 359.0
 
@@ -1089,9 +1118,15 @@ subroutine gridcheck_gfs
       nxfield=isec2(2)
       ny=isec2(3)
       if((abs(xaux1).lt.eps).and.(xaux2.ge.359)) then ! NCEP DATA FROM 0 TO
-        xaux1=-179.0                             ! 359 DEG EAST ->
-        xaux2=-179.0+360.-360./real(nxfield)    ! TRANSFORMED TO -179
+
+        ! fixgfs11
+        ! xaux1=-179.0                             ! 359 DEG EAST ->
+        ! xaux2=-179.0+360.-360./real(nxfield)    ! TRANSFORMED TO -179
+        ! reset to working v10 settings
+        xaux1=-180.0                             ! 359 DEG EAST ->
+        xaux2=-180.0+360.-360./real(nxfield)    ! TRANSFORMED TO -179
       endif                                      ! TO 180 DEG EAST
+
       if (xaux1.gt.180) xaux1=xaux1-360.0
       if (xaux2.gt.180) xaux2=xaux2-360.0
       if (xaux1.lt.-180) xaux1=xaux1+360.0
@@ -1181,14 +1216,17 @@ subroutine gridcheck_gfs
 
     if((isec1(6).eq.33).and.(isec1(7).eq.100)) then ! check for U wind
       iumax=iumax+1
+      ! fixgfs11 
       allocate( tmppres(iumax), stat=stat)
       if (stat.ne.0) error stop "Could not allocate tmppres"
-      if (iumax.gt.1) tmppres(1:iumax)=pres
-      pres(iumax)=real(isec1(8))*100.0
+      if (iumax.gt.1) tmppres(1:iumax-1)=pres
+      !pres(iumax)=real(isec1(8))*100.0
       call move_alloc(tmppres,pres)
+      pres(iumax)=xsec18*100.0 
+      ! ip 30.1.24 fix vertical coordinate reading bug   
     endif
 
-
+    ! fixgfs11 TODO: finish cleanup
     i179=nint(179./dx)
     if (dx.lt.0.7) then
       i180=nint(180./dx)+1    ! 0.5 deg data
@@ -1197,13 +1235,16 @@ subroutine gridcheck_gfs
     endif
     i181=i180+1
 
+  ! fixgfs11 -- revert to working v10.4 setting
+  i180=nint(180./dx)    ! 0.5 deg data
+  i181=i180
+  i179=i180
 
     ! NCEP TERRAIN
     !*************
 
     if((isec1(6).eq.007).and.(isec1(7).eq.001)) then
-    ! IP 8/5/23 allocate fields missing for GFS reading 
-    call alloc_fixedfields
+
     ! IP 8/5/23
       do jy=0,ny-1
         do ix=0,nxfield-1
@@ -1236,7 +1277,7 @@ subroutine gridcheck_gfs
     endif
 
     call grib_release(igrib)
-    deallocate( zsec4 )
+    if (isec1(6).ne.-1) deallocate( zsec4 ) !IP 28/11/23 fix to run GFS tests
   end do                      !! READ NEXT LEVEL OR PARAMETER
   !
   ! CLOSING OF INPUT DATA FILE
@@ -1249,12 +1290,14 @@ subroutine gridcheck_gfs
   nuvz=iumax
   nwz =iumax
   nlev_ec=iumax
-
+  
   ! Allocate memory for windfields
   !*******************************
   nwzmax=nwz
   nuvzmax=nuvz
   nzmax=nuvz
+  nconvlevmax=iumax
+  na=nuvzmax
   call alloc_windfields
 
   if (nx.gt.nxmax) then
@@ -1355,6 +1398,7 @@ subroutine gridcheck_gfs
      akz(i)=akm(i)
      bkz(i)=bkm(i)
   end do
+
 
   ! NOTE: In FLEXPART versions up to 4.0, the number of model levels was doubled
   ! upon the transformation to z levels. In order to save computer memory, this is
@@ -1713,7 +1757,7 @@ subroutine gridcheck_nest
       endif
 
       call grib_release(igrib)
-      deallocate( zsec4 )
+      if (is6.ne.-1) deallocate( zsec4 )
     end do                 !! READ NEXT LEVEL OR PARAMETER
     !
     ! CLOSING OF INPUT DATA FILE
@@ -2178,9 +2222,9 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
     if (xaux.gt.180.) xaux=xaux-360.0
 
     if(abs(xaux-xlon0).gt.eps) &
-      error stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT'
+      error stop 'READWIND ECMWF : LOWER LEFT LONGITUDE NOT CONSISTENT'
     if(abs(yaux-ylat0).gt.eps) &
-      error stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT'
+      error stop 'READWIND ECMWF: LOWER LEFT LATITUDE NOT CONSISTENT'
     gotGrid=1
   endif ! gotGrid
 !$OMP END CRITICAL
@@ -2500,43 +2544,45 @@ subroutine readwind_ecmwf(indj,n,uuh,vvh,wwh)
   endif
 
   ! Temporary fix for zero values in the meteo data
-  do i=0,nxmin1
-    do j=0,nymin1
-      if ((ewss(i,j).eq.0.).and.(nsss(i,j).eq.0.)) then
-        if ((i.ne.0).and.(j.ne.0).and.(i.ne.nxmin1).and.(j.ne.nymin1)) then
-          ewss(i,j)=(ewss(i-1,j-1)+ewss(i+1,j+1)+ewss(i+1,j)+ewss(i-1,j)+ &
-                     ewss(i,j+1)+ewss(i,j-1)+ewss(i-1,j+1)+ewss(i+1,j-1))/8.
-          nsss(i,j)=(nsss(i-1,j-1)+nsss(i+1,j+1)+nsss(i+1,j)+nsss(i-1,j)+ &
-                     nsss(i,j+1)+nsss(i,j-1)+nsss(i-1,j+1)+nsss(i+1,j-1))/8.
-        else if ((i.eq.0).and.(j.eq.0)) then
-          ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i,j+1))/3.
-          nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i,j+1))/3.
-        else if ((i.eq.nxmin1).and.(j.eq.nymin1)) then
-          ewss(i,j)=(ewss(i-1,j-1)+ewss(i-1,j)+ewss(i,j-1))/3.
-          nsss(i,j)=(nsss(i-1,j-1)+nsss(i-1,j)+nsss(i,j-1))/3.
-        else if ((i.eq.0).and.(j.eq.nymin1)) then
-          ewss(i,j)=(ewss(i+1,j-1)+ewss(i+1,j)+ewss(i,j-1))/3.
-          nsss(i,j)=(nsss(i+1,j-1)+nsss(i+1,j)+nsss(i,j-1))/3.
-        else if ((i.eq.nxmin1).and.(j.eq.0)) then
-          ewss(i,j)=(ewss(i-1,j+1)+ewss(i-1,j)+ewss(i,j+1))/3.
-          nsss(i,j)=(nsss(i-1,j+1)+nsss(i-1,j)+nsss(i,j+1))/3.
-        else if (i.eq.0) then
-          ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i,j+1)+ewss(i,j-1)+ewss(i+1,j-1))/5.
-          nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i,j+1)+nsss(i,j-1)+nsss(i+1,j-1))/5.
-        else if (i.eq.nxmin1) then
-          ewss(i,j)=(ewss(i-1,j+1)+ewss(i-1,j)+ewss(i,j+1)+ewss(i,j-1)+ewss(i-1,j-1))/5.
-          nsss(i,j)=(nsss(i-1,j+1)+nsss(i-1,j)+nsss(i,j+1)+nsss(i,j-1)+nsss(i-1,j-1))/5.
-        else if (j.eq.0) then
-          ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i-1,j)+ewss(i,j+1)+ewss(i-1,j+1))/5.
-          nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i-1,j)+nsss(i,j+1)+nsss(i-1,j+1))/5.
-        else if (j.eq.nymin1) then
-          ewss(i,j)=(ewss(i+1,j-1)+ewss(i+1,j)+ewss(i-1,j)+ewss(i,j-1)+ewss(i-1,j-1))/5.
-          nsss(i,j)=(nsss(i+1,j-1)+nsss(i+1,j)+nsss(i-1,j)+nsss(i,j-1)+nsss(i-1,j-1))/5.
+  if (hflswitch .and. strswitch) then
+    do i=0,nxmin1
+      do j=0,nymin1
+        if ((ewss(i,j).eq.0.).and.(nsss(i,j).eq.0.)) then
+          if ((i.ne.0).and.(j.ne.0).and.(i.ne.nxmin1).and.(j.ne.nymin1)) then
+            ewss(i,j)=(ewss(i-1,j-1)+ewss(i+1,j+1)+ewss(i+1,j)+ewss(i-1,j)+ &
+                       ewss(i,j+1)+ewss(i,j-1)+ewss(i-1,j+1)+ewss(i+1,j-1))/8.
+            nsss(i,j)=(nsss(i-1,j-1)+nsss(i+1,j+1)+nsss(i+1,j)+nsss(i-1,j)+ &
+                       nsss(i,j+1)+nsss(i,j-1)+nsss(i-1,j+1)+nsss(i+1,j-1))/8.
+          else if ((i.eq.0).and.(j.eq.0)) then
+            ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i,j+1))/3.
+            nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i,j+1))/3.
+          else if ((i.eq.nxmin1).and.(j.eq.nymin1)) then
+            ewss(i,j)=(ewss(i-1,j-1)+ewss(i-1,j)+ewss(i,j-1))/3.
+            nsss(i,j)=(nsss(i-1,j-1)+nsss(i-1,j)+nsss(i,j-1))/3.
+          else if ((i.eq.0).and.(j.eq.nymin1)) then
+            ewss(i,j)=(ewss(i+1,j-1)+ewss(i+1,j)+ewss(i,j-1))/3.
+            nsss(i,j)=(nsss(i+1,j-1)+nsss(i+1,j)+nsss(i,j-1))/3.
+          else if ((i.eq.nxmin1).and.(j.eq.0)) then
+            ewss(i,j)=(ewss(i-1,j+1)+ewss(i-1,j)+ewss(i,j+1))/3.
+            nsss(i,j)=(nsss(i-1,j+1)+nsss(i-1,j)+nsss(i,j+1))/3.
+          else if (i.eq.0) then
+            ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i,j+1)+ewss(i,j-1)+ewss(i+1,j-1))/5.
+            nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i,j+1)+nsss(i,j-1)+nsss(i+1,j-1))/5.
+          else if (i.eq.nxmin1) then
+            ewss(i,j)=(ewss(i-1,j+1)+ewss(i-1,j)+ewss(i,j+1)+ewss(i,j-1)+ewss(i-1,j-1))/5.
+            nsss(i,j)=(nsss(i-1,j+1)+nsss(i-1,j)+nsss(i,j+1)+nsss(i,j-1)+nsss(i-1,j-1))/5.
+          else if (j.eq.0) then
+            ewss(i,j)=(ewss(i+1,j+1)+ewss(i+1,j)+ewss(i-1,j)+ewss(i,j+1)+ewss(i-1,j+1))/5.
+            nsss(i,j)=(nsss(i+1,j+1)+nsss(i+1,j)+nsss(i-1,j)+nsss(i,j+1)+nsss(i-1,j+1))/5.
+          else if (j.eq.nymin1) then
+            ewss(i,j)=(ewss(i+1,j-1)+ewss(i+1,j)+ewss(i-1,j)+ewss(i,j-1)+ewss(i-1,j-1))/5.
+            nsss(i,j)=(nsss(i+1,j-1)+nsss(i+1,j)+nsss(i-1,j)+nsss(i,j-1)+nsss(i-1,j-1))/5.
+          endif
         endif
-      endif
-      sfcstress(i,j,1,n)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
+        sfcstress(i,j,1,n)=sqrt(ewss(i,j)**2+nsss(i,j)**2)
+      end do
     end do
-  end do
+  endif
 
   if (.not.hflswitch .or. .not.strswitch) then
     write(*,*) 'WARNING: No flux data contained in GRIB file ', wfname(indj)
@@ -2676,6 +2722,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   !HSO kept isec1, isec2 and zsec4 for consistency with gribex GRIB input
 
   integer :: isec1(8),isec2(3)
+  real           :: xsec18  ! IP 29.1.24  
   real(kind=4),allocatable,dimension(:) :: zsec4
   real(kind=4) :: xaux,yaux,xaux0,yaux0
   real(kind=8) :: xauxin,yauxin
@@ -2687,7 +2734,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 
   !HSO  for grib api error messages
   character(len=24) :: gribErrorMsg = 'Error reading grib file'
-  ! character(len=20) :: gribFunction = 'readwind_gfs'
+  character(len=20) :: gribFunction = 'readwind_gfs'
   character(len=20) :: shortname
 
   if (numpf .gt. 1) goto 777 ! additional precip fields not implemented in GFS
@@ -2743,6 +2790,11 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
     call grib_get_int(igrib,'level',isec1(8),iret)
     !  call grib_check(iret,gribFunction,gribErrorMsg)
 
+! IP 01.24: port form nilu dev branch 
+!JMA / SH: isec1(8) not evaluated any more below
+!b/c with GRIB 2 this may be a real variable
+    xsec18 = real(isec1(8))
+    
     else ! GRIB Edition 2
 
     !read the grib2 identifiers
@@ -2765,91 +2817,135 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
     isec1(6)=-1
     isec1(7)=-1
     isec1(8)=-1
+
+    xsec18  =-1.0
+
     if ((parCat.eq.0).and.(parNum.eq.0).and.(typSfc.eq.100)) then ! T
       isec1(6)=11          ! indicatorOfParameter
       isec1(7)=100         ! indicatorOfTypeOfLevel
       isec1(8)=valSurf/100 ! level, convert to hPa
+      xsec18=valSurf/100.0 ! level, convert to hPa
+    
+
+      ! IPfixgfs11
+      call grib_get_size(igrib,'values',size1,iret)
+      allocate( zsec4(size1),stat=stat )
+      call grib_get_real4_array(igrib,'values',zsec4,iret)
+      call grib_check(iret,gribFunction,gribErrorMsg)
+      deallocate(zsec4)
+
+
     elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSfc.eq.100)) then ! U
       isec1(6)=33          ! indicatorOfParameter
       isec1(7)=100         ! indicatorOfTypeOfLevel
       isec1(8)=valSurf/100 ! level, convert to hPa
+      xsec18=valSurf/100.0 ! level, convert to hPa
+
+     ! IPfixgfs11
+     call grib_get_size(igrib,'values',size1,iret)
+     allocate( zsec4(size1),stat=stat )
+     call grib_get_real4_array(igrib,'values',zsec4,iret)
+     call grib_check(iret,gribFunction,gribErrorMsg)
+     deallocate(zsec4)
+
+
+      
     elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSfc.eq.100)) then ! V
       isec1(6)=34          ! indicatorOfParameter
       isec1(7)=100         ! indicatorOfTypeOfLevel
       isec1(8)=valSurf/100 ! level, convert to hPa
+      xsec18=valSurf/100.0 ! level, convert to hPa
     elseif ((parCat.eq.2).and.(parNum.eq.8).and.(typSfc.eq.100)) then ! W
       isec1(6)=39          ! indicatorOfParameter
       isec1(7)=100         ! indicatorOfTypeOfLevel
       isec1(8)=valSurf/100 ! level, convert to hPa
+      xsec18=valSurf/100.0 ! level, convert to hPa
     elseif ((parCat.eq.1).and.(parNum.eq.1).and.(typSfc.eq.100)) then ! RH
       isec1(6)=52          ! indicatorOfParameter
       isec1(7)=100         ! indicatorOfTypeOfLevel
       isec1(8)=valSurf/100 ! level, convert to hPa
+      xsec18=valSurf/100.0 ! level, convert to hPa
     elseif ((parCat.eq.1).and.(parNum.eq.1).and.(typSfc.eq.103)) then ! RH2
       isec1(6)=52          ! indicatorOfParameter
       isec1(7)=105         ! indicatorOfTypeOfLevel
       isec1(8)=2
+      xsec18=real(2)
     elseif ((parCat.eq.0).and.(parNum.eq.0).and.(typSfc.eq.103)) then ! T2
       isec1(6)=11          ! indicatorOfParameter
       isec1(7)=105         ! indicatorOfTypeOfLevel
       isec1(8)=2
+      xsec18=real(2)
     elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSfc.eq.103)) then ! U10
       isec1(6)=33          ! indicatorOfParameter
       isec1(7)=105         ! indicatorOfTypeOfLevel
       isec1(8)=10
+      xsec18=real(10)
     elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSfc.eq.103)) then ! V10
       isec1(6)=34          ! indicatorOfParameter
       isec1(7)=105         ! indicatorOfTypeOfLevel
       isec1(8)=10
+      xsec18=real(10)
     elseif ((parCat.eq.1).and.(parNum.eq.22).and.(typSfc.eq.100)) then ! CLWMR Cloud Mixing Ratio [kg/kg]:
       isec1(6)=153         ! indicatorOfParameter
       isec1(7)=100         ! indicatorOfTypeOfLevel
       isec1(8)=valSurf/100 ! level, convert to hPa
+      xsec18=valSurf/100.0 ! level, convert to hPa
     elseif ((parCat.eq.3).and.(parNum.eq.1).and.(typSfc.eq.101)) then ! SLP
       isec1(6)=2           ! indicatorOfParameter
       isec1(7)=102         ! indicatorOfTypeOfLevel
       isec1(8)=0
+      xsec18=real(0)
     elseif ((parCat.eq.3).and.(parNum.eq.0).and.(typSfc.eq.1)) then ! SP
       isec1(6)=1           ! indicatorOfParameter
       isec1(7)=1           ! indicatorOfTypeOfLevel
       isec1(8)=0
+      xsec18=real(0)
     elseif ((parCat.eq.1).and.(parNum.eq.13).and.(typSfc.eq.1)) then ! SNOW
       isec1(6)=66          ! indicatorOfParameter
       isec1(7)=1           ! indicatorOfTypeOfLevel
       isec1(8)=0
+      xsec18=real(0)
     elseif ((parCat.eq.0).and.(parNum.eq.0).and.(typSfc.eq.104)) then ! T sigma 0
       isec1(6)=11          ! indicatorOfParameter
       isec1(7)=107         ! indicatorOfTypeOfLevel
       isec1(8)=0.995       ! lowest sigma level !LB: isec1 is an integer array!!!
+      xsec18=0.995         ! lowest sigma level
     elseif ((parCat.eq.2).and.(parNum.eq.2).and.(typSfc.eq.104)) then ! U sigma 0
       isec1(6)=33          ! indicatorOfParameter
       isec1(7)=107         ! indicatorOfTypeOfLevel
       isec1(8)=0.995       ! lowest sigma level !LB: isec1 is an integer array!!!
+      xsec18=0.995         ! lowest sigma level
     elseif ((parCat.eq.2).and.(parNum.eq.3).and.(typSfc.eq.104)) then ! V sigma 0
       isec1(6)=34          ! indicatorOfParameter
       isec1(7)=107         ! indicatorOfTypeOfLevel
       isec1(8)=0.995       ! lowest sigma level !LB: isec1 is an integer array!!!
+      xsec18=0.995         ! lowest sigma level
     elseif ((parCat.eq.3).and.(parNum.eq.5).and.(typSfc.eq.1)) then ! TOPO
       isec1(6)=7           ! indicatorOfParameter
       isec1(7)=1           ! indicatorOfTypeOfLevel
       isec1(8)=0
+      xsec18=real(0)
     elseif ((parCat.eq.0).and.(parNum.eq.0).and.(typSfc.eq.1) &
          .and.(discipl.eq.2)) then ! LSM
       isec1(6)=81          ! indicatorOfParameter
       isec1(7)=1           ! indicatorOfTypeOfLevel
       isec1(8)=0
+      xsec18=real(0)
     elseif ((parCat.eq.3).and.(parNum.eq.196).and.(typSfc.eq.1)) then ! BLH
       isec1(6)=221         ! indicatorOfParameter
       isec1(7)=1           ! indicatorOfTypeOfLevel
       isec1(8)=0
+      xsec18=real(0)
     elseif ((parCat.eq.1).and.(parNum.eq.7).and.(typSfc.eq.1)) then ! LSP/TP
       isec1(6)=62          ! indicatorOfParameter
       isec1(7)=1           ! indicatorOfTypeOfLevel
       isec1(8)=0
+      xsec18=real(0)
     elseif ((parCat.eq.1).and.(parNum.eq.196).and.(typSfc.eq.1)) then ! CP
       isec1(6)=63          ! indicatorOfParameter
       isec1(7)=1           ! indicatorOfTypeOfLevel
       isec1(8)=0
+      xsec18=real(0)
     endif
 
     endif ! gribVer
@@ -2877,7 +2973,11 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 
       if(isec2(2).ne.nxfield) error stop 'READWIND: NX NOT CONSISTENT'
       if(isec2(3).ne.ny) error stop 'READWIND: NY NOT CONSISTENT'
-      if(xaux.eq.0.) xaux=-179.0     ! NCEP DATA
+      ! if(xaux.eq.0.) xaux=-179.0     ! NCEP DATA
+      ! IPfixgfs11: revert to working v10.4 settings
+
+      if(xaux.eq.0.) xaux=-180.0     ! NCEP DATA
+      
       xaux0=xlon0
       yaux0=ylat0
       if(xaux.lt.0.) xaux=xaux+360.
@@ -2885,9 +2985,9 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
       if(xaux0.lt.0.) xaux0=xaux0+360.
       if(yaux0.lt.0.) yaux0=yaux0+360.
       if(abs(xaux-xaux0).gt.eps) &
-           error stop 'READWIND: LOWER LEFT LONGITUDE NOT CONSISTENT'
+           error stop 'READWIND GFS: LOWER LEFT LONGITUDE NOT CONSISTENT'
       if(abs(yaux-yaux0).gt.eps) &
-           error stop 'READWIND: LOWER LEFT LATITUDE NOT CONSISTENT'
+           error stop 'READWIND GFS: LOWER LEFT LATITUDE NOT CONSISTENT'
     endif
     !HSO end of edits
 
@@ -2897,7 +2997,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
       allocate( zsec4(size1),stat=stat )
       if (stat.ne.0) error stop "Could not allocate zsec4"
       call grib_get_real4_array(igrib,'values',zsec4,iret)
-    !    call grib_check(iret,gribFunction,gribErrorMsg)
+      call grib_check(iret,gribFunction,gribErrorMsg)
     endif
 
     i179=nint(179./dx)
@@ -2908,19 +3008,34 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
     endif
     i181=i180+1
 
+    ! IPfixgfs11: revert to v10.4 working settings 
+    i180=nint(180./dx)
+    i181=i180
+    i179=i180 
+    
+
     if (isec1(6).ne.-1) then
+
 
     do j=0,nymin1
       do i=0,nxfield-1
         if((isec1(6).eq.011).and.(isec1(7).eq.100)) then
     ! TEMPERATURE
            if((i.eq.0).and.(j.eq.0)) then
-              do ii=1,nuvz
-                if ((isec1(8)*100.0).eq.akz(ii)) numpt=ii
-              end do
+              !do ii=1,nuvz
+              !  if ((isec1(8)*100.0).eq.akz(ii)) numpt=ii
+              !end do
+            numpt=minloc(abs(xsec18*100.0-akz),dim=1) ! IP 29.1.24
+            ! IPfixgfs11
+            ! numpt was const 1, and akzs were from not initialized allocation
           endif
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if (help.le.0) then
+            write (*, *) 'i, j: ', i, j
+            stop 'help <= 0.0 from zsec4'
+          endif
+!          if(i.le.i180) then ! 1==180 fills missing 0 lines in tth
+          if(i.lt.i180) then
             tth(i179+i,j,numpt,n)=help
           else
             tth(i-i181,j,numpt,n)=help
@@ -2929,12 +3044,13 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.033).and.(isec1(7).eq.100)) then
     ! U VELOCITY
            if((i.eq.0).and.(j.eq.0)) then
-              do ii=1,nuvz
-                if ((isec1(8)*100.0).eq.akz(ii)) numpu=ii
-              end do
+             ! do ii=1,nuvz
+             !   if ((isec1(8)*100.0).eq.akz(ii)) numpu=ii
+             ! end do
+            numpu=minloc(abs(xsec18*100.0-akz),dim=1)             
           endif
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             uuh(i179+i,j,numpu)=help
           else
             uuh(i-i181,j,numpu)=help
@@ -2943,12 +3059,13 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.034).and.(isec1(7).eq.100)) then
     ! V VELOCITY
            if((i.eq.0).and.(j.eq.0)) then
-              do ii=1,nuvz
-                if ((isec1(8)*100.0).eq.akz(ii)) numpv=ii
-              end do
+              !do ii=1,nuvz
+              !  if ((isec1(8)*100.0).eq.akz(ii)) numpv=ii
+              !end do
+             numpv=minloc(abs(xsec18*100.0-akz),dim=1)             
           endif
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             vvh(i179+i,j,numpv)=help
           else
             vvh(i-i181,j,numpv)=help
@@ -2957,12 +3074,14 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.052).and.(isec1(7).eq.100)) then
     ! RELATIVE HUMIDITY -> CONVERT TO SPECIFIC HUMIDITY LATER
            if((i.eq.0).and.(j.eq.0)) then
-              do ii=1,nuvz
-                if ((isec1(8)*100.0).eq.akz(ii)) numprh=ii
-              end do
+!              do ii=1,nuvz
+!                if ((isec1(8)*100.0).eq.akz(ii)) numprh=ii
+!              end do
+            numprh=minloc(abs(xsec18*100.0-akz),dim=1)
+              
           endif
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             qvh(i179+i,j,numprh,n)=help
           else
             qvh(i-i181,j,numprh,n)=help
@@ -2971,7 +3090,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.001).and.(isec1(7).eq.001)) then
     ! SURFACE PRESSURE
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             ps(i179+i,j,1,n)=help
           else
             ps(i-i181,j,1,n)=help
@@ -2979,13 +3098,15 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         endif
         if((isec1(6).eq.039).and.(isec1(7).eq.100)) then
     ! W VELOCITY
-           if((i.eq.0).and.(j.eq.0)) then
-              do ii=1,nuvz
-                if ((isec1(8)*100.0).eq.akz(ii)) numpw=ii
-              end do
-          endif
+!           if((i.eq.0).and.(j.eq.0)) then
+!              do ii=1,nuvz
+!                if ((isec1(8)*100.0).eq.akz(ii)) numpw=ii
+!              end do
+!          endif
+          if((i.eq.0).and.(j.eq.0)) numpw=minloc(abs(xsec18*100.0-akz),dim=1)
+          
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             wwh(i179+i,j,numpw)=help
           else
             wwh(i-i181,j,numpw)=help
@@ -2994,7 +3115,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.066).and.(isec1(7).eq.001)) then
     ! SNOW DEPTH
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             sd(i179+i,j,1,n)=help
           else
             sd(i-i181,j,1,n)=help
@@ -3003,7 +3124,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.002).and.(isec1(7).eq.102)) then
     ! MEAN SEA LEVEL PRESSURE
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             msl(i179+i,j,1,n)=help
           else
             msl(i-i181,j,1,n)=help
@@ -3012,47 +3133,56 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.071).and.(isec1(7).eq.244)) then
     ! TOTAL CLOUD COVER
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             tcc(i179+i,j,1,n)=help
           else
             tcc(i-i181,j,1,n)=help
           endif
         endif
         if((isec1(6).eq.033).and.(isec1(7).eq.105).and. &
-             (isec1(8).eq.10)) then
+             (nint(xsec18).eq.10)) then       
+!             (isec1(8).eq.10)) then   
+
+
     ! 10 M U VELOCITY
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             u10(i179+i,j,1,n)=help
           else
             u10(i-i181,j,1,n)=help
           endif
         endif
         if((isec1(6).eq.034).and.(isec1(7).eq.105).and. &
-             (isec1(8).eq.10)) then
+        (nint(xsec18).eq.10)) then
+!             (isec1(8).eq.10)) then
+             
     ! 10 M V VELOCITY
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             v10(i179+i,j,1,n)=help
           else
             v10(i-i181,j,1,n)=help
           endif
         endif
         if((isec1(6).eq.011).and.(isec1(7).eq.105).and. &
-             (isec1(8).eq.02)) then
+             (nint(xsec18).eq.2)) then
+!             (isec1(8).eq.02)) then
+            
     ! 2 M TEMPERATURE
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             tt2(i179+i,j,1,n)=help
           else
             tt2(i-i181,j,1,n)=help
           endif
         endif
         if((isec1(6).eq.017).and.(isec1(7).eq.105).and. &
-             (isec1(8).eq.02)) then
+             (nint(xsec18).eq.2)) then
+       !      (isec1(8).eq.02)) then
+             
     ! 2 M DEW POINT TEMPERATURE
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             td2(i179+i,j,1,n)=help
           else
             td2(i-i181,j,1,n)=help
@@ -3061,7 +3191,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.062).and.(isec1(7).eq.001)) then
     ! LARGE SCALE PREC.
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             lsprec(i179+i,j,1,1,n)=help
           else
             lsprec(i-i181,j,1,1,n)=help
@@ -3070,7 +3200,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.063).and.(isec1(7).eq.001)) then
     ! CONVECTIVE PREC.
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             convprec(i179+i,j,1,1,n)=help
           else
             convprec(i-i181,j,1,1,n)=help
@@ -3079,7 +3209,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.007).and.(isec1(7).eq.001)) then
     ! TOPOGRAPHY
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             oro(i179+i,j)=help
             excessoro(i179+i,j)=0.0 ! ISOBARIC SURFACES: SUBGRID TERRAIN DISREGARDED
           else
@@ -3090,7 +3220,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.081).and.(isec1(7).eq.001)) then
     ! LAND SEA MASK
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             lsm(i179+i,j)=help
           else
             lsm(i-i181,j)=help
@@ -3099,7 +3229,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.221).and.(isec1(7).eq.001)) then
     ! MIXING HEIGHT
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             hmix(i179+i,j,1,n)=help
           else
             hmix(i-i181,j,1,n)=help
@@ -3109,7 +3239,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
              (isec1(8).eq.02)) then
     ! 2 M RELATIVE HUMIDITY
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             qvh2(i179+i,j)=help
           else
             qvh2(i-i181,j)=help
@@ -3118,7 +3248,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.011).and.(isec1(7).eq.107)) then
     ! TEMPERATURE LOWEST SIGMA LEVEL
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             tlev1(i179+i,j)=help
           else
             tlev1(i-i181,j)=help
@@ -3127,7 +3257,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.033).and.(isec1(7).eq.107)) then
     ! U VELOCITY LOWEST SIGMA LEVEL
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             ulev1(i179+i,j)=help
           else
             ulev1(i-i181,j)=help
@@ -3136,7 +3266,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
         if((isec1(6).eq.034).and.(isec1(7).eq.107)) then
     ! V VELOCITY LOWEST SIGMA LEVEL
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             vlev1(i179+i,j)=help
           else
             vlev1(i-i181,j)=help
@@ -3145,12 +3275,13 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
     ! SEC & IP 12/2018 read GFS clouds
         if((isec1(6).eq.153).and.(isec1(7).eq.100)) then  !! CLWCR  Cloud liquid water content [kg/kg] 
            if((i.eq.0).and.(j.eq.0)) then
-              do ii=1,nuvz
-                if ((isec1(8)*100.0).eq.akz(ii)) numpclwch=ii
-              end do
+            !  do ii=1,nuvz
+            !1    if ((isec1(8)*100.0).eq.akz(ii)) numpclwch=ii
+            ! end do
+            numpclwch=minloc(abs(xsec18*100.0-akz),dim=1)     
           endif
           help=zsec4(nxfield*(ny-j-1)+i+1)
-          if(i.le.i180) then
+          if(i.lt.i180) then
             clwch(i179+i,j,numpclwch,n)=help
           else
             clwch(i-i181,j,numpclwch,n)=help
@@ -3172,7 +3303,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 
     call grib_release(igrib)
 
-    deallocate( zsec4 )
+    if (isec1(6).ne.-1) deallocate( zsec4 ) !IP 28/11/23 fix deallocation error
   end do                      !! READ NEXT LEVEL OR PARAMETER
   !
   ! CLOSING OF INPUT DATA FILE
@@ -3180,7 +3311,7 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
 
   !HSO close grib file
   call grib_close_file(ifile)
-
+   
   ! SENS. HEAT FLUX
   sshf(:,:,1,n)=0.0     ! not available from gfs.tccz.pgrbfxx files
   hflswitch=.false.    ! Heat flux not available
@@ -3224,7 +3355,15 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
       do k=1,nuvz
         help=qvh(i,j,k,n)
         temp=tth(i,j,k,n)
+        if (temp .le. 0.0) then 
+          write (*, *) 'STOP: TRANSFORM RH TO SPECIFIC HUMIDITY: temp, i, j, k, n'
+          write (*, *) temp, i, j, k, n
+!          temp = 273.0
+          stop
+        endif
+
         plev1=akm(k)+bkm(k)*ps(i,j,1,n)
+        !print*, temp,plev1  
         elev=ew(temp,plev1)*help/100.0
         qvh(i,j,k,n)=xmwml*(elev/(plev1-((1.0-xmwml)*elev)))
       end do
@@ -3234,11 +3373,18 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
   ! CALCULATE 2 M DEW POINT FROM 2 M RELATIVE HUMIDITY
   ! USING BOLTON'S (1980) FORMULA
   ! BECAUSE td2 IS NOT AVAILABLE FROM NCEP GFS DATA
-
+  k=1 ! CHECK THIS!!!
   do j=0,ny-1
     do i=0,nxfield-1
         help=qvh2(i,j)
         temp=tt2(i,j,1,n)
+        if (temp .le. 0.0) then 
+          write (*, *) 'STOP: CALCULATE 2 M DEW POINT FROM 2 M RELATIVE HUMIDITY: temp, i, j, k, n'
+          write (*, *) temp, i, j, k, n
+!          temp = 273.0
+          stop
+        endif
+
         plev1=akm(k)+bkm(k)*ps(i,j,1,n)
         elev=ew(temp,plev1)/100.*help/100.   !vapour pressure in hPa
         td2(i,j,1,n)=243.5/(17.67/log(elev/6.112)-1)+273.
@@ -3897,8 +4043,6 @@ subroutine alloc_fixedfields
   if (stat.ne.0) error stop "Could not allocate excessoro"
   allocate(lsm(0:nxmax-1,0:nymax-1),stat=stat)
   if (stat.ne.0) error stop "Could not allocate lsm"
-  allocate(pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate pv"
 end subroutine alloc_fixedfields
 
 subroutine alloc_fixedfields_nest
@@ -3961,6 +4105,8 @@ subroutine alloc_windfields
   if (stat.ne.0) error stop "Could not allocate tt"
   allocate(tth(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)
   if (stat.ne.0) error stop "Could not allocate tth"
+  allocate(pv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
+  if (stat.ne.0) error stop "Could not allocate pv"
   allocate(qv(0:nxmax-1,0:nymax-1,nzmax,numwfmem),stat=stat)
   if (stat.ne.0) error stop "Could not allocate qv"
   allocate(qvh(0:nxmax-1,0:nymax-1,nuvzmax,numwfmem),stat=stat)

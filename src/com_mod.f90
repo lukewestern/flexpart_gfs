@@ -25,10 +25,12 @@ module com_mod
   !**********************************************************************************
   type :: particleoptions
     character(2) :: name
-    character(20) :: long_name
+    character(28) :: long_name
+    character(7) :: short_name
     logical :: print
     logical :: average=.false.
     integer :: i_average=0
+    integer :: ncid
   end type particleoptions
 
   integer :: num_partopt=34
@@ -101,7 +103,7 @@ module com_mod
   integer :: surf_only ! deprecated
   logical :: turbswitch
   integer :: cblflag !added by mc for cbl
-  logical :: lctmoutput
+  logical :: llcmoutput
 
   ! ctl      factor, by which time step must be smaller than Lagrangian time scale
   ! ifine    reduction factor for time step used for vertical wind
@@ -138,7 +140,7 @@ module com_mod
 
   ! ind_rel and ind_samp  are used within the code to change between mass and mass-mix (see readcommand.f)
   ! cblflag !: 1 activate cbl skewed pdf routines with bi-gaussina pdf whan OL<0 added by mc
-  ! lctmoutput  switch for CTM output (uses mass ratio of species to air tracer) or normal output
+  ! llcmoutput  switch for LCM output (uses mass ratio of species to air tracer) or normal output
 
 
   integer :: mintime,itsplit
@@ -236,7 +238,7 @@ module com_mod
   integer :: reag_hourly(maxreagent), nreagent  
   ! reaction rates
   real,allocatable,dimension(:,:) :: reaccconst,reacdconst,reacnconst
-  ! emissions variables for CTM
+  ! emissions variables for LCM
   character(len=256),allocatable,dimension(:) :: emis_path,emis_file,emis_name
   integer,allocatable,dimension(:) :: emis_unit
   real,allocatable,dimension(:) :: emis_coeff
