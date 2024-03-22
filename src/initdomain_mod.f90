@@ -476,12 +476,13 @@ module initdomain_mod
 
     implicit none
 
-    integer :: j,ix,jy,kz,ncolumn,numparttot,iterminate
-    real :: gridarea(0:nymax-1),pp(nzmax),ylat,ylatp,ylatm,hzone
+    integer :: j,ix,jy,kz,ncolumn,numparttot,iterminate,stat
+    real :: ylat,ylatp,ylatm,hzone
     real :: cosfactm,cosfactp,deltacol,dz1,dz2,dz,pnew,fractus
     real,parameter :: pih=pi/180.
-    real :: colmass(0:nxmax-2,0:nymax-1),colmasstotal,zposition
+    real :: colmasstotal,zposition
     real :: hgt_tmp
+    real, allocatable,dimension(:) :: pp
 
     integer :: ixm,ixp,jym,jyp,indzm,indzp,nn,indzh,i,ii,jj,ks,indxn
     real :: pvpart,ddx,ddy,rddx,rddy,p1,p2,p3,p4,y1(2)
@@ -493,7 +494,9 @@ module initdomain_mod
     real :: rho_d_i, rho_m_i
 
     ! variables for column mass calculation 
-    integer :: nncolumn(0:nxmax-1, 0:nymax-1)
+    integer,allocatable,dimension(:,:) :: nncolumn
+    real,allocatable,dimension(:)   :: gridarea !
+    real,allocatable,dimension(:,:) :: colmass !
     real,parameter :: weightair=28.97
 
     ! variables to store source profiles
@@ -538,6 +541,13 @@ module initdomain_mod
     ! Exit here if resuming a run from particle dump
     !***********************************************
     if (gdomainfill.and.ipin.ne.0) return
+
+    ! Allocate fields used within this subroutine
+    !*********************************************
+    allocate( nncolumn(0:nxmax-1, 0:nymax-1),stat=stat )
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate nncolumn'
+    allocate(gridarea(0:nymax-1),colmass(0:nxmax-2,0:nymax-1),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate gridarea or colmass'
 
     ! Do not release particles twice (i.e., not at both in the leftmost and rightmost
     ! grid cell) for a global domain
@@ -628,6 +638,9 @@ module initdomain_mod
 
 !$OMP PARALLEL PRIVATE(jy,ix,ylat,ylatp,ylatm,hzone,cosfactp,cosfactm,pp) 
 
+    allocate( pp(nzmax),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate pp inside of OMP loop'
+
 !$OMP DO
     ! loop over latitudes
     do jy=ny_sn(1),ny_sn(2)
@@ -666,6 +679,7 @@ module initdomain_mod
       end do
     end do
 !$OMP END DO
+    deallocate(pp)
 !$OMP END PARALLEL
 
     colmasstotal=sum(colmass)
@@ -683,12 +697,12 @@ module initdomain_mod
 
     ! If not continuing from particle dump
     !*************************************
-
     if (ipin.eq.0) numpart=0
 
     ! Determine the particle positions
     !*********************************
-
+    allocate( pp(nzmax),stat=stat)
+    if (stat.ne.0) write(*,*)'ERROR: could not allocate pp'
     numparttot=0
     numcolumn=0
 
@@ -1081,7 +1095,8 @@ module initdomain_mod
            zcolumn_we,zcolumn_sn,acc_mass_we,acc_mass_sn
       close(unitboundcond)
     endif
-
+  
+    deallocate( nncolumn,gridarea,colmass )
   end subroutine init_domainfill_ncf
 
   !*****************************************************************************
