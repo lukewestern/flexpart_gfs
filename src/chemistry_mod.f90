@@ -485,6 +485,7 @@ module chemistry_mod
     use particle_mod,   only: count, part, mass
     use point_mod,      only: xlon0, ylat0, dx, dy
     use windfields_mod, only: xresoln, yresoln, xln, yln, xrn, yrn, height, tt, nz
+    use omp_lib
 
     implicit none
 
@@ -492,7 +493,7 @@ module chemistry_mod
     integer               :: ii,i,j,ks,ix,jy,kz,jrx,jry,nr
     integer               :: ngrid,interp_time,n,indz
     integer               :: jjjjmmdd,hhmmss,mm,hh,m1,m2
-    integer               :: clx,cly,clz,clzm
+    integer               :: clx,cly,clz,clzm,ithread
     real, dimension(nzCL) :: altCLtop
     real, dimension(2)    :: cl_tmp
     real                  :: xlon,ylat
@@ -504,6 +505,9 @@ module chemistry_mod
     real, parameter       :: smallnum = tiny(0.0) ! smallest number that can be handled
     real(kind=dp)         :: jul
     real                  :: lonjrx,latjry
+#ifdef _OPENMP
+    real(kind=dp), allocatable, dimension(:,:,:) :: chem_loss_tmp
+#endif
 
     ! use middle of synchronisation time step
     interp_time=nint(itime+0.5*lsynctime)
@@ -514,14 +518,24 @@ module chemistry_mod
     ! initialization
     chem_loss(:,:)=0d0
 
+#ifdef _OPENMP
+    allocate( chem_loss_tmp(nreagent,nspec,numthreads) )
+    chem_loss_tmp(:,:,:) = 0d0
+#endif 
     ! Loop over particles
     !*****************************************
 
 !$OMP PARALLEL &
 !$OMP PRIVATE(ii,jpart,ngrid,j,xtn,ytn,ix,jy, &
 !$OMP   xlon,ylat,clx,cly,clz,clzm,kz,altCLtop,dz1,dz2,dzz,nr,i, &
-!$OMP   cl_cur,indz,temp,ks,clrate,restmass,clreacted) &
-!$OMP REDUCTION(+:chem_loss) 
+!$OMP   cl_cur,indz,temp,ks,clrate,restmass,clreacted,ithread)
+! !$OMP REDUCTION(+:chem_loss) 
+
+#ifdef _OPENMP
+    ithread = OMP_GET_THREAD_NUM()+1 ! Starts with 1
+#else
+    ithread = 1
+#endif
 
 !$OMP DO
     do ii=1,count%alive
@@ -562,8 +576,8 @@ module chemistry_mod
       endif
       ! get position in the chem field
       ! assumes chem field dimensions given as grid midpoints
-      clx=int((xlon-(lonCL(1)-0.5*dxCL))/dxCL)+1
-      cly=int((ylat-(latCL(1)-0.5*dyCL))/dyCL)+1   
+      clx=min(nxCL, int((xlon-(lonCL(1)-0.5*dxCL))/dxCL)+1)
+      cly=min(nyCL, int((ylat-(latCL(1)-0.5*dyCL))/dyCL)+1)
 
       ! get the level of the chem field for the particle
       ! z is the z-coord of the trajectory above model orography in metres
@@ -626,7 +640,11 @@ module chemistry_mod
                 clreacted=mass(jpart,ks)
                 mass(jpart,ks)=0.
               endif
+#ifdef _OPENMP
+              chem_loss_tmp(nr,ks,ithread)=chem_loss_tmp(nr,ks,ithread)+real(clreacted,kind=dp)
+#else
               chem_loss(nr,ks)=chem_loss(nr,ks)+real(clreacted,kind=dp)
+#endif
             endif
           end do  ! nspec
         endif   
@@ -637,6 +655,13 @@ module chemistry_mod
 !$OMP END DO
 
 !$OMP END PARALLEL
+  
+#ifdef _OPENMP
+  do ithread=1,numthreads
+    chem_loss(:,:) = chem_loss(:,:)+chem_loss_tmp(:,:,ithread)
+  end do 
+  deallocate( chem_loss_tmp )
+#endif
 
   end subroutine chemreaction
 

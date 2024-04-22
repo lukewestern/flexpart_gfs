@@ -52,12 +52,13 @@ module emissions_mod
   !*****************************************************************************
 
     use windfields_mod, only: hmix
+    use omp_lib
 
     implicit none
 
     integer       :: itime
     real          :: xlon,ylat
-    integer       :: ix, jy, ixp, jyp, ii, ks, em_ix, em_jy 
+    integer       :: ix, jy, ixp, jyp, ii, ks, em_ix, em_jy, ithread
     real          :: dt1,dt2,dtt,ddx,ddy,rddx,rddy,p1,p2,p3,p4,dz1,dz2,dz
     real          :: em_dt1, em_dt2, em_dtt
     real, dimension(2) :: hm 
@@ -68,6 +69,10 @@ module emissions_mod
     character(len=20) :: frmt
     real          :: em_frac
     real, allocatable, dimension(:,:,:) :: em_neg
+#ifdef _OPENMP
+    real, allocatable, dimension(:,:) :: tot_em_up_tmp
+    real, allocatable, dimension(:,:,:,:) :: mass_field_tmp, em_neg_tmp
+#endif
     real          :: f_m
     logical       :: lexist
     integer, parameter :: unittest=120
@@ -86,29 +91,49 @@ module emissions_mod
     dt2=float(memtime(2)-itime)
     dtt=1./(dt1+dt2)
 
-    tot_em_up(:) = 0.
-
     ! estimate mass in PBL from particle positions
     !**********************************************
 
-    mass_field(:,:,:) = 0.
     allocate( em_neg(nspec-1,nxem,nyem) )
+#ifdef _OPENMP
+    allocate( mass_field_tmp(nspec,nxem,nyem,numthreads))
+    allocate( em_neg_tmp(nspec-1,nxem,nyem,numthreads))
+    allocate( tot_em_up_tmp(nspec,numthreads) )
+#endif
+
+!$OMP PARALLEL
+!$OMP WORKSHARE
+    mass_field_tmp(:,:,:,:) = 0.
+    em_neg_tmp(:,:,:,:) = 0.
+    tot_em_up_tmp(:,:) = 0.
+    tot_em_up(:) = 0.
+    mass_field(:,:,:) = 0.
     em_neg(:,:,:) = 0.
+!$OMP END WORKSHARE
+!$OMP END PARALLEL
 
 !$OMP PARALLEL &
 !$OMP PRIVATE(ii,xlon,ylat,em_ix,em_jy,ix,jy,ixp,jyp,ddx,ddy, &
-!$OMP rddx,rddy,p1,p2,p3,p4,mm,hm,hmixi,ks,em_cur,tmp) &
-!$OMP SHARED(em_cond) 
+!$OMP rddx,rddy,p1,p2,p3,p4,mm,hm,hmixi,ks,ithread) &
+!$OMP SHARED(em_cond,mass_field_tmp) 
 
-!$OMP DO REDUCTION(+:mass_field)
+#ifdef _OPENMP
+    ithread = OMP_GET_THREAD_NUM()+1 ! Starts with 1
+#else
+    ithread = 1
+#endif
+
+!$OMP DO 
+
+! REDUCTION(+:mass_field)
     do ii=1,count%alive  ! loop over all particles
 
       xlon=xlon0+part(ii)%xlon*dx
       ylat=ylat0+part(ii)%ylat*dy
 
       ! assume emission dimensions given as grid midpoints
-      em_ix=int((xlon-(lonem(1)-0.5*dxem))/dxem)+1
-      em_jy=int((ylat-(latem(1)-0.5*dyem))/dyem)+1
+      em_ix=min(nxem, int((xlon-(lonem(1)-0.5*dxem))/dxem)+1)
+      em_jy=min(nyem, int((ylat-(latem(1)-0.5*dyem))/dyem)+1)
       !! testing
       if (ii.lt.20) print*, 'lonem, lon, latem, lat = ',lonem(em_ix),xlon,latem(em_jy),ylat
 
@@ -141,19 +166,42 @@ module emissions_mod
       em_cond(ii) = part(ii)%z.le.hmixi
 
       if (em_cond(ii)) then
-        mass_field(1:nspec,em_ix, em_jy)=mass_field(1:nspec, em_ix, em_jy) + &
-                                         mass(ii,1:nspec)
+#ifdef _OPENMP
+        mass_field_tmp(1:nspec,em_ix,em_jy,ithread)= &
+              mass_field_tmp(1:nspec,em_ix,em_jy,ithread) + &
+              mass(ii,1:nspec)
+#else
+        mass_field(1:nspec,em_ix,em_jy)=mass_field(1:nspec,em_ix,em_jy) + &
+                                        mass(ii,1:nspec)
+#endif
       endif
 
     end do   ! end of particle loop
 !$OMP END DO
+!$OMP END PARALLEL
 
+    ! Manual reduction of mass_field
+    do ithread=1,numthreads
+      mass_field(:,:,:) = mass_field(:,:,:)+mass_field_tmp(:,:,:,ithread)
+    end do 
     f_m = exp(-1.*real(lsynctime)/tau_ipm)
 
     ! estimate emissions for each particle
     !**************************************
 
-!$OMP DO REDUCTION(+:tot_em_up,em_neg)
+!$OMP PARALLEL &
+!$OMP PRIVATE(ii,xlon,ylat,em_ix,em_jy, &
+!$OMP ks,em_cur,tmp,ithread) &
+!$OMP SHARED(em_cond,tot_em_up_tmp,em_neg_tmp) 
+
+#ifdef _OPENMP
+    ithread = OMP_GET_THREAD_NUM()+1 ! Starts with 1
+#else
+    ithread = 1
+#endif
+
+!$OMP DO 
+! REDUCTION(+:tot_em_up,em_neg)
     do ii=1,count%alive ! loop over particles
 
       if (.not.em_cond(ii)) cycle ! skip particles not in PBL
@@ -161,8 +209,8 @@ module emissions_mod
       xlon=xlon0+part(ii)%xlon*dx
       ylat=ylat0+part(ii)%ylat*dy
       ! assume emission dimensions given as grid midpoints
-      em_ix=int((xlon-(lonem(1)-0.5*dxem))/dxem)+1
-      em_jy=int((ylat-(latem(1)-0.5*dyem))/dyem)+1
+      em_ix=min(nxem, int((xlon-(lonem(1)-0.5*dxem))/dxem)+1)
+      em_jy=min(nyem, int((ylat-(latem(1)-0.5*dyem))/dyem)+1)
 
       ! loop over species
       ! skip species 1 as it is always air tracer with no emission
@@ -185,18 +233,23 @@ module emissions_mod
           if (-1.*tmp.gt.mass(ii,ks)) then
             tmp = tmp + mass(ii,ks)
             ! subtract mass from atmosphere by setting it to zero below
-            tot_em_up(ks) = tot_em_up(ks) - real(mass(ii,ks),kind=dp)
+            tot_em_up_tmp(ks,ithread) = tot_em_up_tmp(ks,ithread) - real(mass(ii,ks),kind=dp)
             mass(ii,ks) = 0.
-            ! add remaining uptake to em_neg 
+            ! add remaining uptake to em_neg
+#ifdef _OPENMP
+            em_neg_tmp(ks-1,em_ix,em_jy,ithread) = em_neg_tmp(ks-1,em_ix,em_jy,ithread) + &
+              tmp/mass(ii,1)*mass_field(1,em_ix,em_jy)
+#else
             em_neg(ks-1, em_ix, em_jy) = em_neg(ks-1, em_ix, em_jy) + &
               tmp/mass(ii,1)*mass_field(1,em_ix,em_jy)
+#endif
           else
             mass(ii,ks)=mass(ii,ks)+tmp
-            tot_em_up(ks) = tot_em_up(ks) + real(tmp,kind=dp)
+            tot_em_up_tmp(ks,ithread) = tot_em_up_tmp(ks,ithread) + real(tmp,kind=dp)
           endif
         else
           mass(ii,ks)=mass(ii,ks)+tmp
-          tot_em_up(ks) = tot_em_up(ks) + real(tmp,kind=dp)
+          tot_em_up_tmp(ks,ithread) = tot_em_up_tmp(ks,ithread) + real(tmp,kind=dp)
         endif ! negative emissions
 
       end do ! nspec
@@ -225,6 +278,16 @@ module emissions_mod
     end do
 !$OMP END DO
 !$OMP END PARALLEL
+
+#ifdef _OPENMP
+    do ithread=1,numthreads
+      em_neg(:,:,:) = em_neg(:,:,:)+em_neg_tmp(:,:,:,ithread)
+      tot_em_up(:) = tot_em_up(:) + tot_em_up_tmp(:,ithread)
+    end do 
+    deallocate( mass_field_tmp,em_neg_tmp,tot_em_up_tmp )
+#else
+    tot_em_up(:) = tot_em_up_tmp(:,1)
+#endif
 
     ! update for negative emissions
     em_res(:,:,:) = em_res(:,:,:)+em_neg(:,:,:)

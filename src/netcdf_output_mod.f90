@@ -2055,7 +2055,7 @@ subroutine writeheader_partoutput_vars(np,ncid,totpart,timeDimID,partDimID,latDi
       call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
         varid,(/ 1,totpart /),'m/s',.false.,'settling_velocity_average','settling velocity averaged')
     case ('MA') ! Mass
-      if (mdomainfill.ge.1) then
+      if ((mdomainfill.ge.1).and.(nspec.eq.1)) then
         call nf90_err(nf90_def_var(ncid=ncid, name=trim(partopt(np)%short_name), xtype=nf90_float, &
           dimids=1, varid=varid))
         call nf90_err(nf90_put_att(ncid, varid, 'units', 'kg'))
@@ -2073,7 +2073,7 @@ subroutine writeheader_partoutput_vars(np,ncid,totpart,timeDimID,partDimID,latDi
         end do
       endif
     case ('ma') ! Mass averaged
-      if (mdomainfill.ge.1) then
+      if ((mdomainfill.ge.1).and.(nspec.eq.1)) then
         call nf90_err(nf90_def_var(ncid=ncid, name=trim(partopt(np)%short_name), xtype=nf90_float, dimids=1, varid=varid))
         call nf90_err(nf90_put_att(ncid, varid, 'units', 'kg'))
         call nf90_err(nf90_put_att(ncid, varid, '_FillValue', fillval))
@@ -2364,7 +2364,7 @@ subroutine partoutput_netcdf(itime,field,np,imass,ncid)
     endif
 
   else if (partopt(np)%name.eq.'MA') then
-    if ((mdomainfill.ge.1).and.(imass.eq.1)) then
+    if ((mdomainfill.ge.1).and.(imass.eq.1).and.(nspec.eq.1)) then
       if (mass_written.eqv..false.) then 
         call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
         call nf90_err(nf90_put_var(ncid=ncid,varid=tempIDend,values=field(1)))
@@ -2376,7 +2376,7 @@ subroutine partoutput_netcdf(itime,field,np,imass,ncid)
       call nf90_err(nf90_put_var(ncid,tempIDend,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
     endif
   else if (partopt(np)%name.eq.'ma') then
-    if ((mdomainfill.ge.1).and.(imass.eq.1)) then
+    if ((mdomainfill.ge.1).and.(imass.eq.1).and.(nspec.eq.1)) then
       if (mass_written.eqv..false.) then 
         call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
         call nf90_err(nf90_put_var(ncid,tempIDend,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
@@ -2477,26 +2477,26 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
 
   ! And give them the correct positions
   ! Longitude
-  call nf90_err(nf90_inq_varid(ncid=ncidend,name='longitude',varid=tempIDend))
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='lon',varid=tempIDend))
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%xlon, & 
     start=(/ tlen, 1 /),count=(/ 1, plen /)))
   part(:)%xlon=(part(:)%xlon-xlon0)/dx
   ! Latitude
-  call nf90_err(nf90_inq_varid(ncid=ncidend,name='latitude',varid=tempIDend))
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='lat',varid=tempIDend))
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%ylat, & 
     start=(/ tlen, 1 /),count=(/ 1, plen /)))
   part(:)%ylat=(part(:)%ylat-ylat0)/dx
   ! Height
-  call nf90_err(nf90_inq_varid(ncid=ncidend,name='height',varid=tempIDend))
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='z',varid=tempIDend))
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%z, & 
     start=(/ tlen, 1 /),count=(/ 1, plen /)))
   ! Mass
   ! allocate(mass_temp(count%allocated), stat=stat)
   ! if (stat.ne.0) error stop "Could not allocate mass_temp"
-  if (mdomainfill.eq.0) then
+  if ((mdomainfill.eq.0).or.(nspec.gt.1)) then
     do j=1,nspec
       write(anspec, '(i3.3)') j
-      call nf90_err(nf90_inq_varid(ncid=ncidend,name='mass'//anspec,varid=tempIDend))
+      call nf90_err(nf90_inq_varid(ncid=ncidend,name='m'//anspec,varid=tempIDend))
       call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=mass(:,j), & 
         start=(/ tlen, 1 /),count=(/ 1, plen /)))
       ! do i=1,count%allocated

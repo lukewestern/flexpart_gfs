@@ -704,8 +704,17 @@ subroutine timemanager
 
 #ifdef USE_NCF
     if ((mdomainfill.eq.1).and.(llcmoutput)) then
+
+      if (.not.allocated(tot_mass)) then
+        allocate( tot_mass(nspec) )
+        tot_mass(:)=0.
+      endif
+      
       do ks=1,nspec
-        tot_mass(ks)=sum(real(mass(1:count%alive,ks),kind=dp))
+        do i=1,count%alive
+          j=count%ialive(i)
+          tot_mass(ks)=tot_mass(ks)+real(mass(j,ks),kind=dp)
+        end do
       end do
       call totals_write(itime)
     endif
