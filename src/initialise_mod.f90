@@ -933,9 +933,9 @@ subroutine init_domainfill
   call alloc_domainfill
 
   nx_we(1)=max(int(xpoint1(1)),0)
-  nx_we(2)=min((int(xpoint2(1))+1),nxmin1)
+  nx_we(2)=min((ceiling(xpoint2(1))),nxmin1)
   ny_sn(1)=max(int(ypoint1(1)),0)
-  ny_sn(2)=min((int(ypoint2(1))+1),nymin1)
+  ny_sn(2)=min((ceiling(ypoint2(1))),nymin1)
 
   ! For global simulations (both global wind data and global domain-filling),
   ! set a switch, such that no boundary conditions are used
