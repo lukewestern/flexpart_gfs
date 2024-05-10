@@ -154,7 +154,7 @@ subroutine releaseparticles(itime)
   ! Determine the local day and time
   !*********************************
 
-      xlonav=xlon0+(xpoint2(i)+xpoint1(i))/2.*dx  ! longitude needed to determine local time
+      xlonav=xlon0+(xpoint2(i)+xpoint1(i))*0.5*dx  ! longitude needed to determine local time
       if (xlonav.lt.-180.) xlonav=xlonav+360.
       if (xlonav.gt.180.) xlonav=xlonav-360.
       jullocal=jul+real(xlonav,kind=dp)/360._dp   ! correct approximately for time zone to obtain local time
@@ -194,7 +194,7 @@ subroutine releaseparticles(itime)
         rfraction=abs(real(npart(i))*real(lsynctime)/ &
              real(ireleaseend(i)-ireleasestart(i)))
         if ((itime.eq.ireleasestart(i)).or. &
-             (itime.eq.ireleaseend(i))) rfraction=rfraction/2.
+             (itime.eq.ireleaseend(i))) rfraction=rfraction*0.5
 
   ! Take the species-average time correction factor in order to scale the
   ! number of particles released this time
@@ -369,7 +369,7 @@ subroutine kindz_to_z(ipart)
 
       if (press.lt.presspart) then
         if (kz.eq.1) then
-          call set_z(ipart,height(1)/2.)
+          call set_z(ipart,height(1)*0.5)
         else
           dp1=pressold-presspart
           dp2=presspart-press
@@ -1078,7 +1078,7 @@ subroutine init_domainfill
 
 
       deltacol=(pp(1)-pp(nz))/real(ncolumn)
-      pnew=pp(1)+deltacol/2.
+      pnew=pp(1)+deltacol*0.5
       jj=0
       do j=1,ncolumn ! looping over the number of particles within the column
 
@@ -1253,7 +1253,7 @@ subroutine init_domainfill
   write(*,*) 'Total number of particles at model start: ',numpart
   write(*,*) 'Maximum number of particles per column: ',numcolumn
   write(*,*) 'If ',fractus,' <1, better use more particles'
-  fractus=sqrt(max(fractus,1.))/2.
+  fractus=sqrt(max(fractus,1.))*0.5
 
   do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
@@ -1285,7 +1285,7 @@ subroutine init_domainfill
   !*******************************************
 
       deltacol=(pp(1)-pp(nz))/real(ncolumn)
-      pnew=pp(1)+deltacol/2.
+      pnew=pp(1)+deltacol*0.5
       do j=1,ncolumn
         pnew=pnew-deltacol
         do kz=1,nz-1
@@ -1472,13 +1472,13 @@ subroutine boundcond_domainfill(itime,loutend)
   !*****************************************************************************
 
         if (j.eq.1) then
-          deltaz=(zcolumn_we(k,jy,2)+zcolumn_we(k,jy,1))/2.
+          deltaz=(zcolumn_we(k,jy,2)+zcolumn_we(k,jy,1))*0.5
         else if (j.eq.numcolumn_we(k,jy)) then
   ! In order to avoid taking a very high column for very many particles,
   ! use the deltaz from one particle below instead
-          deltaz=(zcolumn_we(k,jy,j)-zcolumn_we(k,jy,j-2))/2.
+          deltaz=(zcolumn_we(k,jy,j)-zcolumn_we(k,jy,j-2))*0.5
         else
-          deltaz=(zcolumn_we(k,jy,j+1)-zcolumn_we(k,jy,j-1))/2.
+          deltaz=(zcolumn_we(k,jy,j+1)-zcolumn_we(k,jy,j-1))*0.5
         endif
         if ((jy.eq.ny_sn(1)).or.(jy.eq.ny_sn(2))) then
           boundarea=deltaz*111198.5/2.*dy
@@ -1557,8 +1557,8 @@ subroutine boundcond_domainfill(itime,loutend)
   ! reduced by the mass of this (these) particle(s)
   !******************************************************************************
 
-        if (acc_mass_we(k,jy,j).ge.xmassperparticle/2.) then
-          mmass=int((acc_mass_we(k,jy,j)+xmassperparticle/2.)/ &
+        if (acc_mass_we(k,jy,j).ge.xmassperparticle*0.5) then
+          mmass=int((acc_mass_we(k,jy,j)+xmassperparticle*0.5)/ &
                xmassperparticle)
           acc_mass_we(k,jy,j)=acc_mass_we(k,jy,j)- &
                real(mmass)*xmassperparticle
@@ -1687,18 +1687,18 @@ subroutine boundcond_domainfill(itime,loutend)
   !*****************************************************************************
 
         if (j.eq.1) then
-          deltaz=(zcolumn_sn(k,ix,2)+zcolumn_sn(k,ix,1))/2.
+          deltaz=(zcolumn_sn(k,ix,2)+zcolumn_sn(k,ix,1))*0.5
         else if (j.eq.numcolumn_sn(k,ix)) then
   !        deltaz=height(nz)-(zcolumn_sn(k,ix,j-1)+
   !    +        zcolumn_sn(k,ix,j))/2.
   ! In order to avoid taking a very high column for very many particles,
   ! use the deltaz from one particle below instead
-          deltaz=(zcolumn_sn(k,ix,j)-zcolumn_sn(k,ix,j-2))/2.
+          deltaz=(zcolumn_sn(k,ix,j)-zcolumn_sn(k,ix,j-2))*0.5
         else
-          deltaz=(zcolumn_sn(k,ix,j+1)-zcolumn_sn(k,ix,j-1))/2.
+          deltaz=(zcolumn_sn(k,ix,j+1)-zcolumn_sn(k,ix,j-1))*0.5
         endif
         if ((ix.eq.nx_we(1)).or.(ix.eq.nx_we(2))) then
-          boundarea=deltaz*111198.5/2.*cosfact*dx
+          boundarea=deltaz*111198.5*0.5*cosfact*dx
         else
           boundarea=deltaz*111198.5*cosfact*dx
         endif
@@ -1773,8 +1773,8 @@ subroutine boundcond_domainfill(itime,loutend)
   ! reduced by the mass of this (these) particle(s)
   !******************************************************************************
 
-        if (acc_mass_sn(k,ix,j).ge.xmassperparticle/2.) then
-          mmass=int((acc_mass_sn(k,ix,j)+xmassperparticle/2.)/ &
+        if (acc_mass_sn(k,ix,j).ge.xmassperparticle*0.5) then
+          mmass=int((acc_mass_sn(k,ix,j)+xmassperparticle*0.5)/ &
                xmassperparticle)
           acc_mass_sn(k,ix,j)=acc_mass_sn(k,ix,j)- &
                real(mmass)*xmassperparticle

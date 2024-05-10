@@ -1440,8 +1440,8 @@ real function obukhov(ps,tsfc,tdsfc,tlev,ustar,hf,akm,bkm,plev)
   tv=tsfc*(1.+0.378*e/ps)               ! virtual temperature
   rhoa=ps/(r_air*tv)                      ! air density
   if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-  ak1=(akm(1)+akm(2))/2.
-  bk1=(bkm(1)+bkm(2))/2.
+  ak1=(akm(1)+akm(2))*0.5
+  bk1=(bkm(1)+bkm(2))*0.5
   plev=ak1+bk1*ps                        ! Pressure level 1
   end if
   theta=tlev*(100000./plev)**(r_air/cpa) ! potential temperature

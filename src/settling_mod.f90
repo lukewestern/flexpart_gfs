@@ -268,8 +268,8 @@ subroutine get_settling(xt,yt,zt,nsp,settling)
       alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
       beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
       kn1=10.**(alpha1*(-log10(Fn(nsp)))**beta1)
-      ks=(ks1(nsp)+ks2(nsp))/2.
-      kn=(kn1+kn2(nsp))/2.
+      ks=(ks1(nsp)+ks2(nsp))*0.5
+      kn=(kn1+kn2(nsp))*0.5
     endif
 
     do i=1,20

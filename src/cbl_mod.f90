@@ -88,7 +88,7 @@ subroutine cbl(wp,zp,wst,h,rhoa,rhograd,sigmaw,dsigmawdz,tlw,ptot,Q,phi,ath,bth,
     ! stability transition function see Cassiani et al(2015) BLM
     transition=1.
     !if (ol.lt.-50) transition=((sin(((ol+100.)/100.)*pi))-1.)/2.
-    if (-h/ol.lt.15) transition=((sin((((-h/ol)+10.)/10.)*pi)))/2.+0.5
+    if (-h/ol.lt.15) transition=((sin((((-h/ol)+10.)/10.)*pi)))*0.5+0.5
 
     ! momento secondo 
     
@@ -284,7 +284,7 @@ subroutine reinit_particle(zp,wst,h,sigmaw,wp,nrand,ol)
   z=zp/h
   transition=1.
 
-  if (-h/ol.lt.15) transition=((sin((((-h/ol)+10.)/10.)*pi)))/2.+0.5
+  if (-h/ol.lt.15) transition=((sin((((-h/ol)+10.)/10.)*pi)))*0.5+0.5
 
   w2=sigmaw*sigmaw  
   w3=(((1.2*z*((1.-z)**(3./2.)))+eps)*wst**3)*transition 
@@ -374,7 +374,7 @@ subroutine init_cbl_vel(idum,zp,wst,h,sigmaw,wp,ol,ithread)
 
 
   transition=1.
-  if (-h/ol.lt.15) transition=((sin((((-h/ol)+10.)/10.)*pi)))/2.+0.5  !see also in cbl.f90
+  if (-h/ol.lt.15) transition=((sin((((-h/ol)+10.)/10.)*pi)))*0.5+0.5  !see also in cbl.f90
 
   w2=sigmaw*sigmaw
   w3=(((1.2*z*((1.-z)**(3./2.)))+eps)*wst**3) *transition

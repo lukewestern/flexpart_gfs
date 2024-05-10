@@ -752,12 +752,12 @@ subroutine petterssen_corr(itime,ipart)
   v=(v-vold)*0.5
 
 #ifdef ETA
-    weta=(weta-woldeta)/2.
+    weta=(weta-woldeta)*0.5
     call update_zeta(ipart,weta*real(part(ipart)%idt*ldirect))
     if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
     if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
 #else
-    w=(w-wold)/2.
+    w=(w-wold)*0.5
     call update_z(ipart,w*real(part(ipart)%idt*ldirect))
     if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))          ! if particle below ground -> reflection
 #endif

@@ -906,7 +906,7 @@ subroutine getvdep(n,ix,jy,ust,temp,pa,L,gr,rh,rr,snow,vdepo)
 
   ylat=jy*dy+ylat0
   if (ylat.lt.0) then
-      jul=jul+365/2
+      jul=jul+365.*0.5
   endif
 
 
@@ -1093,7 +1093,7 @@ subroutine getvdep_nest(n,ix,jy,ust,temp,pa, &
 
   ylat=jy*dy+ylat0
   if (ylat.lt.0) then
-      jul=jul+365/2
+      jul=jul+365.*0.5
   endif
 
 
@@ -1373,8 +1373,8 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep_tmp)
               alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
               beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
               kn1=10.**(alpha1*(-log10(Fn(ic)))**beta1)
-              ks=(ks1(ic)+ks2(ic))/2.
-              kn=(kn1+kn2(ic))/2.
+              ks=(ks1(ic)+ks2(ic))*0.5
+              kn=(kn1+kn2(ic))*0.5
             endif
 
             do i=1,20

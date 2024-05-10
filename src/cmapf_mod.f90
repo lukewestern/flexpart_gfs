@@ -228,7 +228,7 @@ real function cgszll (strcmp, xlat)
     endif
   else
   slat = sin(radpdg * xlat)
-  ymerc = log((1. + slat) / (1. - slat))/2.
+  ymerc = log((1. + slat) / (1. - slat))*0.5
   !efact = exp(ymerc)
   !cgszll = 2. * strcmp(7) * exp (strcmp(1) * ymerc)
   !c             / (efact + 1./efact)
@@ -270,7 +270,7 @@ real function cgszxy (strcmp, x,y)
          (1./5. + temp * &
          (1./7. ))))
   else
-    ymerc = - log( 1. - efact ) /2. /strcmp(1)
+    ymerc = - log( 1. - efact ) *0.5 /strcmp(1)
   endif
   if (ymerc .gt. 6.) then
     if (strcmp(1) .gt. almst1) then
@@ -398,7 +398,7 @@ subroutine cnxyll (strcmp, xi,eta, xlat,xlong)
          (1./7. ))))
   else
   ! Code for moderate values of gamma
-    ymerc = - log ( 1. - arg1 ) /2. / gamma
+    ymerc = - log ( 1. - arg1 ) *0.5 / gamma
   endif
   ! Convert ymerc to latitude
   temp = exp( - abs(ymerc) )

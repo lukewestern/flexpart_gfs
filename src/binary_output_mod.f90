@@ -806,9 +806,9 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   mind=memind(2)
   do kz=1,numzgrid
     if (kz.eq.1) then
-      halfheight=outheight(1)/2.
+      halfheight=outheight(1)*0.5
     else
-      halfheight=(outheight(kz)+outheight(kz-1))/2.
+      halfheight=(outheight(kz)+outheight(kz-1))*0.5
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &
@@ -1426,9 +1426,9 @@ subroutine concoutput_nest(itime,outnum)
   mind=memind(2)
   do kz=1,numzgrid
     if (kz.eq.1) then
-      halfheight=outheight(1)/2.
+      halfheight=outheight(1)*0.5
     else
-      halfheight=(outheight(kz)+outheight(kz-1))/2.
+      halfheight=(outheight(kz)+outheight(kz-1))*0.5
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &
@@ -2065,9 +2065,9 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   do kz=1,numzgrid
     if (kz.eq.1) then
-      halfheight=outheight(1)/2.
+      halfheight=outheight(1)*0.5
     else
-      halfheight=(outheight(kz)+outheight(kz-1))/2.
+      halfheight=(outheight(kz)+outheight(kz-1))*0.5
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &
@@ -2612,9 +2612,9 @@ subroutine concoutput_inversion_nest(itime,outnum)
 
   do kz=1,numzgrid
     if (kz.eq.1) then
-      halfheight=outheight(1)/2.
+      halfheight=outheight(1)*0.5
     else
-      halfheight=(outheight(kz)+outheight(kz-1))/2.
+      halfheight=(outheight(kz)+outheight(kz-1))*0.5
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &
@@ -3086,9 +3086,9 @@ subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   do kz=1,numzgrid
     if (kz.eq.1) then
-      halfheight=outheight(1)/2.
+      halfheight=outheight(1)*0.5
     else
-      halfheight=(outheight(kz)+outheight(kz-1))/2.
+      halfheight=(outheight(kz)+outheight(kz-1))*0.5
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &
@@ -3729,9 +3729,9 @@ subroutine concoutput_sfc_nest(itime,outnum)
 
   do kz=1,numzgrid
     if (kz.eq.1) then
-      halfheight=outheight(1)/2.
+      halfheight=outheight(1)*0.5
     else
-      halfheight=(outheight(kz)+outheight(kz-1))/2.
+      halfheight=(outheight(kz)+outheight(kz-1))*0.5
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &

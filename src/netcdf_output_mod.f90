@@ -964,9 +964,9 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
 !$OMP DO
   do kz=1,numzgrid
     if (kz.eq.1) then
-      halfheight=outheight(1)/2.
+      halfheight=outheight(1)*0.5
     else
-      halfheight=(outheight(kz)+outheight(kz-1))/2.
+      halfheight=(outheight(kz)+outheight(kz-1))*0.5
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &
@@ -1351,9 +1351,9 @@ subroutine concoutput_nest_netcdf(itime,outnum)
 !$OMP DO
   do kz=1,numzgrid
     if (kz.eq.1) then
-      halfheight=outheight(1)/2.
+      halfheight=outheight(1)*0.5
     else
-      halfheight=(outheight(kz)+outheight(kz-1))/2.
+      halfheight=(outheight(kz)+outheight(kz-1))*0.5
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &

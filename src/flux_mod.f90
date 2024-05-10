@@ -78,8 +78,8 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold,thread)
 #ifdef ETA
   call update_zeta_to_z(itime,jpart)
 #endif
-  xmean=(xold+real(part(jpart)%xlon))/2.
-  ymean=(yold+real(part(jpart)%ylat))/2.
+  xmean=(xold+real(part(jpart)%xlon))*0.5
+  ymean=(yold+real(part(jpart)%ylat))*0.5
 
   ixave=int((xmean*dx+xoutshift)/dxout)
   jyave=int((ymean*dy+youtshift)/dyout)
@@ -138,7 +138,7 @@ subroutine calcfluxes(itime,nage,jpart,xold,yold,zold,thread)
 
   ! 1) Particle does not cross domain boundary
 
-    if (abs(xold-part(jpart)%xlon).lt.real(nx)/2.) then
+    if (abs(xold-part(jpart)%xlon).lt.real(nx)*0.5) then
       ix1=int((xold*dx+xoutshift)/dxout+0.5)
       ix2=int((part(jpart)%xlon*dx+xoutshift)/dxout+0.5)
       do k=1,nspec

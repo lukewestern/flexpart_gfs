@@ -642,8 +642,8 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
         dz2=etauvheight(ix,jy,kz,n)-height(iz)
         dz=dz1+dz2
         
-        dzdx1=(etauvheight(ixp,jy,kz-1,n)-etauvheight(ix1,jy,kz-1,n))/2.
-        dzdx2=(etauvheight(ixp,jy,kz,n)-etauvheight(ix1,jy,kz,n))/2.
+        dzdx1=(etauvheight(ixp,jy,kz-1,n)-etauvheight(ix1,jy,kz-1,n))*0.5
+        dzdx2=(etauvheight(ixp,jy,kz,n)-etauvheight(ix1,jy,kz,n))*0.5
 
         dzdx=(dzdx1*dz2+dzdx2*dz1)/dz
 
@@ -724,7 +724,7 @@ subroutine verttransform_ecmwf_polar(n)
         ddpol=pi+atan(uu(nx/2-1,nymin1,iz,n)/ &
              vv(nx/2-1,nymin1,iz,n))-xlonr
       else
-        ddpol=pi/2.-xlonr
+        ddpol=pi*0.5-xlonr
       endif
       if(ddpol.lt.0.) ddpol=2.*pi+ddpol
       if(ddpol.gt.2.*pi) ddpol=ddpol-2.*pi
@@ -766,7 +766,7 @@ subroutine verttransform_ecmwf_polar(n)
         ddpol=pi+atan(uueta(nx/2-1,nymin1,iz,n)/ &
              vveta(nx/2-1,nymin1,iz,n))-xlonr
       else
-        ddpol=pi/2-xlonr
+        ddpol=pi*0.5-xlonr
       endif
       if(ddpol.lt.0.) ddpol=2.0*pi+ddpol
       if(ddpol.gt.2.0*pi) ddpol=ddpol-2.0*pi
@@ -879,7 +879,7 @@ subroutine verttransform_ecmwf_polar(n)
         ddpol=pi+atan(uu(nx/2-1,0,iz,n)/ &
              vv(nx/2-1,0,iz,n))+xlonr
       else
-        ddpol=pi/2.-xlonr
+        ddpol=pi*0.5-xlonr
       endif
       if(ddpol.lt.0.) ddpol=2.*pi+ddpol
       if(ddpol.gt.2.*pi) ddpol=ddpol-2.*pi
@@ -924,7 +924,7 @@ subroutine verttransform_ecmwf_polar(n)
         ddpol=pi+atan(uueta(nx/2-1,0,iz,n)/ &
              vveta(nx/2-1,0,iz,n))+xlonr
       else
-        ddpol=pi/2-xlonr
+        ddpol=pi*0.5-xlonr
       endif
       if(ddpol.lt.0.) ddpol=2.0*pi+ddpol
       if(ddpol.gt.2.0*pi) ddpol=ddpol-2.0*pi
@@ -1686,7 +1686,7 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
       elseif (vv(nx/2-1,nymin1,iz,n).gt.0.) then
         ddpol=pi+atan(uu(nx/2-1,nymin1,iz,n)/vv(nx/2-1,nymin1,iz,n))-xlonr
       else
-        ddpol=pi/2.-xlonr
+        ddpol=pi*0.5-xlonr
       endif
       if(ddpol.lt.0.) ddpol=2.*pi+ddpol
       if(ddpol.gt.2.*pi) ddpol=ddpol-2.*pi
@@ -1754,7 +1754,7 @@ subroutine verttransform_gfs(n,uuh,vvh,wwh,pvh)
       elseif (vv(nx/2-1,0,iz,n).gt.0.) then
         ddpol=pi+atan(uu(nx/2-1,0,iz,n)/vv(nx/2-1,0,iz,n))-xlonr
       else
-        ddpol=pi/2.-xlonr
+        ddpol=pi*0.5-xlonr
       endif
       if(ddpol.lt.0.) ddpol=2.*pi+ddpol
       if(ddpol.gt.2.*pi) ddpol=ddpol-2.*pi
@@ -2023,7 +2023,7 @@ subroutine verttransform_ecmwf_heights(nxlim,nylim, &
       end do
 
       do kz=2,nwz-1
-        wzlev(ix,jy,kz)=(uvzlev(ix,jy,kz+1)+uvzlev(ix,jy,kz))/2.
+        wzlev(ix,jy,kz)=(uvzlev(ix,jy,kz+1)+uvzlev(ix,jy,kz))*0.5
       end do
       wzlev(ix,jy,nwz)=wzlev(ix,jy,nwz-1)+ &
            uvzlev(ix,jy,nuvz)-uvzlev(ix,jy,nuvz-1)

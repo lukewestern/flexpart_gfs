@@ -1617,9 +1617,9 @@ subroutine readoutgrid
   ! Determine the half levels, i.e. middle levels of the output grid
   !*****************************************************************
 
-  outheighthalf(1)=outheight(1)/2.
+  outheighthalf(1)=outheight(1)*0.5
   do j=2,numzgrid
-    outheighthalf(j)=(outheight(j-1)+outheight(j))/2.
+    outheighthalf(j)=(outheight(j-1)+outheight(j))*0.5
   end do
 
   xoutshift=xlon0-outlon0
@@ -2475,7 +2475,7 @@ subroutine readreleases
 
   jul1=juldate(id1,it1)
   jul2=juldate(id2,it2)
-  julm=(jul1+jul2)/2.
+  julm=(jul1+jul2)*0.5
   if (jul1.gt.jul2) then
     write(*,*) 'FLEXPART MODEL ERROR'
     write(*,*) 'Release stops before it begins.'
@@ -2975,7 +2975,7 @@ subroutine readspecies(id_spec,pos_spec)
         Fs(pos_spec)=f*e**(1.3)*(dquer(pos_spec)**3/(psa*pia*pla)) ! Stokes' regime
       endif
       ! Pre-compute ks and kn values needed for horizontal and average orientation (B&B Figure 12 k_(s,max))
-      ks1(pos_spec)=(Fs(pos_spec)**(1./3.) + Fs(pos_spec)**(-1./3.))/2.
+      ks1(pos_spec)=(Fs(pos_spec)**(1./3.) + Fs(pos_spec)**(-1./3.))*0.5
       ks2(pos_spec)=0.5*((Fs(pos_spec)**0.05)+(Fs(pos_spec)**(-0.36)))
       kn2(pos_spec)=10.**(alpha2*(-log10(Fn(pos_spec)))**beta2)
 
