@@ -142,7 +142,7 @@ subroutine verttransform_ecmwf(n,uuh,vvh,wwh,pvh)
   ! If north or south pole is in the domain, calculate wind velocities in polar
   ! stereographic coordinates
   !*******************************************************************
-  call verttransform_ecmwf_stereo(n)
+  call verttransform_ecmwf_polar(n)
 
   ! Create cloud fields
   !*********************
@@ -673,7 +673,7 @@ subroutine verttransform_ecmwf_windfields(n,nxlim,nylim,uuh,vvh,wwh,pvh,rhoh,prs
 
 end subroutine verttransform_ecmwf_windfields
 
-subroutine verttransform_ecmwf_stereo(n)
+subroutine verttransform_ecmwf_polar(n)
   implicit none
 
   integer, intent(in) :: n
@@ -955,7 +955,7 @@ subroutine verttransform_ecmwf_stereo(n)
 !$OMP END DO
 !$OMP END PARALLEL
   endif
-end subroutine verttransform_ecmwf_stereo
+end subroutine verttransform_ecmwf_polar
 
 subroutine verttransform_ecmwf_cloud(lcw_tmp,lcwsum_tmp,nxlim,nylim,&
   ctwc_tmp,clwc_tmp,ciwc_tmp,icloudbot_tmp,icloudtop_tmp,lsprec_tmp,convprec_tmp,rho_tmp, &
