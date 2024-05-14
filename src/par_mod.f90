@@ -199,6 +199,13 @@ module par_mod
   !              2 or 3 for MPI version
 
   !**************************************************************************
+  ! Variables for LCM
+  !**************************************************************************
+
+  integer,parameter :: maxreagent=5      ! Max number of reagents
+  integer,parameter :: maxrecsample=2000 ! Max number of receptors per sampling interval 
+
+  !**************************************************************************
   ! dimension of the OH field
   !**************************************************************************
   
@@ -289,6 +296,7 @@ module par_mod
   integer,parameter :: unitreceptorout=2  
   integer,parameter :: unitoutgrid=97, unitoutgridppt=99, unitoutinfo=1
   integer,parameter :: unitspecies=1, unitoutrecept=91, unitoutreceptppt=92
+  integer,parameter :: unitoutsatellite=108
   integer,parameter :: unitlsm=1, unitsfcdata=1, unitland=1, unitwesely=1
   integer,parameter :: unitOH=1
   integer,parameter :: unitdates=94, unitheader=90,unitheader_txt=100
@@ -304,9 +312,10 @@ module par_mod
 
   integer,parameter ::  icmv=-9999.
 
-  logical,parameter :: lpartoutputperfield=.false.
-
   ! Temporary parameter to switch off the gridfaction calculation in the wetdeposition 
   logical,parameter :: lgridfraction=.false. 
+
+  ! Particle dump: one file per field or all in one netcdf file
+  logical,parameter :: lpartoutputperfield=.false.
 
 end module par_mod

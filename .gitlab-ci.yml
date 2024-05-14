@@ -77,7 +77,6 @@ nests-test:
     when: on_success
     paths:
 
-
 openmp-simulation:
   # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest

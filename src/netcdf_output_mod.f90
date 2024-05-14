@@ -14,20 +14,23 @@
   !                                                                            *
   !     12 April 2013                                                          *
   !                                                                            *
-  ! HSO: 21 Oct 2014
-  !  - added option to not writeout releases information by changing 
-  !    switch write_releases
-  !  - additional updates for FLEXPART 9.x
-  ! 
-  ! ESO 2016
-  !  - Deposition fields can be calculated in double precision, see variable
-  !    'dep_prec' in par_mod
-  !  - Hardcoded options 'write_vol' and 'write_area' for grid cell
-  !    volume and area
-  !
+  ! HSO: 21 Oct 2014                                                           *
+  !  - added option to not writeout releases information by changing           *
+  !    switch write_releases                                                   *
+  !  - additional updates for FLEXPART 9.x                                     *
+  !                                                                            *
+  ! ESO 2016                                                                   *
+  !  - Deposition fields can be calculated in double precision, see variable   *
+  !    'dep_prec' in par_mod                                                   *
+  !  - Hardcoded options 'write_vol' and 'write_area' for grid cell            *
+  !    volume and area                                                         *
+  !                                                                            *
   ! LB: 2021                                                                   *
   !  - Particle dump and initial particle positions in NetCDF                  *
   !  - Receptor files in NetCDF format                                         *
+  !                                                                            *
+  ! RLT: 2024                                                                  *
+  !  - Moved receptor output new module                                        *
   !*****************************************************************************
 
 
@@ -42,26 +45,8 @@ module netcdf_output_mod
                        area,arean,volumen,orooutn
   use par_mod,   only: dep_prec, sp, dp, nclassunc,&
                        unitoutrecept,unitoutreceptppt,unittmp,lpartoutputperfield
-  use com_mod,   only: path,length,ldirect,ibdate,ibtime,iedate,ietime,itime_init, &
-                       loutstep,loutaver,loutsample,outlon0,outlat0,&
-                       numxgrid,numygrid,dxout,dyout,numzgrid, &
-                       outlon0n,outlat0n,dxoutn,dyoutn,numxgridn,numygridn, &
-                       nspec,maxpointspec_act,species,numpoint,&
-                       compoint,method,lsubgrid,lconvection,&
-                       ind_source,ind_receptor,nageclass,lage,&
-                       drydep,wetdep,decay,weta_gas,wetb_gas, numbnests, &
-                       ccn_aero,in_aero, mintime, & ! wetc_in,wetd_in, &
-                       reldiff,henry,f0,density,dquer,dsigma,dryvel,&
-                       weightmolar,ohcconst,ohdconst,vsetaver,&
-                       numparticlecount,receptorname, &
-                       memind,xreceptor,yreceptor,numreceptor,creceptor,iout, &
-                       loutrestart,lnetcdfout,lsynctime, ctl, ifine, lagespectra, ipin, &
-                       ioutputforeachrelease, iflux, mdomainfill, mquasilag, & 
-                       nested_output, ipout, sfc_only, linit_cond, &
-                       flexversion,mpi_mode,DEP,DRYDEP,WETDEP,DRYBKDEP,WETBKDEP,OHREA, &
-                       numpart,numpoint,partopt,num_partopt,gitversion,ndia, &
-                       DRYDEPSPEC,WETDEPSPEC,maxspec,maxndia
-  ! use com_mod
+  use com_mod
+
   use windfields_mod, only: oro,rho,nxmax,height,nxmin1,nymin1,nz,nx,ny,hmix, &
                        ! for concoutput_netcdf and concoutput_nest_netcdf 
                        tropopause,oron,rhon,xresoln,yresoln,xrn,xln,yrn,yln,nxn,nyn
@@ -117,10 +102,8 @@ module netcdf_output_mod
        open_partoutput_file,close_partoutput_file,create_particles_initialoutput,&
        topo_written,mass_written,wrt_part_initialpos,partinit_netcdf,open_partinit_file, &
        readpartpositions_netcdf,readinitconditions_netcdf,partinitpointer1,tpointer, &
-       alloc_netcdf,dealloc_netcdf,update_partoutput_pointers,ppointer_part
+       alloc_netcdf,dealloc_netcdf,nf90_err,update_partoutput_pointers,ppointer_part
 
-  ! Not written yet:
-  ! concoutput_sfc_netcdf,concoutput_sfc_nest_netcdf,
 contains
 
 subroutine alloc_netcdf
@@ -286,7 +269,7 @@ subroutine writeheader_netcdf(lnest)
   logical, intent(in) :: lnest
 
   integer :: ncid, sID, wdsID, ddsID
-  integer :: timeDimID, latDimID, lonDimID, levDimID, receptorDimID
+  integer :: timeDimID, latDimID, lonDimID, levDimID
   integer :: nspecDimID, npointDimID, nageclassDimID, ncharDimID, pointspecDimID
   integer :: tID, lonID, latID, levID, lageID, oroID, ncharrecDimID
   integer :: volID, areaID
@@ -308,6 +291,7 @@ subroutine writeheader_netcdf(lnest)
   integer, dimension(5)       :: dep_chunksizes
 
   integer                     :: i
+  integer                     :: numzwrite
 
 
   ! Check if output directory exists (the netcdf library will
@@ -328,6 +312,9 @@ subroutine writeheader_netcdf(lnest)
   !************************
   ! Create netcdf file
   !************************
+
+  numzwrite=numzgrid
+  if (sfc_only.eq.1) numzwrite=1
 
   if (ldirect.eq.1) then
      write(adate,'(i8.8)') ibdate
@@ -379,7 +366,8 @@ subroutine writeheader_netcdf(lnest)
   ! lat
   call nf90_err(nf90_def_dim(ncid, 'latitude', nny, latDimID))
   ! level
-  call nf90_err(nf90_def_dim(ncid, 'height', numzgrid, levDimID))
+!  call nf90_err(nf90_def_dim(ncid, 'height', numzgrid, levDimID))
+  call nf90_err(nf90_def_dim(ncid, 'height', numzwrite, levDimID))
   ! number of species
   call nf90_err(nf90_def_dim(ncid, 'numspec', nspec, nspecDimID))
   ! number of release points
@@ -388,8 +376,6 @@ subroutine writeheader_netcdf(lnest)
   call nf90_err(nf90_def_dim(ncid, 'nageclass', nageclass, nageclassDimID))
   ! dimension for release point characters
   call nf90_err(nf90_def_dim(ncid, 'nchar', 45, ncharDimID))
-  ! dimension for receptor point characters
-  call nf90_err(nf90_def_dim(ncid, 'ncharrec', 16, ncharrecDimID))
   ! number of actual release points
   call nf90_err(nf90_def_dim(ncid, 'numpoint', numpoint, npointDimID))
 
@@ -512,14 +498,6 @@ subroutine writeheader_netcdf(lnest)
     call nf90_err(nf90_put_att(ncid, oroID, 'units', 'm'))
   end if
 
-  ! Receptors
-  if (numreceptor.ge.1) then
-    call nf90_err(nf90_def_dim(ncid, 'receptor', nf90_unlimited, receptorDimID)) 
-    call nf90_err(nf90_def_var(ncid, 'receptor', nf90_char, (/ ncharrecDimID,receptorDimID /), sID))
-    call nf90_err(nf90_put_var(ncid, sID, receptorname, (/ 1,1 /), (/ 16,numreceptor /)))
-    call nf90_err(nf90_put_att(ncid, sID, 'long_name', 'receptor name'))
-  endif
-
   ! concentration output, wet and dry deposition variables (one per species)
   call output_units(units)
 
@@ -538,7 +516,8 @@ subroutine writeheader_netcdf(lnest)
   if (int(nnx,kind=8)*int(nny,kind=8)*int(numzgrid,kind=8).gt.2147483647) then ! Larger than an 
     chunksizes = (/ nnx, nny, 1, 1, 1, 1 /)
   else
-    chunksizes = (/ nnx, nny, numzgrid, 1, 1, 1 /)
+!    chunksizes = (/ nnx, nny, numzgrid, 1, 1, 1 /)
+    chunksizes = (/ nnx, nny, numzwrite, 1, 1, 1 /)
   endif
   dep_chunksizes = (/ nnx, nny, 1, 1, 1 /)
 
@@ -555,9 +534,9 @@ subroutine writeheader_netcdf(lnest)
       call nf90_err(nf90_put_att(ncid, sID, 'decay', decay(i)))
       call nf90_err(nf90_put_att(ncid, sID, 'weightmolar', weightmolar(i)))
     !        call nf90_err(nf90_put_att(ncid, sID, 'ohreact', ohreact(i)))
-      call nf90_err(nf90_put_att(ncid, sID, 'ohcconst', ohcconst(i)))
-      call nf90_err(nf90_put_att(ncid, sID, 'ohdconst', ohdconst(i)))
-      call nf90_err(nf90_put_att(ncid, sID, 'vsetaver', vsetaver(i)))
+!      call nf90_err(nf90_put_att(ncid, sID, 'ohcconst', ohcconst(i)))
+!      call nf90_err(nf90_put_att(ncid, sID, 'ohdconst', ohdconst(i)))
+!      call nf90_err(nf90_put_att(ncid, sID, 'vsetaver', vsetaver(i)))
 
       if (lnest) then
          specIDn(i) = sID
@@ -576,9 +555,9 @@ subroutine writeheader_netcdf(lnest)
       call nf90_err(nf90_put_att(ncid, sID, 'decay', decay(i)))
       call nf90_err(nf90_put_att(ncid, sID, 'weightmolar', weightmolar(i)))
     !        call nf90_err(nf90_put_att(ncid, sID, 'ohreact', ohreact(i)))
-      call nf90_err(nf90_put_att(ncid, sID, 'ohcconst', ohcconst(i)))
-      call nf90_err(nf90_put_att(ncid, sID, 'ohdconst', ohdconst(i)))
-      call nf90_err(nf90_put_att(ncid, sID, 'vsetaver', vsetaver(i)))
+!      call nf90_err(nf90_put_att(ncid, sID, 'ohcconst', ohcconst(i)))
+!      call nf90_err(nf90_put_att(ncid, sID, 'ohdconst', ohdconst(i)))
+!      call nf90_err(nf90_put_att(ncid, sID, 'vsetaver', vsetaver(i)))
 
       if (lnest) then
          specIDnppt(i) = sID
@@ -625,19 +604,6 @@ subroutine writeheader_netcdf(lnest)
          ddspecID(i) = ddsID
       endif
     endif
-    ! RECEPTORS
-    if (numreceptor.ge.1) then
-      if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-        call write_to_file(ncid,'receptor_conc'//anspec, nf90_float, (/ timeDimID,receptorDimID /), &
-            sID, (/ 1, numreceptor /), 'ng m-3', .true., 'receptor_conc', 'receptor_concentration')
-        recconcID(i)=sID
-      endif
-      if ((iout.eq.2).or.(iout.eq.3)) then
-        call write_to_file(ncid,'receptor_pptv'//anspec, nf90_float, (/ timeDimID,receptorDimID /), &
-            sID, (/ 1, numreceptor /), 'pptv', .true., 'receptor_pptv', 'receptor_mixingratio')
-        recpptvID(i)=sID
-      endif
-    endif
   end do
 
   ! global (metadata) attributes
@@ -648,23 +614,6 @@ subroutine writeheader_netcdf(lnest)
   ! moves the file from define to data mode
   call nf90_err(nf90_enddef(ncid))
 
-  !  ! hes: inquire var definition
-  !  do i = 1,nspec
-  !     write(anspec,'(i3.3)') i
-  !
-  !     ! concentration output
-  !     if (iout.eq.1.or.iout.eq.3.or.iout.eq.5) then
-  !        if (lnest) then
-  !           sID = specIDn(i)
-  !        else
-  !           sID = specID(i)
-  !        endif
-  !        call nf90_err(nf90_inquire_variable(ncid, sID, chunksizes=inq_chunksizes))
-  !        write(*,*) "Chunksizes for var "//anspec//": ", inq_chunksizes
-  !     endif
-  !  end do
-
-  
   ! fill with data
   !******************************
   ! longitudes (grid cell centers)
@@ -700,14 +649,17 @@ subroutine writeheader_netcdf(lnest)
      deallocate(coord)
   endif
   ! levels
-  call nf90_err(nf90_put_var(ncid, levID, outheight(1:numzgrid)))
+!  call nf90_err(nf90_put_var(ncid, levID, outheight(1:numzgrid)))
+  call nf90_err(nf90_put_var(ncid, levID, outheight(1:numzwrite)))
 
   ! volume
   if (write_vol) then
     if (lnest) then
-      call nf90_err(nf90_put_var(ncid, volID, volumen(:,:,:)))
+!      call nf90_err(nf90_put_var(ncid, volID, volumen(:,:,:)))
+      call nf90_err(nf90_put_var(ncid, volID, volumen(:,:,1:numzwrite)))
     else
-      call nf90_err(nf90_put_var(ncid, volID, volume(:,:,:)))
+!      call nf90_err(nf90_put_var(ncid, volID, volume(:,:,:)))
+      call nf90_err(nf90_put_var(ncid, volID, volume(:,:,1:numzwrite)))
     end if
   end if
 
@@ -819,18 +771,6 @@ subroutine read_grid_id(lnest)
     end do 
   endif
 
-  ! RECEPTORS
-  if (numreceptor.ge.1) then
-    do i = 1,nspec
-      if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-        call nf90_err(nf90_inq_varid(ncid,name='receptor_conc'//anspec,varid=recconcID(i)))
-      endif
-      if ((iout.eq.2).or.(iout.eq.3)) then
-        call nf90_err(nf90_inq_varid(ncid,name='receptor_pptv'//anspec,varid=recpptvID(i)))
-      endif
-    end do
-  endif
-
   call nf90_err(nf90_close(ncid))
 
 end subroutine read_grid_id
@@ -841,7 +781,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   !       o
   !*****************************************************************************
   !                                                                            *
-  !     Output of the concentration grid and the receptor concentrations.      *
+  !     Output of the concentration grid and the concentrations.               *
   !                                                                            *
   !     Author: A. Stohl                                                       *
   !                                                                            *
@@ -878,6 +818,10 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   !           - OpenMP parallelisation                                         *
   !           - Receptor output to NetCDF instead of binary format             *
   !                                                                            *
+  !     January, 2024, Rona Thompson                                           *
+  !           - removed output of receptors (new module)                       *
+  !           - introduced option for LCM output                               *
+  !                                                                            *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -888,7 +832,7 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   !                                                                            *
   !*****************************************************************************
 
-  use unc_mod, only: gridunc,drygridunc,wetgridunc,drygridunc0,wetgridunc0
+  use unc_mod
 
   implicit none
 
@@ -896,8 +840,8 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   real, intent(in)    :: outnum
   real(dep_prec),intent(out):: wetgridtotalunc,drygridtotalunc
   real, intent(out)   :: gridtotalunc
-  real                :: densityoutrecept(numreceptor),recout(numreceptor)
   integer             :: ncid,kp,ks,kz,ix,jy,iix,jjy,kzz,ngrid
+  integer             :: ks_start
   integer             :: nage,i,l,jj
   real                :: tot_mu(maxspec,maxpointspec_act)
   real                :: halfheight,dz,dz1,dz2
@@ -909,10 +853,14 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   ! real(sp)            :: gridtotal,gridsigmatotal
   ! real(sp)            :: wetgridtotal,wetgridsigmatotal
   ! real(sp)            :: drygridtotal,drygridsigmatotal
+  integer             :: numzwrite
 
   real, parameter     :: weightair=28.97
 
   eps=nxmax/3.e5
+
+  numzwrite=numzgrid
+  if (sfc_only.eq.1 ) numzwrite=1
 
   ! open output file
   call nf90_err(nf90_open(trim(ncfname), nf90_write, ncid))
@@ -957,76 +905,83 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   !    a nested domain (before only from mother domain)
   ! Determine center altitude of output layer, and interpolate density
   ! data to that altitude
+  !
+  ! Note:
+  !  llcmoutput = true: grid is mass_spec/mass_air  
+  !                     for iout 1,3, or 5 multiply by rho
+  !                     for iout 2 multiply by 1
+  !  llcmoutput = false: grid is mass_spec/V
+  !                     for iout 1,3, or 5 multiply by 1
+  !                     for iout 2 multiply by 1/rho
   !*******************************************************************
+
 !$OMP PARALLEL PRIVATE(halfheight,kzz,dz1,dz2,dz,xl,yl,ngrid,iix,jjy, &
 !$OMP kz,ix,jy,l,ks,kp,nage,auxgrid) REDUCTION(+:wetgridtotal,wetgridsigmatotal, &
 !$OMP drygridtotal,drygridsigmatotal,gridtotal,gridsigmatotal)
+
+  if (((.not.llcmoutput).and.(iout.eq.2)).or.&
+      (llcmoutput.and.((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)))) then
+    ! compute density
 !$OMP DO
-  do kz=1,numzgrid
-    if (kz.eq.1) then
-      halfheight=outheight(1)*0.5
-    else
-      halfheight=(outheight(kz)+outheight(kz-1))*0.5
-    endif
-    do kzz=2,nz
-      if ((height(kzz-1).lt.halfheight).and. &
-           (height(kzz).gt.halfheight)) exit
-    end do
-    kzz=max(min(kzz,nz),2)
-    dz1=halfheight-height(kzz-1)
-    dz2=height(kzz)-halfheight
-    dz=dz1+dz2
+    do kz=1,numzgrid
+      if (kz.eq.1) then
+        halfheight=outheight(1)*0.5
+      else
+        halfheight=(outheight(kz)+outheight(kz-1))*0.5
+      endif
+      do kzz=2,nz
+        if ((height(kzz-1).lt.halfheight).and. &
+             (height(kzz).gt.halfheight)) exit
+      end do
+      kzz=max(min(kzz,nz),2)
+      dz1=halfheight-height(kzz-1)
+      dz2=height(kzz)-halfheight
+      dz=dz1+dz2
 
-    do jy=0,numygrid-1
-      do ix=0,numxgrid-1
-        xl=outlon0+real(ix)*dxout
-        yl=outlat0+real(jy)*dyout
-        ! grid index in mother domain
-        xl=(xl-xlon0)/dx
-        yl=(yl-ylat0)/dx
+      do jy=0,numygrid-1
+        do ix=0,numxgrid-1
+          xl=outlon0+real(ix)*dxout
+          yl=outlat0+real(jy)*dyout
+          ! grid index in mother domain
+          xl=(xl-xlon0)/dx
+          yl=(yl-ylat0)/dx
 
-        ngrid=0
-        do jj=numbnests,1,-1
-          if ( xl.gt.xln(jj)+eps .and. xl.lt.xrn(jj)-eps .and. &
-                 yl.gt.yln(jj)+eps .and. yl.lt.yrn(jj)-eps ) then
-            ngrid=jj
-            exit 
-          end if
+          ngrid=0
+          do jj=numbnests,1,-1
+            if ( xl.gt.xln(jj)+eps .and. xl.lt.xrn(jj)-eps .and. &
+                   yl.gt.yln(jj)+eps .and. yl.lt.yrn(jj)-eps ) then
+              ngrid=jj
+              exit 
+            end if
+          end do
+
+          if (ngrid.eq.0) then
+            iix=max(min(nint(xl),nxmin1),0) ! if output grid cell is outside mother domain
+            jjy=max(min(nint(yl),nymin1),0)
+
+            densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,memind(2))*dz1+ &
+              rho(iix,jjy,kzz-1,memind(2))*dz2)/dz
+          else
+            xl=(xl-xln(ngrid))*xresoln(ngrid)
+            yl=(yl-yln(ngrid))*yresoln(ngrid)
+            iix=max(min(nint(xl),nxn(ngrid)-1),0)
+            jjy=max(min(nint(yl),nyn(ngrid)-1),0)
+
+            densityoutgrid(ix,jy,kz)=(rhon(iix,jjy,kzz,memind(2), ngrid)*dz1+ &
+              rhon(iix,jjy,kzz-1,memind(2), ngrid)*dz2)/dz
+          endif
         end do
-
-        if (ngrid.eq.0) then
-          iix=max(min(nint(xl),nxmin1),0) ! if output grid cell is outside mother domain
-          jjy=max(min(nint(yl),nymin1),0)
-
-          densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,memind(2))*dz1+ &
-            rho(iix,jjy,kzz-1,memind(2))*dz2)/dz
-        else
-          xl=(xl-xln(ngrid))*xresoln(ngrid)
-          yl=(yl-yln(ngrid))*yresoln(ngrid)
-          iix=max(min(nint(xl),nxn(ngrid)-1),0)
-          jjy=max(min(nint(yl),nyn(ngrid)-1),0)
-
-          densityoutgrid(ix,jy,kz)=(rhon(iix,jjy,kzz,memind(2), ngrid)*dz1+ &
-            rhon(iix,jjy,kzz-1,memind(2), ngrid)*dz2)/dz
-        endif
       end do
     end do
-  end do
 !$OMP END DO NOWAIT
-
-  ! brd134: for receptor points no option for nests yet to specify density
-  !    and also altitude zreceptor not considered yet (needs revision)
-  if (numreceptor.gt.0) then
-!$OMP DO
-    do i=1,numreceptor
-      xl=xreceptor(i)
-      yl=yreceptor(i)
-      iix=max(min(nint(xl),nxmin1),0)
-      jjy=max(min(nint(yl),nymin1),0)
-      densityoutrecept(i)=rho(iix,jjy,1,memind(2))
-    end do
-!$OMP END DO NOWAIT
-  endif
+    if (llcmoutput) then
+      ! because divide grid by densityoutgrid
+      densityoutgrid=1./densityoutgrid
+    endif
+  else
+    ! no division by density
+    densityoutgrid(:,:,:)=1.
+  endif ! llcmoutput
 
   ! Output is different for forward and backward simulations
   if (ldirect.eq.1) then
@@ -1034,7 +989,11 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
     do kz=1,numzgrid
       do jy=0,numygrid-1
          do ix=0,numxgrid-1
-            factor3d(ix,jy,kz)=1.e12/volume(ix,jy,kz)/outnum
+            if (llcmoutput) then
+              factor3d(ix,jy,kz)=1.e12/gridcnt(ix,jy,kz)
+            else
+              factor3d(ix,jy,kz)=1.e12/volume(ix,jy,kz)/outnum
+            endif
          end do
       end do
     end do
@@ -1056,8 +1015,13 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   ! ratio (uncertainty of the output) and the dry and wet deposition
   !*********************************************************************
 
+  if (llcmoutput) then
+    ks_start=2
+  else
+    ks_start=1
+  endif
 
-  do ks=1,nspec
+  do ks=ks_start,nspec
 
     do kp=1,maxpointspec_act
       do nage=1,nageclass
@@ -1165,9 +1129,12 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
           endif
 
           ! Concentrations
+!          call nf90_err(nf90_put_var(ncid,specID(ks),grid(0:numxgrid-1,0:numygrid-1,&
+!             1:numzgrid)*factor3d(0:numxgrid-1,0:numygrid-1,1:numzgrid)/tot_mu(ks,kp),&
+!               (/ 1,1,1,tpointer,kp,nage /), (/ numxgrid,numygrid,numzgrid,1,1,1 /) ))
           call nf90_err(nf90_put_var(ncid,specID(ks),grid(0:numxgrid-1,0:numygrid-1,&
-             1:numzgrid)*factor3d(0:numxgrid-1,0:numygrid-1,1:numzgrid)/tot_mu(ks,kp),&
-               (/ 1,1,1,tpointer,kp,nage /), (/ numxgrid,numygrid,numzgrid,1,1,1 /) ))
+             1:numzwrite)*factor3d(0:numxgrid-1,0:numygrid-1,1:numzwrite)/tot_mu(ks,kp),&
+               (/ 1,1,1,tpointer,kp,nage /), (/ numxgrid,numygrid,numzwrite,1,1,1 /) ))
  
         endif !  concentration output
 
@@ -1192,19 +1159,24 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
           endif
 
           ! Mixing ratios
+!          call nf90_err(nf90_put_var(ncid,specIDppt(ks),weightair/weightmolar(ks)*&
+!               grid(0:numxgrid-1,0:numygrid-1,1:numzgrid)*&
+!               factor3d(0:numxgrid-1,0:numygrid-1,1:numzgrid)/&
+!               densityoutgrid(0:numxgrid-1,0:numygrid-1,1:numzgrid),&
+!               (/ 1,1,1,tpointer,kp,nage /), (/ numxgrid,numygrid,numzgrid,1,1,1 /)))
           call nf90_err(nf90_put_var(ncid,specIDppt(ks),weightair/weightmolar(ks)*&
-               grid(0:numxgrid-1,0:numygrid-1,1:numzgrid)*&
-               factor3d(0:numxgrid-1,0:numygrid-1,1:numzgrid)/&
-               densityoutgrid(0:numxgrid-1,0:numygrid-1,1:numzgrid),&
-               (/ 1,1,1,tpointer,kp,nage /), (/ numxgrid,numygrid,numzgrid,1,1,1 /)))
+               grid(0:numxgrid-1,0:numygrid-1,1:numzwrite)*&
+               factor3d(0:numxgrid-1,0:numygrid-1,1:numzwrite)/&
+               densityoutgrid(0:numxgrid-1,0:numygrid-1,1:numzwrite),&
+               (/ 1,1,1,tpointer,kp,nage /), (/ numxgrid,numygrid,numzwrite,1,1,1 /)))
 
         endif ! output for ppt
 !$OMP END SINGLE
 !$OMP BARRIER
-      end do
-    end do
+      end do ! nageclass
+    end do ! maxpointspec_act
 
-  end do
+  end do ! nspec
 !$OMP END PARALLEL
 
   if (gridtotal.gt.0.) gridtotalunc=real(gridsigmatotal/gridtotal,kind=sp)
@@ -1213,55 +1185,27 @@ subroutine concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridto
   if (drygridtotal.gt.0.) drygridtotalunc=real(drygridsigmatotal/ &
        drygridtotal, kind=dep_prec)
 
-  ! Dump of receptor concentrations
-
-  if (numreceptor.ge.1) then 
-    if (iout.eq.2 .or. iout.eq.3) then
-      do ks=1,nspec
-        recout(:)=1.e12*creceptor(:,ks)/outnum*weightair/weightmolar(ks)/densityoutrecept(:)
-        call nf90_err(nf90_put_var(ncid,recpptvID(ks),recout(1:numreceptor),(/ tpointer,1 /),(/ 1,numreceptor /)))
-      end do
-    endif
-
-    ! Dump of receptor concentrations
-
-    if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-      do ks=1,nspec
-        recout(:)=1.e12*creceptor(:,ks)/outnum
-        call nf90_err(nf90_put_var(ncid,recconcID(ks),recout(1:numreceptor),(/ tpointer,1 /),(/ 1,numreceptor /)))
-      end do
-    endif
-  endif
-
   ! Close netCDF file
   !**************************
   call nf90_err(nf90_close(ncid))
 
   ! Reinitialization of grid
   !*************************
-  if (numreceptor.gt.0) creceptor(1:numreceptor,1:nspec) = 0.
   gridunc(:,:,:,1:nspec,:,:,1:nageclass) = 0.  
+  gridcnt(:,:,:) = 0.
+#ifdef _OPENMP
+  gridunc_omp(:,:,:,:,:,:,:,:) = 0.  
+  gridcnt_omp(:,:,:,:) = 0.
+#endif
+
 end subroutine concoutput_netcdf
 
-! subroutine concoutput_sfc_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-
-!   use unc_mod, only: gridunc,drygridunc,wetgridunc,drygridunc0,wetgridunc0
-
-!   implicit none
-
-!   integer, intent(in) :: itime
-!   real, intent(in)    :: outnum
-!   real(sp), intent(out)   :: gridtotalunc
-!   real(dep_prec), intent(out)   :: wetgridtotalunc,drygridtotalunc
-
-!   print*,'Netcdf output for surface only not yet implemented'
-! end subroutine concoutput_sfc_netcdf
 
 subroutine concoutput_nest_netcdf(itime,outnum)
   !                               i     i 
   !*****************************************************************************
   !                                                                            *
-  !     Output of the concentration grid and the receptor concentrations.      *
+  !     Output of the concentration grid and the concentrations.               *
   !                                                                            *
   !     Author: A. Stohl                                                       *
   !                                                                            *
@@ -1301,7 +1245,6 @@ subroutine concoutput_nest_netcdf(itime,outnum)
 
   integer, intent(in) :: itime
   real, intent(in)    :: outnum
-  real                :: densityoutrecept(numreceptor)
   integer             :: ncid,kp,ks,kz,ix,jy,iix,jjy,kzz,ngrid
   integer             :: nage,i,l,jj
   real                :: tot_mu(maxspec,maxpointspec_act)
@@ -1310,8 +1253,12 @@ subroutine concoutput_nest_netcdf(itime,outnum)
   real(dep_prec)      :: auxgrid(nclassunc)
   real                :: gridtotal
   real, parameter     :: weightair=28.97
+  integer             :: numzwrite
 
   eps=nxmax/3.e5
+
+  numzwrite=numzgrid
+  if (sfc_only.eq.1 ) numzwrite=1
 
   ! open output file
   call nf90_err(nf90_open(trim(ncfnamen), nf90_write, ncid))
@@ -1399,18 +1346,6 @@ subroutine concoutput_nest_netcdf(itime,outnum)
     end do
   end do
 !$OMP END DO NOWAIT
-
-  if (numreceptor.gt.0) then
-!$OMP DO
-     do i=1,numreceptor
-       xl=xreceptor(i)
-       yl=yreceptor(i)
-       iix=max(min(nint(xl),nxmin1),0)
-       jjy=max(min(nint(yl),nymin1),0)
-       densityoutrecept(i)=rho(iix,jjy,1,memind(2))
-     end do
-!$OMP END DO NOWAIT
-  endif
 
   ! Output is different for forward and backward simulations
   if (ldirect.eq.1) then
@@ -1538,9 +1473,12 @@ subroutine concoutput_nest_netcdf(itime,outnum)
           endif
 
           ! Concentrations
+!          call nf90_err(nf90_put_var(ncid,specIDn(ks),grid(0:numxgridn-1,0:numygridn-1,&
+!             1:numzgrid)*factor3d(0:numxgridn-1,0:numygridn-1,1:numzgrid)/tot_mu(ks,kp),&
+!               (/ 1,1,1,tpointer,kp,nage /), (/ numxgridn,numygridn,numzgrid,1,1,1 /)))
           call nf90_err(nf90_put_var(ncid,specIDn(ks),grid(0:numxgridn-1,0:numygridn-1,&
-             1:numzgrid)*factor3d(0:numxgridn-1,0:numygridn-1,1:numzgrid)/tot_mu(ks,kp),&
-               (/ 1,1,1,tpointer,kp,nage /), (/ numxgridn,numygridn,numzgrid,1,1,1 /)))
+             1:numzwrite)*factor3d(0:numxgridn-1,0:numygridn-1,1:numzwrite)/tot_mu(ks,kp),&
+               (/ 1,1,1,tpointer,kp,nage /), (/ numxgridn,numygridn,numzwrite,1,1,1 /)))
  
         endif !  concentration output
 
@@ -1564,11 +1502,16 @@ subroutine concoutput_nest_netcdf(itime,outnum)
           endif
 
           ! Mixing ratios
+!          call nf90_err(nf90_put_var(ncid,specIDnppt(ks),weightair/weightmolar(ks)*&
+!               grid(0:numxgridn-1,0:numygridn-1,1:numzgrid)*&
+!               factor3d(0:numxgridn-1,0:numygridn-1,1:numzgrid)/&
+!               densityoutgrid(0:numxgridn-1,0:numygridn-1,1:numzgrid),&
+!               (/ 1,1,1,tpointer,kp,nage /), (/ numxgridn,numygridn,numzgrid,1,1,1 /)))
           call nf90_err(nf90_put_var(ncid,specIDnppt(ks),weightair/weightmolar(ks)*&
-               grid(0:numxgridn-1,0:numygridn-1,1:numzgrid)*&
-               factor3d(0:numxgridn-1,0:numygridn-1,1:numzgrid)/&
-               densityoutgrid(0:numxgridn-1,0:numygridn-1,1:numzgrid),&
-               (/ 1,1,1,tpointer,kp,nage /), (/ numxgridn,numygridn,numzgrid,1,1,1 /)))
+               grid(0:numxgridn-1,0:numygridn-1,1:numzwrite)*&
+               factor3d(0:numxgridn-1,0:numygridn-1,1:numzwrite)/&
+               densityoutgrid(0:numxgridn-1,0:numygridn-1,1:numzwrite),&
+               (/ 1,1,1,tpointer,kp,nage /), (/ numxgridn,numygridn,numzwrite,1,1,1 /)))
 
         endif ! output for ppt
 !$OMP END SINGLE
@@ -1585,8 +1528,8 @@ subroutine concoutput_nest_netcdf(itime,outnum)
   ! Reinitialization of grid
   !*************************
 
-  if (numreceptor.gt.0) creceptor(1:numreceptor,1:nspec) = 0.
   griduncn(:,:,:,1:nspec,:,:,1:nageclass) = 0.  
+
 end subroutine concoutput_nest_netcdf
 
 ! subroutine concoutput_sfc_nest_netcdf(itime,outnum)
@@ -1887,9 +1830,10 @@ subroutine writeheader_partoutput(itime,idate,itime_start,idate_start)!,irelease
   write(atime,'(i6.6)') itime
   write(adate_start,'(i8.8)') idate_start
   write(atime_start,'(i6.6)') itime_start
-
+  
   timeunit = 'seconds since '//adate_start(1:4)//'-'//adate_start(5:6)// &
-     '-'//adate_start(7:8)//' '//atime_start(1:2)//':'//atime_start(3:4)
+       '-'//adate_start(7:8)//' '//atime_start(1:2)//':'//atime_start(3:4)
+
   ! write(arelease, '(i3.3)') irelease
   fprefix_part = 'partoutput_'//adate//atime !rel'//arelease//'_'
 
@@ -1976,7 +1920,6 @@ subroutine writeheader_partoutput_dims(np,ncid,timeunit,timeDimID,partDimID,latD
   integer,intent(out) :: latDimID, lonDimID
   integer             :: tID,partID
 
-
   logical,save :: first_time=.true.
 
   ! create dimensions:
@@ -1997,13 +1940,11 @@ subroutine writeheader_partoutput_dims(np,ncid,timeunit,timeDimID,partDimID,latD
     if (.not. lpartoutputperfield .and. (mdomainfill.eq.1)) then
       call writeheader_partoutput_grid(ncid,lonDimID,latDimID)
     endif
-
     call nf90_err(nf90_def_dim(ncid, 'particle', nf90_unlimited, partDimID))
     ! particles variables
     call nf90_err(nf90_def_var(ncid, 'particle', nf90_int, (/ partDimID/), partID))
     call nf90_err(nf90_put_att(ncid, partID, 'long_name', 'particle index'))
   endif
-
   ! create variables
   !*************************
 
@@ -2030,7 +1971,6 @@ subroutine writeheader_partoutput_vars(np,ncid,totpart,timeDimID,partDimID,latDi
   integer             :: j,i,varid
   character(len=3)    :: anspec
   real                :: fillval
-
 
   fillval = -1.
   select case(partopt(np)%name)
@@ -2115,7 +2055,7 @@ subroutine writeheader_partoutput_vars(np,ncid,totpart,timeDimID,partDimID,latDi
       call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
         varid,(/ 1,totpart /),'m/s',.false.,'settling_velocity_average','settling velocity averaged')
     case ('MA') ! Mass
-      if (mdomainfill.ge.1) then
+      if ((mdomainfill.ge.1).and.(nspec.eq.1)) then
         call nf90_err(nf90_def_var(ncid=ncid, name=trim(partopt(np)%short_name), xtype=nf90_float, &
           dimids=1, varid=varid))
         call nf90_err(nf90_put_att(ncid, varid, 'units', 'kg'))
@@ -2129,11 +2069,11 @@ subroutine writeheader_partoutput_vars(np,ncid,totpart,timeDimID,partDimID,latDi
           write(anspec, '(i3.3)') j
           call write_to_file(ncid,trim(partopt(np)%short_name)//anspec,nf90_float, &
             (/ timeDimID,partDimID /),varid, &
-            (/ 1,totpart /),'kg',.true.,'mass'//anspec,'mass for nspec'//anspec) 
+            (/ 1,totpart /),'kg',.true.,'mass'//anspec,'mass for nspec'//anspec)
         end do
       endif
     case ('ma') ! Mass averaged
-      if (mdomainfill.ge.1) then
+      if ((mdomainfill.ge.1).and.(nspec.eq.1)) then
         call nf90_err(nf90_def_var(ncid=ncid, name=trim(partopt(np)%short_name), xtype=nf90_float, dimids=1, varid=varid))
         call nf90_err(nf90_put_att(ncid, varid, 'units', 'kg'))
         call nf90_err(nf90_put_att(ncid, varid, '_FillValue', fillval))
@@ -2387,6 +2327,7 @@ subroutine update_partoutput_pointers(itime,ncid)
 end subroutine update_partoutput_pointers
 
 subroutine partoutput_netcdf(itime,field,np,imass,ncid)
+
   
   use particle_mod
   !*****************************************************************************
@@ -2405,9 +2346,9 @@ subroutine partoutput_netcdf(itime,field,np,imass,ncid)
   integer, intent(in)            :: np  ! input field to interpolate over
   integer                        :: tempIDend
   character(len=3)               :: anspec
+
   ! ! open output file
   ! call nf90_err(nf90_open(trim(ncfname_part), nf90_write, ncid))
-
   if ((mdomainfill.ge.1).and. ((partopt(np)%name.eq.'TO').or. &
     (partopt(np)%name.eq.'HM').or.(partopt(np)%name.eq.'TR'))) then
     if (partopt(np)%name.eq.'TO')  then
@@ -2423,7 +2364,7 @@ subroutine partoutput_netcdf(itime,field,np,imass,ncid)
     endif
 
   else if (partopt(np)%name.eq.'MA') then
-    if ((mdomainfill.ge.1).and.(imass.eq.1)) then
+    if ((mdomainfill.ge.1).and.(imass.eq.1).and.(nspec.eq.1)) then
       if (mass_written.eqv..false.) then 
         call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
         call nf90_err(nf90_put_var(ncid=ncid,varid=tempIDend,values=field(1)))
@@ -2435,7 +2376,7 @@ subroutine partoutput_netcdf(itime,field,np,imass,ncid)
       call nf90_err(nf90_put_var(ncid,tempIDend,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
     endif
   else if (partopt(np)%name.eq.'ma') then
-    if ((mdomainfill.ge.1).and.(imass.eq.1)) then
+    if ((mdomainfill.ge.1).and.(imass.eq.1).and.(nspec.eq.1)) then
       if (mass_written.eqv..false.) then 
         call nf90_err(nf90_inq_varid(ncid=ncid,name=trim(partopt(np)%short_name),varid=tempIDend))
         call nf90_err(nf90_put_var(ncid,tempIDend,field, (/ tpointer_part,1 /),(/ 1,count%allocated /)))
@@ -2495,7 +2436,7 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
   endif
 
   ! Open partoutput_end.nc file
-  call nf90_err(nf90_open(trim('partoutput_end.nc'), mode=NF90_NOWRITE,ncid=ncidend))
+  call nf90_err(nf90_open(path(2)(1:length(2))//trim('partoutput_end.nc'), mode=NF90_NOWRITE,ncid=ncidend))
 
   ! Take the positions of the particles at the last timestep in the file
   ! It needs to be the same as given in the COMMAND file, this is arbitrary
@@ -2526,6 +2467,9 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
     error stop 
   endif
 
+  !! testing
+!  print*, 'readpartpositions_netcdf: julin, julcommand = ',julin, julcommand
+
   ! Then the particle dimension
   call nf90_err(nf90_inq_dimid(ncid=ncidend,name='particle',dimid=pIDend))
   call nf90_err(nf90_inquire_dimension(ncid=ncidend,dimid=pIDend,len=plen))
@@ -2536,26 +2480,26 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
 
   ! And give them the correct positions
   ! Longitude
-  call nf90_err(nf90_inq_varid(ncid=ncidend,name='longitude',varid=tempIDend))
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='lon',varid=tempIDend))
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%xlon, & 
     start=(/ tlen, 1 /),count=(/ 1, plen /)))
   part(:)%xlon=(part(:)%xlon-xlon0)/dx
   ! Latitude
-  call nf90_err(nf90_inq_varid(ncid=ncidend,name='latitude',varid=tempIDend))
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='lat',varid=tempIDend))
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%ylat, & 
     start=(/ tlen, 1 /),count=(/ 1, plen /)))
   part(:)%ylat=(part(:)%ylat-ylat0)/dx
   ! Height
-  call nf90_err(nf90_inq_varid(ncid=ncidend,name='height',varid=tempIDend))
+  call nf90_err(nf90_inq_varid(ncid=ncidend,name='z',varid=tempIDend))
   call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=part(:)%z, & 
     start=(/ tlen, 1 /),count=(/ 1, plen /)))
   ! Mass
   ! allocate(mass_temp(count%allocated), stat=stat)
   ! if (stat.ne.0) error stop "Could not allocate mass_temp"
-  if (mdomainfill.eq.0) then
+  if ((mdomainfill.eq.0).or.(nspec.gt.1)) then
     do j=1,nspec
       write(anspec, '(i3.3)') j
-      call nf90_err(nf90_inq_varid(ncid=ncidend,name='mass'//anspec,varid=tempIDend))
+      call nf90_err(nf90_inq_varid(ncid=ncidend,name='m'//anspec,varid=tempIDend))
       call nf90_err(nf90_get_var(ncid=ncidend,varid=tempIDend,values=mass(:,j), & 
         start=(/ tlen, 1 /),count=(/ 1, plen /)))
       ! do i=1,count%allocated
@@ -2569,7 +2513,9 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
   do i=1,plen
     if (part(i)%z.lt.0) then 
       call terminate_particle(i,0)
-      write(*,*) 'Particle ',i,'is not alive in the restart file.'
+      if (mdomainfill.eq.0) then
+        write(*,*) 'Particle ',i,'is not alive in the restart file.'
+      endif
       iterminate=iterminate+1
     endif
     part(i)%nclass=min(int(ran1(idummy,0)*real(nclassunc))+1, &
@@ -2581,6 +2527,11 @@ subroutine readpartpositions_netcdf(ibtime,ibdate)
   if (iterminate.gt.0) call rewrite_ialive()
   
   call nf90_err(nf90_close(ncidend))
+
+  !! testing
+!  print*, 'readpartpositions_netcdf: number alive = ',count%alive
+!  print*, 'readpartpositions_netcdf: range(part%z) = ',minval(part(1:count%alive)%z),maxval(part(1:count%alive)%z)
+!  print*, 'readpartpositions_netcdf: part(1)%tstart = ',part(1)%tstart
 
 end subroutine readpartpositions_netcdf
 
@@ -2651,7 +2602,7 @@ subroutine readinitconditions_netcdf()
   DEP=.false.
   DRYDEP=.false.
   WETDEP=.false.
-  OHREA=.false.
+  CLREA=.false.
   do nsp=1,maxspec
     DRYDEPSPEC(nsp)=.false.
     WETDEPSPEC(nsp)=.false.
@@ -2738,9 +2689,9 @@ subroutine readinitconditions_netcdf()
       if (lroot) write (*,*) '  In-cloud scavenging: OFF' 
     endif
 
-    if (ohcconst(nsp).gt.0.) then
-      OHREA=.true.
-      if (lroot) write (*,*) '  OHreaction switched on: ',ohcconst(nsp),nsp
+    if (any(reaccconst(:,:).gt.0.)) then
+      CLREA=.true.
+      if (lroot) write (*,*) '  Chemical reactions switched on'
     endif
 
     if ((reldiff(nsp).gt.0.).or.(density(nsp).gt.0.).or.(dryvel(nsp).gt.0.)) then
@@ -2836,7 +2787,7 @@ subroutine readinitconditions_netcdf()
         endif
         lstart=.false.
       endif
-      part(i)%tstart = part(i)%tstart*-1
+      part(i)%tstart = part(i)%tstart*(-1)
     endif
   end do
   ! Release

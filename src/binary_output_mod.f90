@@ -6,9 +6,9 @@
   ! This module contains routines that output gridded data to binary files.    *
   !                                                                            *
   ! Not all routines that should have a netcdf equivalent, have one yet:       *
-  ! writeheader_bin_sfc_nest,writeheader_bin_sfc,concoutput_sfc,               *
-  ! concoutput_sfc_nest,initcond_output,initcond_output_inv,                   *
-  ! concoutput_inv_nest                                                        *
+  ! writeheader_bin_sfc_nest,writeheader_bin_sfc,                              *
+  ! initcond_output,initcond_output_inversion                                  *
+  ! concoutput_inversion, concoutput_inversion_nest                            *
   !                                                                            *
   !   L. Bakels 2022                                                           *
   !                                                                            *
@@ -583,41 +583,48 @@ subroutine writeheader_bin_sfc
 
 end subroutine writeheader_bin_sfc
 
-subroutine openreceptors
+subroutine receptorout_init_binary
 
   !*****************************************************************************
   !                                                                            *
   !  This routine opens the receptor output files and writes out the receptor  *
-  !  names and the receptor locations. The receptor output files are not       *
+  !  names, location and times. The receptor output files are not              *
   !  closed, but kept open throughout the simulation. Concentrations are       *
   !  continuously  dumped to these files.                                      *
   !                                                                            *
   !     Author: A. Stohl                                                       *
-  !                                                                            *
   !     7 August 2002                                                          *
+  !                                                                            *
+  !     Modified: R. Thompson                                                  *
+  !     January 2024: for moving receptors                                     *
+  !                   changed format write to:                                 *
+  !                     nspec                                                  *
+  !                   and then for each timestep and receptors:                *
+  !                     name, lat, lon, alt, time, nn, xk, conc, unc           *
   !                                                                            *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
   ! numreceptor            actual number of receptor points specified          *
-  ! receptornames          names of the receptor points                        *
-  ! xreceptor,yreceptor    coordinates of the receptor points                  *
+  ! receptorname           names of the receptor points                        *
+  ! xreceptor              longitude coordinate of the receptor points         *
+  ! yreceptor              latitude coordinate of the receptor points          *
+  ! zreceptor              altitude coordinate of the receptor points          *
+  ! treceptor              time coordinate of the receptor points              *
   !                                                                            *
   !*****************************************************************************
 
   implicit none
 
-  integer :: j
+    if (numreceptor.eq.0) then
+      return
+    endif
 
-  ! Open output file for receptor points and write out a short header
-  ! containing receptor names and locations
-  !******************************************************************
+    ! Open output file for receptor points and write number 
+    ! of receptors and species for concentration and uncertainty variables
+    !**********************************************************************
 
-  if (numreceptor.ge.1) then           ! do it only if receptors are specified
-
-  ! Concentration output
-  !*********************
-
+    ! Concentration output
     if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
       if ((ipin.eq.1).or.(ipin.eq.4)) then
         open(unitoutrecept,file=path(2)(1:length(2))//'receptor_conc', &
@@ -625,40 +632,197 @@ subroutine openreceptors
       else
         open(unitoutrecept,file=path(2)(1:length(2))//'receptor_conc', &
              form='unformatted',err=997)
-        write(unitoutrecept) (receptorname(j),j=1,numreceptor)
-        write(unitoutrecept) (xreceptor(j)*dx+xlon0, &
-             yreceptor(j)*dy+ylat0,j=1,numreceptor)
+        write(unitoutrecept)   numreceptor
+        if (llcmoutput) then
+          write(unitoutrecept) nspec-1 ! first species is mass of air
+        else
+          write(unitoutrecept) nspec
+        endif
       endif
     endif
 
-  ! Mixing ratio output
-  !********************
-
+    ! Mixing ratio output
     if ((iout.eq.2).or.(iout.eq.3)) then
       if ((ipin.eq.1).or.(ipin.eq.4)) then
         open(unitoutreceptppt,file=path(2)(1:length(2))//'receptor_pptv', &
-           access='APPEND',status='OLD',err=997)
+           access='APPEND',status='OLD',err=998)
       else
         open(unitoutreceptppt,file=path(2)(1:length(2))//'receptor_pptv', &
              form='unformatted',err=998)
-        write(unitoutreceptppt) (receptorname(j),j=1,numreceptor)
-        write(unitoutreceptppt) (xreceptor(j)*dx+xlon0, &
-             yreceptor(j)*dy+ylat0,j=1,numreceptor)
+        write(unitoutreceptppt)   numreceptor
+        if (llcmoutput) then
+          write(unitoutreceptppt) nspec-1 ! first species is mass of air
+        else
+          write(unitoutreceptppt) nspec
+        endif
       endif
     endif
-  endif
 
-  return
+    return
+
 997   write(*,*) ' #### FLEXPART MODEL ERROR! THE FILE           #### '
-  write(*,*) ' ####              receptor_conc               #### '
-  write(*,*) ' #### CANNOT BE OPENED.                        #### '
-  error stop
+    write(*,*) ' ####              receptor_conc               #### '
+    write(*,*) ' #### CANNOT BE OPENED.                        #### '
+    error stop
 
 998   write(*,*) ' #### FLEXPART MODEL ERROR! THE FILE           #### '
-  write(*,*) ' ####              receptor_pptv               #### '
-  write(*,*) ' #### CANNOT BE OPENED.                        #### '
-  error stop
-end subroutine openreceptors
+    write(*,*) ' ####              receptor_pptv               #### '
+    write(*,*) ' #### CANNOT BE OPENED.                        #### '
+    error stop
+
+end subroutine receptorout_init_binary
+
+
+subroutine satelliteout_init_binary
+
+  !*****************************************************************************
+  !                                                                            *
+  !  This routine opens the satellite output files for subsequent writing      *
+  !                                                                            *
+  !     Author: R. Thompson                                                    *
+  !     January 2024                                                           *
+  !                                                                            *
+  !*****************************************************************************
+  !                                                                            *
+  ! Variables:                                                                 *
+  ! numsatreceptor         actual number of satellite receptors                *
+  ! nspec                  number of species                                   *
+  ! nlayermax              max number of layers in retrievals                  *
+  !                                                                            *
+  !*****************************************************************************
+
+  implicit none
+
+    if (numsatreceptor.eq.0) then
+      return
+    endif
+
+    ! Open output file for satellite receptors and write number 
+    ! of receptors and species for concentration and uncertainty variables
+    !**********************************************************************
+
+    ! Mixing ratio output
+    if ((ipin.eq.1).or.(ipin.eq.4)) then
+      open(unitoutsatellite,file=path(2)(1:length(2))//'satellite_pptv', &
+         access='APPEND',status='OLD',err=998)
+    else
+      open(unitoutsatellite,file=path(2)(1:length(2))//'satellite_pptv', &
+           form='unformatted',err=998)
+      write(unitoutsatellite)   numsatreceptor
+      if (llcmoutput) then
+        write(unitoutsatellite) nspec-1 ! first species is mass of air
+      else
+        write(unitoutsatellite) nspec
+      endif
+      write(unitoutsatellite)   nlayermax
+    endif
+
+    return  
+
+998 write(*,*) ' #### FLEXPART MODEL ERROR! THE FILE           #### '
+    write(*,*) ' ####           satellite_pptv                 #### '
+    write(*,*) ' #### CANNOT BE OPENED.                        #### '
+    error stop
+
+end subroutine satelliteout_init_binary
+
+
+subroutine write_receptor_binary(crec,cunc,nnrec,xkrec,lonrec,latrec,altrec,timerec,namerec,nrec)
+
+  !*****************************************************************************
+  !                                                                            *
+  !  This routine writes the receptor concentrations for each time step        *
+  !  and receptor to binary output files                                       *
+  !                                                                            *
+  !  R. Thompson, January 2024                                                 *
+  !                                                                            *
+  !*****************************************************************************
+
+  implicit none
+
+    integer :: nrec, ks, ks_start
+    real, dimension(nspec,maxrecsample,nlayermax) :: crec, cunc
+    real, dimension(maxrecsample,nlayermax) :: nnrec, xkrec, altrec
+    real, dimension(maxrecsample) :: lonrec, latrec
+    integer, dimension(maxrecsample) :: timerec
+    character(len=16), dimension(maxrecsample) :: namerec
+
+    if (llcmoutput) then
+      ks_start=2
+    else
+      ks_start=1
+    endif
+
+    if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
+      write(unitoutrecept) nrec
+      write(unitoutrecept) namerec(1:nrec)
+      write(unitoutrecept) lonrec(1:nrec)
+      write(unitoutrecept) latrec(1:nrec)
+      write(unitoutrecept) altrec(1:nrec,1)
+      write(unitoutrecept) timerec(1:nrec)
+      write(unitoutrecept) nnrec(1:nrec,1)
+      write(unitoutrecept) xkrec(1:nrec,1)
+      write(unitoutrecept) (crec(ks,1:nrec,1),ks=ks_start,nspec)
+      write(unitoutrecept) (cunc(ks,1:nrec,1),ks=ks_start,nspec)
+    endif
+    if ((iout.eq.2).or.(iout.eq.3)) then
+      write(unitoutreceptppt) nrec
+      write(unitoutreceptppt) namerec(1:nrec)
+      write(unitoutreceptppt) lonrec(1:nrec)
+      write(unitoutreceptppt) latrec(1:nrec)
+      write(unitoutreceptppt) altrec(1:nrec,1)
+      write(unitoutreceptppt) timerec(1:nrec)
+      write(unitoutreceptppt) nnrec(1:nrec,1)
+      write(unitoutreceptppt) xkrec(1:nrec,1)
+      write(unitoutreceptppt) (crec(ks,1:nrec,1),ks=ks_start,nspec)
+      write(unitoutreceptppt) (cunc(ks,1:nrec,1),ks=ks_start,nspec)
+    endif
+
+end subroutine write_receptor_binary
+
+
+subroutine write_satellite_binary(crec,cunc,nnrec,xkrec,lonrec,latrec,altrec,timerec,namerec,nrec)
+
+  !*****************************************************************************
+  !                                                                            *
+  !  This routine writes the satellite concentrations for each time step       *
+  !  and receptor to binary output files                                       *
+  !                                                                            *
+  !  R. Thompson, January 2024                                                 *
+  !                                                                            *
+  !*****************************************************************************
+
+  implicit none
+
+    integer :: nrec, n, ks, ks_start
+    real, dimension(nspec,maxrecsample,nlayermax) :: crec, cunc
+    real, dimension(maxrecsample,nlayermax) :: nnrec, xkrec, altrec
+    real, dimension(maxrecsample) :: lonrec, latrec
+    integer, dimension(maxrecsample) :: timerec
+    character(len=16), dimension(maxrecsample) :: namerec
+
+    if (llcmoutput) then
+      ks_start=2
+    else
+      ks_start=1
+    endif
+   
+    ! satellite only mixing ratio output
+    write(unitoutsatellite) nrec
+    write(unitoutsatellite) namerec(1:nrec)
+    write(unitoutsatellite) timerec(1:nrec)
+    write(unitoutsatellite) lonrec(1:nrec)
+    write(unitoutsatellite) latrec(1:nrec)
+    write(unitoutsatellite) (altrec(n,1:nlayermax),n=1,nrec)
+    write(unitoutsatellite) (nnrec(n,1:nlayermax),n=1,nrec)
+    write(unitoutsatellite) (xkrec(n,1:nlayermax),n=1,nrec)
+    do ks=ks_start,nspec
+      write(unitoutsatellite) (crec(ks,n,1:nlayermax),n=1,nrec)
+      write(unitoutsatellite) (cunc(ks,n,1:nlayermax),n=1,nrec)
+    end do
+
+end subroutine write_satellite_binary
+
 
 subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
      drygridtotalunc)
@@ -666,7 +830,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   !       o
   !*****************************************************************************
   !                                                                            *
-  !     Output of the concentration grid and the receptor concentrations.      *
+  !     Output of the concentration grid                                       *
   !                                                                            *
   !     Author: A. Stohl                                                       *
   !                                                                            *
@@ -707,10 +871,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(numreceptor),xl,yl
-  ! RLT
-  real :: densitydryrecept(numreceptor)
-  real :: factor_dryrecept(numreceptor)
+  real :: outnum,xl,yl
 
   real(dep_prec) :: auxgrid(nclassunc)
   real(sp) :: gridtotal,gridsigmatotal,gridtotalunc
@@ -729,6 +890,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   logical :: lexist
   integer :: ierr
   character(LEN=100) :: dates_char
+  integer :: numzwrite, ks_start
 
   ! Determine current calendar date, needed for the file name
   !**********************************************************
@@ -740,7 +902,6 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   ! Overwrite existing dates file on first call, later append to it
   ! This fixes a bug where the dates file kept growing across multiple runs
-
   ! Restarting a run:
   if ((ipin.eq.1).or.(ipin.eq.4)) then
     file_stat='OLD'
@@ -782,11 +943,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
 
   if (ldirect.eq.1) then
-    do ks=1,nspec
-      do kp=1,maxpointspec_act
-        tot_mu(ks,kp)=1
-      end do
-    end do
+    tot_mu(:,:)=1.
   else
     do ks=1,nspec
       do kp=1,maxpointspec_act
@@ -801,70 +958,90 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   ! from coarse grid at some time
   ! Determine center altitude of output layer, and interpolate density
   ! data to that altitude
+  ! 
+  ! Note:
+  !  llcmoutput = true: grid is mass_spec/mass_air  
+  !                     for iout 1,3, or 5 multiply by rho
+  !                     for iout 2 multiply by 1
+  !  llcmoutput = false: grid is mass_spec/V
+  !                     for iout 1,3, or 5 multiply by 1
+  !                     for iout 2 multiply by 1/rho 
   !*******************************************************************
 
-  mind=memind(2)
-  do kz=1,numzgrid
-    if (kz.eq.1) then
-      halfheight=outheight(1)*0.5
-    else
-      halfheight=(outheight(kz)+outheight(kz-1))*0.5
-    endif
-    do kzz=2,nz
-      if ((height(kzz-1).lt.halfheight).and. &
-           (height(kzz).gt.halfheight)) exit
-    end do
-    kzz=max(min(kzz,nz),2)
-    dz1=halfheight-height(kzz-1)
-    dz2=height(kzz)-halfheight
-    dz=dz1+dz2
-    do jy=0,numygrid-1
-      do ix=0,numxgrid-1
-        xl=outlon0+real(ix)*dxout
-        yl=outlat0+real(jy)*dyout
-        xl=(xl-xlon0)/dx
-        yl=(yl-ylat0)/dy !v9.1.1 
-        iix=max(min(nint(xl),nxmin1),0)
-        jjy=max(min(nint(yl),nymin1),0)
-  ! densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,2)*dz1+ &
-  !      rho(iix,jjy,kzz-1,2)*dz2)/dz
-        densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,mind)*dz1+ &
-             rho(iix,jjy,kzz-1,mind)*dz2)/dz
-  ! RLT
-        densitydrygrid(ix,jy,kz)=(rho_dry(iix,jjy,kzz,mind)*dz1+ &
-             rho_dry(iix,jjy,kzz-1,mind)*dz2)/dz  
+!$OMP PARALLEL &
+!$OMP PRIVATE(kz,halfheight,kzz,dz1,dz2,dz,xl,yl,iix,jjy, &
+!$OMP ix,jy,l,ks,kp,nage,auxgrid) &
+!$OMP REDUCTION(+:wetgridtotal,wetgridsigmatotal, &
+!$OMP drygridtotal,drygridsigmatotal,gridtotal,gridsigmatotal)
+
+  if (((.not.llcmoutput).and.(iout.eq.2)).or.&
+      (llcmoutput.and.((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)))) then
+    ! compute density
+    mind=memind(2)
+!$OMP DO
+    do kz=1,numzgrid
+      if (kz.eq.1) then
+        halfheight=outheight(1)*0.5
+      else
+        halfheight=(outheight(kz)+outheight(kz-1))*0.5
+      endif
+      do kzz=2,nz
+        if ((height(kzz-1).lt.halfheight).and. &
+             (height(kzz).gt.halfheight)) exit
+      end do
+      kzz=max(min(kzz,nz),2)
+      dz1=halfheight-height(kzz-1)
+      dz2=height(kzz)-halfheight
+      dz=dz1+dz2
+      do jy=0,numygrid-1
+        do ix=0,numxgrid-1
+          xl=outlon0+real(ix)*dxout
+          yl=outlat0+real(jy)*dyout
+          xl=(xl-xlon0)/dx
+          yl=(yl-ylat0)/dy !v9.1.1 
+          iix=max(min(nint(xl),nxmin1),0)
+          jjy=max(min(nint(yl),nymin1),0)
+          densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,mind)*dz1+ &
+               rho(iix,jjy,kzz-1,mind)*dz2)/dz
+          densitydrygrid(ix,jy,kz)=(rho_dry(iix,jjy,kzz,mind)*dz1+ &
+               rho_dry(iix,jjy,kzz-1,mind)*dz2)/dz  
+        end do
       end do
     end do
-  end do
-
-  do i=1,numreceptor
-    xl=xreceptor(i)
-    yl=yreceptor(i)
-    iix=max(min(nint(xl),nxmin1),0)
-    jjy=max(min(nint(yl),nymin1),0)
-  !densityoutrecept(i)=rho(iix,jjy,1,2)
-    densityoutrecept(i)=rho(iix,jjy,1,mind)
-  ! RLT
-    densitydryrecept(i)=rho_dry(iix,jjy,1,mind)
-  end do
-
-  ! RLT
-  ! conversion factor for output relative to dry air
-  factor_drygrid=densityoutgrid/densitydrygrid
-  factor_dryrecept=densityoutrecept/densitydryrecept
+!$OMP END DO
+    ! conversion factor for output relative to dry air
+    factor_drygrid=densityoutgrid/densitydrygrid
+    if (llcmoutput) then
+      ! because divide grid by densityoutgrid
+      densityoutgrid=1./densityoutgrid
+    endif
+  else
+    ! no division by density
+    densityoutgrid(:,:,:)=1.
+  endif
 
   ! Output is different for forward and backward simulations
-  do kz=1,numzgrid
-    do jy=0,numygrid-1
-      do ix=0,numxgrid-1
-        if (ldirect.eq.1) then
-          factor3d(ix,jy,kz)=1.e12/volume(ix,jy,kz)/outnum
-        else
-          factor3d(ix,jy,kz)=real(abs(loutaver))/outnum
-        endif
+  if (ldirect.eq.1) then
+!$OMP DO
+    do kz=1,numzgrid
+      do jy=0,numygrid-1
+        do ix=0,numxgrid-1
+          if (llcmoutput) then
+            if (gridcnt(ix,jy,kz).gt.0.) then
+              factor3d(ix,jy,kz)=1.e12/gridcnt(ix,jy,kz)
+            else
+              factor3d(ix,jy,kz)=0.
+            endif
+          else
+            factor3d(ix,jy,kz)=1.e12/volume(ix,jy,kz)/outnum
+          endif
+        end do
       end do
     end do
-  end do
+!$OMP END DO
+  else
+    factor3d(:,:,:)=real(abs(loutaver))/outnum
+  endif
 
   !*********************************************************************
   ! Determine the standard deviation of the mean concentration or mixing
@@ -881,8 +1058,16 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   drygridsigmatotal=0.
   drygridtotalunc=0.
 
-  do ks=1,nspec
+  if (llcmoutput) then
+    ks_start=2
+  else
+    ks_start=1
+  endif
 
+  do ks=ks_start,nspec
+
+!$OMP BARRIER
+!$OMP SINGLE
     write(anspec,'(i3.3)') ks
 
     if (DRYBKDEP.or.WETBKDEP) then !scavdep output
@@ -910,10 +1095,11 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
         write(unitoutgridppt) itime
       endif
     endif ! if deposition output
+!$OMP END SINGLE
 
     do kp=1,maxpointspec_act
       do nage=1,nageclass
-
+!$OMP DO
         do jy=0,numygrid-1
           do ix=0,numxgrid-1
 
@@ -975,6 +1161,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
             end do
           end do
         end do
+!$OMP END DO
 
   !*******************************************************************
   ! Generate output: may be in concentration (ng/m3) or in mixing
@@ -984,8 +1171,12 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   ! For backward simulations, the unit is seconds, stored in grid_time
   !*******************************************************************
 
+!$OMP BARRIER
+!$OMP SINGLE
+
   ! Concentration output
   !*********************
+
         if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
 
   ! Wet deposition
@@ -996,7 +1187,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
           if ((ldirect.eq.1).and.(WETDEP)) then
             do jy=0,numygrid-1
               do ix=0,numxgrid-1
-  !oncentraion greater zero
+  ! concentration greater zero
                 if (wetgrid(ix,jy).gt.smallnum) then
                   if (sp_zer.eqv..true.) then ! first non zero value
                     sp_count_i=sp_count_i+1
@@ -1054,14 +1245,14 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
           write(unitoutgrid) sp_count_r
           write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
 
-
-
   ! Concentrations
           sp_count_i=0
           sp_count_r=0
           sp_fact=-1.
           sp_zer=.true.
-          do kz=1,numzgrid
+          numzwrite=numzgrid
+          if (sfc_only.eq.1) numzwrite=1
+          do kz=1,numzwrite
             do jy=0,numygrid-1
               do ix=0,numxgrid-1
                 if (grid(ix,jy,kz).gt.smallnum) then
@@ -1094,9 +1285,6 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
           write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
           write(unitoutgrid) sp_count_r
           write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-
-
-
         endif !  concentration output
 
   ! Mixing ratio output
@@ -1138,7 +1326,6 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
           write(unitoutgridppt) sp_count_r
           write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
 
-
   ! Dry deposition
           sp_count_i=0
           sp_count_r=0
@@ -1173,13 +1360,14 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
           write(unitoutgridppt) sp_count_r
           write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
 
-
   ! Mixing ratios
           sp_count_i=0
           sp_count_r=0
           sp_fact=-1.
           sp_zer=.true.
-          do kz=1,numzgrid
+          numzwrite=numzgrid
+          if (sfc_only.eq.1) numzwrite=1
+          do kz=1,numzwrite
             do jy=0,numygrid-1
               do ix=0,numxgrid-1
                 if (grid(ix,jy,kz).gt.smallnum) then
@@ -1193,8 +1381,7 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
                   sp_count_r=sp_count_r+1
                   sparse_dump_r(sp_count_r)= &
                        sp_fact* &
-                       1.e12*grid(ix,jy,kz) &
-                       /volume(ix,jy,kz)/outnum* &
+                       factor3d(ix,jy,kz)*grid(ix,jy,kz)* &
                        weightair/weightmolar(ks)/densityoutgrid(ix,jy,kz)
                 else ! concentration is zero
                   sp_zer=.true.
@@ -1208,7 +1395,8 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
           write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
 
         endif ! output for ppt
-
+!$OMP END SINGLE
+!$OMP BARRIER
       end do
     end do
 
@@ -1216,49 +1404,54 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
     close(unitoutgrid)
 
   end do
+!$OMP END PARALLEL
 
-  ! RLT Aug 2017
   ! Write out conversion factor for dry air
-  inquire(file=path(2)(1:length(2))//'factor_drygrid',exist=lexist)
-  if (lexist) then
-    ! open and append
-    open(unitoutfactor,file=path(2)(1:length(2))//'factor_drygrid',form='unformatted',&
+  !****************************************
+
+  if (.not.llcmoutput) then
+    inquire(file=path(2)(1:length(2))//'factor_drygrid',exist=lexist)
+    if (lexist) then
+      ! open and append
+      open(unitoutfactor,file=path(2)(1:length(2))//'factor_drygrid',form='unformatted',&
             status='old',action='write',access='append')
-  else
-    ! create new
-    open(unitoutfactor,file=path(2)(1:length(2))//'factor_drygrid',form='unformatted',&
+    else
+      ! create new
+      open(unitoutfactor,file=path(2)(1:length(2))//'factor_drygrid',form='unformatted',&
             status='new',action='write')
-  endif
-  sp_count_i=0
-  sp_count_r=0
-  sp_fact=-1.
-  sp_zer=.true.
-  do kz=1,numzgrid
-    do jy=0,numygrid-1
-      do ix=0,numxgrid-1
-        if (factor_drygrid(ix,jy,kz).gt.(1.+smallnum).or.factor_drygrid(ix,jy,kz).lt.(1.-smallnum)) then
-          if (sp_zer.eqv..true.) then ! first value not equal to one
-            sp_count_i=sp_count_i+1
-            sparse_dump_i(sp_count_i)= &
+    endif
+    sp_count_i=0
+    sp_count_r=0
+    sp_fact=-1.
+    sp_zer=.true.
+    numzwrite=numzgrid
+    if (sfc_only.eq.1) numzwrite=1
+    do kz=1,numzwrite
+      do jy=0,numygrid-1
+        do ix=0,numxgrid-1
+          if (factor_drygrid(ix,jy,kz).gt.(1.+smallnum).or.factor_drygrid(ix,jy,kz).lt.(1.-smallnum)) then
+            if (sp_zer.eqv..true.) then ! first value not equal to one
+              sp_count_i=sp_count_i+1
+              sparse_dump_i(sp_count_i)= &
                   ix+jy*numxgrid+kz*numxgrid*numygrid
-            sp_zer=.false.
-            sp_fact=sp_fact*(-1.)
+              sp_zer=.false.
+              sp_fact=sp_fact*(-1.)
+            endif
+            sp_count_r=sp_count_r+1
+            sparse_dump_r(sp_count_r)= &
+                 sp_fact*factor_drygrid(ix,jy,kz)
+          else ! factor is one
+            sp_zer=.true.
           endif
-          sp_count_r=sp_count_r+1
-          sparse_dump_r(sp_count_r)= &
-               sp_fact*factor_drygrid(ix,jy,kz)
-        else ! factor is one
-          sp_zer=.true.
-        endif
+        end do
       end do
     end do
-  end do
-  write(unitoutfactor) sp_count_i
-  write(unitoutfactor) (sparse_dump_i(i),i=1,sp_count_i)
-  write(unitoutfactor) sp_count_r
-  write(unitoutfactor) (sparse_dump_r(i),i=1,sp_count_r)
-  close(unitoutfactor)
-
+    write(unitoutfactor) sp_count_i
+    write(unitoutfactor) (sparse_dump_i(i),i=1,sp_count_i)
+    write(unitoutfactor) sp_count_r
+    write(unitoutfactor) (sparse_dump_r(i),i=1,sp_count_r)
+    close(unitoutfactor)
+  endif
 
   if (gridtotal.gt.0.) gridtotalunc=gridsigmatotal/gridtotal
   if (wetgridtotal.gt.0.) wetgridtotalunc=wetgridsigmatotal/ &
@@ -1266,53 +1459,20 @@ subroutine concoutput(itime,outnum,gridtotalunc,wetgridtotalunc, &
   if (drygridtotal.gt.0.) drygridtotalunc=drygridsigmatotal/ &
        drygridtotal
 
-  ! Dump of receptor concentrations
-
-  if (numreceptor.gt.0 .and. (iout.eq.2 .or. iout.eq.3)  ) then
-    write(unitoutreceptppt) itime
-    do ks=1,nspec
-      write(unitoutreceptppt) (1.e12*creceptor(i,ks)/outnum* &
-           weightair/weightmolar(ks)/densityoutrecept(i),i=1,numreceptor)
-    end do
-  endif
-
-  ! Dump of receptor concentrations
-
-  if (numreceptor.gt.0) then
-    write(unitoutrecept) itime
-    do ks=1,nspec
-      write(unitoutrecept) (1.e12*creceptor(i,ks)/outnum, &
-           i=1,numreceptor)
-    end do
-  endif
-
-  ! RLT Aug 2017
-  ! Write out conversion factor for dry air
-  if (numreceptor.gt.0) then
-    inquire(file=path(2)(1:length(2))//'factor_dryreceptor',exist=lexist)
-     if (lexist) then
-     ! open and append
-      open(unitoutfactor,file=path(2)(1:length(2))//'factor_dryreceptor',form='unformatted',&
-              status='old',action='write',access='append')
-    else
-      ! create new
-      open(unitoutfactor,file=path(2)(1:length(2))//'factor_dryreceptor',form='unformatted',&
-              status='new',action='write')
-    endif
-    write(unitoutfactor) itime
-    write(unitoutfactor) (factor_dryrecept(i),i=1,numreceptor)
-    close(unitoutfactor)
-  endif
-
-  creceptor(:,:)=0.
   gridunc(:,:,:,:,:,:,:)=0.
+  gridcnt(:,:,:) = 0.
+#ifdef _OPENMP
+  gridunc_omp(:,:,:,:,:,:,:,:) = 0.
+  gridcnt_omp(:,:,:,:) = 0.
+#endif  
+
 end subroutine concoutput
 
 subroutine concoutput_nest(itime,outnum)
   !                        i     i
   !*****************************************************************************
   !                                                                            *
-  !     Output of the concentration grid and the receptor concentrations.      *
+  !     Output of the nested concentration grid                                *
   !                                                                            *
   !     Author: A. Stohl                                                       *
   !                                                                            *
@@ -1352,29 +1512,7 @@ subroutine concoutput_nest(itime,outnum)
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(numreceptor),xl,yl
-  ! RLT
-  real :: densitydryrecept(numreceptor)
-  real :: factor_dryrecept(numreceptor)
-
-  !real densityoutgrid(0:numxgrid-1,0:numygrid-1,numzgrid),
-  !    +grid(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec,maxpointspec_act,
-  !    +    maxageclass)
-  !real wetgrid(0:numxgrid-1,0:numygrid-1,maxspec,maxpointspec_act,
-  !    +       maxageclass)
-  !real drygrid(0:numxgrid-1,0:numygrid-1,maxspec,
-  !    +       maxpointspec_act,maxageclass)
-  !real gridsigma(0:numxgrid-1,0:numygrid-1,numzgrid,maxspec,
-  !    +       maxpointspec_act,maxageclass),
-  !    +     drygridsigma(0:numxgrid-1,0:numygrid-1,maxspec,
-  !    +     maxpointspec_act,maxageclass),
-  !    +     wetgridsigma(0:numxgrid-1,0:numygrid-1,maxspec,
-  !    +     maxpointspec_act,maxageclass)
-  !real factor(0:numxgrid-1,0:numygrid-1,numzgrid)
-  !real sparse_dump_r(numxgrid*numygrid*numzgrid)
-  !integer sparse_dump_i(numxgrid*numygrid*numzgrid)
-
-  !real sparse_dump_u(numxgrid*numygrid*numzgrid)
+  real :: outnum,xl,yl
   real(dep_prec) :: auxgrid(nclassunc)
   real :: halfheight,dz,dz1,dz2,tot_mu(maxspec,maxpointspec_act)
   real,parameter :: smallnum = tiny(0.0) ! smallest number that can be handled
@@ -1384,6 +1522,7 @@ subroutine concoutput_nest(itime,outnum)
   character(len=3) :: anspec
   logical :: lexist
   integer :: mind 
+  integer :: numzwrite
 
 
   ! Determine current calendar date, needed for the file name
@@ -1401,19 +1540,15 @@ subroutine concoutput_nest(itime,outnum)
   !*****************************************************************
 
 
-    if (ldirect.eq.1) then
-       do ks=1,nspec
-         do kp=1,maxpointspec_act
-           tot_mu(ks,kp)=1
-         end do
-       end do
-   else
-      do ks=1,nspec
-             do kp=1,maxpointspec_act
-               tot_mu(ks,kp)=xmass(kp,ks)
-             end do
+  if (ldirect.eq.1) then
+    tot_mu(:,:)=1.
+  else
+    do ks=1,nspec
+      do kp=1,maxpointspec_act
+        tot_mu(ks,kp)=xmass(kp,ks)
       end do
-    endif
+    end do
+  endif
 
 
   !*******************************************************************
@@ -1424,6 +1559,12 @@ subroutine concoutput_nest(itime,outnum)
   !*******************************************************************
 
   mind=memind(2)
+
+!$OMP PARALLEL &
+!$OMP PRIVATE(halfheight,kzz,dz1,dz2,dz,xl,yl,iix,jjy, &
+!$OMP kz,ix,jy,l,ks,kp,nage,auxgrid) 
+
+!$OMP DO
   do kz=1,numzgrid
     if (kz.eq.1) then
       halfheight=outheight(1)*0.5
@@ -1432,9 +1573,9 @@ subroutine concoutput_nest(itime,outnum)
     endif
     do kzz=2,nz
       if ((height(kzz-1).lt.halfheight).and. &
-           (height(kzz).gt.halfheight)) goto 46
+           (height(kzz).gt.halfheight)) exit
     end do
-46   kzz=max(min(kzz,nz),2)
+    kzz=max(min(kzz,nz),2)
     dz1=halfheight-height(kzz-1)
     dz2=height(kzz)-halfheight
     dz=dz1+dz2
@@ -1446,45 +1587,24 @@ subroutine concoutput_nest(itime,outnum)
         yl=(yl-ylat0)/dy
         iix=max(min(nint(xl),nxmin1),0)
         jjy=max(min(nint(yl),nymin1),0)
-        ! densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,2)*dz1+ &
-        !      rho(iix,jjy,kzz-1,2)*dz2)/dz
         densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,mind)*dz1+ &
              rho(iix,jjy,kzz-1,mind)*dz2)/dz
-  ! RLT
         densitydrygrid(ix,jy,kz)=(rho_dry(iix,jjy,kzz,mind)*dz1+ &
              rho_dry(iix,jjy,kzz-1,mind)*dz2)/dz
       end do
     end do
   end do
+!$OMP END DO
 
-  do i=1,numreceptor
-    xl=xreceptor(i)
-    yl=yreceptor(i)
-    iix=max(min(nint(xl),nxmin1),0)
-    jjy=max(min(nint(yl),nymin1),0)
-    !densityoutrecept(i)=rho(iix,jjy,1,2)
-    densityoutrecept(i)=rho(iix,jjy,1,mind)
-  ! RLT
-    densitydryrecept(i)=rho_dry(iix,jjy,1,mind)
-  end do
-
-  ! RLT
   ! conversion factor for output relative to dry air
   factor_drygrid=densityoutgrid/densitydrygrid
-  factor_dryrecept=densityoutrecept/densitydryrecept
 
   ! Output is different for forward and backward simulations
-    do kz=1,numzgrid
-      do jy=0,numygridn-1
-        do ix=0,numxgridn-1
-          if (ldirect.eq.1) then
-            factor3d(ix,jy,kz)=1.e12/volumen(ix,jy,kz)/outnum
-          else
-            factor3d(ix,jy,kz)=real(abs(loutaver))/outnum
-          endif
-        end do
-      end do
-    end do
+  if ( ldirect.eq.1) then
+    factor3d(:,:,:)=1.e12/volumen(:,:,:)/outnum
+  else
+    factor3d(:,:,:)=real(abs(loutaver))/outnum
+  endif
 
   !*********************************************************************
   ! Determine the standard deviation of the mean concentration or mixing
@@ -1493,9 +1613,11 @@ subroutine concoutput_nest(itime,outnum)
 
   do ks=1,nspec
 
-  write(anspec,'(i3.3)') ks
+!$OMP BARRIER
+!$OMP SINGLE
+    write(anspec,'(i3.3)') ks
  
-  if (DRYBKDEP.or.WETBKDEP) then !scavdep output
+    if (DRYBKDEP.or.WETBKDEP) then !scavdep output
       if (DRYBKDEP) &
       open(unitoutgrid,file=path(2)(1:length(2))//'grid_drydep_nest_'//adate// &
            atime//'_'//anspec,form='unformatted')
@@ -1503,85 +1625,86 @@ subroutine concoutput_nest(itime,outnum)
       open(unitoutgrid,file=path(2)(1:length(2))//'grid_wetdep_nest_'//adate// &
            atime//'_'//anspec,form='unformatted')
       write(unitoutgrid) itime
-  else
-     if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-       if (ldirect.eq.1) then
-         open(unitoutgrid,file=path(2)(1:length(2))//'grid_conc_nest_' &
-           //adate// &
-           atime//'_'//anspec,form='unformatted')
-       else
-         open(unitoutgrid,file=path(2)(1:length(2))//'grid_time_nest_' &
-           //adate// &
-           atime//'_'//anspec,form='unformatted')
-       endif
-       write(unitoutgrid) itime
-     endif
-  endif
+    else
+      if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
+        if (ldirect.eq.1) then
+          open(unitoutgrid,file=path(2)(1:length(2))//'grid_conc_nest_' &
+            //adate// &
+            atime//'_'//anspec,form='unformatted')
+        else
+          open(unitoutgrid,file=path(2)(1:length(2))//'grid_time_nest_' &
+            //adate// &
+            atime//'_'//anspec,form='unformatted')
+        endif
+        write(unitoutgrid) itime
+      endif
+    endif
+    if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
+     open(unitoutgridppt,file=path(2)(1:length(2))//'grid_pptv_nest_' &
+          //adate// &
+          atime//'_'//anspec,form='unformatted')
 
-  if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
-   open(unitoutgridppt,file=path(2)(1:length(2))//'grid_pptv_nest_' &
-        //adate// &
-        atime//'_'//anspec,form='unformatted')
+      write(unitoutgridppt) itime
+    endif
+!$OMP END SINGLE
 
-    write(unitoutgridppt) itime
-  endif
-
-  do kp=1,maxpointspec_act
-  do nage=1,nageclass
-
-    do jy=0,numygridn-1
-      do ix=0,numxgridn-1
+    do kp=1,maxpointspec_act
+      do nage=1,nageclass
+!$OMP DO
+        do jy=0,numygridn-1
+          do ix=0,numxgridn-1
 
   ! WET DEPOSITION
-        if ((WETDEP).and.(ldirect.gt.0)) then
-            do l=1,nclassunc
-              auxgrid(l)=wetgriduncn(ix,jy,ks,kp,l,nage)
-            end do
-            call mean(auxgrid,wetgrid(ix,jy), &
-                 wetgridsigma(ix,jy),nclassunc)
+            if ((WETDEP).and.(ldirect.gt.0)) then
+              do l=1,nclassunc
+                auxgrid(l)=wetgriduncn(ix,jy,ks,kp,l,nage)
+              end do
+              call mean(auxgrid,wetgrid(ix,jy), &
+                   wetgridsigma(ix,jy),nclassunc)
   ! Multiply by number of classes to get total concentration
-            wetgrid(ix,jy)=wetgrid(ix,jy) &
-                 *nclassunc
+              wetgrid(ix,jy)=wetgrid(ix,jy) &
+                   *nclassunc
   ! Calculate standard deviation of the mean
-            wetgridsigma(ix,jy)= &
-                 wetgridsigma(ix,jy)* &
-                 sqrt(real(nclassunc))
-        endif
+              wetgridsigma(ix,jy)= &
+                   wetgridsigma(ix,jy)* &
+                   sqrt(real(nclassunc))
+            endif
 
   ! DRY DEPOSITION
-        if ((DRYDEP).and.(ldirect.gt.0)) then
-            do l=1,nclassunc
-              auxgrid(l)=drygriduncn(ix,jy,ks,kp,l,nage)
-            end do
-            call mean(auxgrid,drygrid(ix,jy), &
-                 drygridsigma(ix,jy),nclassunc)
+
+            if ((DRYDEP).and.(ldirect.gt.0)) then
+              do l=1,nclassunc
+                auxgrid(l)=drygriduncn(ix,jy,ks,kp,l,nage)
+              end do
+              call mean(auxgrid,drygrid(ix,jy), &
+                   drygridsigma(ix,jy),nclassunc)
   ! Multiply by number of classes to get total concentration
-            drygrid(ix,jy)=drygrid(ix,jy)* &
-                 nclassunc
+              drygrid(ix,jy)=drygrid(ix,jy)* &
+                   nclassunc
   ! Calculate standard deviation of the mean
-            drygridsigma(ix,jy)= &
-                 drygridsigma(ix,jy)* &
-                 sqrt(real(nclassunc))
-        endif
+              drygridsigma(ix,jy)= &
+                   drygridsigma(ix,jy)* &
+                   sqrt(real(nclassunc))
+            endif
 
   ! CONCENTRATION OR MIXING RATIO
-        do kz=1,numzgrid
-            do l=1,nclassunc
-              auxgrid(l)=griduncn(ix,jy,kz,ks,kp,l,nage)
-            end do
-            call mean(auxgrid,grid(ix,jy,kz), &
-                 gridsigma(ix,jy,kz),nclassunc)
+            do kz=1,numzgrid
+              do l=1,nclassunc
+                auxgrid(l)=griduncn(ix,jy,kz,ks,kp,l,nage)
+              end do
+              call mean(auxgrid,grid(ix,jy,kz), &
+                   gridsigma(ix,jy,kz),nclassunc)
   ! Multiply by number of classes to get total concentration
-            grid(ix,jy,kz)= &
-                 grid(ix,jy,kz)*nclassunc
+              grid(ix,jy,kz)= &
+                   grid(ix,jy,kz)*nclassunc
   ! Calculate standard deviation of the mean
-            gridsigma(ix,jy,kz)= &
-                 gridsigma(ix,jy,kz)* &
-                 sqrt(real(nclassunc))
-        end do
-      end do
-    end do
-
+              gridsigma(ix,jy,kz)= &
+                   gridsigma(ix,jy,kz)* &
+                   sqrt(real(nclassunc))
+            end do
+          end do ! ix
+        end do ! jy
+!$OMP END DO
 
   !*******************************************************************
   ! Generate output: may be in concentration (ng/m3) or in mixing
@@ -1591,20 +1714,23 @@ subroutine concoutput_nest(itime,outnum)
   ! For backward simulations, the unit is seconds, stored in grid_time
   !*******************************************************************
 
+!$OMP BARRIER
+!$OMP SINGLE
+
   ! Concentration output
   !*********************
-  if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
+        if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
 
   ! Wet deposition
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-         if ((ldirect.eq.1).and.(WETDEP)) then
-         do jy=0,numygridn-1
-            do ix=0,numxgridn-1
-  !oncentraion greater zero
-              if (wetgrid(ix,jy).gt.smallnum) then
+          sp_count_i=0
+          sp_count_r=0
+          sp_fact=-1.
+          sp_zer=.true.
+          if ((ldirect.eq.1).and.(WETDEP)) then
+           do jy=0,numygridn-1
+             do ix=0,numxgridn-1
+  !concentration greater zero
+               if (wetgrid(ix,jy).gt.smallnum) then
                  if (sp_zer.eqv..true.) then ! first non zero value
                     sp_count_i=sp_count_i+1
                     sparse_dump_i(sp_count_i)=ix+jy*numxgridn
@@ -1614,69 +1740,61 @@ subroutine concoutput_nest(itime,outnum)
                  sp_count_r=sp_count_r+1
                  sparse_dump_r(sp_count_r)= &
                       sp_fact*1.e12*real(wetgrid(ix,jy))/arean(ix,jy)
-  !                sparse_dump_u(sp_count_r)=
-  !+                1.e12*wetgridsigma(ix,jy,ks,kp,nage)/area(ix,jy)
-              else ! concentration is zero
+               else ! concentration is zero
                   sp_zer=.true.
-              endif
-            end do
-         end do
-         else
+               endif
+             end do
+           end do
+          else
             sp_count_i=0
             sp_count_r=0
-         endif
-         write(unitoutgrid) sp_count_i
-         write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgrid) sp_count_r
-         write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-  !       write(unitoutgrid) sp_count_u
-  !       write(unitoutgrid) (sparse_dump_u(i),i=1,sp_count_r)
+          endif
+          write(unitoutgrid) sp_count_i
+          write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
+          write(unitoutgrid) sp_count_r
+          write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
 
   ! Dry deposition
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-         if ((ldirect.eq.1).and.(DRYDEP)) then
-          do jy=0,numygridn-1
-            do ix=0,numxgridn-1
-              if (drygrid(ix,jy).gt.smallnum) then
-                 if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)=ix+jy*numxgridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
-                      sp_fact* &
-                      1.e12*real(drygrid(ix,jy))/arean(ix,jy)
-  !                sparse_dump_u(sp_count_r)=
-  !+                1.e12*drygridsigma(ix,jy,ks,kp,nage)/area(ix,jy)
-              else ! concentration is zero
+          sp_count_i=0
+          sp_count_r=0
+          sp_fact=-1.
+          sp_zer=.true.
+          if ((ldirect.eq.1).and.(DRYDEP)) then
+            do jy=0,numygridn-1
+              do ix=0,numxgridn-1
+                if (drygrid(ix,jy).gt.smallnum) then
+                  if (sp_zer.eqv..true.) then ! first non zero value
+                     sp_count_i=sp_count_i+1
+                     sparse_dump_i(sp_count_i)=ix+jy*numxgridn
+                     sp_zer=.false.
+                     sp_fact=sp_fact*(-1.)
+                  endif
+                  sp_count_r=sp_count_r+1
+                  sparse_dump_r(sp_count_r)= &
+                       sp_fact* &
+                       1.e12*real(drygrid(ix,jy))/arean(ix,jy)
+                else ! concentration is zero
                   sp_zer=.true.
-              endif
+                endif
+              end do
             end do
-          end do
-         else
+          else
             sp_count_i=0
             sp_count_r=0
-         endif
-         write(unitoutgrid) sp_count_i
-         write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgrid) sp_count_r
-         write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-  !       write(*,*) sp_count_u
-  !       write(unitoutgrid) (sparse_dump_u(i),i=1,sp_count_r)
-
-
+          endif
+          write(unitoutgrid) sp_count_i
+          write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
+          write(unitoutgrid) sp_count_r
+          write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
 
   ! Concentrations
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-          do kz=1,numzgrid
+          sp_count_i=0
+          sp_count_r=0
+          sp_fact=-1.
+          sp_zer=.true.
+          numzwrite=numzgrid
+          if (sfc_only.eq.1) numzwrite=1
+          do kz=1,numzwrite
             do jy=0,numygridn-1
               do ix=0,numxgridn-1
                 if (grid(ix,jy,kz).gt.smallnum) then
@@ -1686,47 +1804,38 @@ subroutine concoutput_nest(itime,outnum)
                          ix+jy*numxgridn+kz*numxgridn*numygridn
                     sp_zer=.false.
                     sp_fact=sp_fact*(-1.)
-                   endif
-                   sp_count_r=sp_count_r+1
-                   sparse_dump_r(sp_count_r)= &
+                  endif
+                  sp_count_r=sp_count_r+1
+                  sparse_dump_r(sp_count_r)= &
                         sp_fact* &
                         grid(ix,jy,kz)* &
                         factor3d(ix,jy,kz)/tot_mu(ks,kp)
-  !                 if ((factor(ix,jy,kz)/tot_mu(ks,kp)).eq.0)
-  !    +              write (*,*) factor(ix,jy,kz),tot_mu(ks,kp),ks,kp
-  !                sparse_dump_u(sp_count_r)=
-  !+               ,gridsigma(ix,jy,kz,ks,kp,nage)*
-  !+               factor(ix,jy,kz)/tot_mu(ks,kp)
-              else ! concentration is zero
+                else ! concentration is zero
                   sp_zer=.true.
-              endif
+                endif
               end do
             end do
           end do
-         write(unitoutgrid) sp_count_i
-         write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgrid) sp_count_r
-         write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-  !       write(unitoutgrid) sp_count_u
-  !       write(unitoutgrid) (sparse_dump_u(i),i=1,sp_count_r)
+          write(unitoutgrid) sp_count_i
+          write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
+          write(unitoutgrid) sp_count_r
+          write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
 
-
-
-    endif !  concentration output
+        endif !  concentration output
 
   ! Mixing ratio output
   !********************
 
-  if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
+        if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
 
   ! Wet deposition
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-         if ((ldirect.eq.1).and.(WETDEP)) then
-          do jy=0,numygridn-1
-            do ix=0,numxgridn-1
+          sp_count_i=0
+          sp_count_r=0
+          sp_fact=-1.
+          sp_zer=.true.
+          if ((ldirect.eq.1).and.(WETDEP)) then
+            do jy=0,numygridn-1
+              do ix=0,numxgridn-1
                 if (wetgrid(ix,jy).gt.smallnum) then
                   if (sp_zer.eqv..true.) then ! first non zero value
                     sp_count_i=sp_count_i+1
@@ -1734,38 +1843,33 @@ subroutine concoutput_nest(itime,outnum)
                          ix+jy*numxgridn
                     sp_zer=.false.
                     sp_fact=sp_fact*(-1.)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
+                  endif
+                  sp_count_r=sp_count_r+1
+                  sparse_dump_r(sp_count_r)= &
                       sp_fact* &
                       1.e12*real(wetgrid(ix,jy))/arean(ix,jy)
-  !                sparse_dump_u(sp_count_r)=
-  !    +            ,1.e12*wetgridsigma(ix,jy,ks,kp,nage)/area(ix,jy)
-              else ! concentration is zero
+                else ! concentration is zero
                   sp_zer=.true.
-              endif
+                endif
+              end do
             end do
-          end do
-         else
-           sp_count_i=0
-           sp_count_r=0
-         endif
-         write(unitoutgridppt) sp_count_i
-         write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgridppt) sp_count_r
-         write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-  !       write(unitoutgridppt) sp_count_u
-  !       write(unitoutgridppt) (sparse_dump_u(i),i=1,sp_count_r)
-
+          else
+            sp_count_i=0
+            sp_count_r=0
+          endif
+          write(unitoutgridppt) sp_count_i
+          write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
+          write(unitoutgridppt) sp_count_r
+          write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
 
   ! Dry deposition
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-         if ((ldirect.eq.1).and.(DRYDEP)) then
-          do jy=0,numygridn-1
-            do ix=0,numxgridn-1
+          sp_count_i=0
+          sp_count_r=0
+          sp_fact=-1.
+          sp_zer=.true.
+          if ((ldirect.eq.1).and.(DRYDEP)) then
+            do jy=0,numygridn-1
+              do ix=0,numxgridn-1
                 if (drygrid(ix,jy).gt.smallnum) then
                   if (sp_zer.eqv..true.) then ! first non zero value
                     sp_count_i=sp_count_i+1
@@ -1773,36 +1877,33 @@ subroutine concoutput_nest(itime,outnum)
                          ix+jy*numxgridn
                     sp_zer=.false.
                     sp_fact=sp_fact*(-1)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
+                  endif
+                  sp_count_r=sp_count_r+1
+                  sparse_dump_r(sp_count_r)= &
                       sp_fact* &
                       1.e12*real(drygrid(ix,jy))/arean(ix,jy)
-  !                sparse_dump_u(sp_count_r)=
-  !    +            ,1.e12*drygridsigma(ix,jy,ks,kp,nage)/area(ix,jy)
-              else ! concentration is zero
+                else ! concentration is zero
                   sp_zer=.true.
-              endif
+                endif
+              end do
             end do
-          end do
-         else
-           sp_count_i=0
-           sp_count_r=0
-         endif
-         write(unitoutgridppt) sp_count_i
-         write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgridppt) sp_count_r
-         write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-  !       write(unitoutgridppt) sp_count_u
-  !       write(unitoutgridppt) (sparse_dump_u(i),i=1,sp_count_r)
-
+          else
+            sp_count_i=0
+            sp_count_r=0
+          endif
+          write(unitoutgridppt) sp_count_i
+          write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
+          write(unitoutgridppt) sp_count_r
+          write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
 
   ! Mixing ratios
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-          do kz=1,numzgrid
+          sp_count_i=0
+          sp_count_r=0
+          sp_fact=-1.
+          sp_zer=.true.
+          numzwrite=numzgrid
+          if (sfc_only.eq.1) numzwrite=1
+          do kz=1,numzwrite
             do jy=0,numygridn-1
               do ix=0,numxgridn-1
                 if (grid(ix,jy,kz).gt.smallnum) then
@@ -1819,35 +1920,32 @@ subroutine concoutput_nest(itime,outnum)
                       1.e12*grid(ix,jy,kz) &
                       /volumen(ix,jy,kz)/outnum* &
                       weightair/weightmolar(ks)/densityoutgrid(ix,jy,kz)
-  !                sparse_dump_u(sp_count_r)=
-  !+              ,1.e12*gridsigma(ix,jy,kz,ks,kp,nage)/volume(ix,jy,kz)/
-  !+              outnum*weightair/weightmolar(ks)/
-  !+              densityoutgrid(ix,jy,kz)
-              else ! concentration is zero
+                else ! concentration is zero
                   sp_zer=.true.
-              endif
+                endif
               end do
             end do
           end do
-         write(unitoutgridppt) sp_count_i
-         write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgridppt) sp_count_r
-         write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-  !       write(unitoutgridppt) sp_count_u
-  !       write(unitoutgridppt) (sparse_dump_u(i),i=1,sp_count_r)
+          write(unitoutgridppt) sp_count_i
+          write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
+          write(unitoutgridppt) sp_count_r
+          write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
 
-      endif ! output for ppt
-
-  end do
-  end do
+        endif ! output for ppt
+!$OMP END SINGLE
+!$OMP BARRIER
+      end do
+    end do
 
     close(unitoutgridppt)
     close(unitoutgrid)
 
   end do
+!$OMP END PARALLEL
 
-  ! RLT Aug 2017
   ! Write out conversion factor for dry air
+  !****************************************
+
   inquire(file=path(2)(1:length(2))//'factor_drygrid_nest',exist=lexist)
   if (lexist) then
     ! open and append
@@ -1862,7 +1960,9 @@ subroutine concoutput_nest(itime,outnum)
   sp_count_r=0
   sp_fact=-1.
   sp_zer=.true.
-  do kz=1,numzgrid
+  numzwrite=numzgrid
+  if (sfc_only.eq.1) numzwrite=1
+  do kz=1,numzwrite
     do jy=0,numygridn-1
       do ix=0,numxgridn-1
         if (factor_drygrid(ix,jy,kz).gt.(1.+smallnum).or.factor_drygrid(ix,jy,kz).lt.(1.-smallnum)) then
@@ -1888,9 +1988,13 @@ subroutine concoutput_nest(itime,outnum)
   write(unitoutfactor) (sparse_dump_r(i),i=1,sp_count_r)
   close(unitoutfactor)
 
-  creceptor(:,:)=0.
   griduncn(:,:,:,:,:,:,:)=0.
+#ifdef _OPENMP
+  griduncn_omp(:,:,:,:,:,:,:,:) = 0.
+#endif
+
 end subroutine concoutput_nest
+
 
 subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
      drygridtotalunc)
@@ -1898,7 +2002,7 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
   !       o
   !*****************************************************************************
   !                                                                            *
-  !     Output of the concentration grid and the receptor concentrations.      *
+  !     Output of the concentration grid formatted for inversions.             *
   !                                                                            *
   !     Author: A. Stohl                                                       *
   !                                                                            *
@@ -1919,8 +2023,8 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
   !                in order to save disk space                                 *
   !                                                                            *
   !     2008 new sparse matrix format                                          *
-  !
-  !     January 2017,  Separate files by release but include all timesteps
+  !                                                                            *
+  !     January 2017,  Separate files by release but include all timesteps     *
   !                                                                            *
   !*****************************************************************************
   !                                                                            *
@@ -1941,12 +2045,7 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(numreceptor),xl,yl
-  ! RLT
-  real :: densitydryrecept(numreceptor)
-  real :: factor_dryrecept(numreceptor)
-
-
+  real :: outnum,xl,yl
   real(dep_prec) :: auxgrid(nclassunc)
   real(sp) :: gridtotal,gridsigmatotal,gridtotalunc
   real(dep_prec) :: wetgridtotal,wetgridsigmatotal,wetgridtotalunc
@@ -1970,10 +2069,8 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
     allocate(lstartrel(maxpointspec_act))
     lstartrel(:)=.true.
   endif
-  print*, 'lstartrel = ',lstartrel
 
   if (verbosity.eq.1) then
-    print*,'inside concoutput_inversion '
     CALL SYSTEM_CLOCK(count_clock)
     WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
   endif
@@ -2094,20 +2191,8 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
     end do
   end do
 
-  do i=1,numreceptor
-    xl=xreceptor(i)
-    yl=yreceptor(i)
-    iix=max(min(nint(xl),nxmin1),0)
-    jjy=max(min(nint(yl),nymin1),0)
-    densityoutrecept(i)=rho(iix,jjy,1,2)
-  ! RLT
-    densitydryrecept(i)=rho_dry(iix,jjy,1,2)
-  end do
-
-  ! RLT
   ! conversion factor for output relative to dry air
   factor_drygrid=densityoutgrid/densitydrygrid
-  factor_dryrecept=densityoutrecept/densitydryrecept
 
   ! Output is different for forward and backward simulations
   do kz=1,numzgrid
@@ -2150,7 +2235,6 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
     do kp=1,maxpointspec_act
 
       print*, 'itime = ',itime
-      !print*, 'lage(1) = ',lage(1)
       print*, 'ireleasestart(kp) = ',ireleasestart(kp)
       print*, 'ireleaseend(kp) = ',ireleaseend(kp)
 
@@ -2388,8 +2472,9 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
 
   end do  ! nspec
 
-  ! RLT Aug 2017
   ! Write out conversion factor for dry air
+  !*****************************************
+
   inquire(file=path(2)(1:length(2))//'factor_drygrid',exist=lexist)
   if (lexist.and..not.lstart) then
     ! open and append
@@ -2430,46 +2515,7 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
   write(unitoutfactor) (sparse_dump_r(i),i=1,sp_count_r)
   close(unitoutfactor)
 
-
   if (gridtotal.gt.0.) gridtotalunc=gridsigmatotal/gridtotal
-
-  ! Dump of receptor concentrations
-
-  if (numreceptor.gt.0 .and. (iout.eq.2 .or. iout.eq.3)  ) then
-    write(unitoutreceptppt) itime
-    do ks=1,nspec
-      write(unitoutreceptppt) (1.e12*creceptor(i,ks)/outnum* &
-           weightair/weightmolar(ks)/densityoutrecept(i),i=1,numreceptor)
-    end do
-  endif
-
-  ! Dump of receptor concentrations
-
-  if (numreceptor.gt.0) then
-    write(unitoutrecept) itime
-    do ks=1,nspec
-      write(unitoutrecept) (1.e12*creceptor(i,ks)/outnum, &
-           i=1,numreceptor)
-    end do
-  endif
-
-  ! RLT Aug 2017
-  ! Write out conversion factor for dry air
-  if (numreceptor.gt.0) then
-    inquire(file=path(2)(1:length(2))//'factor_dryreceptor',exist=lexist)
-     if (lexist.and..not.lstart) then
-     ! open and append
-      open(unitoutfactor,file=path(2)(1:length(2))//'factor_dryreceptor',form='unformatted',&
-              status='old',action='write',access='append')
-    else
-      ! create new
-      open(unitoutfactor,file=path(2)(1:length(2))//'factor_dryreceptor',form='unformatted',&
-              status='replace',action='write')
-    endif
-    write(unitoutfactor) itime
-    write(unitoutfactor) (factor_dryrecept(i),i=1,numreceptor)
-    close(unitoutfactor)
-  endif
 
   ! reset lstart
   if (lstart) then
@@ -2477,35 +2523,19 @@ subroutine concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc, &
   endif
   print*, 'after writing output files: lstart = ',lstart
 
-
   ! Reinitialization of grid
   !*************************
 
-  do ks=1,nspec
-    do kp=1,maxpointspec_act
-      do i=1,numreceptor
-        creceptor(i,ks)=0.
-      end do
-      do jy=0,numygrid-1
-        do ix=0,numxgrid-1
-          do l=1,nclassunc
-            do nage=1,nageclass
-              do kz=1,numzgrid
-                gridunc(ix,jy,kz,ks,kp,l,nage)=0.
-              end do
-            end do
-          end do
-        end do
-      end do
-    end do
-  end do
+  gridunc(:,:,:,:,:,:,:)=0.
+
 end subroutine concoutput_inversion
+
 
 subroutine concoutput_inversion_nest(itime,outnum)
   !                        i     i
   !*****************************************************************************
   !                                                                            *
-  !     Output of the concentration grid and the receptor concentrations.      *
+  !     Output of the nested concentration grid formatted for inversions.      *
   !                                                                            *
   !     Author: A. Stohl                                                       *
   !                                                                            *
@@ -2526,7 +2556,7 @@ subroutine concoutput_inversion_nest(itime,outnum)
   !                in order to save disk space                                 *
   !                                                                            *
   !     2008 new sparse matrix format                                          *
-  !
+  !                                                                            *
   !     January 2017,  Separate files by release but include all timesteps     *
   !                                                                            *
   !*****************************************************************************
@@ -2548,10 +2578,7 @@ subroutine concoutput_inversion_nest(itime,outnum)
   integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
   integer :: sp_count_i,sp_count_r
   real :: sp_fact
-  real :: outnum,densityoutrecept(numreceptor),xl,yl
-  ! RLT
-  real :: densitydryrecept(numreceptor)
-  real :: factor_dryrecept(numreceptor)
+  real :: outnum,xl,yl
 
   real(dep_prec) :: auxgrid(nclassunc)
   real :: halfheight,dz,dz1,dz2,tot_mu(maxspec,maxpointspec_act)
@@ -2634,40 +2661,21 @@ subroutine concoutput_inversion_nest(itime,outnum)
         jjy=max(min(nint(yl),nymin1),0)
         densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,2)*dz1+ &
              rho(iix,jjy,kzz-1,2)*dz2)/dz
-  ! RLT
         densitydrygrid(ix,jy,kz)=(rho_dry(iix,jjy,kzz,2)*dz1+ &
              rho_dry(iix,jjy,kzz-1,2)*dz2)/dz
       end do
     end do
   end do
 
-  do i=1,numreceptor
-    xl=xreceptor(i)
-    yl=yreceptor(i)
-    iix=max(min(nint(xl),nxmin1),0)
-    jjy=max(min(nint(yl),nymin1),0)
-    densityoutrecept(i)=rho(iix,jjy,1,2)
-  ! RLT
-    densitydryrecept(i)=rho_dry(iix,jjy,1,2)
-  end do
-
-  ! RLT
   ! conversion factor for output relative to dry air
   factor_drygrid=densityoutgrid/densitydrygrid
-  factor_dryrecept=densityoutrecept/densitydryrecept
 
   ! Output is different for forward and backward simulations
-    do kz=1,numzgrid
-      do jy=0,numygridn-1
-        do ix=0,numxgridn-1
-          if (ldirect.eq.1) then
-            factor3d(ix,jy,kz)=1.e12/volumen(ix,jy,kz)/outnum
-          else
-            factor3d(ix,jy,kz)=real(abs(loutaver))/outnum
-          endif
-        end do
-      end do
-    end do
+  if (ldirect.eq.1) then
+    factor3d(:,:,:)=1.e12/volumen(:,:,:)/outnum
+  else
+    factor3d(:,:,:)=real(abs(loutaver))/outnum
+  endif
 
   !*********************************************************************
   ! Determine the standard deviation of the mean concentration or mixing
@@ -2896,9 +2904,9 @@ subroutine concoutput_inversion_nest(itime,outnum)
 
   end do ! nspec
 
-
-  ! RLT Aug 2017
   ! Write out conversion factor for dry air
+  !*****************************************
+
   inquire(file=path(2)(1:length(2))//'factor_drygrid_nest',exist=lexist)
   if (lexist.and..not.lnstart) then
     ! open and append
@@ -2947,1328 +2955,10 @@ subroutine concoutput_inversion_nest(itime,outnum)
   ! Reinitialization of grid
   !*************************
 
-  do ks=1,nspec
-  do kp=1,maxpointspec_act
-    do i=1,numreceptor
-      creceptor(i,ks)=0.
-    end do
-    do jy=0,numygridn-1
-      do ix=0,numxgridn-1
-        do l=1,nclassunc
-          do nage=1,nageclass
-            do kz=1,numzgrid
-              griduncn(ix,jy,kz,ks,kp,l,nage)=0.
-            end do
-          end do
-        end do
-      end do
-    end do
-  end do
-  end do
+  griduncn(:,:,:,:,:,:,:)=0.
+
 end subroutine concoutput_inversion_nest
 
-subroutine concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc, &
-     drygridtotalunc)
-  !                        i     i          o             o
-  !       o
-  !*****************************************************************************
-  !                                                                            *
-  !     Output of the concentration grid and the receptor concentrations.      *
-  !                                                                            *
-  !     Author: A. Stohl                                                       *
-  !                                                                            *
-  !     24 May 1995                                                            *
-  !                                                                            *
-  !     13 April 1999, Major update: if output size is smaller, dump output    *
-  !                    in sparse matrix format; additional output of           *
-  !                    uncertainty                                             *
-  !                                                                            *
-  !     05 April 2000, Major update: output of age classes; output for backward*
-  !                    runs is time spent in grid cell times total mass of     *
-  !                    species.                                                *
-  !                                                                            *
-  !     17 February 2002, Appropriate dimensions for backward and forward runs *
-  !                       are now specified in file par_mod                    *
-  !                                                                            *
-  !     June 2006, write grid in sparse matrix with a single write command     *
-  !                in order to save disk space                                 *
-  !                                                                            *
-  !     2008 new sparse matrix format                                          *
-  !                                                                            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  ! outnum          number of samples                                          *
-  ! ncells          number of cells with non-zero concentrations               *
-  ! sparse          .true. if in sparse matrix format, else .false.            *
-  ! tot_mu          1 for forward, initial mass mixing ration for backw. runs  *
-  !                                                                            *
-  !*****************************************************************************
-
-  use unc_mod
-  use mean_mod
-
-  implicit none
-
-  real(kind=dp) :: jul
-  integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
-  integer :: sp_count_i,sp_count_r
-  real :: sp_fact
-  real :: outnum,densityoutrecept(numreceptor),xl,yl
-  ! RLT
-  real :: densitydryrecept(numreceptor)
-  real :: factor_dryrecept(numreceptor)
-
-  real(dep_prec) :: auxgrid(nclassunc)
-  real(sp) :: gridtotal,gridsigmatotal,gridtotalunc
-  real(dep_prec) :: wetgridtotal,wetgridsigmatotal,wetgridtotalunc
-  real(dep_prec) :: drygridtotal,drygridsigmatotal,drygridtotalunc
-  real :: halfheight,dz,dz1,dz2,tot_mu(maxspec,maxpointspec_act)
-  real,parameter :: smallnum = tiny(0.0) ! smallest number that can be handled
-  real,parameter :: weightair=28.97
-  logical :: sp_zer
-  character :: adate*8,atime*6
-  character(len=3) :: anspec
-  logical :: lexist
-
-
-  if (verbosity.eq.1) then
-    print*,'inside concoutput_sfc '
-    CALL SYSTEM_CLOCK(count_clock)
-    WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
-  endif
-
-  ! Determine current calendar date, needed for the file name
-  !**********************************************************
-
-  jul=bdate+real(itime,kind=dp)/86400._dp
-  call caldate(jul,jjjjmmdd,ihmmss)
-  write(adate,'(i8.8)') jjjjmmdd
-  write(atime,'(i6.6)') ihmmss
-
-  open(unitdates,file=path(2)(1:length(2))//'dates', ACCESS='APPEND')
-  write(unitdates,'(a)') adate//atime
-  close(unitdates)
-
-  ! For forward simulations, output fields have dimension MAXSPEC,
-  ! for backward simulations, output fields have dimension MAXPOINT.
-  ! Thus, make loops either about nspec, or about numpoint
-  !*****************************************************************
-
-
-  if (ldirect.eq.1) then
-    do ks=1,nspec
-      do kp=1,maxpointspec_act
-        tot_mu(ks,kp)=1
-      end do
-    end do
-  else
-    do ks=1,nspec
-      do kp=1,maxpointspec_act
-        tot_mu(ks,kp)=xmass(kp,ks)
-      end do
-    end do
-  endif
-
-
-  if (verbosity.eq.1) then
-    print*,'concoutput_sfc 2'
-    CALL SYSTEM_CLOCK(count_clock)
-    WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
-  endif
-
-  !*******************************************************************
-  ! Compute air density: sufficiently accurate to take it
-  ! from coarse grid at some time
-  ! Determine center altitude of output layer, and interpolate density
-  ! data to that altitude
-  !*******************************************************************
-
-  do kz=1,numzgrid
-    if (kz.eq.1) then
-      halfheight=outheight(1)*0.5
-    else
-      halfheight=(outheight(kz)+outheight(kz-1))*0.5
-    endif
-    do kzz=2,nz
-      if ((height(kzz-1).lt.halfheight).and. &
-           (height(kzz).gt.halfheight)) goto 46
-    end do
-46  kzz=max(min(kzz,nz),2)
-    dz1=halfheight-height(kzz-1)
-    dz2=height(kzz)-halfheight
-    dz=dz1+dz2
-    do jy=0,numygrid-1
-      do ix=0,numxgrid-1
-        xl=outlon0+real(ix)*dxout
-        yl=outlat0+real(jy)*dyout
-        xl=(xl-xlon0)/dx
-        yl=(yl-ylat0)/dy
-        iix=max(min(nint(xl),nxmin1),0)
-        jjy=max(min(nint(yl),nymin1),0)
-        densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,2)*dz1+ &
-             rho(iix,jjy,kzz-1,2)*dz2)/dz
-  ! RLT
-        densitydrygrid(ix,jy,kz)=(rho_dry(iix,jjy,kzz,2)*dz1+ &
-             rho_dry(iix,jjy,kzz-1,2)*dz2)/dz
-      end do
-    end do
-  end do
-
-  do i=1,numreceptor
-    xl=xreceptor(i)
-    yl=yreceptor(i)
-    iix=max(min(nint(xl),nxmin1),0)
-    jjy=max(min(nint(yl),nymin1),0)
-    densityoutrecept(i)=rho(iix,jjy,1,2)
-  ! RLT
-    densitydryrecept(i)=rho_dry(iix,jjy,1,2)
-  end do
-
-  ! RLT
-  ! conversion factor for output relative to dry air
-  factor_drygrid=densityoutgrid/densitydrygrid
-  factor_dryrecept=densityoutrecept/densitydryrecept
-
-  ! Output is different for forward and backward simulations
-  do kz=1,numzgrid
-    do jy=0,numygrid-1
-      do ix=0,numxgrid-1
-        if (ldirect.eq.1) then
-          factor3d(ix,jy,kz)=1.e12/volume(ix,jy,kz)/outnum
-        else
-          factor3d(ix,jy,kz)=real(abs(loutaver))/outnum
-        endif
-      end do
-    end do
-  end do
-
-  !*********************************************************************
-  ! Determine the standard deviation of the mean concentration or mixing
-  ! ratio (uncertainty of the output) and the dry and wet deposition
-  !*********************************************************************
-
-  if (verbosity.eq.1) then
-    print*,'concoutput_sfc 3 (sd)'
-    CALL SYSTEM_CLOCK(count_clock)
-    WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
-  endif
-  gridtotal=0.
-  gridsigmatotal=0.
-  gridtotalunc=0.
-  wetgridtotal=0.
-  wetgridsigmatotal=0.
-  wetgridtotalunc=0.
-  drygridtotal=0.
-  drygridsigmatotal=0.
-  drygridtotalunc=0.
-
-  do ks=1,nspec
-
-    write(anspec,'(i3.3)') ks
-    if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-      if (ldirect.eq.1) then
-        open(unitoutgrid,file=path(2)(1:length(2))//'grid_conc_'//adate// &
-             atime//'_'//anspec,form='unformatted')
-      else
-        open(unitoutgrid,file=path(2)(1:length(2))//'grid_time_'//adate// &
-             atime//'_'//anspec,form='unformatted')
-      endif
-      write(unitoutgrid) itime
-    endif
-
-    if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
-      open(unitoutgridppt,file=path(2)(1:length(2))//'grid_pptv_'//adate// &
-           atime//'_'//anspec,form='unformatted')
-
-      write(unitoutgridppt) itime
-    endif
-
-    do kp=1,maxpointspec_act
-      do nage=1,nageclass
-
-        do jy=0,numygrid-1
-          do ix=0,numxgrid-1
-
-  ! WET DEPOSITION
-            if ((WETDEP).and.(ldirect.gt.0)) then
-              do l=1,nclassunc
-                auxgrid(l)=wetgridunc(ix,jy,ks,kp,l,nage)
-              end do
-              call mean(auxgrid,wetgrid(ix,jy), &
-                   wetgridsigma(ix,jy),nclassunc)
-  ! Multiply by number of classes to get total concentration
-              wetgrid(ix,jy)=wetgrid(ix,jy) &
-                   *nclassunc
-              wetgridtotal=wetgridtotal+wetgrid(ix,jy)
-  ! Calculate standard deviation of the mean
-              wetgridsigma(ix,jy)= &
-                   wetgridsigma(ix,jy)* &
-                   sqrt(real(nclassunc))
-              wetgridsigmatotal=wetgridsigmatotal+ &
-                   wetgridsigma(ix,jy)
-            endif
-
-  ! DRY DEPOSITION
-            if ((DRYDEP).and.(ldirect.gt.0)) then
-              do l=1,nclassunc
-                auxgrid(l)=drygridunc(ix,jy,ks,kp,l,nage)
-              end do
-              call mean(auxgrid,drygrid(ix,jy), &
-                   drygridsigma(ix,jy),nclassunc)
-  ! Multiply by number of classes to get total concentration
-              drygrid(ix,jy)=drygrid(ix,jy)* &
-                   nclassunc
-              drygridtotal=drygridtotal+drygrid(ix,jy)
-  ! Calculate standard deviation of the mean
-              drygridsigma(ix,jy)= &
-                   drygridsigma(ix,jy)* &
-                   sqrt(real(nclassunc))
-              drygridsigmatotal=drygridsigmatotal+ &
-                   drygridsigma(ix,jy)
-            endif
-
-  ! CONCENTRATION OR MIXING RATIO
-            do kz=1,numzgrid
-              do l=1,nclassunc
-                auxgrid(l)=gridunc(ix,jy,kz,ks,kp,l,nage)
-              end do
-              call mean(auxgrid,grid(ix,jy,kz), &
-                   gridsigma(ix,jy,kz),nclassunc)
-  ! Multiply by number of classes to get total concentration
-              grid(ix,jy,kz)= &
-                   grid(ix,jy,kz)*nclassunc
-              gridtotal=gridtotal+grid(ix,jy,kz)
-  ! Calculate standard deviation of the mean
-              gridsigma(ix,jy,kz)= &
-                   gridsigma(ix,jy,kz)* &
-                   sqrt(real(nclassunc))
-              gridsigmatotal=gridsigmatotal+ &
-                   gridsigma(ix,jy,kz)
-            end do
-          end do
-        end do
-
-
-  !*******************************************************************
-  ! Generate output: may be in concentration (ng/m3) or in mixing
-  ! ratio (ppt) or both
-  ! Output the position and the values alternated multiplied by
-  ! 1 or -1, first line is number of values, number of positions
-  ! For backward simulations, the unit is seconds, stored in grid_time
-  !*******************************************************************
-
-        if (verbosity.eq.1) then
-          print*,'concoutput_sfc 4 (output)'
-          CALL SYSTEM_CLOCK(count_clock)
-          WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
-        endif
-
-  ! Concentration output
-  !*********************
-
-        if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-
-          if (verbosity.eq.1) then
-            print*,'concoutput_sfc (Wet deposition)'
-            CALL SYSTEM_CLOCK(count_clock)
-            WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
-          endif
-
-  ! Wet deposition
-          sp_count_i=0
-          sp_count_r=0
-          sp_fact=-1.
-          sp_zer=.true.
-          if ((ldirect.eq.1).and.(WETDEP)) then
-            do jy=0,numygrid-1
-              do ix=0,numxgrid-1
-  ! concentraion greater zero
-                if (wetgrid(ix,jy).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)=ix+jy*numxgrid
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                  endif
-                  sp_count_r=sp_count_r+1
-                  sparse_dump_r(sp_count_r)= &
-                       sp_fact*1.e12*real(wetgrid(ix,jy))/area(ix,jy)
-                  sparse_dump_u(sp_count_r)= &
-                       1.e12*real(wetgridsigma(ix,jy))/area(ix,jy)
-                else ! concentration is zero
-                  sp_zer=.true.
-                endif
-              end do
-            end do
-          else
-            sp_count_i=0
-            sp_count_r=0
-          endif
-          write(unitoutgrid) sp_count_i
-          write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-          write(unitoutgrid) sp_count_r
-          write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-
-          if (verbosity.eq.1) then
-            print*,'concoutput_sfc (Dry deposition)'
-            CALL SYSTEM_CLOCK(count_clock)
-            WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
-          endif
-  ! Dry deposition
-          sp_count_i=0
-          sp_count_r=0
-          sp_fact=-1.
-          sp_zer=.true.
-          if ((ldirect.eq.1).and.(DRYDEP)) then
-            do jy=0,numygrid-1
-              do ix=0,numxgrid-1
-                if (drygrid(ix,jy).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)=ix+jy*numxgrid
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                  endif
-                  sp_count_r=sp_count_r+1
-                  sparse_dump_r(sp_count_r)= &
-                       sp_fact* &
-                       1.e12*real(drygrid(ix,jy))/area(ix,jy)
-                  sparse_dump_u(sp_count_r)= &
-                       1.e12*real(drygridsigma(ix,jy))/area(ix,jy)
-                else ! concentration is zero
-                  sp_zer=.true.
-                endif
-              end do
-            end do
-          else
-            sp_count_i=0
-            sp_count_r=0
-          endif
-          write(unitoutgrid) sp_count_i
-          write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-          write(unitoutgrid) sp_count_r
-          write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-
-          if (verbosity.eq.1) then
-            print*,'concoutput_sfc (Concentrations)'
-            CALL SYSTEM_CLOCK(count_clock)
-            WRITE(*,*) 'SYSTEM_CLOCK',count_clock - count_clock0   
-          endif
-
-  ! Concentrations
-
-  ! sfc_only write only 1st layer 
-
-          sp_count_i=0
-          sp_count_r=0
-          sp_fact=-1.
-          sp_zer=.true.
-          do kz=1,1
-            do jy=0,numygrid-1
-              do ix=0,numxgrid-1
-                if (grid(ix,jy,kz).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgrid+kz*numxgrid*numygrid
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                  endif
-                  sp_count_r=sp_count_r+1
-                  sparse_dump_r(sp_count_r)= &
-                       sp_fact* &
-                       grid(ix,jy,kz)* &
-                       factor3d(ix,jy,kz)/tot_mu(ks,kp)
-                  sparse_dump_u(sp_count_r)= &
-                       gridsigma(ix,jy,kz)* &
-                       factor3d(ix,jy,kz)/tot_mu(ks,kp)
-                else ! concentration is zero
-                  sp_zer=.true.
-                endif
-              end do
-            end do
-          end do
-          write(unitoutgrid) sp_count_i
-          write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-          write(unitoutgrid) sp_count_r
-          write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-        endif !  concentration output
-
-  ! Mixing ratio output
-  !********************
-
-        if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
-
-  ! Wet deposition
-          sp_count_i=0
-          sp_count_r=0
-          sp_fact=-1.
-          sp_zer=.true.
-          if ((ldirect.eq.1).and.(WETDEP)) then
-            do jy=0,numygrid-1
-              do ix=0,numxgrid-1
-                if (wetgrid(ix,jy).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgrid
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                  endif
-                  sp_count_r=sp_count_r+1
-                  sparse_dump_r(sp_count_r)= &
-                       sp_fact* &
-                       1.e12*real(wetgrid(ix,jy))/area(ix,jy)
-                  sparse_dump_u(sp_count_r)= &
-                       1.e12*real(wetgridsigma(ix,jy))/area(ix,jy)
-                else ! concentration is zero
-                  sp_zer=.true.
-                endif
-              end do
-            end do
-          else
-            sp_count_i=0
-            sp_count_r=0
-          endif
-          write(unitoutgridppt) sp_count_i
-          write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-          write(unitoutgridppt) sp_count_r
-          write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-
-  ! Dry deposition
-          sp_count_i=0
-          sp_count_r=0
-          sp_fact=-1.
-          sp_zer=.true.
-          if ((ldirect.eq.1).and.(DRYDEP)) then
-            do jy=0,numygrid-1
-              do ix=0,numxgrid-1
-                if (drygrid(ix,jy).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgrid
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1)
-                  endif
-                  sp_count_r=sp_count_r+1
-                  sparse_dump_r(sp_count_r)= &
-                       sp_fact* &
-                       1.e12*real(drygrid(ix,jy))/area(ix,jy)
-                  sparse_dump_u(sp_count_r)= &
-                       1.e12*real(drygridsigma(ix,jy))/area(ix,jy)
-                else ! concentration is zero
-                  sp_zer=.true.
-                endif
-              end do
-            end do
-          else
-            sp_count_i=0
-            sp_count_r=0
-          endif
-          write(unitoutgridppt) sp_count_i
-          write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-          write(unitoutgridppt) sp_count_r
-          write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-
-  ! Mixing ratios
-
-  ! sfc_only write only 1st layer 
-
-          sp_count_i=0
-          sp_count_r=0
-          sp_fact=-1.
-          sp_zer=.true.
-          do kz=1,1
-            do jy=0,numygrid-1
-              do ix=0,numxgrid-1
-                if (grid(ix,jy,kz).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgrid+kz*numxgrid*numygrid
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                  endif
-                  sp_count_r=sp_count_r+1
-                  sparse_dump_r(sp_count_r)= &
-                       sp_fact* &
-                       1.e12*grid(ix,jy,kz) &
-                       /volume(ix,jy,kz)/outnum* &
-                       weightair/weightmolar(ks)/densityoutgrid(ix,jy,kz)
-                  sparse_dump_u(sp_count_r)= &
-                       1.e12*gridsigma(ix,jy,kz)/volume(ix,jy,kz)/ &
-                       outnum*weightair/weightmolar(ks)/ &
-                       densityoutgrid(ix,jy,kz)
-                else ! concentration is zero
-                  sp_zer=.true.
-                endif
-              end do
-            end do
-          end do
-          write(unitoutgridppt) sp_count_i
-          write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-          write(unitoutgridppt) sp_count_r
-          write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-        endif ! output for ppt
-
-      end do
-    end do
-
-    close(unitoutgridppt)
-    close(unitoutgrid)
-
-  end do
-
-  ! RLT Aug 2017
-  ! Write out conversion factor for dry air
-  inquire(file=path(2)(1:length(2))//'factor_drygrid',exist=lexist)
-  if (lexist) then
-    ! open and append
-    open(unitoutfactor,file=path(2)(1:length(2))//'factor_drygrid',form='unformatted',&
-            status='old',action='write',access='append')
-  else
-    ! create new
-    open(unitoutfactor,file=path(2)(1:length(2))//'factor_drygrid',form='unformatted',&
-            status='new',action='write')
-  endif
-  sp_count_i=0
-  sp_count_r=0
-  sp_fact=-1.
-  sp_zer=.true.
-  do kz=1,1
-    do jy=0,numygrid-1
-      do ix=0,numxgrid-1
-        if (factor_drygrid(ix,jy,kz).gt.(1.+smallnum).or.factor_drygrid(ix,jy,kz).lt.(1.-smallnum)) then
-          if (sp_zer.eqv..true.) then ! first value not equal to one
-            sp_count_i=sp_count_i+1
-            sparse_dump_i(sp_count_i)= &
-                  ix+jy*numxgrid+kz*numxgrid*numygrid
-            sp_zer=.false.
-            sp_fact=sp_fact*(-1.)
-          endif
-          sp_count_r=sp_count_r+1
-          sparse_dump_r(sp_count_r)= &
-               sp_fact*factor_drygrid(ix,jy,kz)
-        else ! factor is one
-          sp_zer=.true.
-        endif
-      end do
-    end do
-  end do
-  write(unitoutfactor) sp_count_i
-  write(unitoutfactor) (sparse_dump_i(i),i=1,sp_count_i)
-  write(unitoutfactor) sp_count_r
-  write(unitoutfactor) (sparse_dump_r(i),i=1,sp_count_r)
-  close(unitoutfactor)
-
-
-  if (gridtotal.gt.0.) gridtotalunc=gridsigmatotal/gridtotal
-  if (wetgridtotal.gt.0.) wetgridtotalunc=wetgridsigmatotal/ &
-       wetgridtotal
-  if (drygridtotal.gt.0.) drygridtotalunc=drygridsigmatotal/ &
-       drygridtotal
-
-  ! Dump of receptor concentrations
-
-  if (numreceptor.gt.0 .and. (iout.eq.2 .or. iout.eq.3)  ) then
-    write(unitoutreceptppt) itime
-    do ks=1,nspec
-      write(unitoutreceptppt) (1.e12*creceptor(i,ks)/outnum* &
-           weightair/weightmolar(ks)/densityoutrecept(i),i=1,numreceptor)
-    end do
-  endif
-
-  ! Dump of receptor concentrations
-
-  if (numreceptor.gt.0) then
-    write(unitoutrecept) itime
-    do ks=1,nspec
-      write(unitoutrecept) (1.e12*creceptor(i,ks)/outnum, &
-           i=1,numreceptor)
-    end do
-  endif
-
-  ! RLT Aug 2017
-  ! Write out conversion factor for dry air
-  if (numreceptor.gt.0) then
-    inquire(file=path(2)(1:length(2))//'factor_dryreceptor',exist=lexist)
-     if (lexist) then
-     ! open and append
-      open(unitoutfactor,file=path(2)(1:length(2))//'factor_dryreceptor',form='unformatted',&
-              status='old',action='write',access='append')
-    else
-      ! create new
-      open(unitoutfactor,file=path(2)(1:length(2))//'factor_dryreceptor',form='unformatted',&
-              status='new',action='write')
-    endif
-    write(unitoutfactor) itime
-    write(unitoutfactor) (factor_dryrecept(i),i=1,numreceptor)
-    close(unitoutfactor)
-  endif
-
-  ! Reinitialization of grid
-  !*************************
-
-  do ks=1,nspec
-    do kp=1,maxpointspec_act
-      do i=1,numreceptor
-        creceptor(i,ks)=0.
-      end do
-      do jy=0,numygrid-1
-        do ix=0,numxgrid-1
-          do l=1,nclassunc
-            do nage=1,nageclass
-              do kz=1,numzgrid
-                gridunc(ix,jy,kz,ks,kp,l,nage)=0.
-              end do
-            end do
-          end do
-        end do
-      end do
-    end do
-  end do
-end subroutine concoutput_sfc
-
-subroutine concoutput_sfc_nest(itime,outnum)
-  !                        i     i
-  !*****************************************************************************
-  !                                                                            *
-  !     Output of the concentration grid and the receptor concentrations.      *
-  !                                                                            *
-  !     Author: A. Stohl                                                       *
-  !                                                                            *
-  !     24 May 1995                                                            *
-  !                                                                            *
-  !     13 April 1999, Major update: if output size is smaller, dump output    *
-  !                    in sparse matrix format; additional output of           *
-  !                    uncertainty                                             *
-  !                                                                            *
-  !     05 April 2000, Major update: output of age classes; output for backward*
-  !                    runs is time spent in grid cell times total mass of     *
-  !                    species.                                                *
-  !                                                                            *
-  !     17 February 2002, Appropriate dimensions for backward and forward runs *
-  !                       are now specified in file par_mod                    *
-  !                                                                            *
-  !     June 2006, write grid in sparse matrix with a single write command     *
-  !                in order to save disk space                                 *
-  !                                                                            *
-  !     2008 new sparse matrix format                                          *
-  !                                                                            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  ! outnum          number of samples                                          *
-  ! ncells          number of cells with non-zero concentrations               *
-  ! sparse          .true. if in sparse matrix format, else .false.            *
-  ! tot_mu          1 for forward, initial mass mixing ration for backw. runs  *
-  !                                                                            *
-  !*****************************************************************************
-
-  use unc_mod
-  use mean_mod
-
-  implicit none
-
-  real(kind=dp) :: jul
-  integer :: itime,i,ix,jy,kz,ks,kp,l,iix,jjy,kzz,nage,jjjjmmdd,ihmmss
-  integer :: sp_count_i,sp_count_r
-  real :: sp_fact
-  real :: outnum,densityoutrecept(numreceptor),xl,yl
-  ! RLT
-  real :: densitydryrecept(numreceptor)
-  real :: factor_dryrecept(numreceptor)
-
-  real(dep_prec) :: auxgrid(nclassunc)
-  real :: halfheight,dz,dz1,dz2,tot_mu(maxspec,maxpointspec_act)
-  real,parameter :: smallnum = tiny(0.0) ! smallest number that can be handled
-  real,parameter :: weightair=28.97
-  logical :: sp_zer
-  character :: adate*8,atime*6
-  character(len=3) :: anspec
-  logical :: lexist
-
-  ! Determine current calendar date, needed for the file name
-  !**********************************************************
-
-  jul=bdate+real(itime,kind=dp)/86400._dp
-  call caldate(jul,jjjjmmdd,ihmmss)
-  write(adate,'(i8.8)') jjjjmmdd
-  write(atime,'(i6.6)') ihmmss
-
-
-  ! For forward simulations, output fields have dimension MAXSPEC,
-  ! for backward simulations, output fields have dimension MAXPOINT.
-  ! Thus, make loops either about nspec, or about numpoint
-  !*****************************************************************
-
-
-    if (ldirect.eq.1) then
-       do ks=1,nspec
-         do kp=1,maxpointspec_act
-           tot_mu(ks,kp)=1
-         end do
-       end do
-   else
-      do ks=1,nspec
-             do kp=1,maxpointspec_act
-               tot_mu(ks,kp)=xmass(kp,ks)
-             end do
-      end do
-    endif
-
-
-  !*******************************************************************
-  ! Compute air density: sufficiently accurate to take it
-  ! from coarse grid at some time
-  ! Determine center altitude of output layer, and interpolate density
-  ! data to that altitude
-  !*******************************************************************
-
-  do kz=1,numzgrid
-    if (kz.eq.1) then
-      halfheight=outheight(1)*0.5
-    else
-      halfheight=(outheight(kz)+outheight(kz-1))*0.5
-    endif
-    do kzz=2,nz
-      if ((height(kzz-1).lt.halfheight).and. &
-           (height(kzz).gt.halfheight)) goto 46
-    end do
-46   kzz=max(min(kzz,nz),2)
-    dz1=halfheight-height(kzz-1)
-    dz2=height(kzz)-halfheight
-    dz=dz1+dz2
-    do jy=0,numygridn-1
-      do ix=0,numxgridn-1
-        xl=outlon0n+real(ix)*dxoutn
-        yl=outlat0n+real(jy)*dyoutn
-        xl=(xl-xlon0)/dx
-        yl=(yl-ylat0)/dy
-        iix=max(min(nint(xl),nxmin1),0)
-        jjy=max(min(nint(yl),nymin1),0)
-        densityoutgrid(ix,jy,kz)=(rho(iix,jjy,kzz,2)*dz1+ &
-             rho(iix,jjy,kzz-1,2)*dz2)/dz
-  ! RLT
-        densitydrygrid(ix,jy,kz)=(rho_dry(iix,jjy,kzz,2)*dz1+ &
-             rho_dry(iix,jjy,kzz-1,2)*dz2)/dz
-      end do
-    end do
-  end do
-
-    do i=1,numreceptor
-      xl=xreceptor(i)
-      yl=yreceptor(i)
-      iix=max(min(nint(xl),nxmin1),0)
-      jjy=max(min(nint(yl),nymin1),0)
-      densityoutrecept(i)=rho(iix,jjy,1,2)
-  ! RLT
-    densitydryrecept(i)=rho_dry(iix,jjy,1,2)
-    end do
-
-  ! RLT
-  ! conversion factor for output relative to dry air
-  factor_drygrid=densityoutgrid/densitydrygrid
-  factor_dryrecept=densityoutrecept/densitydryrecept
-
-  ! Output is different for forward and backward simulations
-    do kz=1,numzgrid
-      do jy=0,numygridn-1
-        do ix=0,numxgridn-1
-          if (ldirect.eq.1) then
-            factor3d(ix,jy,kz)=1.e12/volumen(ix,jy,kz)/outnum
-          else
-            factor3d(ix,jy,kz)=real(abs(loutaver))/outnum
-          endif
-        end do
-      end do
-    end do
-
-  !*********************************************************************
-  ! Determine the standard deviation of the mean concentration or mixing
-  ! ratio (uncertainty of the output) and the dry and wet deposition
-  !*********************************************************************
-
-  do ks=1,nspec
-
-  write(anspec,'(i3.3)') ks
-  if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-    if (ldirect.eq.1) then
-      open(unitoutgrid,file=path(2)(1:length(2))//'grid_conc_nest_' &
-           //adate// &
-           atime//'_'//anspec,form='unformatted')
-    else
-      open(unitoutgrid,file=path(2)(1:length(2))//'grid_time_nest_' &
-           //adate// &
-           atime//'_'//anspec,form='unformatted')
-    endif
-     write(unitoutgrid) itime
-   endif
-
-  if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
-   open(unitoutgridppt,file=path(2)(1:length(2))//'grid_pptv_nest_' &
-        //adate// &
-        atime//'_'//anspec,form='unformatted')
-
-    write(unitoutgridppt) itime
-  endif
-
-  do kp=1,maxpointspec_act
-  do nage=1,nageclass
-
-    do jy=0,numygridn-1
-      do ix=0,numxgridn-1
-
-  ! WET DEPOSITION
-        if ((WETDEP).and.(ldirect.gt.0)) then
-            do l=1,nclassunc
-              auxgrid(l)=wetgriduncn(ix,jy,ks,kp,l,nage)
-            end do
-            call mean(auxgrid,wetgrid(ix,jy), &
-                 wetgridsigma(ix,jy),nclassunc)
-  ! Multiply by number of classes to get total concentration
-            wetgrid(ix,jy)=wetgrid(ix,jy) &
-                 *nclassunc
-  ! Calculate standard deviation of the mean
-            wetgridsigma(ix,jy)= &
-                 wetgridsigma(ix,jy)* &
-                 sqrt(real(nclassunc))
-        endif
-
-  ! DRY DEPOSITION
-        if ((DRYDEP).and.(ldirect.gt.0)) then
-            do l=1,nclassunc
-              auxgrid(l)=drygriduncn(ix,jy,ks,kp,l,nage)
-            end do
-            call mean(auxgrid,drygrid(ix,jy), &
-                 drygridsigma(ix,jy),nclassunc)
-  ! Multiply by number of classes to get total concentration
-            drygrid(ix,jy)=drygrid(ix,jy)* &
-                 nclassunc
-  ! Calculate standard deviation of the mean
-            drygridsigma(ix,jy)= &
-                 drygridsigma(ix,jy)* &
-                 sqrt(real(nclassunc))
-        endif
-
-  ! CONCENTRATION OR MIXING RATIO
-        do kz=1,numzgrid
-            do l=1,nclassunc
-              auxgrid(l)=griduncn(ix,jy,kz,ks,kp,l,nage)
-            end do
-            call mean(auxgrid,grid(ix,jy,kz), &
-                 gridsigma(ix,jy,kz),nclassunc)
-  ! Multiply by number of classes to get total concentration
-            grid(ix,jy,kz)= &
-                 grid(ix,jy,kz)*nclassunc
-  ! Calculate standard deviation of the mean
-            gridsigma(ix,jy,kz)= &
-                 gridsigma(ix,jy,kz)* &
-                 sqrt(real(nclassunc))
-        end do
-      end do
-    end do
-
-
-  !*******************************************************************
-  ! Generate output: may be in concentration (ng/m3) or in mixing
-  ! ratio (ppt) or both
-  ! Output the position and the values alternated multiplied by
-  ! 1 or -1, first line is number of values, number of positions
-  ! For backward simulations, the unit is seconds, stored in grid_time
-  !*******************************************************************
-
-  ! Concentration output
-  !*********************
-  if ((iout.eq.1).or.(iout.eq.3).or.(iout.eq.5)) then
-
-  ! Wet deposition
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-         if ((ldirect.eq.1).and.(WETDEP)) then
-         do jy=0,numygridn-1
-            do ix=0,numxgridn-1
-  !oncentraion greater zero
-              if (wetgrid(ix,jy).gt.smallnum) then
-                 if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)=ix+jy*numxgridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
-                      sp_fact*1.e12*real(wetgrid(ix,jy))/arean(ix,jy)
-                 sparse_dump_u(sp_count_r)= &
-                      1.e12*real(wetgridsigma(ix,jy))/area(ix,jy)
-              else ! concentration is zero
-                  sp_zer=.true.
-              endif
-            end do
-         end do
-         else
-            sp_count_i=0
-            sp_count_r=0
-         endif
-         write(unitoutgrid) sp_count_i
-         write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgrid) sp_count_r
-         write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-  ! Dry deposition
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-         if ((ldirect.eq.1).and.(DRYDEP)) then
-          do jy=0,numygridn-1
-            do ix=0,numxgridn-1
-              if (drygrid(ix,jy).gt.smallnum) then
-                 if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)=ix+jy*numxgridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
-                      sp_fact* &
-                      1.e12*real(drygrid(ix,jy))/arean(ix,jy)
-                 sparse_dump_u(sp_count_r)= &
-                      1.e12*real(drygridsigma(ix,jy))/area(ix,jy)
-              else ! concentration is zero
-                  sp_zer=.true.
-              endif
-            end do
-          end do
-         else
-            sp_count_i=0
-            sp_count_r=0
-         endif
-         write(unitoutgrid) sp_count_i
-         write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgrid) sp_count_r
-         write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-
-  ! Concentrations
-
-  ! if sfc_only write only 1st layer 
-
-         if(sfc_only.eq.1) then
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-          do kz=1,1
-            do jy=0,numygridn-1
-              do ix=0,numxgridn-1
-                if (grid(ix,jy,kz).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgridn+kz*numxgridn*numygridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                   endif
-                   sp_count_r=sp_count_r+1
-                   sparse_dump_r(sp_count_r)= &
-                        sp_fact* &
-                        grid(ix,jy,kz)* &
-                        factor3d(ix,jy,kz)/tot_mu(ks,kp)
-  !                 if ((factor(ix,jy,kz)/tot_mu(ks,kp)).eq.0)
-  !    +              write (*,*) factor(ix,jy,kz),tot_mu(ks,kp),ks,kp
-                   sparse_dump_u(sp_count_r)= &
-                        gridsigma(ix,jy,kz)* &
-                        factor3d(ix,jy,kz)/tot_mu(ks,kp)
-              else ! concentration is zero
-                  sp_zer=.true.
-              endif
-              end do
-            end do
-          end do
-         write(unitoutgrid) sp_count_i
-         write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgrid) sp_count_r
-         write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-         else
-
-  ! write full vertical resolution
-
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-          do kz=1,numzgrid
-            do jy=0,numygridn-1
-              do ix=0,numxgridn-1
-                if (grid(ix,jy,kz).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgridn+kz*numxgridn*numygridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                   endif
-                   sp_count_r=sp_count_r+1
-                   sparse_dump_r(sp_count_r)= &
-                        sp_fact* &
-                        grid(ix,jy,kz)* &
-                        factor3d(ix,jy,kz)/tot_mu(ks,kp)
-                   sparse_dump_u(sp_count_r)= &
-                        gridsigma(ix,jy,kz)* &
-                        factor3d(ix,jy,kz)/tot_mu(ks,kp)
-              else ! concentration is zero
-                  sp_zer=.true.
-              endif
-              end do
-            end do
-          end do
-         write(unitoutgrid) sp_count_i
-         write(unitoutgrid) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgrid) sp_count_r
-         write(unitoutgrid) (sparse_dump_r(i),i=1,sp_count_r)
-         endif ! sfc_only
-
-
-    endif !  concentration output
-
-  ! Mixing ratio output
-  !********************
-
-  if ((iout.eq.2).or.(iout.eq.3)) then      ! mixing ratio
-
-  ! Wet deposition
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-         if ((ldirect.eq.1).and.(WETDEP)) then
-          do jy=0,numygridn-1
-            do ix=0,numxgridn-1
-                if (wetgrid(ix,jy).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
-                      sp_fact* &
-                      1.e12*real(wetgrid(ix,jy))/arean(ix,jy)
-                 sparse_dump_u(sp_count_r)= &
-                      1.e12*real(wetgridsigma(ix,jy))/area(ix,jy)
-              else ! concentration is zero
-                  sp_zer=.true.
-              endif
-            end do
-          end do
-         else
-           sp_count_i=0
-           sp_count_r=0
-         endif
-         write(unitoutgridppt) sp_count_i
-         write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgridppt) sp_count_r
-         write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-
-  ! Dry deposition
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-         if ((ldirect.eq.1).and.(DRYDEP)) then
-          do jy=0,numygridn-1
-            do ix=0,numxgridn-1
-                if (drygrid(ix,jy).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
-                      sp_fact* &
-                      1.e12*real(drygrid(ix,jy))/arean(ix,jy)
-                 sparse_dump_u(sp_count_r)= &
-                      1.e12*real(drygridsigma(ix,jy))/area(ix,jy)
-              else ! concentration is zero
-                  sp_zer=.true.
-              endif
-            end do
-          end do
-         else
-           sp_count_i=0
-           sp_count_r=0
-         endif
-         write(unitoutgridppt) sp_count_i
-         write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgridppt) sp_count_r
-         write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-
-  ! Mixing ratios
-
-    ! if sfc_only write only 1st layer 
-
-         if(sfc_only.eq.1) then
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-          do kz=1,1
-            do jy=0,numygridn-1
-              do ix=0,numxgridn-1
-                if (grid(ix,jy,kz).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgridn+kz*numxgridn*numygridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
-                      sp_fact* &
-                      1.e12*grid(ix,jy,kz) &
-                      /volumen(ix,jy,kz)/outnum* &
-                      weightair/weightmolar(ks)/densityoutgrid(ix,jy,kz)
-                 sparse_dump_u(sp_count_r)= &
-                      1.e12*gridsigma(ix,jy,kz)/volumen(ix,jy,kz)/ &
-                      outnum*weightair/weightmolar(ks)/ &
-                      densityoutgrid(ix,jy,kz)
-              else ! concentration is zero
-                  sp_zer=.true.
-              endif
-              end do
-            end do
-          end do
-         write(unitoutgridppt) sp_count_i
-         write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgridppt) sp_count_r
-         write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-         else
-
-  ! write full vertical resolution
-
-         sp_count_i=0
-         sp_count_r=0
-         sp_fact=-1.
-         sp_zer=.true.
-          do kz=1,numzgrid
-            do jy=0,numygridn-1
-              do ix=0,numxgridn-1
-                if (grid(ix,jy,kz).gt.smallnum) then
-                  if (sp_zer.eqv..true.) then ! first non zero value
-                    sp_count_i=sp_count_i+1
-                    sparse_dump_i(sp_count_i)= &
-                         ix+jy*numxgridn+kz*numxgridn*numygridn
-                    sp_zer=.false.
-                    sp_fact=sp_fact*(-1.)
-                 endif
-                 sp_count_r=sp_count_r+1
-                 sparse_dump_r(sp_count_r)= &
-                      sp_fact* &
-                      1.e12*grid(ix,jy,kz) &
-                      /volumen(ix,jy,kz)/outnum* &
-                      weightair/weightmolar(ks)/densityoutgrid(ix,jy,kz)
-                 sparse_dump_u(sp_count_r)= &
-                      1.e12*gridsigma(ix,jy,kz)/volumen(ix,jy,kz)/ &
-                      outnum*weightair/weightmolar(ks)/ &
-                      densityoutgrid(ix,jy,kz)
-              else ! concentration is zero
-                  sp_zer=.true.
-              endif
-              end do
-            end do
-          end do
-         write(unitoutgridppt) sp_count_i
-         write(unitoutgridppt) (sparse_dump_i(i),i=1,sp_count_i)
-         write(unitoutgridppt) sp_count_r
-         write(unitoutgridppt) (sparse_dump_r(i),i=1,sp_count_r)
-         endif ! sfc_only
-
-      endif ! output for ppt
-
-  end do
-  end do
-
-    close(unitoutgridppt)
-    close(unitoutgrid)
-
-  end do
-
-  ! RLT Aug 2017
-  ! Write out conversion factor for dry air
-  inquire(file=path(2)(1:length(2))//'factor_drygrid_nest',exist=lexist)
-  if (lexist) then
-    ! open and append
-    open(unitoutfactor,file=path(2)(1:length(2))//'factor_drygrid_nest',form='unformatted',&
-            status='old',action='write',access='append')
-  else
-    ! create new
-    open(unitoutfactor,file=path(2)(1:length(2))//'factor_drygrid_nest',form='unformatted',&
-            status='new',action='write')
-  endif
-  sp_count_i=0
-  sp_count_r=0
-  sp_fact=-1.
-  sp_zer=.true.
-  do kz=1,1
-    do jy=0,numygridn-1
-      do ix=0,numxgridn-1
-        if (factor_drygrid(ix,jy,kz).gt.(1.+smallnum).or.factor_drygrid(ix,jy,kz).lt.(1.-smallnum)) then
-          if (sp_zer.eqv..true.) then ! first value not equal to one
-            sp_count_i=sp_count_i+1
-            sparse_dump_i(sp_count_i)= &
-                  ix+jy*numxgridn+kz*numxgridn*numygridn
-            sp_zer=.false.
-            sp_fact=sp_fact*(-1.)
-          endif
-          sp_count_r=sp_count_r+1
-          sparse_dump_r(sp_count_r)= &
-               sp_fact*factor_drygrid(ix,jy,kz)
-        else ! factor is one
-          sp_zer=.true.
-        endif
-      end do
-    end do
-  end do
-  write(unitoutfactor) sp_count_i
-  write(unitoutfactor) (sparse_dump_i(i),i=1,sp_count_i)
-  write(unitoutfactor) sp_count_r
-  write(unitoutfactor) (sparse_dump_r(i),i=1,sp_count_r)
-  close(unitoutfactor)
-
-
-
-  ! Reinitialization of grid
-  !*************************
-
-  do ks=1,nspec
-  do kp=1,maxpointspec_act
-    do i=1,numreceptor
-      creceptor(i,ks)=0.
-    end do
-    do jy=0,numygridn-1
-      do ix=0,numxgridn-1
-        do l=1,nclassunc
-          do nage=1,nageclass
-            do kz=1,numzgrid
-              griduncn(ix,jy,kz,ks,kp,l,nage)=0.
-            end do
-          end do
-        end do
-      end do
-    end do
-  end do
-  end do
-end subroutine concoutput_sfc_nest
 
 subroutine initcond_output(itime)
   !                                 i

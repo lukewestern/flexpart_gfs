@@ -154,4 +154,48 @@ real(kind=dp) function juldate(yyyymmdd,hhmiss)
 
 end function juldate
 
+  !*****************************************************************************
+  !                                                                            * 
+  !    Calculates number of days in a month                                    * 
+  !                                                                            * 
+  !    Author: Rona Thompson (Sep 2023)                                        * 
+  !                                                                            * 
+  !    Variables:                                                              * 
+  !    yyyymm       year and month                                             * 
+  !    eomday       number of days in month (end of month day)                 * 
+  !                                                                            * 
+  !*****************************************************************************
+
+  integer function calceomday(yyyymm)
+
+    integer, intent(in) :: yyyymm
+    integer :: yyyy,mm
+    integer, dimension(12) :: leapdays,days
+    integer :: eomday
+
+    leapdays=(/31,29,31,30,31,30,31,31,30,31,30,31/)
+    days=(/31,28,31,30,31,30,31,31,30,31,30,31/)
+
+    yyyy=floor(yyyymm/100.)
+    mm=yyyymm-yyyy*100
+
+    if((float(yyyy)/100.).eq.float(yyyy/100)) then
+      if((float(yyyy)/400.).eq.float(yyyy/400)) then
+        eomday=leapdays(mm)
+      else
+        eomday=days(mm)
+      endif
+    else
+      if((float(yyyy)/4.).eq.float(yyyy/4)) then
+        eomday=leapdays(mm)
+      else
+        eomday=days(mm)
+      endif
+    endif
+
+    calceomday=eomday
+
+  end function calceomday
+
+
 end module date_mod

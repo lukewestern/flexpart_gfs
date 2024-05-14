@@ -889,6 +889,8 @@ subroutine init_domainfill
   !                                                                            *
   !  Changes                                                                   *
   !     2022, L. Bakels: OpenMP parallelisation                                *
+  !     2023, L. Bakels: smooth vertical particle distribution instead of      *
+  !                      distributing particles on fixed vertical layers       *
   !                                                                            *
   !*****************************************************************************
   !                                                                            *
@@ -956,7 +958,8 @@ subroutine init_domainfill
 
   ! Allocate grid and column mass
   !*******************************
-  allocate(gridarea(0:nymax-1),colmass(0:nxmax-1,0:nymax-1))
+  allocate(gridarea(0:nymax-1),colmass(0:nxmax-1,0:nymax-1),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate gridarea or colmass'
 
   ! Do not release particles twice (i.e., not at both in the leftmost and rightmost
   ! grid cell) for a global domain
@@ -1082,11 +1085,11 @@ subroutine init_domainfill
       jj=0
       do j=1,ncolumn ! looping over the number of particles within the column
 
-  ! For columns with many particles (i.e. around the equator), distribute
-  ! the particles equally (1 on a random position within the deltacol range), 
-  ! for columns with few particles (i.e. around the poles), 
-  ! distribute the particles randomly
-  !***********************************************************************
+        ! For columns with many particles (i.e. around the equator), distribute
+        ! the particles equally (1 on a random position within the deltacol range), 
+        ! for columns with few particles (i.e. around the poles), 
+        ! distribute the particles randomly
+        !***********************************************************************
 
         if ((ncolumn.gt.20).and.(ncolumn-j.gt.20)) then
           pnew_temp=pnew-ran1(idummy,0)*deltacol

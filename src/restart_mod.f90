@@ -1,4 +1,15 @@
+! SPDX-FileCopyrightText: FLEXPART 1998-2019, see flexpart_license.txt
+! SPDX-License-Identifier: GPL-3.0-or-later
+
 module restart_mod
+
+  !*****************************************************************************
+  !                                                                            *
+  !    This module write variables to file for eventual restart, and reads     *
+  !    these variables from file in case of restart                            *
+  !                                                                            *
+  !*****************************************************************************
+
   use particle_mod
 #ifdef ETA
   use coord_ecmwf_mod
@@ -14,11 +25,11 @@ module restart_mod
 
 contains
 
-subroutine output_restart(itime,loutnext,outnum)
+subroutine output_restart(itime,loutnext,lrecoutnext,outnum)
 
   implicit none
 
-  integer, intent(in) :: itime,loutnext
+  integer, intent(in) :: itime,loutnext,lrecoutnext
   real, intent(in) :: outnum
   integer :: imax,i,j,jjjjmmdd,ihmmss,ipart,iwritten
   integer :: ks,kp,kz,nage,jy,ix,l,n
@@ -73,8 +84,8 @@ subroutine output_restart(itime,loutnext,outnum)
   write(unitrestart) imax
   write(unitrestart) iwritten
   write(unitrestart) loutnext
+  write(unitrestart) lrecoutnext
   write(unitrestart) outnum
-  write(unitrestart) numreceptor
 
   do ipart=1,imax
     if ((ipout.gt.0).and.(n_average.gt.0)) then
@@ -159,11 +170,6 @@ subroutine output_restart(itime,loutnext,outnum)
           end do 
         endif
       end do
-      if (numreceptor.gt.0) then 
-        do n=1,numreceptor
-          write(unitrestart) creceptor(n,ks)
-        end do
-      endif
     end do
   endif
   close(unitrestart)
@@ -204,8 +210,8 @@ subroutine readrestart
   read(unitpartin) imax ! count%alive
   read(unitpartin) numpart
   read(unitpartin) loutnext_init
+  read(unitpartin) lrecoutnext_init
   read(unitpartin) outnum_init
-  read(unitpartin) numreceptor
 
   count%alive=numpart
   count%spawned=numpart

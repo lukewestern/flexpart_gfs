@@ -71,6 +71,8 @@ subroutine timemanager
   !                    in the particle loop                                    *
   ! nstop1             serves as indicator for wind fields (see getfields)     *
   ! outnum             number of samples for each concentration calculation    *
+  ! recoutnum          number of samples for each receptor calculation         *
+  ! recoutnumsat       number of samples for each satellite calculation        *
   ! prob               probability of absorption at ground due to dry          *
   !                    deposition                                              *
   ! WETDEP             .true. if wet deposition is switched on                 *
@@ -85,7 +87,7 @@ subroutine timemanager
   use xmass_mod
   use flux_mod
   use outgrid_mod
-  use ohr_mod
+!  use ohr_mod
   use par_mod
   use com_mod
 #ifdef ETA
@@ -103,6 +105,14 @@ subroutine timemanager
   use output_mod
   use restart_mod
   use interpol_mod, only: alloc_interpol,dealloc_interpol
+#ifdef USE_NCF
+  use chemistry_mod
+  use initdomain_mod
+  use receptor_netcdf_mod, only: verttransform_satellite
+  use emissions_mod
+  use totals_mod
+#endif
+  use receptor_mod, only: receptoroutput
 
   implicit none
   real, parameter ::        &
@@ -116,6 +126,8 @@ subroutine timemanager
     nstop1,                 & ! windfield existence flag
     loutnext,               & ! following timestep
     loutstart,loutend,      & ! concentration calculation starting and ending time
+    lrecoutnext,            & ! following timestep for receptor output
+    lrecoutstart,lrecoutend,& ! receptor calculation interval start and end time
     ldeltat,                & ! radioactive decay time
     itage,nage,inage,       & ! related to age classes
     i_nan=0,ii_nan,total_nan_intl=0, &  !added by mc to check instability in CBL scheme 
@@ -130,23 +142,32 @@ subroutine timemanager
   ! integer ::                &
   !   jjjjmmdd,ihmmss
   real ::                   &
-    outnum,                 & ! concentration calculation sample number
+    outnum,                 & ! number of samples for grid concentration calculation
     prob_rec(maxspec),      & ! dry deposition related
     xmassfract                ! dry deposition related
   real(dep_prec),allocatable,dimension(:) ::         &
     drytmp       ! dry deposition related
+  logical :: itsopen
+  real, dimension(maxrecsample) :: recoutnum ! number of samples for receptor calculation
+  real, dimension(nlayermax,maxrecsample) :: recoutnumsat ! number of samples for satellite receptor calculation
 
   ! First output for time 0
   !************************
   if (itime_init.ne.0) then
     loutnext=loutnext_init
+    lrecoutnext=lrecoutnext_init
     outnum=outnum_init
   else
     loutnext=loutstep/2
+    lrecoutnext=lrecoutstep/2
     outnum=0.
+    recoutnum(:)=0.
+    recoutnumsat(:,:)=0.
   endif
   loutstart=loutnext-loutaver/2
   loutend=loutnext+loutaver/2
+  lrecoutstart=lrecoutnext-lrecoutaver/2
+  lrecoutend=lrecoutnext+lrecoutaver/2
 
   ! Initialise the nan count for CBL option
   !****************************************
@@ -189,24 +210,22 @@ subroutine timemanager
       s_firstt = real(count_clock)/real(count_rate)
     endif
 
-    ! Writing restart file
-    !*********************
+  ! Writing restart file
+  !*********************
     if ((itime.ne.itime_init).and.(loutrestart.ne.-1).and.(mod(itime,loutrestart).eq.0)) then
-      call output_restart(itime,loutnext,outnum)
+      call output_restart(itime,loutnext,lrecoutnext,outnum)
     endif
 
-    ! if ((itime.ne.0).and.(count%alive.gt.0)) then
-    !   if (part(1)%alive) write(*,*) 'xlon,ylat,z,zeta', part(1)%xlon,part(1)%ylat,part(1)%z,part(1)%zeta
-    ! endif
     call init_output(itime,filesize)
 
-    ! Get necessary wind fields if not available
-    !*******************************************
+  ! Get necessary wind fields if not available
+  !*******************************************
     call getfields(itime,nstop1) !OMP on verttransform_ecmwf and readwind_ecmwf, getfields_mod.f90
     if (nstop1.gt.1) error stop 'NO METEO FIELDS AVAILABLE'
 
-    ! In case of ETA coordinates being read from file, convert the z positions to zeta
-    !*********************************************************************************
+  ! In case of ETA coordinates being read from file, convert the z positions to zeta
+  !*********************************************************************************
+#ifdef ETA
     if ((itime.eq.itime_init).and.((ipin.eq.1).or.(ipin.eq.3).or.(ipin.eq.4))) then 
       
       if (count%allocated.le.0) error stop 'Something is going wrong reading the old particle file! &
@@ -225,14 +244,19 @@ subroutine timemanager
 !$OMP END DO
 !$OMP END PARALLEL
     endif
-
+#endif
 
     if (WETDEP .and. (itime.ne.0) .and. (numpart.gt.0)) then
       call wetdepo(itime,lsynctime,loutnext)
     endif
 
-    if (OHREA .and. (itime.ne.0) .and. (numpart.gt.0)) &
-      call ohreaction(itime,lsynctime,loutnext)
+  ! compute chemical losses 
+  !************************
+#ifdef USE_NCF
+    if (CLREA .and. (itime.ne.0) .and. (numpart.gt.0)) then
+      call chemreaction(itime)
+    endif
+#endif
 
   ! compute convection for backward runs
   !*************************************
@@ -241,17 +265,58 @@ subroutine timemanager
       call convmix(itime)
     endif
 
-  ! Get hourly OH fields if not available 
-  !****************************************************
-    if (OHREA) then
-      call gethourlyOH(itime)
+  ! Get chemical fields if not available 
+  !*************************************
+#ifdef USE_NCF
+    if (CLREA) then
+      call getchemfield(itime)
+      call getchemhourly(itime)
     endif
+#endif
         
+  ! Get emission fields if not available
+  !*************************************
+
+#ifdef USE_NCF
+    if (LEMIS.and.mdomainfill.eq.1) then
+      call getemissions(itime)
+    endif
+#endif
+
+  ! Transform vertical coordinates of satellite receptors
+  !******************************************************
+#ifdef USE_NCF
+    if ((numsatreceptor.gt.0).and.(itime.eq.0)) then
+      call verttransform_satellite
+    endif
+#endif
+
   ! Release particles
   !******************
     if (mdomainfill.ge.1) then
-      if (itime.eq.itime_init) then   
-        call init_domainfill
+      if (itime.eq.itime_init) then 
+        if (llcmoutput) then  
+#ifdef USE_NCF
+          call init_domainfill_ncf
+#else
+          call init_domainfill
+#endif
+        else
+          call init_domainfill
+        endif
+        if (ipin.eq.2) then
+          ! Particles initialized from partoutput
+#ifdef ETA
+!$OMP PARALLEL PRIVATE(i,j)
+!$OMP DO
+          do i=1,count%alive
+            j=count%ialive(i)
+            call update_z_to_zeta(itime,j)
+          end do
+!$OMP END DO
+!$OMP END PARALLEL
+#endif
+        endif
       else 
         call boundcond_domainfill(itime,loutend)
       endif
@@ -275,7 +340,7 @@ subroutine timemanager
       end do
 
 #ifdef ETA
-!$OMP PARALLEL PRIVATE(i)
+!$OMP PARALLEL PRIVATE(i,j)
 !$OMP DO
       do i=1,count%alive
         j=count%ialive(i)
@@ -290,6 +355,15 @@ subroutine timemanager
     else
       call releaseparticles(itime)
     endif
+
+  ! Inject emissions
+  !*****************
+
+#ifdef USE_NCF
+    if (LEMIS.and.mdomainfill.eq.1) then
+      call emissions(itime)
+    endif
+#endif
 
   ! Compute convective mixing for forward runs
   ! for backward runs it is done before next windfield is read in
@@ -327,6 +401,15 @@ subroutine timemanager
       call output_conc(itime,loutstart,loutend,loutnext,outnum)
       call SYSTEM_CLOCK(count_clock, count_rate, count_max)
       s_writepart = s_writepart + ((count_clock - count_clock0)/real(count_rate)-s_temp)
+    endif
+
+  ! Check whether receptor concentrations are to be calculated
+  !***********************************************************
+
+    if ((ldirect*itime.ge.ldirect*lrecoutstart).and. &
+          ((numreceptor.gt.0.).or.(numsatreceptor.gt.0)).and. &
+          (ldirect*itime.le.ldirect*lrecoutend)) then
+      call receptoroutput(itime,lrecoutstart,lrecoutend,lrecoutnext,recoutnum,recoutnumsat)
     endif
 
     if (itime.eq.ideltas) exit         ! almost finished
@@ -629,11 +712,32 @@ subroutine timemanager
       s_firstt = real(count_clock)/real(count_rate) - s_firstt
     endif
 
+    ! Output totals
+    !**************
+
+#ifdef USE_NCF
+    if ((mdomainfill.eq.1).and.(llcmoutput)) then
+      do ks=1,nspec
+        tot_mass(ks)=sum(real(mass(1:count%alive,ks),kind=dp))
+      end do
+      call totals_write(itime)
+    endif
+#endif
+
   end do
 
   ! Complete the calculation of initial conditions for particles not yet terminated
   !*****************************************************************************
   call finalise_output(itime)
+
+  ! Output residual emissions
+  !**************************
+
+#ifdef USE_NCF
+  if (LEMIS.and.(ipout.eq.2)) then
+    call em_res_write
+  endif
+#endif
 
   ! De-allocate memory and end
   !***************************
@@ -647,11 +751,27 @@ subroutine timemanager
   call dealloc_random
   if (numbnests.ge.1) call dealloc_windfields_nest
   if (iflux.eq.1) deallocate(flux)
-  if (OHREA) deallocate(OH_field,OH_hourly,lonOH,latOH,altOH)
   if (ipin.ne.3 .and. ipin.ne.4) deallocate(xmasssave)
-#ifdef _USE_NCF
-  if (lnetcdfout.eq.1) call dealloc_netcdf
-#endif _USE_NCF
+  if (CLREA) then
+    deallocate(CL_field,lonCL,latCL,altCL)
+  endif
+  deallocate(reaccconst,reacdconst,reacnconst)
+  deallocate(emis_path,emis_file,emis_name,emis_unit,emis_coeff)
+  if (lnetcdfout.eq.1) then
+#ifdef USE_NCF
+    call dealloc_netcdf
+    if (LEMIS) then
+      deallocate(em_field,em_res,em_area,mass_field)
+    endif
+#endif 
+  else
+    inquire(unit=unitoutrecept, opened=itsopen)
+    if (itsopen) close(unitoutrecept)
+    inquire(unit=unitoutreceptppt, opened=itsopen)
+    if (itsopen) close(unitoutreceptppt)
+    inquire(unit=unitoutsatellite, opened=itsopen)
+    if (itsopen) close(unitoutsatellite)
+  endif
   deallocate(xpoint1,xpoint2,ypoint1,ypoint2,zpoint1,zpoint2)
   deallocate(xmass)
   deallocate(ireleasestart,ireleaseend,npart,kindz)
@@ -661,8 +781,10 @@ subroutine timemanager
     deallocate(outheight,outheighthalf)
     deallocate(oroout, area, volume)
     deallocate(gridunc)
+    deallocate(gridcnt)
 #ifdef _OPENMP
     deallocate(gridunc_omp)
+    deallocate(gridcnt_omp)
 #endif
     if (ldirect.gt.0) then
       deallocate(drygridunc,wetgridunc)

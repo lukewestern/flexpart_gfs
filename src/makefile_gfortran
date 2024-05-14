@@ -94,6 +94,8 @@ else
 	FUSER = -g -fopenmp -march=native -mtune=native
 endif
 
+# To compile in serial
+#FUSER = -g -fopenmp_stubs -march=skylake-avx512
 
 mpi: FUSER := $(FUSER) -Dusempi #-MM -MT -MD
 ## LIBRARIES
@@ -115,7 +117,7 @@ date_mod.o 		drydepo_mod.o \
 erf_mod.o 		flux_mod.o \
 getfields_mod.o 	initialise_mod.o \
 interpol_mod.o 		mean_mod.o \
-ohr_mod.o 		outgrid_mod.o \
+outgrid_mod.o \
 output_mod.o 		par_mod.o \
 particle_mod.o 		pbl_profile_mod.o \
 plume_mod.o 		point_mod.o \
@@ -126,9 +128,12 @@ timemanager_mod.o 	turbulence_mod.o \
 txt_output_mod.o 	unc_mod.o \
 verttransform_mod.o 	wetdepo_mod.o \
 windfields_mod.o 	qvsat_mod.o \
-xmass_mod.o
+xmass_mod.o		receptor_mod.o 
 
-OBJECTS_NCF = netcdf_output_mod.o
+OBJECTS_NCF = \
+netcdf_output_mod.o	chemistry_mod.o \
+totals_mod.o		initdomain_mod.o \
+receptor_netcdf_mod.o	emissions_mod.o \
 
 OBJECTS_ETA = coord_ecmwf_mod.o 
 
@@ -153,6 +158,8 @@ else
 endif
 endif
 
+$(info $(OBJECTS))
+
 %.o: %.mod
 
 # serial executable
@@ -173,6 +180,8 @@ $(FP): $(MODOBJS) $(OBJECTS)
 
 clean:
 	\rm -f *.o *.mod
+
+.PHONY: clean
 
 cleanall:
 	\rm -f *.o *.mod $(FLEXPART) $(FLEXPART-BIN) $(FLEXPART-ETA) $(FLEXPART-ETA-BIN)
@@ -249,7 +258,6 @@ endif
 verttransform_mod.o: par_mod.o com_mod.o qvsat_mod.o windfields_mod.o
 settling_mod.o: windfields_mod.o
 interpol_mod.o: windfields_mod.o particle_mod.o turbulence_mod.o
-ohr_mod.o: windfields_mod.o particle_mod.o
 
 #5)
 ifneq ($(eta),no)
@@ -261,12 +269,12 @@ drydepo_mod.o: unc_mod.o interpol_mod.o erf_mod.o
 ifneq ($(eta),no)
 advance_mod.o: coord_ecmwf_mod.o settling_mod.o drydepo_mod.o turbulence_mod.o
 plume_mod.o: mean_mod.o coord_ecmwf_mod.o
-outgrid_mod.o: ohr_mod.o unc_mod.o coord_ecmwf_mod.o
+outgrid_mod.o: unc_mod.o coord_ecmwf_mod.o
 wetdepo_mod.o: coord_ecmwf_mod.o unc_mod.o
 else
 advance_mod.o: interpol_mod.o settling_mod.o drydepo_mod.o turbulence_mod.o
 plume_mod.o: mean_mod.o particle_mod.o windfields_mod.o
-outgrid_mod.o: ohr_mod.o unc_mod.o interpol_mod.o
+outgrid_mod.o: unc_mod.o interpol_mod.o
 wetdepo_mod.o: interpol_mod.o unc_mod.o
 endif
 readoptions_mod.o: drydepo_mod.o xmass_mod.o
@@ -277,7 +285,23 @@ flux_mod.o: outgrid_mod.o qvsat_mod.o
 txt_output_mod.o: outgrid_mod.o
 binary_output_mod.o: mean_mod.o outgrid_mod.o
 ifneq ($(ncf), no)
+receptor_mod.o: par_mod.o com_mod.o point_mod.o particle_mod.o date_mod.o \
+        windfields_mod.o receptor_netcdf_mod.o binary_output_mod.o
+else
+receptor_mod.o: par_mod.o com_mod.o point_mod.o particle_mod.o date_mod.o \
+        windfields_mod.o binary_output_mod.o
+endif 
+ifneq ($(ncf), no)
 netcdf_output_mod.o: mean_mod.o outgrid_mod.o readoptions_mod.o drydepo_mod.o
+totals_mod.o: par_mod.o com_mod.o netcdf_output_mod.o
+chemistry_mod.o: par_mod.o com_mod.o date_mod.o particle_mod.o \
+	point_mod.o windfields_mod.o totals_mod.o netcdf_output_mod.o
+initdomain_mod.o: par_mod.o com_mod.o point_mod.o random_mod.o outgrid_mod.o \
+	initialise_mod.o totals_mod.o date_mod.o windfields_mod.o netcdf_output_mod.o
+receptor_netcdf_mod.o: par_mod.o com_mod.o point_mod.o date_mod.o \
+	windfields_mod.o netcdf_output_mod.o 
+emissions_mod.o: par_mod.o com_mod.o point_mod.o particle_mod.o date_mod.o \
+	netcdf_output_mod.o totals_mod.o windfields_mod.o
 endif
 
 #8)
@@ -302,7 +326,14 @@ endif
 initialise_mod.o: interpol_mod.o xmass_mod.o output_mod.o turbulence_mod.o
 
 #10)
-timemanager_mod.o: advance_mod.o conv_mod.o plume_mod.o getfields_mod.o restart_mod.o initialise_mod.o
+ifneq ($(ncf), no)
+timemanager_mod.o: advance_mod.o conv_mod.o plume_mod.o getfields_mod.o restart_mod.o \
+	initialise_mod.o chemistry_mod.o initdomain_mod.o receptor_mod.o \
+	emissions_mod.o totals_mod.o
+else
+timemanager_mod.o: advance_mod.o conv_mod.o plume_mod.o getfields_mod.o restart_mod.o \
+        initialise_mod.o receptor_mod.o
+endif
 
 #11)
 ifneq ($(GIT_VERSION),$(GIT_OLD))

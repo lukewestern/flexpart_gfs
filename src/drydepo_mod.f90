@@ -827,7 +827,7 @@ subroutine drydepo_probability(ipart,dt,zts,vdepo,ithread)
 
   integer,intent(in) :: ithread ! OMP thread starting at 1
   integer,intent(in) :: ipart ! particle index
-  real,intent(inout) :: vdepo(maxspec)  ! deposition velocities for all species
+  real,intent(out) :: vdepo(maxspec)  ! deposition velocities for all species
   real,intent(in) :: dt,zts             ! real(ldt), real(zt)
   integer :: ns,m                      ! loop variable over species
   real :: vdeptemp(2)
