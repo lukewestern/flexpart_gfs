@@ -24,8 +24,11 @@ Inside the `options/` directory a template of all option files can be found:
 - [OUTGRID](configuration.md#outgrid)
 - [OUTGRID_NESTED](configuration.md#outgrid_nested)
 - [AGECLASSES](configuration.md#ageclasses)
-- [RECEPTORS](configuration.md#receptors)
-- [PARTOPTIONS](configuration.md#partoptions)
+- [INITCONC (optional)](configuration.md#initconc)
+- [RECEPTORS (optional)](configuration.md#receptors)
+- [PARTOPTIONS (optional)](configuration.md#partoptions)
+- [REAGENTS (optional)](configuration.md#reagents)
+- [SATELLITES (optional)](configuration.md#satellites)
 
 ### <a name="command"></a>COMMAND
 Sets the behaviour of the run (time range, backward or forward, output frequency, etc.). A table of all options is listed below.
@@ -46,6 +49,9 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="LOUTSTEP"></a>LOUTSTEP | Interval of model output. Average concentrations are calculated every LOUTSTEP (seconds) | **10800** |
 | <a name="LOUTAVER"></a>LOUTAVER | Concentration averaging interval, instantaneous for value of zero (seconds) | **10800** |
 | <a name="LOUTSAMPLE"></a>LOUTSAMPLE | Numerical sampling rate of output, higher statistical accuracy with shorter intervals (seconds) | **900** |
+| <a name="LRECOUTSTEP"></a>LRECOUTSTEP | Interval of receptor output. LCM: mixing ratios are calculated every LRECOUTSTEP (seconds) | **LOUTSTEP** |
+| <a name="LRECOUTAVER"></a>LRECOUTAVER | Concentration averaging interval for receptors, instantaneous for value of zero (seconds) | **LOUTAVER** |
+| <a name="LRECOUTSAMPLE"></a>LRECOUTSAMPLE | Numerical sampling rate of receptor output (seconds) | **LOUTSAMPLE** |
 | <a name="LOUTRESTART"></a>LOUTRESTART | Time interval when a restart file is written (seconds) | **-1** |
 | <a name="LSYNCTIME"></a>LSYNCTIME | All processes are synchronized to this time interval; all values above should be dividable by this number (seconds) | **900** |
 | <a name="CTL"></a>CTL | Factor by which particle transport time step in the ABL must be smaller than the Lagrangian timescale t l ; resulting time steps can be shorter than LSYNCTIME; LSYNCTIME is used if CTL < 0 | **-5.0** |
@@ -67,6 +73,7 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="NESTED_OUTPUT"></a>NESTED_OUTPUT | Switch to produce output also for a nested domain | **0 (no)**, 1 (yes) |
 | <a name="LNETCDFOUT"></a>LNETCDFOUT | Switch to produce NetCDF output, overwritten to 1 when IOUT>8 and set to 0 when compiled without NetCDF libraries | 0 (no), **1 (yes)** |
 | <a name="LINIT_COND"></a>LINIT_COND | Switch to produce output sensitivity to initial conditions given in concentration or mixing ratio units (in backwards mode only) | **0 (no)**, 1 (mass), 2 (mass mixing ratio) |
+| <a name="LCMOUTPUT"></a>LCMOUTPUT | Linear Chemistry Module switch, should be used in combination with LDIRECT=1, MDOMAINFILL=1, IND_SOURCE=1, IND_RECEPTOR=1 | **0 (no)**, 1 (yes) |
 | <a name="SFC_ONLY"></a>SFC_ONLY | Output of SRR for fluxes only for the lowest model layer, most useful for backward runs when LINIT_COND set to 1 or 2 | **0 (no)**, 1 (yes) |
 | <a name="CBLFLAG"></a>CBLFLAG | Skewed rather than Gaussian turbulence in the convective ABL; when turned on, very short time steps should be used (see CTL and IFINE) | **0 (no)**, 1 (yes) |
 | <a name="MAXTHREADGRID"></a>MAXTHREADGRID | Set maximum number of threads for doing grid computations. Recommended to set this to max 16. High numbers create more overhead and a larger memory footprint  | **1 (default=no parallelisation on grid)** integer |
@@ -145,9 +152,15 @@ The following specifies the parameters associated with each physicochemical proc
 |PHENRY | Dry deposition (gases) - Henrys const. | real |
 |PF0 | Dry deposition (gases) - f0 (reactivity) | real |
 |PWEIGHTMOLAR | molweight | real |
-|POHCCONST | OH Reaction rate - C [cm^3/molecule/sec] | real |
-|POHDCONST | OH Reaction rate - D [K] | real |
-|POHNCONST | OH Reaction rate - C [cm^3/molecule/sec] | real |
+|PREACTIONS | List of reactions, must correspond to names in REAGENTS | string |
+|PCCONST | OH Reaction rate - C [cm^3/molecule/sec], in order of PREACTIONS | real |
+|PDCONST | OH Reaction rate - D [K], in order of PREACTIONS | real |
+|PNCONST | OH Reaction rate - N [dimensionless], in order of PREACTIONS | real |
+|PEMIS_PATH | Emissions path, if empty, no emissions | string |
+|PEMIS_FILE | Generic file name for emissions, if empty, no emissions | string |
+|PEMIS_NAME | Variable name for emissions, if empty, no emissions | string |
+|PEMIS_UNIT | Unit of emissions | integer 0=per gridcell, 1=per m2 |
+|PEMIS_COEFF | Coefficient to convert from emission input unit to kg/s | real |
 |PSHAPE | Defining the shape of a particle | integer: **0=sphere (default)**, 1=any shape (defined by axes PLA,PIA,PSA), 2=cylinder, 3=cube, 4=tetrahedron, 5=octahedron, 6=ellipsoid |
 |PASPECTRATIO | Aspect ratio of cylinders: works for PSHAPE=2 only | real |
 |PLA | Longest axis in meter (Bagheri & Bonadonna 2016): only for PSHAPE=1 | real |
@@ -207,20 +220,51 @@ The file should contain two namelist:
 
 <br/>
 
+### <a name="initconc"></a>INITCONC
+
+**Optional** Specifies input for initialising the mixing ratios. If hybrid pressure coordinates, the variable PS_NAME is required. Otherwise, either ALT_NAME or PRS_NAME need to be given. The file should contain two namelists:
+
+1) &INITCONC_CTRL
+
+	| Variable name | Description | Data type |
+	| ------------- | ------------ | --------- |
+	|NINIT | Number of species for which initial concentration is specified | integer |
+	|SPECNUM_REL | List of species of length NSPEC set in [RELEASES](configuration.md#releases) | integer |
+
+2) &INITCONC
+
+	| Variable name | Description | Data type |
+	| ------------- | ------------ | --------- |
+	|PATH_NAME | Path to initial concentration files | character string |
+	|FILE_NAME | Name of the receptor point | character string |
+	|VAR_NAME | Generic name of file (using YYYY[MM][DD]) for dates  | character string |
+	|HYA_NAME | Name of concentration variable in file  | character string |
+	|HYB_NAME | Name of hybrid pressure coord A (use "" if none)| character string |
+	|PS_NAME | Name of surface pressure variable (use "" if none)  | character string |
+	|Q_NAME | Name of specific humidity variable (use "" if none, then assumes dry air mixing ratio) | character string |
+	|PRS_NAME | Name of vertical pressure coordinate (use "" if none) | character string |
+	|ALT_NAME | Name of altitude coordinate (use "" if none) | character string |
+	|COEFF | Coefficient from input unit to ppbv | real |
+
+
+<br/>
+
 ### <a name="receptors"></a>RECEPTORS
 
-In addition to gridded model output, it is also possible to define receptor points. With this option output can be specifically produced for certain points at the surface in addition to gridded output. The RECEPTORS file contains a list with the definitions of the receptor name, longitude and latitude. If no such file is present, no receptors are written to output. At the moment, this data is added to the gridded_output file, when using netcdf, maybe this should be a dedicated RECEPTOR netcdf file instead.
+**Optional** In addition to gridded model output, it is also possible to define receptor points. With this option output can be specifically produced for certain points at the surface in addition to gridded output. The RECEPTORS file contains a list with the definitions of the receptor name, longitude and latitude. If no such file is present, no receptors are written to output. At the moment, this data is added to the gridded_output file, when using netcdf, maybe this should be a dedicated RECEPTOR netcdf file instead.
 
 | Variable name | Description | Data type |
 | ------------- | ------------ | --------- |
 |RECEPTOR | Name of the receptor point | character string |
 |LON | Geographical longitude | real |
 |LAT | Geographical latitude | real |
+|ALT | Altitude | real |
+|TIME | (Optional) time of receptor output | real |
 
 <br/>
 
 ### <a name="partoptions"></a>PARTOPTIONS
-This option file is only necessary when requiring particle properties to be written out (IPOUT=1 in the COMMAND option file). In this file, the user can set what particle properties and interpolated fields they want to be written to files. At the moment, the available fields that can be written to file are:
+**Optional** This option file is only necessary when requiring particle properties to be written out (IPOUT=1 in the COMMAND option file). In this file, the user can set what particle properties and interpolated fields they want to be written to files. At the moment, the available fields that can be written to file are:
 
 - particle positions (longitude, latitude and height), 
 - potential vorticity, 
@@ -235,6 +279,30 @@ This option file is only necessary when requiring particle properties to be writ
 
 Each property can also be printed out as an average instead of an instantaneous value. For example, if one makes internal time steps of 600 seconds each,
 and writes properties to files every hour, the outputted value will be the average of the 6 previous values of the particle of the past hour. Note that this comes with an additional computational cost.
+
+<br/>
+
+### <a name="reagents"></a>REAGENTS
+**Optional** Specifies chemical reagents for reactions. The corresponding rate constants are given in the SPECIES files (PREACTION).
+
+| Variable name | Description | Data type |
+| ------------- | ----------- | --------- |
+| PREAGENT | Reagent name, must be the same as variable name and match those used in reations list in SPECIES file | string |
+| PREAG_PATH | path to reagent file | string |
+| PHOURLY | Interpolate field to hourly based on solar zenith angle | integer: 0=no, 1=yes | 
+
+<br/>
+
+### <a name="satellites"></a>SATELLITES
+**Optional** Specifies paths and input file names of satellite retrievals for which mixing ratios should be output
+
+| Variable name | Description | Data type |
+| ------------- | ----------- | --------- |
+| PSATNAME | Name of satellite | string |
+| PPATH | path to satellite files | string |
+| PFILE | Generic name of satellite files | string ending with "YYYYMMDD.nc" | 
+
+<br/>
 
 ## <a name="pathnames"></a>Pathnames file
 The pathnames file is a text file containing the path to:
