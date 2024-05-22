@@ -878,11 +878,21 @@ subroutine pushpartdown(ipart)
   eps=nxmax/3.e5
 
 #ifdef ETA
-  if (part(ipart)%zeta.le.real(uvheight(nz),kind=dp)) &
-    call set_zeta(ipart,uvheight(nz)+eps_eta)
+  if (part(ipart)%zeta.le.real(uvheight(nz),kind=dp)) then
+    if ((ldirect.eq.-1) .and. (lsettling)) then
+      part(ipart)%nstop=.true.
+    else
+      call set_zeta(ipart,uvheight(nz)+eps_eta)
+    endif
+  endif
 #else
-  if (part(ipart)%z.ge.real(height(nz),kind=dp)) &
-    call set_z(ipart,height(nz)-100.*eps)
+  if (part(ipart)%z.ge.real(height(nz),kind=dp)) then
+    if ((ldirect.eq.-1) .and. (lsettling)) then
+      part(ipart)%nstop=.true.
+    else
+      call set_z(ipart,height(nz)-100.*eps)
+    endif
+  endif
 #endif
   
 end subroutine pushpartdown
