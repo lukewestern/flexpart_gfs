@@ -42,25 +42,32 @@ A full description of these files can be found in [Configuration](configuration.
 
 Necessary fields from Eularian models:
 
-- 3D wind velocities
-- Temperatures
-- Specific humidity
-- Surface and sea level pressure
-- Snow depth
-- Cloud cover
-- Cloud liquid and ice water content (when available)
-- 2 metre dew point
-- Large scale precipitation
-- Convective precipitation
-- Sensible heat flux
-- Solar radiation
-- Ew and ns surface stress
-- Orography and its standard deviation
-- Land sea mask
+| Input field | Description | Unit|
+| ------------- | ----------- | --------- |
+**3D fields**
+|horizontal velocities  | grid scale velocities used for, e.g., particle propagation  | m/s |
+|vertical velocity      |Vertical velocities on model levels used for, e.g., particle propagation. | etadot (IFS), m/s (GFS)|
+|Temperature            |Air temperature used for parameterisation schemes. | K |
+|Specific (IFS) or relative (GFS) humidity |Internal use of specific humidity for parameterisation schemes. | kg/kg (IFS), \% (GFS) |
+**2D fields**
+|Surface pressure |Pressure at the ground level. | Pa |
+|Snow depth |Thickness of snow layer necessary for dry deposition calculation. | m |
+|Cloud cover |Fraction of the grid cell that is covered by cloud, used for wet deposition calculations. | 0-1 |
+|10 meter horizontal velocities |Used to compute surface stress if not available. | m/s |
+|2 meter temperature |Used for parameterisation. | K |
+|2 meter dew point (ECMWF only) |Used for parameterisation, for GFS, this is computed according to \cite{bolton1980}. | K |
+|Large scale precipitation |Used in the wet deposition scheme. | mm/h |
+|Convective precipitation |Used in the wet deposition scheme. | mm/h |
+|Sensible heat flux (ECMWF only)  | Used to compute Obukhov length, for GFS this is computed using the profile method \citep{berkowicz1982}. | J m^2 |
+|Solar radiation (ECMWF only) |Used to calculate the surface resistance for gases, for GFS solar radiation is assumed to be zero | J m^2 |
+E-ward N-ward turbulent surface stress (ECMWF only)  |Surface stress used for dry deposition computations. For GFS data, surface stress is calculated using [Berkowicz 1982](https://doi.org/10.1016/0004-6981(82)90032-4) | N m^2 s |
+|Orography |Altitude of topography above sea level | m |
+|Standard deviation of orography |Included into mixing layer height to account for subgrid scale variability | m |
+|Land sea mask |Invoking surface stress computation including wind speeds over sea | 0-1 |
+|Cloud liquid water content |Used by the wet scavenging scheme | kg/kg |
+|Cloud ice water content |Used by the wet scavenging scheme | kg/kg |
 
-#### ECMWF
-
-#### GFS
+<br/>
 
 ## OpenMP
 
