@@ -96,7 +96,7 @@ module totals_mod
     call nf90_err( nf90_def_dim(nc_id, "species", nspec, specdim_id) )
     call nf90_err( nf90_def_dim(nc_id, "reagents", nreagent, reagdim_id) )
     call nf90_err( nf90_def_dim(nc_id, "time", nf90_unlimited, timedim_id) )
-    call nf90_err( nf90_def_dim(nc_id, "nchar", 18, nchardim_id) )
+    call nf90_err( nf90_def_dim(nc_id, "nchar", 10, nchardim_id) )
 
     ! define variables
     !*****************
@@ -145,7 +145,8 @@ module totals_mod
 
     ! write species info
     do ks=1,nspec
-      call nf90_err( nf90_put_var(nc_id, spec_id, species(ks), (/1,ks/), (/18,1/)) )
+      print*, 'totals: species = ',trim(species(ks))
+      call nf90_err( nf90_put_var(nc_id, spec_id, species(ks), (/1,ks/), (/10,1/)) )
     end do
 
     ! close file
@@ -171,7 +172,6 @@ module totals_mod
     integer :: var_id
 
     ! open file
-    print*, 'fn_totals = ',fn_totals
     call nf90_err( nf90_open(trim(fn_totals), nf90_write, nc_id) )
 
     ! get length of time dimension -> increase index by one to write new data

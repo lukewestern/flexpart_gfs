@@ -708,7 +708,7 @@ subroutine satelliteout_init_binary
     else
       open(unitoutsatellite,file=path(2)(1:length(2))//'satellite_pptv', &
            form='unformatted',err=998)
-      write(unitoutsatellite)   numsatreceptor
+!      write(unitoutsatellite)   numsatreceptor
       if (llcmoutput) then
         write(unitoutsatellite) nspec-1 ! first species is mass of air
       else
@@ -799,7 +799,7 @@ subroutine write_satellite_binary(crec,cunc,nnrec,xkrec,lonrec,latrec,altrec,tim
     real, dimension(maxrecsample,nlayermax) :: nnrec, xkrec, altrec
     real, dimension(maxrecsample) :: lonrec, latrec
     integer, dimension(maxrecsample) :: timerec
-    character(len=16), dimension(maxrecsample) :: namerec
+    character(len=24), dimension(maxrecsample) :: namerec
 
     if (llcmoutput) then
       ks_start=2

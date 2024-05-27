@@ -420,6 +420,7 @@ module com_mod
   character(len=16), allocatable, dimension(:) :: receptorname
   integer :: cpointer(maxrecsample)
   integer :: numreceptor, numcurrec
+  logical :: lrecregular
 
   ! satellite receptors
   real, allocatable, dimension(:) :: xsatellite,ysatellite
@@ -428,7 +429,7 @@ module com_mod
   real, allocatable, dimension(:,:) :: zsatellite
   real, allocatable, dimension(:,:,:) :: csatellite, csatuncert
   real, allocatable, dimension(:,:)   :: xksatellite, nnsatellite
-  character(len=16), allocatable, dimension(:) :: satellitename
+  character(len=24), allocatable, dimension(:) :: satellitename
   integer :: numsatreceptor, nlayermax, numsatellite, numcursat
   integer, allocatable, dimension(:) :: nnsatlayer
   integer :: csatpointer(maxrecsample)
@@ -438,6 +439,7 @@ module com_mod
   ! receptorarea                      area of 1*1 grid cell at receptor point
   ! numreceptor                       number of receptors (non-satellite)
   ! numcurrec                         number of receptors in current time interval (updated each time interval)
+  ! lrecregular                       logical if receptor output should be at regular intervals (and not according to RECEPTORS namelist)
   ! numsatreceptor                    number of satellite receptors (aka. retrievals)
   ! numcursat                         number of satellite receptors in current time interval (updated each time interval)
   ! numsatellite                      number of satellite instruments

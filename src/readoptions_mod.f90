@@ -1948,6 +1948,8 @@ subroutine readreceptors
 
   lon = -999.
   lat = -999.
+  time = -999.
+  lrecregular = .false.
 
   ! try namelist input
   read(unitreceptor,receptors,iostat=ios)
@@ -1969,7 +1971,8 @@ subroutine readreceptors
       lon=-999.9
       read(unitreceptor,receptors,iostat=ios)
       if ((lon.lt.-900).or.(ios.ne.0)) exit    
-      if ((time.lt.bdate).or.(time.ge.edate)) cycle  ! skip receptors not in simulation window
+      ! skip receptors for which a timestamp is given but are not in simulation window 
+      if ((time.ne.-999.).and.((time.lt.bdate).or.(time.ge.edate))) cycle 
       j=j+1
     end do
     numreceptor=j
@@ -1992,15 +1995,20 @@ subroutine readreceptors
       lon=-999.9
       read(unitreceptor,receptors,iostat=ios)
       if ((lon.lt.-900).or.(ios.ne.0)) exit          ! read error
-      if ((time.lt.bdate).or.(time.ge.edate)) cycle  ! skip receptors not in simulation window
+      ! skip receptors for which a timestamp is given but are not in simulation window 
+      if ((time.ne.-999.).and.((time.lt.bdate).or.(time.ge.edate))) cycle 
       j=j+1
       receptorname(j)=receptor
       xreceptor(j)=(lon-xlon0)/dx       ! transform to grid coordinates
       yreceptor(j)=(lat-ylat0)/dy
       zreceptor(j)=alt
-      treceptor(j)=int((time-bdate)*24.*3600.) ! time in sec
-      ! round to nearest 10 seconds
-      treceptor(j)=nint(real(treceptor(j))/10.)*10
+      if (time.ne.-999.) then
+        treceptor(j)=int((time-bdate)*24.*3600.) ! time in sec
+        ! round to nearest 10 seconds
+        treceptor(j)=nint(real(treceptor(j))/10.)*10
+      else
+        treceptor(j)=-999
+      endif
       xm=r_earth*cos(lat*pi/180.)*dx/180.*pi
       ym=r_earth*dy/180.*pi
       receptorarea(j)=xm*ym
@@ -2011,6 +2019,12 @@ subroutine readreceptors
     if (nmlout) close (unitreceptorout)
 
   endif 
+
+  ! if not timestamp given in namelist assume regular output
+  ! according to COMMAND file settings
+  if (.not.any(treceptor.ne.-999)) then
+    lrecregular=.true.
+  endif
 
   !! testing
 !  write(*,*) 'readreceptors: '

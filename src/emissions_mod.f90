@@ -340,7 +340,7 @@ module emissions_mod
     implicit none
 
     integer       :: itime
-    real(kind=dp) :: julstart
+    real(kind=dp) :: julstart, jd, jdmid
     integer       :: jjjjmmdd, hhmmss, dd, mm, yyyy
     integer       :: nn, ks, eomday, memid
     character(len=4)   :: ayear
@@ -448,14 +448,29 @@ module emissions_mod
       do memid=1,2
 
         if (memid.eq.1) then
-          em_time(memid)=bdate+real(ldirect*itime,kind=dp)/86400._dp
+          jd=bdate+real(ldirect*itime,kind=dp)/86400._dp 
+          call caldate(jd, jjjjmmdd, hhmmss)
+          ! middle of month day
+          jdmid=juldate(int(jjjjmmdd/100)*100+15,0)
+          if (jd.ge.jdmid) then
+            ! use current month
+            em_time(memid)=jdmid
+          else
+            ! use last month
+            eomday=calceomday(jjjjmmdd/100)
+            em_time(memid)=jdmid-real(eomday,kind=dp)          
+          endif
         else
+          call caldate(jd, jjjjmmdd, hhmmss)
+          eomday=calceomday(jjjjmmdd/100)
           em_time(memid)=em_time(memid-1)+real(ldirect*eomday,kind=dp)
         endif
-        em_memtime(memid)=int((em_time(memid)-bdate)*86400._dp)*ldirect
+        em_memtime(memid)=int((em_time(memid)-bdate)*86400._dp)
+
+        write(*,*) 'getemissions: memid, em_time = ',memid, em_time(memid)
+        write(*,*) 'getemissions: memid, em_memtime = ',memid, em_memtime(memid)
 
         call caldate(em_time(memid), jjjjmmdd, hhmmss)
-        eomday=calceomday(jjjjmmdd/100)
         yyyy=jjjjmmdd/10000
         mm=(jjjjmmdd-yyyy*10000)/100
         dd=jjjjmmdd-yyyy*10000-mm*100

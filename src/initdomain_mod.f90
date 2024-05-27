@@ -485,7 +485,7 @@ module initdomain_mod
 
     integer :: j,ix,jy,kz,ncolumn,numparttot,iterminate,stat
     real :: ylat,ylatp,ylatm,hzone
-    real :: cosfactm,cosfactp,deltacol,dz1,dz2,dz,pnew,fractus
+    real :: cosfactm,cosfactp,deltacol,dz1,dz2,dz,pnew,pnew_temp,fractus
     real,parameter :: pih=pi/180.
     real :: colmasstotal,zposition
     real :: hgt_tmp
@@ -752,21 +752,22 @@ module initdomain_mod
           ! poles), distribute the particles randomly. When only few particles are
           ! left distribute them randomly
 
-          if ((ncolumn.gt.20)) then !.and.(ncolumn-j.gt.20)) then
+          if ((ncolumn.gt.20).and.(ncolumn-j.gt.20)) then
+            pnew_temp=pnew-ran1(idummy,0)*deltacol
             pnew=pnew-deltacol
-!          else if (ncolumn.gt.20) then
-!            pnew=pnew-ran1(idummy,0)*(pnew-pp(nz))
+          else if (ncolumn.gt.20) then
+            pnew_temp=pnew-ran1(idummy,0)*(pnew-pp(nz))
           else
-            pnew=pp(1)-ran1(idummy,0)*(pp(1)-pp(nz))
+            pnew_temp=pp(1)-ran1(idummy,0)*(pp(1)-pp(nz))
           endif
-          pnew=min(pp(1),pnew) 
-          pnew=max(pp(nz)+eps,pnew)
+          pnew_temp=min(pp(1),pnew_temp) 
+          pnew_temp=max(pp(nz)+eps,pnew_temp)
 
           ! find vertical layer
           do kz=1,nz-1
-            if ((pp(kz).ge.pnew).and.(pp(kz+1).lt.pnew)) then
-              dz1=log(pp(kz))-log(pnew)
-              dz2=log(pnew)-log(pp(kz+1))
+            if ((pp(kz).ge.pnew_temp).and.(pp(kz+1).lt.pnew_temp)) then
+              dz1=log(pp(kz))-log(pnew_temp)
+              dz2=log(pnew_temp)-log(pp(kz+1))
               dz=1./(dz1+dz2)
 
               ! Assign particle position
@@ -885,9 +886,9 @@ module initdomain_mod
                       ixm=min(ixm,nxini(indxn))
                       jym=min(jym,nyini(indxn))
                       !! testing
-                      if (jj.eq.1.and.jy.lt.5.and.ix.lt.5) then 
-                        print*, 'init_domainfill: lonini, xl, latini, yl = ',lonini(ixm,indxn),xl,latini(jym,indxn),yl
-                      endif !!
+!                      if (jj.eq.1.and.jy.lt.5.and.ix.lt.5) then 
+!                        print*, 'init_domainfill: lonini, xl, latini, yl = ',lonini(ixm,indxn),xl,latini(jym,indxn),yl
+!                      endif !!
                       ! Get vertical position in gridini
                       if (any(altini(:,indxn).gt.0)) then
                         ! vertical coordinate in metres above ground
@@ -907,7 +908,7 @@ module initdomain_mod
                                     dz1*gridini(ixm,jym,indzp,indxn))*dz
                       else if (any(prsini(:,:,:,indxn).gt.0)) then
                         ! vertical coordinate in pressure (Pa)
-                        presspart=pnew
+                        presspart=pnew_temp
                         indzm=nzini(indxn)-1
                         indzp=nzini(indxn)
                         do ii=2,nzini(indxn)

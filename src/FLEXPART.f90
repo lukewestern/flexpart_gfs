@@ -44,7 +44,7 @@ program flexpart
   real :: s_timemanager
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
-  character(len=256) :: gitversion_tmp="8d9c680 Mon Apr 22 15:37:39 2024 +0200"
+  character(len=256) :: gitversion_tmp="undefined"
 
   ! Keeping track of the total running time of FLEXPART, printed out at the end.
   !*****************************************************************************
@@ -177,7 +177,7 @@ subroutine read_options_and_initialise_flexpart
 #ifdef USE_NCF
   use chemistry_mod,        only: readreagents
   use totals_mod
-  use receptor_netcdf_mod,  only: readreceptors_satellite, receptorout_init, satelliteout_init
+  use receptor_netcdf_mod,  only: read_satellite_info, receptorout_init
 #endif
   use receptor_mod,         only: alloc_receptor
 
@@ -301,7 +301,7 @@ subroutine read_options_and_initialise_flexpart
   numsatreceptor=0
   nlayermax=1
 #ifdef USE_NCF
-  call readreceptors_satellite
+  call read_satellite_info
 #endif
   call readreceptors
 
@@ -366,11 +366,9 @@ subroutine read_options_and_initialise_flexpart
   if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
     call receptorout_init
-    call satelliteout_init
 #endif  
   else
     call receptorout_init_binary
-    call satelliteout_init_binary
   endif
 
   if ((iout.eq.4).or.(iout.eq.5)) call openouttraj ! CHECK ETA
