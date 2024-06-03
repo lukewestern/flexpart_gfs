@@ -155,6 +155,7 @@ module chemistry_mod
     integer          :: itime
     integer          :: jjjjmmdd, hhmmss, mm, eomday
     integer          :: nr, memid
+    real(kind=dp)    :: jd, jdmid
     character(len=2) :: amonth
     character(len=256):: CL_name, jr_name
     logical          :: lexist
@@ -177,30 +178,35 @@ module chemistry_mod
       ! Current time is after 2nd chem field
       !*************************************
 
+      write(*,*) 'Updating CL fields... '
+
+      memCLtime(1)=memCLtime(2)  ! time in sec
+      CL_time(1)=CL_time(2)      ! julian date
+      memid=2
+
+      ! Get date/time of next chem field 
+      !*********************************
+      ! assumes fields are monthly
+     
+      call caldate(CL_time(1), jjjjmmdd, hhmmss)
+      eomday=calceomday(jjjjmmdd/100)
+      memCLtime(2)=memCLtime(1)+ldirect*eomday*24*3600   ! time in sec
+      CL_time(2)=CL_time(1)+real(ldirect*eomday,kind=dp) ! julian date 
+      write(*,*) 'getchemfield: memCLtime = ',memCLtime(1), memCLtime(2)
+      write(*,*) 'getchemfield: CL_time = ',CL_time(1), CL_time(2)
+      call caldate(CL_time(2), jjjjmmdd,hhmmss)
+      mm=int((jjjjmmdd-(jjjjmmdd/10000)*10000)/100)
+      write(amonth,'(I2.2)') mm
+
       do nr=1,nreagent
 
         write(*,*) 'Updating CL field for: ',trim(reagents(nr))
 
         CL_field(:,:,:,nr,1)=CL_field(:,:,:,nr,2)
-        memCLtime(1)=memCLtime(2)  ! time in sec
-        CL_time(1)=CL_time(2)      ! julian date
-        memid=2
 
         ! Read new chem field and store in 2nd position
         !**********************************************
 
-        ! julian date of next chem field assuming monthly fields
-        call caldate(CL_time(1), jjjjmmdd, hhmmss)
-        eomday=calceomday(jjjjmmdd/100)
-        memCLtime(2)=memCLtime(1)+ldirect*eomday*24*3600   ! time in sec
-        CL_time(2)=CL_time(1)+real(ldirect*eomday,kind=dp) ! julian date 
-        !! test
-        write(*,*) 'memCLtime = ',memCLtime(1), memCLtime(2)
-        write(*,*) 'CL_time = ',CL_time(1), CL_time(2)
-        !!
-        call caldate(CL_time(2), jjjjmmdd,hhmmss)
-        mm=int((jjjjmmdd-(jjjjmmdd/10000)*10000)/100)
-        write(amonth,'(I2.2)') mm
         write(CL_name,'(A)') trim(reag_path(nr))//trim(reagents(nr))//'_'//amonth//'.nc'
         inquire(file=CL_name,exist=lexist)
         if (lexist) then
@@ -239,22 +245,63 @@ module chemistry_mod
       ! No chem field in memory that can be used
       !******************************************  
 
-      do nr=1,nreagent
+      write(*,*) 'Reading two new CL fields...'
 
-        write(*,*) 'Reading two new CL fields for: ',trim(reagents(nr))
+      ! Get date/time of both chem fields 
+      !**********************************
+      ! assumes fields are monthly
 
-        ! read both fields into memory
-        do memid=1,2
-          if (memid.eq.1) then
-            CL_time(memid)=bdate+real(ldirect*itime,kind=dp)/86400._dp
+      do memid=1,2
+        if (memid.eq.1) then
+          jd=bdate+real(ldirect*itime,kind=dp)/86400._dp
+          call caldate(jd, jjjjmmdd, hhmmss)
+          ! middle of month day
+          jdmid=juldate(int(jjjjmmdd/100)*100+15,0) 
+          !! testing
+          print*, 'getchemfield: jjjjmmdd, jjjjmmdd_mid = ',jjjjmmdd, int(jjjjmmdd/100)*100+15
+          ! julian date of fields
+          if (ldirect.gt.0) then
+            if (jd.ge.jdmid) then
+              ! use current month
+              CL_time(memid)=jdmid 
+            else
+              ! use last month
+              eomday=calceomday(jjjjmmdd/100)
+              CL_time(memid)=jdmid-real(eomday,kind=dp)
+            endif
           else
-            CL_time(memid)=CL_time(memid-1)+real(ldirect*eomday,kind=dp)
+            if (jd.ge.jdmid) then
+              ! use next month
+              CL_time(memid)=jdmid+real(eomday,kind=dp)
+            else
+              ! use current month
+              CL_time(memid)=jdmid
+            endif
           endif
-          memCLtime(memid)=int((CL_time(memid)-bdate)*86400._dp)*ldirect
-          call caldate(CL_time(memid), jjjjmmdd, hhmmss)
-          mm=int((jjjjmmdd-(jjjjmmdd/10000)*10000)/100)
+          !! testing
+          print*, 'getchemfield: memid, jd, jdmid, CL_time = ',memid,jd,jdmid,CL_time(1)
+        else
+          call caldate(jd, jjjjmmdd, hhmmss)
           eomday=calceomday(jjjjmmdd/100)
-          write(amonth,'(I2.2)') mm
+          CL_time(memid)=CL_time(memid-1)+real(ldirect*eomday,kind=dp)
+        endif
+        ! time of field in seconds from start
+        memCLtime(memid)=int((CL_time(memid)-bdate)*86400._dp)
+
+        write(*,*) 'getchemfield: memid, memCLtime = ',memCLtime(memid)
+        write(*,*) 'getchemfield: memid, CL_time = ',CL_time(memid)
+
+        call caldate(CL_time(memid), jjjjmmdd, hhmmss)
+        mm=int((jjjjmmdd-(jjjjmmdd/10000)*10000)/100)
+        write(amonth,'(I2.2)') mm
+
+        do nr=1,nreagent
+
+          write(*,*) 'Reading two new CL fields for: ',trim(reagents(nr))
+
+          ! Read new chem field
+          !********************
+
           write(CL_name,'(A)') trim(reag_path(nr))//trim(reagents(nr))//'_'//amonth//'.nc'
           inquire(file=CL_name,exist=lexist)
           if (lexist) then
@@ -266,6 +313,10 @@ module chemistry_mod
             write(*,*) '#### '//trim(CL_name)//' ####'
             error stop
           endif
+ 
+          ! Read average jrates
+          !********************
+
           if (reag_hourly(nr).gt.0) then
             ! Read average jrates into memory 
             write(jr_name,'(A)') trim(reag_path(nr))//'jrate_average.nc'
@@ -280,10 +331,11 @@ module chemistry_mod
               error stop
             endif
           endif ! reag_hourly
-        end do ! memid
 
-      end do ! nreagent
+        end do ! nreagent
 
+      end do ! memid
+      
     endif ! update hourly fields
 
 
@@ -418,7 +470,7 @@ module chemistry_mod
 
     ! current hour of simulation
     curhour=itime/3600
-    print*, 'getchemhourly: curhour, curCLhour = ',curhour, curCLhour
+    write(*,*) 'getchemhourly: curhour, curCLhour = ',curhour, curCLhour
 
     jul=bdate+real(itime,kind=dp)/86400._dp
     call caldate(jul,jjjjmmdd,hhmmss)
@@ -434,7 +486,7 @@ module chemistry_mod
       dt2=float(memCLtime(2)-interp_time)
       dtt=1./(dt1+dt2)
       !! testing
-!      print*, 'getchemhourly: dt1, dt2, dtt = ',dt1,dt2,dtt 
+      print*, 'getchemhourly: dt1, dt2, dtt = ',dt1,dt2,dtt 
       do nr=1,nreagent
         write(*,*) 'Interpolating fields for reagent: ',reagents(nr)
         clfield_cur(:,:,:,nr)=(dt2*CL_field(:,:,:,nr,1) + dt1*CL_field(:,:,:,nr,2))*dtt
@@ -707,7 +759,7 @@ module chemistry_mod
         dzz=1./(dz1+dz2)
 
         !! testing
-        if(ii.lt.100) print*, 'chemreaction: nr, clx, cly, clz, clzm = ',nr, clx, cly, clz, clzm
+!        if(ii.lt.100) print*, 'chemreaction: nr, clx, cly, clz, clzm = ',nr, clx, cly, clz, clzm
 
         ! chem reagent for particle time and location 
         cl_cur=(dz2*clfield_cur(clx,cly,clzm,nr) + &

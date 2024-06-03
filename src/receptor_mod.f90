@@ -58,17 +58,6 @@ module receptor_mod
       xkreceptor(:)=0.
     endif
 
-    if (numsatreceptor.gt.0) then
-      allocate( csatellite(nspec,nlayermax,maxrecsample) )
-      allocate( csatuncert(nspec,nlayermax,maxrecsample) )
-      allocate( nnsatellite(nlayermax,maxrecsample) )
-      allocate( xksatellite(nlayermax,maxrecsample) )
-      csatellite(:,:,:)=0.
-      csatuncert(:,:,:)=0.
-      nnsatellite(:,:)=0.
-      xksatellite(:,:)=0.
-    endif
-
   end subroutine alloc_receptor
 
 
@@ -106,11 +95,13 @@ module receptor_mod
     integer, dimension(:), allocatable     :: timerec
     real, dimension(:,:,:), allocatable    :: crec, cunc
     character(len=16), dimension(:), allocatable :: namerec
+    character(len=24), dimension(:), allocatable :: namesatrec
     real, dimension(:,:,:), allocatable    :: nnrec_omp, xkrec_omp, altrec_omp
     real, dimension(:,:), allocatable      :: lonrec_omp, latrec_omp
     integer, dimension(:,:), allocatable   :: timerec_omp
     real, dimension(:,:,:,:), allocatable  :: crec_omp, cunc_omp
     character(len=16), dimension(:,:), allocatable :: namerec_omp
+    character(len=24), dimension(:,:), allocatable :: namesatrec_omp
     integer, dimension(:), allocatable     :: nr_omp
     real, parameter :: weightair=28.97
     integer, parameter :: unitoutrecdates=109
@@ -200,6 +191,7 @@ module receptor_mod
                  latrec(maxrecsample),&
                  altrec(maxrecsample,nlayermax),&
                  namerec(maxrecsample),&
+                 namesatrec(maxrecsample),&
                  timerec(maxrecsample),&
                  crec(nspec,maxrecsample,nlayermax),&
                  cunc(nspec,maxrecsample,nlayermax))
@@ -209,6 +201,7 @@ module receptor_mod
                  latrec_omp(maxrecsample,nthreads),&
                  altrec_omp(maxrecsample,nlayermax,nthreads),&
                  namerec_omp(maxrecsample,nthreads),&
+                 namesatrec_omp(maxrecsample,nthreads),&
                  timerec_omp(maxrecsample,nthreads),&
                  crec_omp(nspec,maxrecsample,nlayermax,nthreads),&
                  cunc_omp(nspec,maxrecsample,nlayermax,nthreads))
@@ -351,7 +344,11 @@ module receptor_mod
           lonrec_omp(nr,thread)=xreceptor(n)*dx+xlon0
           latrec_omp(nr,thread)=yreceptor(n)*dy+ylat0
           altrec_omp(nr,1,thread)=zreceptor(n)
-          timerec_omp(nr,thread)=treceptor(n)
+          if ( lrecregular ) then
+            timerec_omp(nr,thread)=itime
+          else
+            timerec_omp(nr,thread)=treceptor(n)
+          endif
           namerec_omp(nr,thread)=receptorname(n)
 
         end do ! numcurrec
@@ -536,7 +533,7 @@ module receptor_mod
           latrec_omp(nr,thread)=ysatellite(n)*dy+ylat0
           altrec_omp(nr,:,thread)=zsatellite(:,n)
           timerec_omp(nr,thread)=tsatellite(n)
-          namerec_omp(nr,thread)=satellitename(n)
+          namesatrec_omp(nr,thread)=satellitename(n)
 
         end do ! numcursat
 !$OMP END DO
@@ -556,7 +553,7 @@ module receptor_mod
           latrec(nr:nr+nr_omp(ithread)-1)=latrec_omp(1:nr_omp(ithread),ithread)
           altrec(nr:nr+nr_omp(ithread)-1,:)=altrec_omp(1:nr_omp(ithread),:,ithread)
           timerec(nr:nr+nr_omp(ithread)-1)=timerec_omp(1:nr_omp(ithread),ithread)
-          namerec(nr:nr+nr_omp(ithread)-1)=namerec_omp(1:nr_omp(ithread),ithread)
+          namesatrec(nr:nr+nr_omp(ithread)-1)=namesatrec_omp(1:nr_omp(ithread),ithread)
           nr=nr+nr_omp(ithread)
           !! testing
 !          print*, 'receptor_mod: satellites, nr = ',nr
@@ -569,18 +566,18 @@ module receptor_mod
         if (nr.gt.0) then
           if (lnetcdfout.eq.1) then
 #if USE_NCF
-            call write_satellite_netcdf(crec,cunc,nnrec,xkrec,lonrec,latrec,altrec,timerec,namerec,nr)
+            call write_satellite_netcdf(crec,cunc,nnrec,xkrec,lonrec,latrec,altrec,timerec,namesatrec,nr)
 #endif  
           else
-            call write_satellite_binary(crec,cunc,nnrec,xkrec,lonrec,latrec,altrec,timerec,namerec,nr)
+            call write_satellite_binary(crec,cunc,nnrec,xkrec,lonrec,latrec,altrec,timerec,namesatrec,nr)
           endif
         endif
         ! advance output index
         spointer=spointer+nr
 
         !! testing
-!        print*, 'receptor_mod: satellites, nr_omp = ',nr_omp
-!        print*, 'receptor_mod: spointer = ',spointer
+        print*, 'receptor_mod: satellites, nr = ',nr
+        print*, 'receptor_mod: spointer = ',spointer
 
         ! close files
         if (lnetcdfout.eq.1) then
@@ -597,8 +594,8 @@ module receptor_mod
         deallocate(densityoutrecept)
         deallocate(crec,cunc,nnrec,xkrec)
         deallocate(crec_omp,cunc_omp,nnrec_omp,xkrec_omp)
-        deallocate(lonrec,latrec,altrec,timerec,namerec)
-        deallocate(lonrec_omp,latrec_omp,altrec_omp,timerec_omp,namerec_omp)
+        deallocate(lonrec,latrec,altrec,timerec,namerec,namesatrec)
+        deallocate(lonrec_omp,latrec_omp,altrec_omp,timerec_omp,namesatrec_omp)
         deallocate(nr_omp)
 
         ! End of receptor output
@@ -620,7 +617,7 @@ module receptor_mod
       crecuncert(:,:)=0.
       nnreceptor(:)=0.
       xkreceptor(:)=0.
-      if (numsatreceptor.gt.0) then
+      if (numsatellite.gt.0) then
         csatellite(:,:,:)=0.
         csatuncert(:,:,:)=0.
         nnsatellite(:,:)=0.
@@ -718,8 +715,8 @@ module receptor_mod
 
     do n=1,numreceptor
 
-      if ((treceptor(n).lt.lrecoutstart).or. &
-           (treceptor(n).ge.lrecoutend)) cycle  ! skip if not in current sampling time interval
+      if ((.not.lrecregular).and.((treceptor(n).lt.lrecoutstart).or. &
+           (treceptor(n).ge.lrecoutend))) cycle  ! skip if not in current sampling time interval
 
       ! update pointer
       k=k+1

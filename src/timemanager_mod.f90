@@ -108,7 +108,7 @@ subroutine timemanager
 #ifdef USE_NCF
   use chemistry_mod
   use initdomain_mod
-  use receptor_netcdf_mod, only: verttransform_satellite
+  use receptor_netcdf_mod, only: readreceptors_satellite, verttransform_satellite
   use emissions_mod
   use totals_mod
 #endif
@@ -149,7 +149,7 @@ subroutine timemanager
     drytmp       ! dry deposition related
   logical :: itsopen
   real, dimension(maxrecsample) :: recoutnum ! number of samples for receptor calculation
-  real, dimension(nlayermax,maxrecsample) :: recoutnumsat ! number of samples for satellite receptor calculation
+  real, allocatable, dimension(:,:) :: recoutnumsat ! number of samples for satellite receptor calculation
 
   ! First output for time 0
   !************************
@@ -162,7 +162,7 @@ subroutine timemanager
     lrecoutnext=lrecoutstep/2
     outnum=0.
     recoutnum(:)=0.
-    recoutnumsat(:,:)=0.
+!    recoutnumsat(:,:)=0.
   endif
   loutstart=loutnext-loutaver/2
   loutend=loutnext+loutaver/2
@@ -283,13 +283,16 @@ subroutine timemanager
     endif
 #endif
 
-  ! Transform vertical coordinates of satellite receptors
-  !******************************************************
+  ! Read satellite receptors
+  !*************************
+
 #ifdef USE_NCF
-    if ((numsatreceptor.gt.0).and.(itime.eq.0)) then
-      call verttransform_satellite
-    endif
+  call readreceptors_satellite(itime)
 #endif
+  if (.not.allocated(recoutnumsat)) then
+    allocate(recoutnumsat(nlayermax,maxrecsample))
+    recoutnumsat(:,:)=0.
+  endif
 
   ! Release particles
   !******************

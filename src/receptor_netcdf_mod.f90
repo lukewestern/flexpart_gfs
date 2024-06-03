@@ -32,14 +32,41 @@ module receptor_netcdf_mod
   integer :: nnvar_id, xkvar_id 
   ! satellite receptors
   integer :: spointer
+  integer :: memsatday
   character(len=8), dimension(:), allocatable :: sat_name 
+  character(len=256), dimension(:), allocatable :: sat_file, sat_path
   integer :: ncsat_id
-  integer :: satrecdim_id, sataltdim_id, satlayerdim_id
+  integer :: satrecdim_id, ncharsatdim_id, sataltdim_id, satlayerdim_id
   integer :: sattimevar_id, satrecvar_id, satlonvar_id, satlatvar_id, sataltvar_id, satnamevar_id
   integer, dimension(:), allocatable :: satvar_id, satuncvar_id
   integer :: satnnvar_id, satxkvar_id
 
   contains
+
+
+  subroutine alloc_satellite
+
+  !*****************************************************************************
+  !                                                                            *
+  !    This routine allocates variables for satellite concentrations           *
+  !                                                                            *
+  !*****************************************************************************
+
+    implicit none
+
+    if (numsatellite.gt.0) then
+      allocate( csatellite(nspec,nlayermax,maxrecsample) )
+      allocate( csatuncert(nspec,nlayermax,maxrecsample) )
+      allocate( nnsatellite(nlayermax,maxrecsample) )
+      allocate( xksatellite(nlayermax,maxrecsample) )
+      csatellite(:,:,:)=0.
+      csatuncert(:,:,:)=0.
+      nnsatellite(:,:)=0.
+      xksatellite(:,:)=0.
+    endif
+
+  end subroutine alloc_satellite
+
 
   subroutine receptorout_init
 
@@ -105,7 +132,7 @@ module receptor_netcdf_mod
     ! define dimensions
     !******************
 
-    call nf90_err( nf90_def_dim(nc_id, "rec", numreceptor, recdim_id) )
+    call nf90_err( nf90_def_dim(nc_id, "rec", nf90_unlimited, recdim_id) )
     call nf90_err( nf90_def_dim(nc_id, 'nchar', 16, nchardim_id) )
 
     ! define variables
@@ -221,7 +248,7 @@ module receptor_netcdf_mod
     character(10)      :: time
     character(5)       :: zone
 
-    if (numsatreceptor.eq.0) then
+    if (numsatellite.eq.0) then
       return
     endif
 
@@ -258,10 +285,10 @@ module receptor_netcdf_mod
     ! define dimensions
     !******************
 
-    call nf90_err( nf90_def_dim(ncsat_id, "rec", numsatreceptor, satrecdim_id) )
+    call nf90_err( nf90_def_dim(ncsat_id, "rec", nf90_unlimited, satrecdim_id) )
     call nf90_err( nf90_def_dim(ncsat_id, "layer", (nlayermax-1), satlayerdim_id) )
     call nf90_err( nf90_def_dim(ncsat_id, "level", nlayermax, sataltdim_id) )
-    call nf90_err( nf90_def_dim(ncsat_id, 'nchar', 16, nchardim_id) )
+    call nf90_err( nf90_def_dim(ncsat_id, 'nchar', 24, ncharsatdim_id) )
 
     ! define variables
     !*****************
@@ -277,7 +304,7 @@ module receptor_netcdf_mod
     call nf90_err( nf90_put_att(ncsat_id, sattimevar_id, 'calendar', 'proleptic_gregorian') )
 
     ! receptor names 
-    call nf90_err( nf90_def_var(ncsat_id, "receptorname", nf90_char, (/ nchardim_id, satrecdim_id /), &
+    call nf90_err( nf90_def_var(ncsat_id, "receptorname", nf90_char, (/ ncharsatdim_id, satrecdim_id /), &
                     satnamevar_id) )
     call nf90_err( nf90_put_att(ncsat_id, satnamevar_id, "longname", "receptor name") )
 
@@ -297,19 +324,19 @@ module receptor_netcdf_mod
     call nf90_err( nf90_put_att(ncsat_id, satlatvar_id, "units", "degrees_north") )
 
     ! receptor altitude
-    call nf90_err( nf90_def_var(ncsat_id, "alt", nf90_float, (/ satrecdim_id, sataltdim_id /), sataltvar_id) )
+    call nf90_err( nf90_def_var(ncsat_id, "alt", nf90_float, (/ sataltdim_id, satrecdim_id /), sataltvar_id) )
     call nf90_err( nf90_put_att(ncsat_id, sataltvar_id, "longname", "receptor altitude of levels") )
     call nf90_err( nf90_put_att(ncsat_id, sataltvar_id, "units", "meters") )
 
     ! species specific variables
     do ks=ks_start,nspec
       ! mixing ratio output for each layer of retrieval
-      call nf90_err( nf90_def_var(ncsat_id, trim(species(ks)), nf90_float, (/ satrecdim_id, satlayerdim_id /), &
+      call nf90_err( nf90_def_var(ncsat_id, trim(species(ks)), nf90_float, (/ satlayerdim_id, satrecdim_id /), &
                        satvar_id(ks)) )
       call nf90_err( nf90_put_att(ncsat_id, satvar_id(ks), "units", "pptv") )
       call nf90_err( nf90_put_att(ncsat_id, satvar_id(ks), "longname", "mean VMR") )
       ! uncertainty output for each layer of retrieval
-      call nf90_err( nf90_def_var(ncsat_id, trim(species(ks))//"_uncert", nf90_float, (/ satrecdim_id, satlayerdim_id /), &
+      call nf90_err( nf90_def_var(ncsat_id, trim(species(ks))//"_uncert", nf90_float, (/ satlayerdim_id, satrecdim_id /), &
                        satuncvar_id(ks)) )
       call nf90_err( nf90_put_att(ncsat_id, satuncvar_id(ks), "units", "pptv") )
       call nf90_err( nf90_put_att(ncsat_id, satuncvar_id(ks), "longname", "uncertainty VMR") )
@@ -317,11 +344,11 @@ module receptor_netcdf_mod
 
     ! not species specific variables
     ! number of particles in receptor output
-    call nf90_err( nf90_def_var(ncsat_id,"npart", nf90_float, (/ satrecdim_id, satlayerdim_id /), satnnvar_id) )
+    call nf90_err( nf90_def_var(ncsat_id,"npart", nf90_float, (/ satlayerdim_id, satrecdim_id /), satnnvar_id) )
     call nf90_err( nf90_put_att(ncsat_id, satnnvar_id, "units", "counts") )
     call nf90_err( nf90_put_att(ncsat_id, satnnvar_id, "longname","number of particles at receptor") )
     ! average kernel weight at receptor
-    call nf90_err( nf90_def_var(ncsat_id,"kernel", nf90_float, (/ satrecdim_id, satlayerdim_id /), satxkvar_id) )
+    call nf90_err( nf90_def_var(ncsat_id,"kernel", nf90_float, (/ satlayerdim_id, satrecdim_id /), satxkvar_id) )
     call nf90_err( nf90_put_att(ncsat_id, satxkvar_id, "units", "") )
     call nf90_err( nf90_put_att(ncsat_id, satxkvar_id, "longname", "average kernel weight at receptor") )
 
@@ -471,7 +498,7 @@ module receptor_netcdf_mod
     endif
 
     !! testing
-    print*, 'write_receptor_netcdf: rpointer, nrec = ',rpointer, nrec
+!    print*, 'write_receptor_netcdf: rpointer, nrec = ',rpointer, nrec
 
     ! species specific
     do ks=ks_start,nspec
@@ -516,7 +543,7 @@ module receptor_netcdf_mod
     real, dimension(maxrecsample,nlayermax) :: nnrec, xkrec, altrec
     real, dimension(maxrecsample) :: lonrec, latrec
     integer, dimension(maxrecsample) :: timerec
-    character(len=16), dimension(maxrecsample) :: namerec
+    character(len=24), dimension(maxrecsample) :: namerec
 
     if (llcmoutput) then
       ks_start=2
@@ -525,17 +552,19 @@ module receptor_netcdf_mod
     endif
 
     !! testing
-    print*, 'write_satellite_netcdf: spointer, nrec = ',spointer, nrec
+!    print*, 'write_satellite_netcdf: spointer, nrec = ',spointer, nrec
 
     ! species specific output
     do ks = ks_start,nspec
-      call nf90_err( nf90_put_var(ncsat_id,satvar_id(ks),crec(ks,1:nrec,1:nlayermax-1),(/spointer,1/),(/nrec,nlayermax-1/) ) )
-      call nf90_err( nf90_put_var(ncsat_id,satuncvar_id(ks),cunc(ks,1:nrec,1:nlayermax-1),(/spointer,1/),(/nrec,nlayermax-1/) ) )
+      call nf90_err( nf90_put_var(ncsat_id,satvar_id(ks),transpose(crec(ks,1:nrec,1:nlayermax-1)),&
+                     (/1,spointer/),(/nlayermax-1,nrec/) ) )
+      call nf90_err( nf90_put_var(ncsat_id,satuncvar_id(ks),transpose(cunc(ks,1:nrec,1:nlayermax-1)),&
+                     (/1,spointer/),(/nlayermax-1,nrec/) ) )
     end do
 
     ! non-species specific
     ! receptor name
-    call nf90_err( nf90_put_var(ncsat_id, satnamevar_id, namerec(1:nrec), (/1,spointer/), (/16,nrec/) ) )
+    call nf90_err( nf90_put_var(ncsat_id, satnamevar_id, namerec(1:nrec), (/1,spointer/), (/24,nrec/) ) )
     ! receptor time 
     call nf90_err( nf90_put_var(ncsat_id, sattimevar_id, timerec(1:nrec), (/spointer/), (/nrec/) ) )
     ! receptor longitude
@@ -543,11 +572,13 @@ module receptor_netcdf_mod
     ! receptor latitude
     call nf90_err( nf90_put_var(ncsat_id, satlatvar_id, latrec(1:nrec), (/spointer/), (/nrec/) ) )
     ! receptor altitude
-    call nf90_err( nf90_put_var(ncsat_id, sataltvar_id, altrec(1:nrec,:), (/spointer,1/), (/nrec,(nlayermax)/) ) )
+    call nf90_err( nf90_put_var(ncsat_id, sataltvar_id, transpose(altrec(1:nrec,:)), (/1,spointer/), (/nlayermax,nrec/) ) )
     ! average number of particles all timesteps for each receptor
-    call nf90_err( nf90_put_var(ncsat_id, satnnvar_id, nnrec(1:nrec,1:nlayermax-1), (/spointer,1/), (/nrec,nlayermax-1/) ) )
+    call nf90_err( nf90_put_var(ncsat_id, satnnvar_id, transpose(nnrec(1:nrec,1:nlayermax-1)),&
+                   (/1,spointer/), (/nlayermax-1,nrec/) ) )
     ! average kernel all timesteps
-    call nf90_err( nf90_put_var(ncsat_id, satxkvar_id, xkrec(1:nrec,1:nlayermax-1), (/spointer,1/), (/nrec,nlayermax-1/) ) )
+    call nf90_err( nf90_put_var(ncsat_id, satxkvar_id, transpose(xkrec(1:nrec,1:nlayermax-1)), &
+                   (/1,spointer/), (/nlayermax-1,nrec/) ) )
 
   end subroutine write_satellite_netcdf
 
@@ -571,12 +602,12 @@ module receptor_netcdf_mod
   !*****************************************************************************
 
 
-  subroutine readreceptors_satellite
+  subroutine read_satellite_info
 
   !*****************************************************************************
   !                                                                            *
-  !     This routine reads the satellite retrieval information for which       *
-  !     mixing ratios should be modelled                                       *
+  !     This routine reads the satellite information for which satellite       *
+  !     retrievals should be read                                              *
   !                                                                            *
   !     Author: R. Thompson                                                    *
   !     October 2023                                                           *
@@ -585,30 +616,15 @@ module receptor_netcdf_mod
 
     implicit none
 
-    character(len=256) :: file_name, ppath, pfile, strtmp1, strtmp2
-    character(len=256), dimension(:), allocatable :: sat_file, sat_path
-    character(len=8) :: anretr, psatname
-    character(len=4) :: ayear
-    character(len=2) :: amonth, aday
-    integer :: jjjjmmdd, hhmmss, yyyy, mm, dd
-    integer :: nc_id, dimid, varid
-    real    :: xm, ym
-    real(kind=dp) :: jul, jd
-    real, allocatable, dimension(:,:) :: xpts, ypts, zpt1, zpt2
-    integer, allocatable, dimension(:) :: npt, sdate, stime
-    integer :: readerror, writeerror, stat
-    integer :: j, nn, nr, nretr, nlayer, tmp_numsat
+    character(len=256) ::  ppath, pfile
+    character(len=8) :: psatname
+    integer :: readerror, writeerror
+    integer :: j
     integer,parameter :: unitreceptorout=2
     logical :: lexist
-    real, allocatable, dimension(:) :: tmp_xsat, tmp_ysat, tmp_satarea
-    real, allocatable, dimension(:,:) :: tmp_zsat
-    integer, allocatable, dimension(:) :: tmp_tsat
-    character(len=16), allocatable, dimension(:) :: tmp_satname
 
     ! declare namelist
     namelist /satellites/ psatname, ppath, pfile
-
-    numsatreceptor=0
 
     ! For backward runs, do not allow receptor output
     !************************************************
@@ -623,7 +639,7 @@ module receptor_netcdf_mod
     open(unitreceptor,file=path(1)(1:length(1))//'SATELLITES',form='formatted',status='old',iostat=readerror)
 
     if (readerror.ne.0) then
-      write(*,*) 'FLEXPART WARNING readreceptors_satellite: no satellite file found'
+      write(*,*) 'FLEXPART WARNING read_satellite_info: no satellite file found'
       return
     endif
 
@@ -632,7 +648,7 @@ module receptor_netcdf_mod
     close(unitreceptor)
 
     if (readerror.ne.0) then
-      write(*,*) ' #### FLEXPART ERROR in readreceptors_satellite: #### '
+      write(*,*) ' #### FLEXPART ERROR in read_satellite_info: #### '
       write(*,*) ' #### error in namelist input #### '
       error stop
     endif ! only namelist input
@@ -643,7 +659,7 @@ module receptor_netcdf_mod
       open(unitreceptorout,file=path(2)(1:length(2))//'SATELLITES.namelist',&
            &access='append',status='replace',iostat=writeerror)
       if (writeerror.ne.0) then
-        write(*,*) ' #### FLEXPART ERROR readreceptors_satellite: cannot open file #### '
+        write(*,*) ' #### FLEXPART ERROR read_satellite_info: cannot open file #### '
         write(*,*) ' #### '//trim(path(2)(1:length(2)))//'SATELLITES.namelist #### '
         error stop
       endif
@@ -652,6 +668,7 @@ module receptor_netcdf_mod
     ! Get number of satellites
     !*************************
 
+    numsatellite=0
     open (unitreceptor,file=trim(path(1))//'SATELLITES',status='old',iostat=readerror)
     j=0
     do while (readerror.eq.0)
@@ -678,7 +695,7 @@ module receptor_netcdf_mod
       read(unitreceptor,satellites,iostat=readerror)
       if (readerror.ne.0) exit
       j=j+1
-      write(*,*) 'readreceptors_satellite: psatname, ppath = ',trim(psatname),', ',trim(ppath)
+      write(*,*) 'read_satellite_info: psatname, ppath = ',trim(psatname),', ',trim(ppath)
       sat_name(j)=trim(psatname)
       sat_path(j)=trim(ppath)
       sat_file(j)=trim(pfile)
@@ -690,39 +707,133 @@ module receptor_netcdf_mod
     close(unitreceptor)
     close(unitreceptorout)
 
+  end subroutine read_satellite_info
+
+  
+  subroutine readreceptors_satellite(itime)
+
+  !*****************************************************************************
+  !                                                                            *
+  !     This routine reads the satellite retrieval information for which       *
+  !     mixing ratios should be modelled                                       *
+  !                                                                            *
+  !     Author: R. Thompson                                                    *
+  !     October 2023                                                           *
+  !                                                                            *
+  !*****************************************************************************
+
+    use binary_output_mod, only: satelliteout_init_binary
+
+    implicit none
+
+    integer            :: itime
+    character(len=256) :: file_name
+    character(len=6) :: anretr
+    character(len=8) :: adate
+    integer :: jjjjmmdd, hhmmss, yyyy, mm, dd
+    integer :: nc_id, dimid, varid
+    real    :: xm, ym
+    real(kind=dp) :: jul, jd, curday
+    real, allocatable, dimension(:,:) :: xpts, ypts, zpt1, zpt2
+    integer, allocatable, dimension(:) :: npt, sdate, stime
+    integer :: stat
+    integer :: j, nn, nr, nretr, nlayer, tmp_numsat
+    logical :: lexist
+    real, allocatable, dimension(:) :: tmp_xsat, tmp_ysat, tmp_satarea
+    real, allocatable, dimension(:,:) :: tmp_zsat
+    integer, allocatable, dimension(:) :: tmp_tsat
+    character(len=24), allocatable, dimension(:) :: tmp_satname
+
+    ! For backward runs, do not allow receptor output
+    !************************************************
+
+    if (ldirect.lt.0) then
+      return
+    endif
+
+    ! If no satellites do nothing
+    !****************************
+
+    if (numsatellite.eq.0) then
+      return
+    endif
+
+    ! Check if retrievals already in memory for current day
+    !******************************************************
+
+    ! If itime is a full day do not update retrievals
+    print*, 'readreceptors_satellite: mod = ',mod(real(itime),86400.)
+    if ((itime.ne.0).and.(mod(real(itime),86400.).eq.0)) then
+      return
+    endif
+
+    curday=bdate+real(itime,kind=dp)/86400._dp
+    curday=floor(curday)
+    print*, 'readreceptors_satellite: curday = ',curday
+    print*, 'readreceptors_satellite: memsatday = ',memsatday
+  
+    if (memsatday.eq.curday ) then
+      ! The retrievals for the current day are in memory -> don't do anything
+      return
+    endif
+    memsatday=curday
+
     ! Get number of satellite receptors
     !**********************************
 
-    ! Loop over satellites and days
-    jd=bdate
+    ! Loop over satellites 
+    jd=curday
     tmp_numsat=0
-    do while (jd.le.edate)
-      do j=1,numsatellite
-        ! get filename for current day
-        call caldate(jd, jjjjmmdd, hhmmss)
-        file_name=sat_file(j)
-        call getfilename(jjjjmmdd, file_name)
-        write(*,*) 'readreceptors_satellite: file_name = ',file_name
-        inquire(file=trim(sat_path(j))//'/'//trim(file_name),exist=lexist)
-        if (.not.lexist) then
-          write(*,*) 'readreceptors_satellite: no retrievals file for '//ayear//amonth//aday
-          cycle
-        endif
-        ! open file
-        call nf90_err( nf90_open(trim(sat_path(j))//'/'//trim(file_name), nf90_nowrite, nc_id) )
-        ! read dimensions
-        call nf90_err( nf90_inq_dimid(nc_id, 'retrieval', dimid) )
-        call nf90_err( nf90_inquire_dimension(nc_id, dimid, len=nretr) )
-        call nf90_err( nf90_inq_dimid(nc_id, 'nlayer', dimid) )
-        call nf90_err( nf90_inquire_dimension(nc_id, dimid, len=nlayer) )
-        tmp_numsat=tmp_numsat+nretr
+    do j=1,numsatellite
+      ! get filename for current day
+      call caldate(jd, jjjjmmdd, hhmmss)
+      write(adate,'(I8.8)') jjjjmmdd
+      file_name=sat_file(j)
+      call getfilename(jjjjmmdd, file_name)
+      write(*,*) 'readreceptors_satellite: file_name = ',file_name
+      inquire(file=trim(sat_path(j))//'/'//trim(file_name),exist=lexist)
+      if (.not.lexist) then
+        write(*,*) 'readreceptors_satellite: no retrievals file for '//adate
+        cycle
+      endif
+      ! open file
+      call nf90_err( nf90_open(trim(sat_path(j))//'/'//trim(file_name), nf90_nowrite, nc_id) )
+      ! read dimensions
+      call nf90_err( nf90_inq_dimid(nc_id, 'retrieval', dimid) )
+      call nf90_err( nf90_inquire_dimension(nc_id, dimid, len=nretr) )
+      call nf90_err( nf90_inq_dimid(nc_id, 'nlayer', dimid) )
+      call nf90_err( nf90_inquire_dimension(nc_id, dimid, len=nlayer) )
+      tmp_numsat=tmp_numsat+nretr
+      ! Define nlayermax only for first day (must not change by day)
+      if (jd.eq.bdate) then
         nlayermax=max(nlayermax,nlayer)
         nnsatlayer(j)=nlayer
-        call nf90_err(nf90_close(nc_id))
-      end do
-      jd=jd+1d0
+      endif
+      call nf90_err(nf90_close(nc_id))
     end do
-    nlayermax=nlayermax+1 ! for levels
+    if (jd.eq.bdate) then
+      nlayermax=nlayermax+1 ! for levels
+    endif
+    print*, 'readreceptors_satellite: nlayermax = ',nlayermax
+
+    ! Initialize satellite output
+    !****************************
+
+    ! Only do once
+    print*, 'readreceptors_satellite: jd, bdate = ',jd, bdate
+    if (jd.eq.bdate) then
+      print*, 'readreceptors_satellite: allocating satellite variables'
+      call alloc_satellite
+      if (lnetcdfout.eq.1) then
+#ifdef USE_NCF
+        print*, 'readreceptors_satellite: initialising output file'
+        call satelliteout_init
+#endif
+      else
+        print*, 'readreceptors_satellite: initialising binary output file'
+        call satelliteout_init_binary
+      endif
+    endif      
 
     ! Allocate temporary arrays
     !**************************
@@ -731,94 +842,101 @@ module receptor_netcdf_mod
              tmp_tsat(tmp_numsat),tmp_satarea(tmp_numsat),&
              tmp_zsat(nlayermax,tmp_numsat),tmp_satname(tmp_numsat))
 
+    ! Deallocate existing satellite arrays
+    !*************************************
+
+    if (allocated(xsatellite)) then
+      deallocate(xsatellite,ysatellite,&
+                 tsatellite,satellitearea,&
+                 zsatellite,satellitename)
+    endif
+
     ! Read satellite retrievals info
     !*******************************
 
-    ! Loop over days in simulation
     numsatreceptor=0
-    jd=bdate
-    do while (jd.le.edate)
+    jd=curday
+    call caldate(jd, jjjjmmdd, hhmmss)
+    write(adate,'(I8.8)') jjjjmmdd
+    print*, 'readreceptors_satellite: adate = ',adate
 
-      do j=1,numsatellite
+    do j=1,numsatellite
 
-        ! get filename for current day
-        ! assumes same format as output from prep_satellite
-        call caldate(jd, jjjjmmdd, hhmmss)
-        file_name=sat_file(j)
-        call getfilename(jjjjmmdd, file_name)
-        write(*,*) 'readreceptors_satellite: file_name = ',file_name
-        inquire(file=trim(sat_path(j))//'/'//trim(file_name),exist=lexist)
-        if (.not.lexist) then
-          write(*,*) 'readreceptors_satellite: no retrievals file for '//ayear//amonth//aday
-          cycle
-        endif
+      ! get filename for current day
+      ! assumes same format as output from prep_satellite
+      call caldate(jd, jjjjmmdd, hhmmss)
+      file_name=sat_file(j)
+      call getfilename(jjjjmmdd, file_name)
+      write(*,*) 'readreceptors_satellite: file_name = ',file_name
+      inquire(file=trim(sat_path(j))//'/'//trim(file_name),exist=lexist)
+      if (.not.lexist) then
+        write(*,*) 'readreceptors_satellite: no retrievals file for '//adate
+        cycle
+      endif
 
-        ! open file
-        call nf90_err( nf90_open(trim(sat_path(j))//'/'//trim(file_name), nf90_nowrite, nc_id) )
+      ! open file
+      call nf90_err( nf90_open(trim(sat_path(j))//'/'//trim(file_name), nf90_nowrite, nc_id) )
 
-        ! read dimensions
-        call nf90_err( nf90_inq_dimid(nc_id, 'retrieval', dimid) )
-        call nf90_err( nf90_inquire_dimension(nc_id, dimid, len=nretr) )
-        call nf90_err( nf90_inq_dimid(nc_id, 'nlayer', dimid) )
-        call nf90_err( nf90_inquire_dimension(nc_id, dimid, len=nlayer) )
+      ! read dimensions
+      call nf90_err( nf90_inq_dimid(nc_id, 'retrieval', dimid) )
+      call nf90_err( nf90_inquire_dimension(nc_id, dimid, len=nretr) )
+      call nf90_err( nf90_inq_dimid(nc_id, 'nlayer', dimid) )
+      call nf90_err( nf90_inquire_dimension(nc_id, dimid, len=nlayer) )
+      print*, 'readreceptors_satellite: nretr = ',nretr
 
-        ! allocate temporary variables
-        allocate(sdate(nretr),stat=stat)
-        if (stat.ne.0) write(*,*)'ERROR: could not allocate sdate'
-        allocate(stime(nretr),stat=stat)
-        if (stat.ne.0) write(*,*)'ERROR: could not allocate stime'
-        allocate(xpts(nretr,4),stat=stat)
-        if (stat.ne.0) write(*,*)'ERROR: could not allocate xpts'
-        allocate(ypts(nretr,4),stat=stat)
-        if (stat.ne.0) write(*,*)'ERROR: could not allocate ypts'
-        allocate(zpt1(nretr,nlayer),stat=stat)
-        if (stat.ne.0) write(*,*)'ERROR: could not allocate zpt1'
-        allocate(zpt2(nretr,nlayer),stat=stat)
-        if (stat.ne.0) write(*,*)'ERROR: could not allocate zpt2'
+      ! allocate temporary variables
+      allocate(sdate(nretr),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate sdate'
+      allocate(stime(nretr),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate stime'
+      allocate(xpts(nretr,4),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate xpts'
+      allocate(ypts(nretr,4),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate ypts'
+      allocate(zpt1(nretr,nlayer),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate zpt1'
+      allocate(zpt2(nretr,nlayer),stat=stat)
+      if (stat.ne.0) write(*,*)'ERROR: could not allocate zpt2'
 
-        ! read coordinate variables      
-        call nf90_err( nf90_inq_varid(nc_id,'idate',varid) )
-        call nf90_err( nf90_get_var(nc_id,varid,sdate) )
-        call nf90_err( nf90_inq_varid(nc_id,'itime',varid) )
-        call nf90_err( nf90_get_var(nc_id,varid,stime) )
-        call nf90_err( nf90_inq_varid(nc_id,'xpoints',varid) )
-        call nf90_err( nf90_get_var(nc_id,varid,xpts) )
-        call nf90_err( nf90_inq_varid(nc_id,'ypoints',varid) )
-        call nf90_err( nf90_get_var(nc_id,varid,ypts) )
-        call nf90_err( nf90_inq_varid(nc_id,'zpoint1',varid) )
-        call nf90_err( nf90_get_var(nc_id,varid,zpt1) )
-        call nf90_err( nf90_inq_varid(nc_id,'zpoint2',varid) )
-        call nf90_err( nf90_get_var(nc_id,varid,zpt2) )
-        call nf90_err( nf90_close(nc_id) )
+      ! read coordinate variables      
+      call nf90_err( nf90_inq_varid(nc_id,'idate',varid) )
+      call nf90_err( nf90_get_var(nc_id,varid,sdate) )
+      call nf90_err( nf90_inq_varid(nc_id,'itime',varid) )
+      call nf90_err( nf90_get_var(nc_id,varid,stime) )
+      call nf90_err( nf90_inq_varid(nc_id,'xpoints',varid) )
+      call nf90_err( nf90_get_var(nc_id,varid,xpts) )
+      call nf90_err( nf90_inq_varid(nc_id,'ypoints',varid) )
+      call nf90_err( nf90_get_var(nc_id,varid,ypts) )
+      call nf90_err( nf90_inq_varid(nc_id,'zpoint1',varid) )
+      call nf90_err( nf90_get_var(nc_id,varid,zpt1) )
+      call nf90_err( nf90_inq_varid(nc_id,'zpoint2',varid) )
+      call nf90_err( nf90_get_var(nc_id,varid,zpt2) )
+      call nf90_err( nf90_close(nc_id) )
 
-        ! write to coordinates receptor variables
-        do nr=1,nretr
-          ! time of retrieval from bdate in seconds
-          jul=juldate(sdate(nr),stime(nr))
-          if ((jul.lt.bdate).or.(jul.gt.edate)) cycle
-          numsatreceptor=numsatreceptor+1
-          write(anretr,'(I8.8)') nr
-          tmp_satname(numsatreceptor)=trim(sat_name(j))//'_'//anretr
-          tmp_tsat(numsatreceptor)=int((jul-bdate)*24.*3600.) ! time in sec
-          ! transform to grid coordinates
-          tmp_xsat(numsatreceptor)=(sum(xpts(nr,:))/4.-xlon0)/dx
-          tmp_ysat(numsatreceptor)=(sum(ypts(nr,:))/4.-ylat0)/dy
-          ! vertical coordinates layer boundaries in Pa
-          tmp_zsat(1:nlayer,numsatreceptor)=zpt1(nr,:)
-          tmp_zsat(nlayer+1,numsatreceptor)=zpt2(nr,nlayer)
-          ! area for mixing ratio calc (used if ind_samp = -1)
-          xm=r_earth*cos((sum(ypts(nr,:))/4.)*pi/180.)*dx/180.*pi
-          ym=r_earth*dy/180.*pi
-          tmp_satarea(numsatreceptor)=xm*ym
-        end do ! nretr
+      ! write to coordinates receptor variables
+      do nr=1,nretr
+        jul=juldate(sdate(nr),stime(nr))
+        ! skip retrievals not for current day
+        if (floor(jul).ne.curday) cycle
+        numsatreceptor=numsatreceptor+1
+        write(anretr,'(I6.6)') nr
+        tmp_satname(numsatreceptor)=trim(sat_name(j))//'_'//adate//'_'//anretr
+        tmp_tsat(numsatreceptor)=int((jul-bdate)*24.*3600.) ! time in sec
+        ! transform to grid coordinates
+        tmp_xsat(numsatreceptor)=(sum(xpts(nr,:))/4.-xlon0)/dx
+        tmp_ysat(numsatreceptor)=(sum(ypts(nr,:))/4.-ylat0)/dy
+        ! vertical coordinates layer boundaries in Pa
+        tmp_zsat(1:nlayer,numsatreceptor)=zpt1(nr,:)
+        tmp_zsat(nlayer+1,numsatreceptor)=zpt2(nr,nlayer)
+        ! area for mixing ratio calc (used if ind_samp = -1)
+        xm=r_earth*cos((sum(ypts(nr,:))/4.)*pi/180.)*dx/180.*pi
+        ym=r_earth*dy/180.*pi
+        tmp_satarea(numsatreceptor)=xm*ym
+      end do ! nretr
 
-        deallocate(sdate, stime, xpts, ypts, zpt1, zpt2)
+      deallocate(sdate, stime, xpts, ypts, zpt1, zpt2)
 
-      end do ! numsatellite
-
-      jd=jd+1d0
-
-    end do ! jd
+    end do ! numsatellite
 
     write(*,*) 'readreceptors_satellite: numsatreceptor = ',numsatreceptor
 
@@ -837,7 +955,13 @@ module receptor_netcdf_mod
     satellitename=tmp_satname(1:numsatreceptor)
 
     deallocate(tmp_xsat,tmp_ysat,tmp_tsat,tmp_satarea,tmp_zsat,tmp_satname)
-    deallocate(sat_path,sat_file)
+
+    ! Transform vertical coordinates of satellite receptors
+    !******************************************************
+
+    if (numsatreceptor.gt.0) then
+      call verttransform_satellite
+    endif
 
   end subroutine readreceptors_satellite
 
