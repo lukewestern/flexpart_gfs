@@ -15,7 +15,7 @@
  PHENRY=-0.9E-9,              ! Dry deposition (gases) - Henrys const.
  PF0=-9,                      ! Dry deposition (gases) - f0 (reactivity)
  PWEIGHTMOLAR=29.0,           ! molweight
- POHCCONST=-0.9E-9,           ! OH Reaction rate - C [cm^3/molecule/sec]
- POHDCONST=-9.9,              ! OH Reaction rate - D [K]
- POHNCONST=2.0,               ! OH Reaction rate - N (no unit)
+ PCCONST=-0.9E-9,           ! OH Reaction rate - C [cm^3/molecule/sec]
+ PDCONST=-9.9,              ! OH Reaction rate - D [K]
+ PNCONST=2.0,               ! OH Reaction rate - N (no unit)
  /
