@@ -2758,7 +2758,7 @@ subroutine readspecies(id_spec,pos_spec)
   phenry=-9.9
   pf0=0.0
   pdensity=-9.9E09
-  pdquer=0.0
+  pdquer=-9.9
   pdia=-9.9
   pdsigma=0.0
   !pndia=1
@@ -2844,9 +2844,9 @@ subroutine readspecies(id_spec,pos_spec)
   henry(pos_spec)=phenry
   f0(pos_spec)=pf0
   density(pos_spec)=pdensity
-  if (pdia.ne.0.0) then
+  if (pdia.ne.-9.9) then
     dquer(pos_spec)=pdia
-  else if (pdquer.ne.0.0) then
+  else if (pdquer.ne.-9.9) then
     write(*,*) 'WARNING: PDQUER will be depricated, please use PDIA instead.'
     dquer(pos_spec)=pdquer ! For backwards compatibility
   else
