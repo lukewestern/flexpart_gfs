@@ -2682,8 +2682,7 @@ subroutine readspecies(id_spec,pos_spec)
   ! reacdconst            Chemical reaction rate constant D                    *
   ! reacnconst            Chemical reaction rate constant n                    *
   ! id_spec               SPECIES number as referenced in RELEASE file         *
-  ! id_pos                position where SPECIES data shall be stored          *
-  ! ni                    Number of diameter classes of particles              *                                                          
+  ! id_pos                position where SPECIES data shall be stored          *                                                        
   ! Constants:                                                                 *
   !                                                                            *
   !*****************************************************************************
