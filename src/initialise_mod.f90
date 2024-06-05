@@ -98,14 +98,12 @@ subroutine releaseparticles(itime)
 
   !real xaux,yaux,zaux,ran1,rfraction,xmasssave(maxpoint)
   real :: xaux,yaux,zaux,rfraction
-  real :: topo,r,t
-  real :: dp1,dp2,xlonav,timecorrect(maxspec),press,pressold
-  real :: presspart,average_timecorrect
+  real :: xlonav,timecorrect(maxspec)
+  real :: average_timecorrect
   integer :: itime,numrel,i,j,k,ipart,minpart
-  integer :: kz,istart,iend,totpart
+  integer :: istart,iend,totpart,iterm_index
   integer :: nweeks,ndayofweek,nhour,jjjjmmdd,ihmmss,mm
   real(kind=dp) :: julmonday,jul,jullocal,juldiff
-  real,parameter :: eps2=1.e-6
 
   integer :: idummy = -7
   !save idummy,xmasssave
@@ -129,22 +127,25 @@ subroutine releaseparticles(itime)
   ! For every release point, check whether we are in the release time interval
   !***************************************************************************
   ! First allocate all particles that are going to be in the simulation
-
-  if (itime.eq.0) then
-    totpart=0
-    do i=1,numpoint
-      totpart = totpart+npart(i)
-    end do
-    call alloc_particles(totpart)
-  else if (itime.eq.itime_init) then !From restart point only allocate particles that are yet to be born
-    totpart=0
-    do i=1,numpoint
-      totpart = totpart+npart(i)
-    end do
-    if (totpart.gt.count%allocated) call alloc_particles(totpart-count%allocated)
-  end if 
+  ! If ipin==0,1, and ipout==0, then dead particles can be overwritten to save memory
+  if (ipin.gt.1 .or. ipout.ne.0) then
+    if (itime.eq.0) then
+      totpart=0
+      do i=1,numpoint
+        totpart = totpart+npart(i)
+      end do
+      call alloc_particles(totpart)
+    else if (itime.eq.itime_init) then !From restart point only allocate particles that are yet to be born
+      totpart=0
+      do i=1,numpoint
+        totpart = totpart+npart(i)
+      end do
+      if (totpart.gt.count%allocated) call alloc_particles(totpart-count%allocated)
+    end if 
+  endif
 
   call get_totalpart_num(istart)
+  if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm()
   minpart=1
   do i=1,numpoint
     if ((itime.ge.ireleasestart(i)).and. &! are we within release interval?
@@ -153,7 +154,7 @@ subroutine releaseparticles(itime)
   ! Determine the local day and time
   !*********************************
 
-      xlonav=xlon0+(xpoint2(i)+xpoint1(i))/2.*dx  ! longitude needed to determine local time
+      xlonav=xlon0+(xpoint2(i)+xpoint1(i))*0.5*dx  ! longitude needed to determine local time
       if (xlonav.lt.-180.) xlonav=xlonav+360.
       if (xlonav.gt.180.) xlonav=xlonav-360.
       jullocal=jul+real(xlonav,kind=dp)/360._dp   ! correct approximately for time zone to obtain local time
@@ -193,7 +194,7 @@ subroutine releaseparticles(itime)
         rfraction=abs(real(npart(i))*real(lsynctime)/ &
              real(ireleaseend(i)-ireleasestart(i)))
         if ((itime.eq.ireleasestart(i)).or. &
-             (itime.eq.ireleaseend(i))) rfraction=rfraction/2.
+             (itime.eq.ireleaseend(i))) rfraction=rfraction*0.5
 
   ! Take the species-average time correction factor in order to scale the
   ! number of particles released this time
@@ -211,8 +212,15 @@ subroutine releaseparticles(itime)
       yaux=ypoint2(i)-ypoint1(i)
       zaux=zpoint2(i)-zpoint1(i)
 
+      if (ipin.le.1 .and. ipout.eq.0) then
+        call rewrite_iterm()
+        totpart = numrel-count%iterm_max
+        if (totpart.gt.0) call alloc_particles(totpart)
+        call rewrite_iterm()
+        iterm_index=1
+      endif
       do j=1,numrel             ! loop over particles to be released this time
-        call get_newpart_index(ipart)
+        call get_newpart_index(ipart,iterm_index)
         call spawn_particle(itime, ipart)
 
   ! Particle coordinates are determined by using a random position within the release volume
@@ -238,9 +246,9 @@ subroutine releaseparticles(itime)
   ! divided by the sum of rho of all particles.
   !*****************************************************************************
         do k=1,nspec
-          part(ipart)%mass(k)=xmass(i,k)/real(npart(i)) &
+          mass(ipart,k)=xmass(i,k)/real(npart(i)) &
                 *timecorrect(k)/average_timecorrect
-          part(ipart)%mass_init(k)=part(ipart)%mass(k)
+          mass_init(ipart,k)=mass(ipart,k)
         end do
   ! Assign certain properties to particle
   !**************************************
@@ -254,85 +262,16 @@ subroutine releaseparticles(itime)
         endif
         part(ipart)%idt=mintime               ! first time step
 
-  ! Determine vertical particle position
-  !*************************************
+        ! Determine vertical particle position
+        !*************************************
         call set_z(ipart,zpoint1(i)+ran1(idummy,0)*zaux)
-  ! Interpolation of topography and density
-  !****************************************
+        ! Interpolation of topography and density
+        !****************************************
 
-  ! Determine the nest we are in
-  !*****************************
-        call find_ngrid(part(ipart)%xlon,part(ipart)%ylat)
-
-  ! Determine (nested) grid coordinates and auxiliary parameters used for interpolation
-  !*****************************************************************************
-        call find_grid_indices(real(part(ipart)%xlon),real(part(ipart)%ylat))
-        call find_grid_distances(real(part(ipart)%xlon),real(part(ipart)%ylat))
-
-        if (ngrid.gt.0) then
-          topo=p1*oron(ix ,jy ,ngrid) &
-               + p2*oron(ixp,jy ,ngrid) &
-               + p3*oron(ix ,jyp,ngrid) &
-               + p4*oron(ixp,jyp,ngrid)
-        else
-          topo=p1*oro(ix ,jy) &
-               + p2*oro(ixp,jy) &
-               + p3*oro(ix ,jyp) &
-               + p4*oro(ixp,jyp)
-        endif
-
-  ! If starting height is in pressure coordinates, retrieve pressure profile and convert zpart1 to meters
-  !*****************************************************************************
-        if (kindz(i).eq.3) then
-          presspart=real(part(ipart)%z)
-          do kz=1,nz
-            if (ngrid.gt.0) then
-              r=p1*rhon(ix ,jy ,kz,2,ngrid) &
-                   +p2*rhon(ixp,jy ,kz,2,ngrid) &
-                   +p3*rhon(ix ,jyp,kz,2,ngrid) &
-                   +p4*rhon(ixp,jyp,kz,2,ngrid)
-              t=p1*ttn(ix ,jy ,kz,2,ngrid) &
-                   +p2*ttn(ixp,jy ,kz,2,ngrid) &
-                   +p3*ttn(ix ,jyp,kz,2,ngrid) &
-                   +p4*ttn(ixp,jyp,kz,2,ngrid)
-            else
-              r=p1*rho(ix ,jy ,kz,2) &
-                   +p2*rho(ixp,jy ,kz,2) &
-                   +p3*rho(ix ,jyp,kz,2) &
-                   +p4*rho(ixp,jyp,kz,2)
-              t=p1*tt(ix ,jy ,kz,2) &
-                   +p2*tt(ixp,jy ,kz,2) &
-                   +p3*tt(ix ,jyp,kz,2) &
-                   +p4*tt(ixp,jyp,kz,2)
-            endif
-            press=r*r_air*t/100.
-            if (kz.eq.1) pressold=press
-
-            if (press.lt.presspart) then
-              if (kz.eq.1) then
-                call set_z(ipart,height(1)/2.)
-              else
-                dp1=pressold-presspart
-                dp2=presspart-press
-                call set_z(ipart,(height(kz-1)*dp2+height(kz)*dp1) &
-                     /(dp1+dp2))
-              endif
-              exit
-            endif
-            pressold=press
-          end do
-        endif
-
-
-  ! If release positions are given in meters above sea level, subtract the
-  ! topography from the starting height
-  !***********************************************************************
-
-        if (kindz(i).eq.2) call update_z(ipart,-topo)
-        if (part(ipart)%z.lt.eps2) call set_z(ipart,eps2)   ! Minimum starting height is eps2
-        if (part(ipart)%z.gt.height(nz)-0.5) &
-          call set_z(ipart,height(nz)-0.5) ! Maximum starting height is uppermost level - 0.5 meters
-
+        ! Transform the verticle particle position from pressure or sea level to above ground
+        ! if necessary
+        !************************************************************************************
+        call kindz_to_z(ipart)
 #ifdef ETA
         call z_to_zeta(itime,part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z,part(ipart)%zeta)
         part(ipart)%etaupdate = .true. ! The z(meter) coordinate is up to date
@@ -347,15 +286,17 @@ subroutine releaseparticles(itime)
     endif ! releasepoint
   end do ! numpoint
 
+  if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm()
+
   call get_totalpart_num(iend)
 
   ! NetCDF only: write initial positions of new particles
-#ifdef USE_NCF
-  if ((iend-istart.gt.0).and.(ipout.ge.1)) then 
-    call wrt_part_initialpos(itime,istart,iend)
-    call output_particles(itime,.true.)
-  endif
-#endif
+! #ifdef USE_NCF
+!   if ((iend-istart.gt.0).and.(ipout.ge.1)) then 
+!     call wrt_part_initialpos(itime,istart,iend)
+!     call output_particles(itime,.true.)
+!   endif
+! #endif
   return
 
 ! 996   continue
@@ -370,6 +311,106 @@ subroutine releaseparticles(itime)
 !   stop
 
 end subroutine releaseparticles
+
+subroutine kindz_to_z(ipart)
+  use point_mod
+  use xmass_mod
+  use output_mod
+  use interpol_mod
+
+  implicit none
+
+  integer,intent(in) :: ipart
+  integer :: kz
+  real :: dp1,dp2,press,presspart,pressold,topo,r,t
+  real,parameter :: eps2=1.e-6
+
+
+  ! Determine the nest we are in
+  !*****************************
+  call find_ngrid(part(ipart)%xlon,part(ipart)%ylat)
+
+  ! Determine (nested) grid coordinates and auxiliary parameters used for interpolation
+  !*****************************************************************************
+  call find_grid_indices(real(part(ipart)%xlon),real(part(ipart)%ylat))
+  call find_grid_distances(real(part(ipart)%xlon),real(part(ipart)%ylat))
+
+
+  if (kindz(part(ipart)%npoint).eq.1) return ! Nothing needs to happen
+
+  ! If starting height is in pressure coordinates, retrieve pressure profile and 
+  ! convert zpart1 to meters
+  !*****************************************************************************
+
+  if (kindz(part(ipart)%npoint).eq.3) then
+    presspart=real(part(ipart)%z)
+    do kz=1,nz
+      if (ngrid.gt.0) then
+        r=p1*rhon(ix ,jy ,kz,2,ngrid) &
+             +p2*rhon(ixp,jy ,kz,2,ngrid) &
+             +p3*rhon(ix ,jyp,kz,2,ngrid) &
+             +p4*rhon(ixp,jyp,kz,2,ngrid)
+        t=p1*ttn(ix ,jy ,kz,2,ngrid) &
+             +p2*ttn(ixp,jy ,kz,2,ngrid) &
+             +p3*ttn(ix ,jyp,kz,2,ngrid) &
+             +p4*ttn(ixp,jyp,kz,2,ngrid)
+      else
+        r=p1*rho(ix ,jy ,kz,2) &
+             +p2*rho(ixp,jy ,kz,2) &
+             +p3*rho(ix ,jyp,kz,2) &
+             +p4*rho(ixp,jyp,kz,2)
+        t=p1*tt(ix ,jy ,kz,2) &
+             +p2*tt(ixp,jy ,kz,2) &
+             +p3*tt(ix ,jyp,kz,2) &
+             +p4*tt(ixp,jyp,kz,2)
+      endif
+      press=r*r_air*t/100.
+      if (kz.eq.1) pressold=press
+
+      if (press.lt.presspart) then
+        if (kz.eq.1) then
+          call set_z(ipart,height(1)*0.5)
+        else
+          dp1=pressold-presspart
+          dp2=presspart-press
+          call set_z(ipart,(height(kz-1)*dp2+height(kz)*dp1) &
+               /(dp1+dp2))
+        endif
+        exit
+      endif
+      pressold=press
+    end do
+
+  ! If release positions are given in meters above sea level, subtract the
+  ! topography from the starting height
+  !***********************************************************************
+
+  else if (kindz(part(ipart)%npoint).eq.2) then
+    if (ngrid.gt.0) then
+      topo=p1*oron(ix ,jy ,ngrid) &
+           + p2*oron(ixp,jy ,ngrid) &
+           + p3*oron(ix ,jyp,ngrid) &
+           + p4*oron(ixp,jyp,ngrid)
+    else
+      topo=p1*oro(ix ,jy) &
+           + p2*oro(ixp,jy) &
+           + p3*oro(ix ,jyp) &
+           + p4*oro(ixp,jyp)
+    endif
+    call update_z(ipart,-topo)
+  endif
+  if (part(ipart)%z.lt.eps2) call set_z(ipart,eps2)   ! Minimum starting height is eps2
+  if (part(ipart)%z.gt.height(nz)-0.5) &
+    call set_z(ipart,height(nz)-0.5) ! Maximum starting height is uppermost level - 0.5 meters
+
+  if (ipin.eq.3 .or. ipin.eq.4) then
+    if (part(ipart)%z.gt.zpoint2(part(ipart)%npoint)) &
+      zpoint2(part(ipart)%npoint)=real(part(ipart)%z)
+    if (part(ipart)%z.lt.zpoint1(part(ipart)%npoint)) &
+      zpoint1(part(ipart)%npoint)=real(part(ipart)%z)
+  endif    
+
+end subroutine kindz_to_z
 
 subroutine init_mass_conversion(ipart,ipoint)
   ! For special simulations, multiply particle concentration air density;
@@ -398,15 +439,15 @@ subroutine init_mass_conversion(ipart,ipoint)
   implicit none
 
   integer,intent(in) :: ipart,ipoint
-  integer :: n,k
+  integer :: n
   real :: rhoaux(2),rhoout
   real :: dz1,dz2
 
 
   if ((ind_rel .eq. 1).or.(ind_rel .eq. 3).or.(ind_rel .eq. 4)) then
 
-  ! Interpolate the air density
-  !****************************
+    ! Interpolate the air density, horizontal values are computed in kindz_to_z
+    !**************************************************************************
     call find_z_level_meters(real(part(ipart)%z))
     call find_vert_vars_lin(height,real(part(ipart)%z),indz,dz1,dz2,lbounds)
 
@@ -426,16 +467,13 @@ subroutine init_mass_conversion(ipart,ipoint)
       end do
     endif
     rhoout=dz2*rhoaux(1)+dz1*rhoaux(2)
-    rho_rel(ipoint)=rhoout !What is this????
+    rho_rel(ipoint)=rhoout
 
 
-  ! Multiply "mass" (i.e., mass mixing ratio in forward runs) with density
-  !********************************************************************
-
-    do k=1,nspec
-      part(ipart)%mass(k)=part(ipart)%mass(k)*rhoout
-      part(ipart)%mass_init(k)=part(ipart)%mass(k)
-    end do
+    ! Multiply "mass" (i.e., mass mixing ratio in forward runs) with density
+    !***********************************************************************
+    mass(ipart,:)=mass(ipart,:)*rhoout
+    mass_init(ipart,:)=mass(ipart,:)
   endif
 end subroutine init_mass_conversion
 
@@ -550,7 +588,7 @@ subroutine readpartpositions
     do
       i=i+1
       read(unitpartin) part(i)%npoint,xlonin,ylatin,part(i)%z,part(i)%tstart, &
-           topo,pvi,qvi,rhoi,hmixi,tri,tti,(part(i)%mass(j),j=1,nspec)
+           topo,pvi,qvi,rhoi,hmixi,tri,tti,(mass(i,j),j=1,nspec)
       ! For switching coordinates: this happens in timemanager.f90 after the first fields are read
       if (xlonin.eq.-9999.9) exit
       call set_xlon(i,real((xlonin-xlon0)/dx,kind=dp))
@@ -851,6 +889,8 @@ subroutine init_domainfill
   !                                                                            *
   !  Changes                                                                   *
   !     2022, L. Bakels: OpenMP parallelisation                                *
+  !     2023, L. Bakels: smooth vertical particle distribution instead of      *
+  !                      distributing particles on fixed vertical layers       *
   !                                                                            *
   !*****************************************************************************
   !                                                                            *
@@ -869,7 +909,7 @@ subroutine init_domainfill
 
   implicit none
 
-  integer :: j,kz,lix,ljy,ncolumn,numparttot,stat
+  integer :: j,kz,lix,ljy,ncolumn,numparttot,stat,iterminate
   real :: ylat,ylatp,ylatm,hzone
   real :: cosfactm,cosfactp,deltacol,dz1,dz2,dz,pnew,pnew_temp,fractus
   real,parameter :: pih=pi/180.
@@ -895,9 +935,9 @@ subroutine init_domainfill
   call alloc_domainfill
 
   nx_we(1)=max(int(xpoint1(1)),0)
-  nx_we(2)=min((int(xpoint2(1))+1),nxmin1)
+  nx_we(2)=min((ceiling(xpoint2(1))),nxmin1)
   ny_sn(1)=max(int(ypoint1(1)),0)
-  ny_sn(2)=min((int(ypoint2(1))+1),nymin1)
+  ny_sn(2)=min((ceiling(ypoint2(1))),nymin1)
 
   ! For global simulations (both global wind data and global domain-filling),
   ! set a switch, such that no boundary conditions are used
@@ -918,7 +958,8 @@ subroutine init_domainfill
 
   ! Allocate grid and column mass
   !*******************************
-  allocate(gridarea(0:nymax-1),colmass(0:nxmax-1,0:nymax-1))
+  allocate(gridarea(0:nymax-1),colmass(0:nxmax-1,0:nymax-1),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate gridarea or colmass'
 
   ! Do not release particles twice (i.e., not at both in the leftmost and rightmost
   ! grid cell) for a global domain
@@ -959,7 +1000,7 @@ subroutine init_domainfill
 
   ! Allocate memory for storing the particles
   !******************************************
-  call alloc_particles(npart(1))
+  call alloc_particles(int(npart(1)*1.1)) ! A bit more to avoid single part alloc
 
   ! Initialise total particle number
   numparttot=0
@@ -1022,6 +1063,7 @@ subroutine init_domainfill
 
   ! Determine the particle positions
   !*********************************
+  iterminate=0
   do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
     ylat=ylat0+real(ljy)*dy
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
@@ -1033,21 +1075,19 @@ subroutine init_domainfill
   ! information, which is stored as a 3-d field
   !*****************************************************************************
 
-      do kz=1,nz
-        pp(kz)=prs(lix,ljy,kz,1)!rho(lix,ljy,kz,1)*r_air*tt(lix,ljy,kz,1)
-      end do
+      pp(:)=prs(lix,ljy,:,1)!rho(lix,ljy,kz,1)*r_air*tt(lix,ljy,kz,1)
 
 
       deltacol=(pp(1)-pp(nz))/real(ncolumn)
-      pnew=pp(1)+deltacol/2.
+      pnew=pp(1)+deltacol*0.5
       jj=0
       do j=1,ncolumn ! looping over the number of particles within the column
 
-  ! For columns with many particles (i.e. around the equator), distribute
-  ! the particles equally (1 on a random position within the deltacol range), 
-  ! for columns with few particles (i.e. around the poles), 
-  ! distribute the particles randomly
-  !***********************************************************************
+        ! For columns with many particles (i.e. around the equator), distribute
+        ! the particles equally (1 on a random position within the deltacol range), 
+        ! for columns with few particles (i.e. around the poles), 
+        ! distribute the particles randomly
+        !***********************************************************************
 
         if ((ncolumn.gt.20).and.(ncolumn-j.gt.20)) then
           pnew_temp=pnew-ran1(idummy,0)*deltacol
@@ -1142,13 +1182,14 @@ subroutine init_domainfill
                 numparticlecount=numparticlecount+1
                 part(numpart+jj)%npoint=numparticlecount
                 part(numpart+jj)%idt=mintime
-                part(numpart+jj)%mass(1)=colmass(lix,ljy)/real(ncolumn)
-                if (mdomainfill.eq.2) part(numpart+jj)%mass(1)= &
-                     part(numpart+jj)%mass(1)*pvpart*48./29.*ozonescale/10.**9
-                part(numpart+jj)%mass_init(1)=part(numpart+jj)%mass(1)
+                mass(numpart+jj,1)=colmass(lix,ljy)/real(ncolumn)
+                if (mdomainfill.eq.2) mass(numpart+jj,1)= &
+                     mass(numpart+jj,1)*pvpart*48./29.*ozonescale/10.**9
+                mass_init(numpart+jj,1)=mass(numpart+jj,1)
               else
                 call terminate_particle(numpart+jj, 0)
                 jj=jj-1
+                iterminate=iterminate+1
               endif
             endif
           endif
@@ -1173,10 +1214,13 @@ subroutine init_domainfill
     if ((part(j)%xlon.lt.0.).or.(part(j)%xlon.ge.real(nxmin1,kind=dp)).or. &
          (part(j)%ylat.lt.0.).or.(part(j)%ylat.ge.real(nymin1,kind=dp))) then
       call terminate_particle(j,0) ! Cannot be within an OMP region
+      iterminate=iterminate+1
       ! alive_tmp=alive_tmp-1
       ! terminated_tmp=terminated_tmp+1
     endif
   end do
+
+  if (iterminate.gt.0) call rewrite_ialive()
 ! !$OMP END DO
 ! !$OMP END PARALLEL
 
@@ -1210,7 +1254,7 @@ subroutine init_domainfill
   write(*,*) 'Total number of particles at model start: ',numpart
   write(*,*) 'Maximum number of particles per column: ',numcolumn
   write(*,*) 'If ',fractus,' <1, better use more particles'
-  fractus=sqrt(max(fractus,1.))/2.
+  fractus=sqrt(max(fractus,1.))*0.5
 
   do ljy=ny_sn(1),ny_sn(2)      ! loop about latitudes
     do lix=nx_we(1),nx_we(2)      ! loop about longitudes
@@ -1242,7 +1286,7 @@ subroutine init_domainfill
   !*******************************************
 
       deltacol=(pp(1)-pp(nz))/real(ncolumn)
-      pnew=pp(1)+deltacol/2.
+      pnew=pp(1)+deltacol*0.5
       do j=1,ncolumn
         pnew=pnew-deltacol
         do kz=1,nz-1
@@ -1343,14 +1387,14 @@ subroutine boundcond_domainfill(itime,loutend)
   real :: dz,dz1,dz2,dt1,dt2,dtt,ylat,cosfact,accmasst
   integer :: itime,ii,indz,indzp,i,loutend,numparticlecount_tmp
   integer :: j,k,ix,jy,m,indzh,indexh,ipart,mmass,ithread
-  integer :: numactiveparticles
+  integer :: numactiveparticles,iterminate
 
   real :: windl(2),rhol(2)
   real :: windhl(2),rhohl(2)
   real :: windx,rhox
   real :: deltaz,boundarea,fluxofmass
 
-  integer :: ixm,ixp,jym,jyp,indzm,mm
+  integer :: ixm,ixp,jym,jyp,indzm,mm,iterm_index
   real :: pvpart,ddx,ddy,rddx,rddy,p1,p2,p3,p4,y1(2),yh1(2)
 
   integer :: idummy = -11
@@ -1374,18 +1418,25 @@ subroutine boundcond_domainfill(itime,loutend)
   ! Terminate trajectories that have left the domain, if domain-filling
   ! trajectory calculation domain is not global
   !********************************************************************
+  if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm()
 
+  iterminate=0
   do i=1,count%allocated
     if (.not. part(i)%alive) cycle
 
-    if ((part(i)%ylat.gt.real(ny_sn(2))).or. &
-         (part(i)%ylat.lt.real(ny_sn(1)))) call terminate_particle(i,itime)
+    if ((part(i)%ylat.gt.real(ny_sn(2))).or.(part(i)%ylat.lt.real(ny_sn(1)))) then
+      call terminate_particle(i,itime)
+      iterminate=iterminate+1
+    endif
     if (((.not.xglobal).or.(nx_we(2).ne.(nx-2))).and. &
          ((part(i)%xlon.lt.real(nx_we(1))).or. &
-         (part(i)%xlon.gt.real(nx_we(2))))) call terminate_particle(i,itime)
+         (part(i)%xlon.gt.real(nx_we(2))))) then
+      call terminate_particle(i,itime)
+      iterminate=iterminate+1
+    endif
     if (part(i)%alive) numactiveparticles = numactiveparticles+1
   end do
-
+  if (iterminate.gt.0) call rewrite_ialive()
   !***************************************
   ! Western and eastern boundary condition
   !***************************************
@@ -1403,7 +1454,8 @@ subroutine boundcond_domainfill(itime,loutend)
 ! #else
 !   ithread = 0
 ! #endif
-
+  ithread=0
+  iterm_index=1
 ! !$OMP DO
   do jy=ny_sn(1),ny_sn(2)
 
@@ -1421,13 +1473,13 @@ subroutine boundcond_domainfill(itime,loutend)
   !*****************************************************************************
 
         if (j.eq.1) then
-          deltaz=(zcolumn_we(k,jy,2)+zcolumn_we(k,jy,1))/2.
+          deltaz=(zcolumn_we(k,jy,2)+zcolumn_we(k,jy,1))*0.5
         else if (j.eq.numcolumn_we(k,jy)) then
   ! In order to avoid taking a very high column for very many particles,
   ! use the deltaz from one particle below instead
-          deltaz=(zcolumn_we(k,jy,j)-zcolumn_we(k,jy,j-2))/2.
+          deltaz=(zcolumn_we(k,jy,j)-zcolumn_we(k,jy,j-2))*0.5
         else
-          deltaz=(zcolumn_we(k,jy,j+1)-zcolumn_we(k,jy,j-1))/2.
+          deltaz=(zcolumn_we(k,jy,j+1)-zcolumn_we(k,jy,j-1))*0.5
         endif
         if ((jy.eq.ny_sn(1)).or.(jy.eq.ny_sn(2))) then
           boundarea=deltaz*111198.5/2.*dy
@@ -1506,8 +1558,8 @@ subroutine boundcond_domainfill(itime,loutend)
   ! reduced by the mass of this (these) particle(s)
   !******************************************************************************
 
-        if (acc_mass_we(k,jy,j).ge.xmassperparticle/2.) then
-          mmass=int((acc_mass_we(k,jy,j)+xmassperparticle/2.)/ &
+        if (acc_mass_we(k,jy,j).ge.xmassperparticle*0.5) then
+          mmass=int((acc_mass_we(k,jy,j)+xmassperparticle*0.5)/ &
                xmassperparticle)
           acc_mass_we(k,jy,j)=acc_mass_we(k,jy,j)- &
                real(mmass)*xmassperparticle
@@ -1517,7 +1569,7 @@ subroutine boundcond_domainfill(itime,loutend)
 
         do m=1,mmass
           !THIS WILL CAUSE PROBLEMS WITH OMP! because of dynamical allocation
-          call get_newpart_index(ipart)
+          call get_newpart_index(ipart,iterm_index)
           call spawn_particle(itime, ipart)
 
   ! Assign particle positions
@@ -1598,10 +1650,10 @@ subroutine boundcond_domainfill(itime,loutend)
             part(ipart)%npoint=numparticlecount_tmp
             part(ipart)%idt=mintime
             part(ipart)%tstart=itime
-            part(ipart)%mass(1)=xmassperparticle
-            if (mdomainfill.eq.2) part(ipart)%mass(1)= &
-                 part(ipart)%mass(1)*pvpart*48./29.*ozonescale/10.**9
-            part(ipart)%mass_init(1)=part(ipart)%mass(1)
+            mass(ipart,1)=xmassperparticle
+            if (mdomainfill.eq.2) mass(ipart,1)= &
+                 mass(ipart,1)*pvpart*48./29.*ozonescale/10.**9
+            mass_init(ipart,1)=mass(ipart,1)
           else
             stop 'boundcond_domainfill error: look into original to understand what should happen here'
           endif
@@ -1636,18 +1688,18 @@ subroutine boundcond_domainfill(itime,loutend)
   !*****************************************************************************
 
         if (j.eq.1) then
-          deltaz=(zcolumn_sn(k,ix,2)+zcolumn_sn(k,ix,1))/2.
+          deltaz=(zcolumn_sn(k,ix,2)+zcolumn_sn(k,ix,1))*0.5
         else if (j.eq.numcolumn_sn(k,ix)) then
   !        deltaz=height(nz)-(zcolumn_sn(k,ix,j-1)+
   !    +        zcolumn_sn(k,ix,j))/2.
   ! In order to avoid taking a very high column for very many particles,
   ! use the deltaz from one particle below instead
-          deltaz=(zcolumn_sn(k,ix,j)-zcolumn_sn(k,ix,j-2))/2.
+          deltaz=(zcolumn_sn(k,ix,j)-zcolumn_sn(k,ix,j-2))*0.5
         else
-          deltaz=(zcolumn_sn(k,ix,j+1)-zcolumn_sn(k,ix,j-1))/2.
+          deltaz=(zcolumn_sn(k,ix,j+1)-zcolumn_sn(k,ix,j-1))*0.5
         endif
         if ((ix.eq.nx_we(1)).or.(ix.eq.nx_we(2))) then
-          boundarea=deltaz*111198.5/2.*cosfact*dx
+          boundarea=deltaz*111198.5*0.5*cosfact*dx
         else
           boundarea=deltaz*111198.5*cosfact*dx
         endif
@@ -1722,8 +1774,8 @@ subroutine boundcond_domainfill(itime,loutend)
   ! reduced by the mass of this (these) particle(s)
   !******************************************************************************
 
-        if (acc_mass_sn(k,ix,j).ge.xmassperparticle/2.) then
-          mmass=int((acc_mass_sn(k,ix,j)+xmassperparticle/2.)/ &
+        if (acc_mass_sn(k,ix,j).ge.xmassperparticle*0.5) then
+          mmass=int((acc_mass_sn(k,ix,j)+xmassperparticle*0.5)/ &
                xmassperparticle)
           acc_mass_sn(k,ix,j)=acc_mass_sn(k,ix,j)- &
                real(mmass)*xmassperparticle
@@ -1732,7 +1784,7 @@ subroutine boundcond_domainfill(itime,loutend)
         endif
 
         do m=1,mmass
-          call get_newpart_index(ipart)
+          call get_newpart_index(ipart,iterm_index)
           call spawn_particle(itime, ipart)
   
   ! Assign particle positions
@@ -1810,10 +1862,10 @@ subroutine boundcond_domainfill(itime,loutend)
             numparticlecount_tmp=numparticlecount_tmp+1
             part(ipart)%npoint=numparticlecount_tmp
             part(ipart)%idt=mintime
-            part(ipart)%mass(1)=xmassperparticle
-            if (mdomainfill.eq.2) part(ipart)%mass(1)= &
-                 part(ipart)%mass(1)*pvpart*48./29.*ozonescale/10.**9
-            part(ipart)%mass_init(1)=part(ipart)%mass(1)
+            mass(ipart,1)=xmassperparticle
+            if (mdomainfill.eq.2) mass(ipart,1)= &
+                 mass(ipart,1)*pvpart*48./29.*ozonescale/10.**9
+            mass_init(ipart,1)=mass(ipart,1)
           else
             stop 'boundcond_domainfill error: look into original to understand what should happen here'
           endif
@@ -1823,6 +1875,7 @@ subroutine boundcond_domainfill(itime,loutend)
   end do ! north south
 ! !$OMP END DO
 ! !$OMP END PARALLEL
+  if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm()
   numparticlecount = numparticlecount_tmp
   ! If particles shall be dumped, then accumulated masses at the domain boundaries
   ! must be dumped, too, to be used for later runs

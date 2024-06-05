@@ -145,12 +145,11 @@ subroutine advance(itime,ipart,ithread)
   
   if (DRYDEP) then    ! reset probability for deposition
     depoindicator(:,ithread+1)=.true.
-    part(ipart)%prob=0.
+    prob(ipart,:)=0.
   endif
   
   if (lsettling) part(ipart)%settling=0.
 
-  !if (ipart.eq.1) write(*,*) 'Mass: ', part(ipart)%mass(:), itime
   dxsave=0.           ! reset position displacements
   dysave=0.           ! due to mean wind
   dawsave=0.          ! and turbulent wind
@@ -411,10 +410,16 @@ subroutine adv_above_pbl(itime,itimec,dxsave,dysave,ux,vy,tropop,nrand,ipart)
         call get_settling(xts,yts,zts,nsp,part(ipart)%settling)
 #ifdef ETA
         call update_zeta_to_z(itime,ipart)
+        if ((ldirect.eq.1).and.(part(ipart)%z+part(ipart)%settling*dt.lt.0.)) then
+          part(ipart)%settling=-part(ipart)%z/dt
+        endif
         call w_to_weta(itime,dt,part(ipart)%xlon,part(ipart)%ylat, &
           part(ipart)%z,part(ipart)%zeta,part(ipart)%settling,weta_settling)
-          weta=weta+weta_settling
+        weta=weta+weta_settling
 #else
+        if ((ldirect.eq.1).and.(part(ipart)%z+part(ipart)%settling*dt.lt.0.)) then
+          part(ipart)%settling=-part(ipart)%z/dt
+        endif
         w=w+part(ipart)%settling
 #endif
       end if
@@ -587,6 +592,9 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
         endif
         if (density(nsp).gt.0.) then
           call get_settling(xts,yts,zts,nsp,part(ipart)%settling)  !bugfix
+          if ((ldirect.eq.1).and.(part(ipart)%z+part(ipart)%settling*dt.lt.0.)) then
+            part(ipart)%settling=-part(ipart)%z/dt
+          endif
           w=w+part(ipart)%settling
         end if
       end if
@@ -631,7 +639,7 @@ subroutine adv_in_pbl(itime,itimec, dxsave,dysave,dawsave,dcwsave, abovePBL,  &
   ! Determine probability of deposition
   !************************************
     if (DRYDEP) then
-      call drydepo_probability(part(ipart)%prob,dt,zts,vdepo,ithread+1)
+      call drydepo_probability(ipart,dt,zts,vdepo,ithread+1)
     endif
 
     if (zts.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))    
@@ -713,6 +721,10 @@ subroutine petterssen_corr(itime,ipart)
         call update_z_to_zeta(itime+part(ipart)%idt,ipart)
         zts=real(part(ipart)%z)
         call get_settling(xts,yts,zts,nsp,part(ipart)%settling) !bugfix
+        if ((ldirect.eq.1).and. &
+          (part(ipart)%z+part(ipart)%settling*part(ipart)%idt.lt.0)) then
+          part(ipart)%settling=-part(ipart)%z/part(ipart)%idt
+        endif
         call w_to_weta( &
           itime+part(ipart)%idt, real(part(ipart)%idt), part(ipart)%xlon, &
           part(ipart)%ylat, part(ipart)%z, part(ipart)%zeta, &
@@ -722,6 +734,10 @@ subroutine petterssen_corr(itime,ipart)
    !real(part(ipart)%zeta-part(ipart)%zeta_prev)/real(part(ipart)%idt*ldirect)
 #else
         call get_settling(xts,yts,zts,nsp,part(ipart)%settling)
+        if ((ldirect.eq.1).and. &
+          (part(ipart)%z+part(ipart)%settling*part(ipart)%idt.lt.0)) then
+          part(ipart)%settling=-part(ipart)%z/part(ipart)%idt
+        endif
         w=w+part(ipart)%settling
 #endif
       end if
@@ -736,12 +752,12 @@ subroutine petterssen_corr(itime,ipart)
   v=(v-vold)*0.5
 
 #ifdef ETA
-    weta=(weta-woldeta)/2.
+    weta=(weta-woldeta)*0.5
     call update_zeta(ipart,weta*real(part(ipart)%idt*ldirect))
     if (part(ipart)%zeta.ge.1.) call set_zeta(ipart,1.-(part(ipart)%zeta-1.))
     if (part(ipart)%zeta.eq.1.) call update_zeta(ipart,-eps_eta)
 #else
-    w=(w-wold)/2.
+    w=(w-wold)*0.5
     call update_z(ipart,w*real(part(ipart)%idt*ldirect))
     if (part(ipart)%z.lt.0.) call set_z(ipart,min(h-eps2,-1.*part(ipart)%z))          ! if particle below ground -> reflection
 #endif
@@ -862,11 +878,21 @@ subroutine pushpartdown(ipart)
   eps=nxmax/3.e5
 
 #ifdef ETA
-  if (part(ipart)%zeta.le.real(uvheight(nz),kind=dp)) &
-    call set_zeta(ipart,uvheight(nz)+eps_eta)
+  if (part(ipart)%zeta.le.real(uvheight(nz),kind=dp)) then
+    if ((ldirect.eq.-1) .and. (lsettling)) then
+      part(ipart)%nstop=.true.
+    else
+      call set_zeta(ipart,uvheight(nz)+eps_eta)
+    endif
+  endif
 #else
-  if (part(ipart)%z.ge.real(height(nz),kind=dp)) &
-    call set_z(ipart,height(nz)-100.*eps)
+  if (part(ipart)%z.ge.real(height(nz),kind=dp)) then
+    if ((ldirect.eq.-1) .and. (lsettling)) then
+      part(ipart)%nstop=.true.
+    else
+      call set_z(ipart,height(nz)-100.*eps)
+    endif
+  endif
 #endif
   
 end subroutine pushpartdown

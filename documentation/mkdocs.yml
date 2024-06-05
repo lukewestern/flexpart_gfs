@@ -30,10 +30,13 @@ markdown_extensions:
     # - pymdownx.tilde
 nav:
   - 'index.md'
-  - 'installation.md'
+  - 'building.md'
+  - 'configuration.md'
   - 'running.md'
   - 'output.md'
+  - 'LCM.md'
   - 'transport.md'
   - 'evolution.md'
   - 'examples.md'
+  - 'troubleshooting.md'
 

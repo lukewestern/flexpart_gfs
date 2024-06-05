@@ -6,14 +6,18 @@
 !                                                                              *
 !        June 1996                                                             *
 !                                                                              *
-!        Last update:15 August 2013 IP                                         *
+!        Update: 15 August 2013 IP                                             *
+!        PS 19 Nov 2020: correct comment about lcw                             *
+!        Anne Tipka, Petra Seibert 2021-02: implement new interpolation        *
+!           for precipitation according to #295 using 2 additional fields      *
 !                                                                              *
 !*******************************************************************************
 
 module com_mod
 
-  use par_mod, only: dp, numpath, maxnests, &
-       numclass, maxcolumn, maxrand, numwfmem
+  use par_mod, only: dp, numpath, maxnests, maxndia, &
+       numclass, maxcolumn, maxrand, numwfmem, numpf, &
+       maxreagent, maxrecsample
 
   implicit none
 
@@ -21,10 +25,12 @@ module com_mod
   !**********************************************************************************
   type :: particleoptions
     character(2) :: name
-    character(20) :: long_name
+    character(28) :: long_name
+    character(7) :: short_name
     logical :: print
     logical :: average=.false.
     integer :: i_average=0
+    integer :: ncid
   end type particleoptions
 
   integer :: num_partopt=34
@@ -53,7 +59,7 @@ module com_mod
   ! Variables defining the general model run specifications
   !********************************************************
 
-  integer :: ibdate,ibtime,iedate,ietime,itime_init,loutnext_init
+  integer :: ibdate,ibtime,iedate,ietime,itime_init,loutnext_init,lrecoutnext_init
   real :: outnum_init
   real(kind=dp) :: bdate,edate
 
@@ -76,11 +82,15 @@ module com_mod
   !                    ending date (s)
 
   integer :: loutstep,loutaver,loutsample,loutrestart,method,lsynctime
+  integer :: lrecoutstep,lrecoutaver,lrecoutsample
   real :: outstep
 
   ! loutstep [s]            gridded concentration output every loutstep seconds
   ! loutaver [s]            concentration output is an average over [s] seconds
   ! loutsample [s]          sampling interval of gridded concentration output
+  ! lrecoutstep [s]         receptor concentration output every loutstep seconds
+  ! lrecoutaver [s]         receptor concentration output is an average over [s] seconds
+  ! lrecoutsample [s]       sampling interval of receptor concentration output
   ! loutrestart [s]         time interval for writing restart files
   ! lsynctime [s]           synchronisation time of all particles
   ! method                  indicator which dispersion method is to be used
@@ -93,6 +103,7 @@ module com_mod
   integer :: surf_only ! deprecated
   logical :: turbswitch
   integer :: cblflag !added by mc for cbl
+  logical :: llcmoutput
 
   ! ctl      factor, by which time step must be smaller than Lagrangian time scale
   ! ifine    reduction factor for time step used for vertical wind
@@ -129,6 +140,7 @@ module com_mod
 
   ! ind_rel and ind_samp  are used within the code to change between mass and mass-mix (see readcommand.f)
   ! cblflag !: 1 activate cbl skewed pdf routines with bi-gaussina pdf whan OL<0 added by mc
+  ! llcmoutput  switch for LCM output (uses mass ratio of species to air tracer) or normal output
 
 
   integer :: mintime,itsplit
@@ -159,24 +171,28 @@ module com_mod
   ! nageclass               number of ageclasses for the age spectra calculation
   ! lage [s]                ageclasses for the age spectra calculation
 
+ !ESO: Disable settling if more than 1 species per release point
+  logical :: lsettling=.true.
 
   logical :: gdomainfill
   ! gdomainfill             .T., if domain-filling is global, .F. if not
 
-!ZHG SEP 2015 wheather or not to read clouds from GRIB
-  logical :: readclouds=.false.
-!ESO DEC 2015 whether or not both clwc and ciwc are present (if so they are summed)
-  logical :: sumclouds=.false.
+  logical :: lcw=.false. ! ZHG Sep 2015 ! AT renamed
+  ! whether or not cloud water data found in GRIB, overwritten if CW is found
 
-!ESO: Disable settling if more than 1 species per release point
-  logical :: lsettling=.true.
+  logical :: lcwsum=.false. ! ESO Dec 2015 ! AT renamed
+  ! whether or not both clwc and ciwc are present (if so they are summed)
 
-  logical,dimension(maxnests) :: readclouds_nest, sumclouds_nest
-  
-
-!NIK 16.02.2015
-  integer(selected_int_kind(16)),allocatable,dimension(:) :: &
-    tot_blc_count,tot_inc_count
+  logical :: lprecint ! AT, PS 2021
+  ! true if new interpolation using additional precip fields is used
+    
+  logical,dimension(maxnests) :: lcw_nest=.false.
+  logical,dimension(maxnests) :: lcwsum_nest=.false.
+  logical,dimension(maxnests) :: lprecintn
+ 
+  !NIK 16.02.2015
+  integer(selected_int_kind(16)),allocatable,dimension(:) :: icnt_belowcld, &
+       &icnt_incld
 
   !*********************************************************************
   ! Variables defining the release locations, released species and their
@@ -207,11 +223,20 @@ module com_mod
   real,allocatable,dimension(:,:) :: ri,rac
   real,allocatable,dimension(:,:,:) :: rcl,rgs,rlu
   real,allocatable,dimension(:) :: rm,dryvel
-  real,allocatable,dimension(:) :: ohcconst,ohdconst,ohnconst
   ! Daria Tatsii: species shape properties
   real,allocatable,dimension(:) :: Fn,Fs ! Newton and Stokes' regime
   real,allocatable,dimension(:) :: ks1,ks2,kn2
   integer,allocatable,dimension(:) :: ishape,orient
+  ! chemical reagent variables
+  character(len=256) :: reag_path(maxreagent)
+  character(len=16)  :: reagents(maxreagent), reag_unit(maxreagent)
+  integer :: reag_hourly(maxreagent), nreagent  
+  ! reaction rates
+  real,allocatable,dimension(:,:) :: reaccconst,reacdconst,reacnconst
+  ! emissions variables for LCM
+  character(len=256),allocatable,dimension(:) :: emis_path,emis_file,emis_name
+  integer,allocatable,dimension(:) :: emis_unit
+  real,allocatable,dimension(:) :: emis_coeff
 
   real,allocatable,dimension(:,:) :: area_hour,point_hour
   real,allocatable,dimension(:,:) :: area_dow,point_dow
@@ -337,7 +362,7 @@ module com_mod
   real :: dxoutn,dyoutn,outlon0n,outlat0n,xoutshiftn,youtshiftn
   !real outheight(maxzgrid),outheighthalf(maxzgrid)
 
-  logical :: DEP,DRYDEP,WETDEP,OHREA,ASSSPEC
+  logical :: DEP,DRYDEP,WETDEP,CLREA,ASSSPEC,LDECAY,LEMIS
   logical,allocatable,dimension(:) :: DRYDEPSPEC,WETDEPSPEC
   logical :: DRYBKDEP,WETBKDEP
 
@@ -357,10 +382,11 @@ module com_mod
   ! DRYDEPSPEC              .true., if dry deposition is switched on for that species
   ! WETDEP                  .true., if wet deposition is switched on
   ! WETDEPSPEC              .true., if wet deposition is switched on for that species
-  ! OHREA                   .true., if OH reaction is switched on
+  ! CLREA                   .true., if chemical reactions is switched on
   ! ASSSPEC                 .true., if there are two species asscoiated
   ! DRYBKDEP,WETBKDEP        .true., for bkwd runs, where mass deposited and source regions is calculated - either for dry or for wet deposition
   !                    (i.e. transfer of mass between these two occurs
+  ! LEMIS                   .true., if particle mass should change due to surface fluxes
 
   !  if output for each releasepoint shall be created maxpointspec=number of releasepoints
   !  else maxpointspec is 1 -> moved to unc_mod
@@ -380,16 +406,40 @@ module com_mod
   ! Variables defining receptor points
   !***********************************
 
-  real,allocatable,dimension(:) :: xreceptor,yreceptor
-  real,allocatable,dimension(:) :: receptorarea
-  real,allocatable,dimension(:,:) :: creceptor
-  character(len=16),allocatable,dimension(:) :: receptorname
-  integer :: numreceptor
+  ! general receptors
+  real, allocatable, dimension(:) :: xreceptor,yreceptor,zreceptor
+  integer, allocatable, dimension(:) :: treceptor
+  real, allocatable, dimension(:) :: receptorarea
+  real, allocatable, dimension(:,:) :: creceptor,crecuncert
+  real, allocatable, dimension(:) :: xkreceptor,nnreceptor
+  character(len=16), allocatable, dimension(:) :: receptorname
+  integer :: cpointer(maxrecsample)
+  integer :: numreceptor, numcurrec
+  logical :: lrecregular
 
-  ! xreceptor,yreceptor     receptor position
-  ! creceptor               concentrations at receptor points
-  ! receptorarea            area of 1*1 grid cell at receptor point
-  ! numreceptor             number of receptor points
+  ! satellite receptors
+  real, allocatable, dimension(:) :: xsatellite,ysatellite
+  integer, allocatable, dimension(:) :: tsatellite
+  real, allocatable, dimension(:) :: satellitearea
+  real, allocatable, dimension(:,:) :: zsatellite
+  real, allocatable, dimension(:,:,:) :: csatellite, csatuncert
+  real, allocatable, dimension(:,:)   :: xksatellite, nnsatellite
+  character(len=24), allocatable, dimension(:) :: satellitename
+  integer :: numsatreceptor, nlayermax, numsatellite, numcursat
+  integer, allocatable, dimension(:) :: nnsatlayer
+  integer :: csatpointer(maxrecsample)
+
+  ! xreceptor,yreceptor,zreceptor     receptor position
+  ! creceptor                         concentrations at receptor points
+  ! receptorarea                      area of 1*1 grid cell at receptor point
+  ! numreceptor                       number of receptors (non-satellite)
+  ! numcurrec                         number of receptors in current time interval (updated each time interval)
+  ! lrecregular                       logical if receptor output should be at regular intervals (and not according to RECEPTORS namelist)
+  ! numsatreceptor                    number of satellite receptors (aka. retrievals)
+  ! numcursat                         number of satellite receptors in current time interval (updated each time interval)
+  ! numsatellite                      number of satellite instruments
+  ! nlayermax                         max number of vertical layers in satellite retrievals
+  ! nnsatlayer                        actual number of vertical layers for each satellite
 
   !***************************************
   ! Variables characterizing each particle
@@ -398,7 +448,7 @@ module com_mod
   integer :: numpart=0
   integer :: numparticlecount
   integer :: maxspec ! Number of chemical species per release
-  integer :: maxndia ! Number of diameter bins
+  !integer :: maxndia ! Number of diameter bins (now set in par_mod.f90)
   !real, allocatable, dimension(:,:) :: xscav_frac1
 
   !****************************************************************
@@ -518,7 +568,7 @@ module com_mod
   !LB 04.05.2021, simple timing of IO and total running time
   !*********************************************************
   real :: s_readwind=0, s_writepartav=0, s_writepart=0, s_temp=0, s_total=0, s_firstt=0
-
+  real, parameter :: eta_convert=1000000., zfac=100.
 
 
 contains
@@ -527,8 +577,8 @@ contains
     implicit none
     integer :: stat
 
-    allocate( tot_blc_count(maxspec),tot_inc_count(maxspec),stat=stat)
-    if (stat.ne.0) error stop "Could not allocate tot_blc_count or tot_inc_count"
+    allocate( icnt_belowcld(maxspec),icnt_incld(maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate cnt_belowcld or icnt_incld"
     allocate( specnum(maxspec),decay(maxspec),weta_gas(maxspec), &
       wetb_gas(maxspec),crain_aero(maxspec),csnow_aero(maxspec), &
       ccn_aero(maxspec),in_aero(maxspec),ndia(maxspec), &
@@ -538,8 +588,7 @@ contains
     allocate( vsetaver(maxspec),cunningham(maxspec), &
       weightmolar(maxspec),ri(5,numclass),rac(5,numclass), &
       rcl(maxspec,5,numclass),rgs(maxspec,5,numclass), &
-      rlu(maxspec,5,numclass),rm(maxspec),dryvel(maxspec), &
-      ohcconst(maxspec),ohdconst(maxspec),ohnconst(maxspec),stat=stat)
+      rlu(maxspec,5,numclass),rm(maxspec),dryvel(maxspec),stat=stat)
     if (stat.ne.0) error stop "Could not allocate particle property arrays 2"
     allocate( Fn(maxspec),Fs(maxspec),ks1(maxspec),ks2(maxspec), &
       kn2(maxspec),ishape(maxspec),orient(maxspec),stat=stat)
@@ -550,10 +599,11 @@ contains
     if (stat.ne.0) error stop "Could not allocate species arrays"
     allocate( DRYDEPSPEC(maxspec),WETDEPSPEC(maxspec),stat=stat)
     if (stat.ne.0) error stop "Could not allocate DRYDEPSPEC or WETDEPSPEC"
-    allocate( creceptor(numreceptor,maxspec),stat=stat)
-    if (stat.ne.0) error stop "Could not allocate creceptor"
-    tot_blc_count=0
-    tot_inc_count=0
+!    allocate( creceptor(numreceptor,maxspec),stat=stat)
+!    if (stat.ne.0) error stop "Could not allocate creceptor"
+
+    icnt_belowcld=0
+    icnt_incld=0
   end subroutine alloc_com
 
   subroutine alloc_com_ndia
@@ -565,10 +615,10 @@ contains
   end subroutine alloc_com_ndia
 
   subroutine dealloc_com
-    deallocate(tot_blc_count,tot_inc_count,specnum,decay,weta_gas,wetb_gas, &
+    deallocate(icnt_belowcld,icnt_incld,specnum,decay,weta_gas,wetb_gas, &
       crain_aero,csnow_aero,ccn_aero,in_aero,reldiff,henry,f0,density,dquer, &
       dsigma,ndia,vsetaver,cunningham,weightmolar,vset,schmi,fract,ri,rac,rcl, &
-      rgs,rlu,rm,dryvel,ohcconst,ohdconst,ohnconst,Fn,Fs,ks1,ks2,kn2,ishape, &
+      rgs,rlu,rm,dryvel,Fn,Fs,ks1,ks2,kn2,ishape, &
       orient,area_hour,point_hour,area_dow,point_dow,species)
     deallocate(DRYDEPSPEC,WETDEPSPEC)
     deallocate(creceptor,xreceptor,yreceptor,receptorarea,receptorname)

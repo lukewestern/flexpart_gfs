@@ -1,9 +1,9 @@
 # Welcome to the FLEXPART 11 documentation
 
-Information on how to download and install FLEXPART can be found [here](installation.md).
-How to set up a simulation, with an explanation of all input files can be found [here](running.md), and some examples can be found [here](examples.md).
-A list of all possible output options and files can be found [here](output.md).
-An overview of all processes relation to the direct transport of particles can be found [here](transport.md), and internal particle processes [here](evolution.md).
+- Information on how to download and install FLEXPART can be found [here](building.md).
+- How to set up a simulation, with an explanation of all input files can be found [here](configuration.md#config), and some examples can be found [here](examples.md).
+- A list of all possible output options and files can be found [here](output.md).
+- An overview of all processes relation to the direct transport of particles can be found [here](transport.md), and internal particle processes [here](evolution.md).
 
 This manual covers FLEXPART 11. A full description can be found in the official release paper:
 

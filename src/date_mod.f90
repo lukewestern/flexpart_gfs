@@ -23,6 +23,9 @@ subroutine caldate(juliandate,yyyymmdd,hhmiss)
   !                                                                            *
   !     AUTHOR: Andreas Stohl (21 January 1994), adapted from Numerical Recipes*
   !                                                                            *
+  !     PS 2020-07-27: add a check to avoid giving back 240000 for hhmiss      *
+  !                                                                            *
+  !                                                                            *
   !     Variables:                                                             *
   !     dd             Day                                                     *
   !     hh             Hour                                                    *
@@ -50,6 +53,7 @@ subroutine caldate(juliandate,yyyymmdd,hhmiss)
   integer,parameter :: igreg=2299161
 
   julday=int(juliandate)
+  ! PS check to avoid 240000 as hhmiss:  
   if ((juliandate-julday)*86400._dp .ge. 86399.5_dp) then
     juliandate = juliandate + juliandate-julday-86399.5_dp/86400._dp
     julday=int(juliandate)
@@ -149,5 +153,49 @@ real(kind=dp) function juldate(yyyymmdd,hhmiss)
        real(mi,kind=dp)/1440._dp  + real(ss,kind=dp)/86400._dp
 
 end function juldate
+
+  !*****************************************************************************
+  !                                                                            * 
+  !    Calculates number of days in a month                                    * 
+  !                                                                            * 
+  !    Author: Rona Thompson (Sep 2023)                                        * 
+  !                                                                            * 
+  !    Variables:                                                              * 
+  !    yyyymm       year and month                                             * 
+  !    eomday       number of days in month (end of month day)                 * 
+  !                                                                            * 
+  !*****************************************************************************
+
+  integer function calceomday(yyyymm)
+
+    integer, intent(in) :: yyyymm
+    integer :: yyyy,mm
+    integer, dimension(12) :: leapdays,days
+    integer :: eomday
+
+    leapdays=(/31,29,31,30,31,30,31,31,30,31,30,31/)
+    days=(/31,28,31,30,31,30,31,31,30,31,30,31/)
+
+    yyyy=floor(yyyymm/100.)
+    mm=yyyymm-yyyy*100
+
+    if((float(yyyy)/100.).eq.float(yyyy/100)) then
+      if((float(yyyy)/400.).eq.float(yyyy/400)) then
+        eomday=leapdays(mm)
+      else
+        eomday=days(mm)
+      endif
+    else
+      if((float(yyyy)/4.).eq.float(yyyy/4)) then
+        eomday=leapdays(mm)
+      else
+        eomday=days(mm)
+      endif
+    endif
+
+    calceomday=eomday
+
+  end function calceomday
+
 
 end module date_mod

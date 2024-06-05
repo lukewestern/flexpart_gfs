@@ -66,7 +66,7 @@ class Grid():
 class Etex():
 
   def __init__(self, path_to_directory="/home/lucie/ETEX_PS_2000/Statistik_ASt/", 
-    fname = "pmcp.dat",locname="stationlist.950130"):
+    fname = "pmch2.dat",locname="stationlist.950130"):
 
     self.path = path_to_directory
     self.fname = fname

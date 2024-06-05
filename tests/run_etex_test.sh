@@ -53,6 +53,8 @@ sed -i "/IBDATE=/c\ IBDATE=         19941023," ./current/COMMAND
 sed -i "/IBTIME=/c\ IBTIME=           160000," ./current/COMMAND
 sed -i "/IEDATE=/c\ IEDATE=         19941027," ./current/COMMAND
 sed -i "/IETIME=/c\ IETIME=           110000," ./current/COMMAND
+sed -i "/LOUTSTEP=/c\ LOUTSTEP=        10800," ./current/COMMAND
+sed -i "/LOUTAVER=/c\ LOUTAVER=        10800," ./current/COMMAND
 sed -i "/CTL=/c\ CTL=                10.0000," ./current/COMMAND
 sed -i "/IFINE=/c\ IFINE=                  4," ./current/COMMAND
 sed -i "/LOUTNETCDFOUT=/c\ LOUTNETCDFOUT=  1," ./current/COMMAND

@@ -14,6 +14,7 @@ module unc_mod
   implicit none
 
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: gridunc
+  real(dep_prec),allocatable, dimension (:,:,:)         :: gridcnt
 #ifdef USE_MPIINPLACE
 #else
   ! If MPI_IN_PLACE option is not used in mpi_mod.f90::mpif_tm_reduce_grid(),
@@ -33,6 +34,7 @@ module unc_mod
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: drygriduncn_omp
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: wetgridunc_omp
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:,:) :: wetgriduncn_omp
+  real(dep_prec),allocatable, dimension (:,:,:,:)       :: gridcnt_omp
 #endif
 ! For sum of individual contributions, used for the MPI version
   real(dep_prec),allocatable, dimension (:,:,:,:,:,:) :: drygridunc0
@@ -53,11 +55,19 @@ subroutine alloc_grid_unc()
   allocate(gridunc(0:numxgrid-1,0:numygrid-1,numzgrid,nspec, &
        maxpointspec_act,nclassunc,nageclass),stat=stat)
   if (stat.ne.0) write(*,*)'ERROR: could not allocate gridunc'
+  allocate(gridcnt(0:numxgrid-1,0:numygrid-1,numzgrid),stat=stat)
+  if (stat.ne.0) write(*,*)'ERROR: could not allocate gridcnt'
 #ifdef _OPENMP
   allocate(gridunc_omp(0:numxgrid-1,0:numygrid-1,numzgrid,nspec, &
        maxpointspec_act,nclassunc,nageclass,numthreads_grid),stat=stat)
   if (stat.ne.0) then
     write(*,*)'ERROR: could not allocate gridunc_omp'
+    write(*,*)'increase the memory or reduce MAXTHREADGRID in COMMAND.'
+    error stop
+  endif
+  allocate(gridcnt_omp(0:numxgrid-1,0:numygrid-1,numzgrid,numthreads_grid),stat=stat)
+  if (stat.ne.0) then
+    write(*,*)'ERROR: could not allocate gridcnt_omp'
     write(*,*)'increase the memory or reduce MAXTHREADGRID in COMMAND.'
     error stop
   endif

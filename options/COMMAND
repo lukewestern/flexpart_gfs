@@ -14,6 +14,9 @@
  LOUTAVER=           3600, ! Interval of output averaging (s)
  LOUTSAMPLE=          900, ! Interval of output sampling  (s), higher stat. accuracy with shorter intervals
  LOUTRESTART=       86400, ! Interval of writing restart files (s), switched off when set to -1
+ LRECOUTSTEP=        3600, ! Interval of model output at receptors (s)
+ LRECOUTAVER=        3600, ! Interval of receptor output averaging (s)
+ LRECOUTSAMPLE=      1200, ! Interval of receptor output sampling (s)
  LSYNCTIME=           900, ! All processes are synchronized to this time interval (s)
  CTL=          -5.0000000, ! CTL>1, ABL time step = (Lagrangian timescale (TL))/CTL, uses LSYNCTIME if CTL<0
  IFINE=                 4, ! Reduction for time step in vertical transport, used only if CTL>1 
@@ -41,4 +44,5 @@
  MAXTHREADGRID=         1, ! Set maximum number of threads for doing grid computations. Recommended to set this no higher than 16. High numbers create more overhead and a larger memory footprint, 1=no parallelisation on grid.
  MAXFILESIZE=       10000, ! Maximum output of each partoutput NetCDF-4 file in Mb before a new one is created
  LOGVERTINTERP=         0, ! Flag to set all vertical interpolation to logarithmic instead of linear
+ LCMOUTPUT=             0, ! Switch for the Linear Chemistry Module; [0] off [1] on
  /

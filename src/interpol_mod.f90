@@ -1206,6 +1206,381 @@ subroutine interpol_density(itime,ipart,output)
   call vert_interpol(rhoprof(1),rhoprof(2),dz1,dz2,output)
 end subroutine interpol_density
 
+subroutine interpol_rain(itime,kz,yint1,yint2,yint3,ytint,yint4,intiy1,intiy2,icmv)
+  !                       i     i   o     o     o     o     o     o      o     i   
+  !****************************************************************************
+  !                                                                           *
+  !  Interpolation of meteorological fields on 2-d model layers.              *
+  !  In horizontal direction bilinear interpolation is used.                  *
+  !  Temporally a linear interpolation is used.                               *
+  !  Seven fields are interpolated at the same time.                          *
+  !                                                                           *
+  !  This is a special version of levlininterpol to save CPU time.            *
+  !                                                                           *
+  !  1 first time                                                             *
+  !  2 second time                                                            *
+  !                                                                           *
+  !                                                                           *
+  !     Author: A. Stohl                                                      *
+  !                                                                           *
+  !     30 August 1996                                                        *
+  !                                                                           *
+  !                                                                           *
+  ! PS, AP 04/2019, 11/2020:                                                  *
+  !                 put back temporal interpolation of rain, from v10.01      *
+  !      and cloud bottom / thickness interpolation                           *
+  ! PS, AP 01/2021:                                                           *
+  !      interpolate particle temperature and cloud total water               *
+  ! PS, AP 02/2021:                                                           *
+  !      interpolation of precipitation using two additional fields           *
+  !      which are temporally equidistant between the main fields             *
+  !                                                                           *
+  !****************************************************************************
+  !                                                                           *
+  ! Variables:                                                                *
+  !                                                                           *
+  ! dt1,dt2              time differences between fields and current position *
+  ! dz1,dz2              z distance between levels and current position       *
+  ! height(nzmax)        heights of the model levels                          *
+  ! mm                   help variable                                        *
+  ! indz                 the level closest to the current trajectory position *
+  ! indzh                help variable                                        *
+  ! itime                current time                                         *
+  ! ix,jy                x,y coordinates of lower left subgrid point          *
+  ! level                level at which interpolation shall be done 2d, =1    *
+  ! kz                   level at which interpolation shall be done           *
+  ! memind(3)            points to the places of the wind fields              *
+  ! nx,ny                actual field dimensions in x,y and z direction       *
+  ! nxmax,nymax,nzmax    maximum field dimensions in x,y and z direction      *
+  ! xt                   current x coordinate                                 *
+  ! yint                 the final interpolated value                         *
+  ! yt                   current y coordinate                                 *
+  ! yy?(0:nxmax,0:nymax,nzx2d,3) meteorological field used for interpolation  *
+  ! yyt(0:nxmax,0:nymax,nzmax,3) tt field                                     * 
+  ! iy1,iy2(0:nxmax,0:nymax,3) cloud bottom, thickness fields (integer)       *
+  ! zt                   current z coordinate                                 *
+  !                                                                           *
+  !****************************************************************************
+  use par_mod, only: numwfmem, numpf
+  use com_mod, only: lcw
+
+  implicit none
+
+  integer, intent(in) :: kz, icmv, itime
+  integer, intent(out) :: intiy1,intiy2
+  real, intent(out) :: yint1,yint2,yint3,ytint,yint4
+  integer :: m
+  integer :: mm
+  real :: ip1,ip2,ip3,ip4,ipsum
+  real :: dt,dtp1,dtp2,rt
+  real :: y1(2),y2(2),y3(2),y4(2),yi1(2),yi2(2),ytt(2) ! interpolated values
+  
+  integer, dimension(2) :: ip, mp
+
+  !**********************************************************************
+  ! 1.) Bilinear horizontal interpolation
+  ! This has to be done separately for 2 fields (Temporal)
+  !*******************************************************
+  ! Loop over 2 time steps
+  !***********************
+
+  !-------------------------------------------------------------------------
+  ! PS, AT new interpolation of precip with 2 additional fields
+  ! therefore, we need a special treatment of lsp,cp which are in yy1,yy2
+  !-------------------------------------------------------------------------
+  !
+  !      1.1 1.2 1.3               ip(1).mp(1)
+  !      1.2 1.3 2.1               ip(2).mp(2)
+  !
+  !   ||___|___|___||___|___|___||
+  !
+  ! ip  1   2   3    1   2   3    1
+  ! m        1            2  
+  !
+  !-------------------------------------------------------------------------
+
+  dt1 = real(itime  - memtime(1))
+  dt2 = real(memtime(2) - itime)
+  dt  = real(memtime(2) - memtime(1))
+  if (dt.eq.0. .and. dt1.eq.0.) then ! Fix if last last timestep and memtime(2)=memtime(1)
+    dt = 1.
+    dt2 = 1.
+  endif
+  dtt = dt/3.
+  if (numpf .eq. 1) then
+    mp(1) = 1
+    mp(2) = 2
+    ip(1) = 1
+    ip(2) = 1
+    dtp1 = dt1
+    dtp2 = dt2
+  else
+    rt = abs(dt1/dt)
+    if (0 .le. rt .and. rt .lt. 1./3.) then
+      mp(1) = 1
+      mp(2) = 1
+      ip(1) = 1
+      ip(2) = 2
+      dtp1 = dt1
+      dtp2 = dt2 - 2.*dtt
+    elseif (1./3. .le. rt .and.  rt .lt. 2./3.) then
+      mp(1) = 1
+      mp(2) = 1
+      ip(1) = 2
+      ip(2) = 3
+      dtp1 = dt1 - dtt
+      dtp2 = dt2 - dtt
+    elseif (2./3. .le. rt .and.  rt .lt. 1.) then
+      mp(1) = 1
+      mp(2) = 2
+      ip(1) = 3
+      ip(2) = 1
+      dtp1 = dt1 - 2.*dtt
+      dtp2 = dt2
+    endif
+  endif
+
+
+  if (ngrid.le.0) then ! No nest
+    do m=1,2
+      mm=memind(mp(m))
+      y1(m)= p1*lsprec(ix ,jy ,1,ip(m),mm) &
+           + p2*lsprec(ixp,jy ,1,ip(m),mm) &
+           + p3*lsprec(ix ,jyp,1,ip(m),mm) &
+           + p4*lsprec(ixp,jyp,1,ip(m),mm)
+      y2(m)= p1*convprec(ix ,jy ,1,ip(m),mm) &
+           + p2*convprec(ixp,jy ,1,ip(m),mm) &
+           + p3*convprec(ix ,jyp,1,ip(m),mm) &
+           + p4*convprec(ixp,jyp,1,ip(m),mm)
+
+      mm=memind(m)
+      y3(m)= p1*tcc(ix ,jy ,1,mm) &
+           + p2*tcc(ixp,jy ,1,mm) &
+           + p3*tcc(ix ,jyp,1,mm) &
+           + p4*tcc(ixp,jyp,1,mm)
+#ifdef ETA
+      ytt(m)=p1*tteta(ix ,jy ,kz,mm) &
+           + p2*tteta(ixp,jy ,kz,mm) &
+           + p3*tteta(ix ,jyp,kz,mm) &
+           + p4*tteta(ixp,jyp,kz,mm)
+#else
+      ytt(m)=p1*tt(ix ,jy ,kz,mm) &
+           + p2*tt(ixp,jy ,kz,mm) &
+           + p3*tt(ix ,jyp,kz,mm) &
+           + p4*tt(ixp,jyp,kz,mm)
+#endif
+      if (lcw) &
+        y4(m)= p1*ctwc(ix ,jy ,mm) &
+           + p2*ctwc(ixp,jy ,mm) &
+           + p3*ctwc(ix ,jyp,mm) &
+           + p4*ctwc(ixp,jyp,mm)
+
+  !PS clouds:
+      ip1=1.
+      ip2=1.
+      ip3=1.
+      ip4=1.
+      ipsum=1.
+      if (icloudbot(ix ,jy ,mm) .eq. icmv) then
+        ip1=0.
+        ipsum=ipsum-p1
+      endif
+      if (icloudbot(ixp,jy ,mm) .eq. icmv) then
+        ip2=0.
+        ipsum=ipsum-p2
+      endif
+      if (icloudbot(ix ,jyp,mm) .eq. icmv) then
+        ip3=0.
+        ipsum=ipsum-p3
+      endif
+      if (icloudbot(ixp,jyp,mm) .eq. icmv) then
+        ip4=0.
+        ipsum=ipsum-p4
+      endif
+      if (ipsum .eq. 0.) then
+        yi1(m)=icmv
+      else
+        yi1(m)=(ip1*p1*icloudbot(ix ,jy ,mm) &
+              + ip2*p2*icloudbot(ixp,jy ,mm) &
+              + ip3*p3*icloudbot(ix ,jyp,mm) &
+              + ip4*p4*icloudbot(ixp,jyp,mm))/ipsum
+        ! AP test output
+  !      if (yi1(m) .lt. 1.) then
+  !        write(*,*) ip1,ip2,ip3,ip4,ipsum
+  !        write(*,*) p1,p2,p3,p4
+  !        write(*,*) iy1(ix ,jy ,mm), iy1(ixp,jy ,mm),  iy1(ix ,jyp,mm), iy1(ixp,jyp,mm)
+  !      endif            
+              
+      endif
+          
+      ip1=1.
+      ip2=1.
+      ip3=1.
+      ip4=1.
+      ipsum=1.
+      if (icloudtop(ix ,jy ,mm) .eq. icmv) then
+        ip1=0.
+        ipsum=ipsum-p1
+      endif
+      if (icloudtop(ixp,jy ,mm) .eq. icmv) then
+        ip2=0.
+        ipsum=ipsum-p2
+      endif
+      if (icloudtop(ix ,jyp,mm) .eq. icmv) then
+        ip3=0.
+        ipsum=ipsum-p3
+      endif
+      if (icloudtop(ixp,jyp,mm) .eq. icmv) then
+        ip4=0.
+        ipsum=ipsum-p4
+      endif
+      if (ipsum .eq. 0.) then
+        yi2(m)=icmv
+      else
+        yi2(m)=(ip1*p1*icloudtop(ix ,jy ,mm) &
+              + ip2*p2*icloudtop(ixp,jy ,mm) &
+              + ip3*p3*icloudtop(ix ,jyp,mm) &
+              + ip4*p4*icloudtop(ixp,jyp,mm))/ipsum
+      endif
+  !PS end clouds
+    end do
+  else ! Nest
+    do m=1,2
+      mm=memind(mp(m))
+      y1(m)= p1*lsprecn(ix ,jy ,1,ip(m),mm,ngrid) &
+           + p2*lsprecn(ixp,jy ,1,ip(m),mm,ngrid) &
+           + p3*lsprecn(ix ,jyp,1,ip(m),mm,ngrid) &
+           + p4*lsprecn(ixp,jyp,1,ip(m),mm,ngrid)
+      y2(m)= p1*convprecn(ix ,jy ,1,ip(m),mm,ngrid) &
+           + p2*convprecn(ixp,jy ,1,ip(m),mm,ngrid) &
+           + p3*convprecn(ix ,jyp,1,ip(m),mm,ngrid) &
+           + p4*convprecn(ixp,jyp,1,ip(m),mm,ngrid)
+
+      mm=memind(m)
+      y3(m)= p1*tccn(ix ,jy ,1,mm,ngrid) &
+           + p2*tccn(ixp,jy ,1,mm,ngrid) &
+           + p3*tccn(ix ,jyp,1,mm,ngrid) &
+           + p4*tccn(ixp,jyp,1,mm,ngrid)
+#ifdef ETA
+      ytt(m)=p1*ttetan(ix ,jy ,kz,mm,ngrid) &
+           + p2*ttetan(ixp,jy ,kz,mm,ngrid) &
+           + p3*ttetan(ix ,jyp,kz,mm,ngrid) &
+           + p4*ttetan(ixp,jyp,kz,mm,ngrid)
+#else
+      ytt(m)=p1*ttn(ix ,jy ,kz,mm,ngrid) &
+           + p2*ttn(ixp,jy ,kz,mm,ngrid) &
+           + p3*ttn(ix ,jyp,kz,mm,ngrid) &
+           + p4*ttn(ixp,jyp,kz,mm,ngrid)
+#endif
+      if (lcw_nest(ngrid)) &
+        y4(m)= p1*ctwcn(ix ,jy ,mm,ngrid) &
+           + p2*ctwcn(ixp,jy ,mm,ngrid) &
+           + p3*ctwcn(ix ,jyp,mm,ngrid) &
+           + p4*ctwcn(ixp,jyp,mm,ngrid)
+
+  !PS clouds:
+      ip1=1.
+      ip2=1.
+      ip3=1.
+      ip4=1.
+      ipsum=1.
+      if (icloudbotn(ix ,jy ,mm,ngrid) .eq. icmv) then
+        ip1=0.
+        ipsum=ipsum-p1
+      endif
+      if (icloudbotn(ixp,jy ,mm,ngrid) .eq. icmv) then
+        ip2=0.
+        ipsum=ipsum-p2
+      endif
+      if (icloudbotn(ix ,jyp,mm,ngrid) .eq. icmv) then
+        ip3=0.
+        ipsum=ipsum-p3
+      endif
+      if (icloudbotn(ixp,jyp,mm,ngrid) .eq. icmv) then
+        ip4=0.
+        ipsum=ipsum-p4
+      endif
+      if (ipsum .eq. 0.) then
+        yi1(m)=icmv
+      else
+        yi1(m)=(ip1*p1*icloudbotn(ix ,jy ,mm,ngrid) &
+              + ip2*p2*icloudbotn(ixp,jy ,mm,ngrid) &
+              + ip3*p3*icloudbotn(ix ,jyp,mm,ngrid) &
+              + ip4*p4*icloudbotn(ixp,jyp,mm,ngrid))/ipsum
+      endif
+          
+      ip1=1.
+      ip2=1.
+      ip3=1.
+      ip4=1.
+      ipsum=1.
+      if (icloudtopn(ix ,jy ,mm,ngrid) .eq. icmv) then
+        ip1=0.
+        ipsum=ipsum-p1
+      endif
+      if (icloudtopn(ixp,jy ,mm,ngrid) .eq. icmv) then
+        ip2=0.
+        ipsum=ipsum-p2
+      endif
+      if (icloudtopn(ix ,jyp,mm,ngrid) .eq. icmv) then
+        ip3=0.
+        ipsum=ipsum-p3
+      endif
+      if (icloudtopn(ixp,jyp,mm,ngrid) .eq. icmv) then
+        ip4=0.
+        ipsum=ipsum-p4
+      endif
+      if (ipsum .eq. 0.) then
+        yi2(m)=icmv
+      else
+        yi2(m)=(ip1*p1*icloudtopn(ix ,jy ,mm,ngrid) &
+              + ip2*p2*icloudtopn(ixp,jy ,mm,ngrid) &
+              + ip3*p3*icloudtopn(ix ,jyp,mm,ngrid) &
+              + ip4*p4*icloudtopn(ixp,jyp,mm,ngrid))/ipsum
+      endif
+  !PS end clouds
+    end do
+  endif
+
+  !************************************
+  ! 2.) Temporal interpolation (linear)
+  !************************************
+
+  yint1=(y1(1)*dtp2+y1(2)*dtp1)/dtt ! lsp
+  yint2=(y2(1)*dtp2+y2(2)*dtp1)/dtt ! cp
+  
+  yint3=(y3(1)*dt2+y3(2)*dt1)/dt
+  yint4=(y4(1)*dt2+y4(2)*dt1)/dt
+  ytint=(ytt(1)*dt2+ytt(2)*dt1)/dt
+
+!PS clouds:450.
+
+!  write(*,*) yi1(1),yi1(2),yi2(1),yi2(2),dt,dt1,dt2
+  intiy1=int((yi1(1)*dt2 + yi1(2)*dt1)/dt)
+  if (int(yi1(1)) .eq. icmv) intiy1=int(yi1(2))
+  if (int(yi1(2)) .eq. icmv) intiy1=int(yi1(1))
+
+  intiy2=int((yi2(1)*dt2 + yi2(2)*dt1)/dt)
+  if (int(yi2(1)) .eq. icmv) intiy2=int(yi2(2))
+  if (int(yi2(2)) .eq. icmv) intiy2=int(yi2(1))
+  
+!  write(*,*) 'before cbot: ', intiy1, ' cthick: ', intiy2   
+  if (intiy1 .ne. icmv .and. intiy2 .ne. icmv) then
+    intiy2 = intiy2 !intiy1 + intiy2 ! convert cloud thickness to cloud top
+  else
+    intiy1=icmv
+    intiy2=icmv
+  endif
+  if (intiy2 .ne. icmv .and. intiy2 .lt. 0) then
+    write(*,*) itime, memind(1), memind(2)
+    write(*,*) yi1(1),yi1(2),yi2(1),yi2(2),dt,dt1,dt2
+    write(*,*) 'final cbot: ', intiy1, ' ctop: ', intiy2
+    stop 'intiy2 (cloud top) negative'
+  endif
+!PS end clouds
+
+end subroutine interpol_rain
+
 !*********************
 !* PRIVATE FUNCTIONS *
 !*********************

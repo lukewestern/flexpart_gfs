@@ -90,10 +90,11 @@ contains
     integer, intent(in) :: n
     integer, intent(inout) :: arr(n),brr(n)
     integer, dimension(:) :: brrout(n), work(n/2)
+    integer(int_size), dimension(:) :: iwork(0:n/2-1)
     integer(int_size), dimension(:) :: iarr(n)
     integer :: i
 
-    call sort_index(arr, iarr, work)
+    call sort_index(arr, iarr, work, iwork)
 
     do i=1,n
       brrout(i) = brr(iarr(i))

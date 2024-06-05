@@ -40,5 +40,5 @@
  NXSHIFT=               0, ! Shift of the global meteorological data. Default 359 for ECMWF and 0 for GFS if not given
  MAXTHREADGRID=         1, ! Set maximum number of threads for doing grid computations. Recommended to set this no higher than 16. High numbers create more overhead and a larger memory footprint, 1=no parallelisation on grid.
  MAXFILESIZE=       10000, ! Maximum output of each partoutput NetCDF-4 file in Mb before a new one is created
- LOGVERTINTERP=         0, ! Flag to set all vertical interpolation to logarithmic instead of linear
+ LOGVERTINTERP=         0, ! Flag to set all vertical interpolation to logarithmic instead of linear 
  /

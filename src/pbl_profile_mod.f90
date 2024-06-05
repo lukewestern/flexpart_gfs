@@ -54,7 +54,7 @@ function psih (z,l)
            - b*c/d + 1.
     else
       x=(1.-16.*zeta)**(.25)
-      psih=2.*log((1.+x*x)/2.)
+      psih=2.*log((1.+x*x)*0.5)
     end if
   end if
 
@@ -78,9 +78,9 @@ real function psim(z,al)
   if(zeta.le.0.) then
   ! UNSTABLE CASE
     x=(1.-15.*zeta)**0.25
-    a1=((1.+x)/2.)**2
-    a2=(1.+x**2)/2.
-    psim=log(a1*a2)-2.*atan(x)+pi/2.
+    a1=((1.+x)*0.5)**2
+    a2=(1.+x**2)*0.5
+    psim=log(a1*a2)-2.*atan(x)+pi*0.5
   else
   ! STABLE CASE
     psim=-4.7*zeta
@@ -171,9 +171,9 @@ subroutine pbl_profile(ps,td2m,zml1,t2m,tml1,u10m,uml1,stress,hf)
                                     !! Successive approximation will
     al=50.                          !! not converge
     ustar=(vonkarman*deltau)/ &
-         (log(zml1/10.)-psim(zml1,al)+psim(10.,al))
+         (log(zml1*0.1)-psim(zml1,al)+psim(10.,al))
     thetastar=(vonkarman*deltat/r1)/ &
-         (log(zml1/2.)-psih(zml1,al)+psih(2.,al))
+         (log(zml1*0.5)-psih(zml1,al)+psih(2.,al))
     hf=rhoa*cpa*ustar*thetastar
     stress=ustar*ustar*rhoa
     return
@@ -183,9 +183,9 @@ subroutine pbl_profile(ps,td2m,zml1,t2m,tml1,u10m,uml1,stress,hf)
   do iter=1,maxiter
     alold=al
     ustar=(vonkarman*deltau)/ &
-         (log(zml1/10.)-psim(zml1,al)+psim(10.,al))
+         (log(zml1*0.1)-psim(zml1,al)+psim(10.,al))
     thetastar=(vonkarman*deltat/r1)/ &
-         (log(zml1/2.)-psih(zml1,al)+psih(2.,al))
+         (log(zml1*0.5)-psih(zml1,al)+psih(2.,al))
     al=(tmean*ustar**2)/(ga*vonkarman*thetastar)
     aldiff=abs((al-alold)/alold)
     if(aldiff.lt.0.01) exit  !! Successive approximation successful

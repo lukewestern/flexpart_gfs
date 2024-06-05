@@ -1,4 +1,15 @@
+! SPDX-FileCopyrightText: FLEXPART 1998-2019, see flexpart_license.txt
+! SPDX-License-Identifier: GPL-3.0-or-later
+
 module restart_mod
+
+  !*****************************************************************************
+  !                                                                            *
+  !    This module write variables to file for eventual restart, and reads     *
+  !    these variables from file in case of restart                            *
+  !                                                                            *
+  !*****************************************************************************
+
   use particle_mod
 #ifdef ETA
   use coord_ecmwf_mod
@@ -14,13 +25,13 @@ module restart_mod
 
 contains
 
-subroutine output_restart(itime,loutnext,outnum)
+subroutine output_restart(itime,loutnext,lrecoutnext,outnum)
 
   implicit none
 
-  integer, intent(in) :: itime,loutnext
+  integer, intent(in) :: itime,loutnext,lrecoutnext
   real, intent(in) :: outnum
-  integer :: i,j,jjjjmmdd,ihmmss
+  integer :: imax,i,j,jjjjmmdd,ihmmss,ipart,iwritten
   integer :: ks,kp,kz,nage,jy,ix,l,n
   real(kind=dp) :: jul
   character :: adate*8,atime*6
@@ -37,41 +48,71 @@ subroutine output_restart(itime,loutnext,outnum)
 
   write(*,*) 'Writing Restart file:', trim(restart_filename1)
 
-  open(unitrestart,file=restart_filename1,form='unformatted')
-
-  ! Write current time to file
-  !***************************
-
-  write(unitrestart) itime
-  write(unitrestart) count%allocated
-  write(unitrestart) loutnext
-  write(unitrestart) outnum
-  write(unitrestart) numreceptor
-
-
-  do i=1,count%allocated
 #ifdef ETA
+!$OMP PARALLEL PRIVATE(i,j)
+!$OMP DO
+  do j=1,count%alive
+    i=count%ialive(j)
     if (part(i)%alive) then
       call update_zeta_to_z(itime,i)
       call update_z_to_zeta(itime,i)
     endif
+  end do
+!$OMP END DO
+!$OMP END PARALLEL
 #endif
-    write(unitrestart) part(i)%xlon,part(i)%ylat,part(i)%z, &
+
+  open(unitrestart,file=restart_filename1,form='unformatted')
+
+  !Get largest live particle number for allocation new start
+  
+  imax=0
+  iwritten=0
+  do ipart=1,count%allocated
+    if ((ipout.gt.0).and.(n_average.gt.0)) then
+      if((.not. part(ipart)%alive).and.(abs(part(ipart)%tend-itime).ge.ipoutfac*loutstep)) &
+        cycle
+    else
+      if (.not. part(ipart)%alive) cycle
+    endif
+    if (ipart.gt.imax) imax=ipart
+    iwritten=iwritten+1
+  end do
+  ! Write current time to file
+  !***************************
+  write(unitrestart) itime
+  write(unitrestart) imax
+  write(unitrestart) iwritten
+  write(unitrestart) loutnext
+  write(unitrestart) lrecoutnext
+  write(unitrestart) outnum
+
+  do ipart=1,imax
+    if ((ipout.gt.0).and.(n_average.gt.0)) then
+      if((.not. part(ipart)%alive).and.(abs(part(ipart)%tend-itime).ge.ipoutfac*loutstep)) &
+        cycle
+    else
+      if (.not. part(ipart)%alive) cycle
+    endif
+    write(unitrestart) ipart
+    write(unitrestart) part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z, &
 #ifdef ETA
-      part(i)%zeta, &
+      part(ipart)%zeta, &
 #endif
-      part(i)%npoint,part(i)%nclass,part(i)%idt,part(i)%tend, &
-      part(i)%tstart,part(i)%alive,part(i)%turbvel%u, &
-      part(i)%turbvel%v,part(i)%turbvel%w,part(i)%mesovel%u, &
-      part(i)%mesovel%v,part(i)%mesovel%w,(part(i)%mass(j),j=1,nspec), &
-      (part(i)%mass_init(j),j=1,nspec)
-    if (wetdep) write(unitrestart) (part(i)%wetdepo(j),j=1,nspec)
-    if (drydep) write(unitrestart) (part(i)%drydepo(j),j=1,nspec)
+      part(ipart)%npoint,part(ipart)%nclass,part(ipart)%idt,part(ipart)%tend, &
+      part(ipart)%tstart,part(ipart)%alive,part(ipart)%turbvel%u, &
+      part(ipart)%turbvel%v,part(ipart)%turbvel%w,part(ipart)%mesovel%u, &
+      part(ipart)%mesovel%v,part(ipart)%mesovel%w,(mass(ipart,j),j=1,nspec), &
+      (mass_init(ipart,j),j=1,nspec)
+    if (wetdep) write(unitrestart) (wetdeposit(ipart,j),j=1,nspec)
+    if (drydep) write(unitrestart) (drydeposit(ipart,j),j=1,nspec)
+    if ((drybkdep).or.(wetbkdep)) write(unitrestart) (xscav_frac1(ipart,j),j=1,nspec)
   end do
   if (iout.gt.0) then
 #ifdef USE_NCF
     if (lnetcdfout.eq.1) write(unitrestart) tpointer
 #endif
+
     do ks=1,nspec
       do kp=1,maxpointspec_act
         do nage=1,nageclass
@@ -129,16 +170,6 @@ subroutine output_restart(itime,loutnext,outnum)
           end do 
         endif
       end do
-      if ((drybkdep).or.(wetbkdep)) then
-        do i=1,count%allocated
-          write(unitrestart) xscav_frac1(i,ks)
-        end do
-      endif
-      if (numreceptor.gt.0) then 
-        do n=1,numreceptor
-          write(unitrestart) creceptor(n,ks)
-        end do
-      endif
     end do
   endif
   close(unitrestart)
@@ -161,10 +192,11 @@ subroutine readrestart
 
   implicit none
 
-  integer :: i,j,ios
-  integer :: id1,id2,it1,it2
+  integer :: i,j,ipart,ios,iterminate
+  integer :: id1,id2,it1,it2,imax
   integer :: ks,kp,kz,nage,jy,ix,l,n
   real(kind=dp) :: julin
+  real :: a
 
   numparticlecount=0
 
@@ -175,37 +207,37 @@ subroutine readrestart
   write(*,*) 'Reading Restart file:', path(2)(1:length(2))//'restart.bin'
   
   read(unitpartin,iostat=ios) itime_init
-  read(unitpartin) numpart ! count%allocated
+  read(unitpartin) imax ! count%alive
+  read(unitpartin) numpart
   read(unitpartin) loutnext_init
+  read(unitpartin) lrecoutnext_init
   read(unitpartin) outnum_init
-  read(unitpartin) numreceptor
 
-  call spawn_particles(itime_init, numpart)
+  count%alive=numpart
+  count%spawned=numpart
+  if (count%allocated.lt.imax) call alloc_particles(imax-count%allocated)
   do i=1,numpart
-    read(unitpartin) part(i)%xlon,part(i)%ylat,part(i)%z, &
+    read(unitpartin) ipart
+    read(unitpartin) part(ipart)%xlon,part(ipart)%ylat,part(ipart)%z, &
 #ifdef ETA
-      part(i)%zeta, &
+      part(ipart)%zeta, &
 #endif
-      part(i)%npoint,part(i)%nclass,part(i)%idt,part(i)%tend, &
-      part(i)%tstart,part(i)%alive,part(i)%turbvel%u, &
-      part(i)%turbvel%v,part(i)%turbvel%w,part(i)%mesovel%u, &
-      part(i)%mesovel%v,part(i)%mesovel%w,(part(i)%mass(j),j=1,nspec), &
-      (part(i)%mass_init(j),j=1,nspec)
-    if (wetdep) read(unitrestart) (part(i)%wetdepo(j),j=1,nspec)
-    if (drydep) read(unitrestart) (part(i)%drydepo(j),j=1,nspec)
+      part(ipart)%npoint,part(ipart)%nclass,part(ipart)%idt,part(ipart)%tend, &
+      part(ipart)%tstart,part(ipart)%alive,part(ipart)%turbvel%u, &
+      part(ipart)%turbvel%v,part(ipart)%turbvel%w,part(ipart)%mesovel%u, &
+      part(ipart)%mesovel%v,part(ipart)%mesovel%w,(mass(ipart,j),j=1,nspec), &
+      (mass_init(ipart,j),j=1,nspec)
+    part(ipart)%spawned = .true.
+    if (wetdep) read(unitpartin) (wetdeposit(ipart,j),j=1,nspec)
+    if (drydep) read(unitpartin) (drydeposit(ipart,j),j=1,nspec)
+    if ((drybkdep).or.(wetbkdep)) read(unitpartin) (xscav_frac1(ipart,j),j=1,nspec)
+
 #ifdef ETA
-    part(i)%etaupdate=.true.
-    part(i)%meterupdate=.true.
+    part(ipart)%etaupdate=.true.
+    part(ipart)%meterupdate=.true.
 #endif
-    if (.not. part(i)%alive) then
-      if (part(i)%tstart.le.itime_init) then
-        call terminate_particle(i,part(i)%tend)
-      else ! Particle is not spawned yet (original run with ipin=3)
-        count%alive = count%alive - 1
-        count%spawned = count%spawned -1
-      endif
-    endif
   end do
+
   if (iout.gt.0) then 
 #ifdef USE_NCF
     if (lnetcdfout.eq.1) read(unitpartin) tpointer
@@ -267,11 +299,6 @@ subroutine readrestart
           end do 
         endif
       end do
-      if ((drybkdep).or.(wetbkdep)) then
-        do i=1,numpart
-          read(unitpartin) xscav_frac1(i,ks)
-        end do
-      endif
       if (numreceptor.gt.0) then 
         do n=1,numreceptor
           read(unitpartin) creceptor(n,ks)
@@ -281,6 +308,18 @@ subroutine readrestart
   endif
   close(unitpartin)
 
+  iterminate=0
+  do i=1,numpart
+    if (.not. part(i)%alive) then
+      if (part(i)%tstart.le.itime_init) then
+        call terminate_particle(i,part(i)%tend)
+        iterminate=iterminate+1
+      endif
+    endif
+  end do
+
+  call rewrite_ialive()
+  count%spawned=count%spawned-iterminate
   numpart=count%spawned
   
   julin=juldate(ibdate,ibtime)+real(itime_init,kind=dp)/86400._dp

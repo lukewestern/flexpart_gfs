@@ -155,6 +155,7 @@ subroutine getfields(itime,nstop)
     return
   endif
 
+
   if ((ldirect*memtime(1).le.ldirect*itime).and. &
        (ldirect*memtime(2).gt.ldirect*itime)) then
 
@@ -165,7 +166,6 @@ subroutine getfields(itime,nstop)
 
   else if ((ldirect*memtime(2).le.ldirect*itime).and. &
        (memtime(2).ne.999999999)) then
-
 
   ! Current time is after 2nd wind field
   ! -> Resort wind field pointers, so that current time is between 1st and 2nd
@@ -235,7 +235,7 @@ subroutine getfields(itime,nstop)
 !$OMP END PARALLEL
     endif
   else
-
+ 
   ! No wind fields, which can be used, are currently in memory
   ! -> read both wind fields
   !***********************************************************
@@ -256,11 +256,13 @@ subroutine getfields(itime,nstop)
         call readwind_nest(indj,memind(1),uuhn,vvhn,wwhn)
         call calcpar(memind(1))
         call calcpar_nest(memind(1))
+
         if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
           call verttransform_ecmwf(memind(1),uuh,vvh,wwh,pvh)
         else
           call verttransform_gfs(memind(1),uuh,vvh,wwh,pvh)
         end if
+
         call verttransform_nest(memind(1),uuhn,vvhn,wwhn,pvhn)
         memtime(1)=wftime(indj)
         memind(2)=2
@@ -373,10 +375,16 @@ subroutine calcpv(n)
 !$OMP ixvp,ixvm,jumpx,ivrp,ivrm,jux,theta,klvrp,klvrm,klpt,thetap,thetam,dthetadp, &
 !$OMP ii,i,ivr,kdn,kch,kup,thdn,thup,dt1,dt2,dt,vx,k,dvdx, &
 !$OMP jj,j,uy,dudy)
-!$OMP DO
+!$OMP DO SCHEDULE(dynamic,1)
   do jy=0,nymin1
     if (sglobal.and.jy.eq.0) cycle
     if (nglobal.and.jy.eq.nymin1) cycle
+
+    ! do kl=1,nuvz
+    !   ppml(0:nxmin1,jy,kl)=akz(kl)+bkz(kl)*ps(0:nxmin1,jy,1,n)
+    !   ppmk(0:nxmin1,jy,kl)=(100000./ppml(0:nxmin1,jy,kl))**kappa
+    ! end do
+
     phi = (ylat0 + jy * dy) * pi / 180.
     f = 0.00014585 * sin(phi)
     tanphi = tan(phi)
@@ -880,7 +888,7 @@ subroutine calcpar(n)
   !                                                                            *
   !     21 May 1995                                                            *
   !                                                                            *
-  ! ------------------------------------------------------------------         *
+  !*****************************************************************************
   !     Petra Seibert, Feb 2000:                                               *
   !     convection scheme:                                                     *
   !     new variables in call to richardson                                    *
@@ -895,7 +903,9 @@ subroutine calcpar(n)
   !     - Merged calcpar and calcpar_gfs into one routine using if-then        *
   !       for meteo-type dependent code                                        *
   !*****************************************************************************
-
+  !  Changes Anne Tipka June 2023:                                             *
+  !    sum up precipitation fields over number of available fields in a single *
+  !    time interval (newWetDepoScheme)                                        *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -1053,7 +1063,7 @@ subroutine calcpar(n)
 
         call getvdep(n,ix,jy,ustar(ix,jy,1,n), &
              tt2(ix,jy,1,n),ps(ix,jy,1,n),1./oli(ix,jy,1,n), &
-             ssr(ix,jy,1,n),rh,lsprec(ix,jy,1,n)+convprec(ix,jy,1,n), &
+             ssr(ix,jy,1,n),rh,sum(lsprec(ix,jy,1,:,n))+sum(convprec(ix,jy,1,:,n)), &
              sd(ix,jy,1,n),vd)
 
         do i=1,nspec
@@ -1153,7 +1163,7 @@ subroutine calcpar_nest(n)
   !                                                                            *
   !     8 February 1999                                                        *
   !                                                                            *
-  ! ------------------------------------------------------------------         *
+  !*****************************************************************************
   !     Petra Seibert, Feb 2000:                                               *
   !     convection scheme:                                                     *
   !     new variables in call to richardson                                    *
@@ -1164,6 +1174,10 @@ subroutine calcpar_nest(n)
   !                                                                            *
   !   Unified ECMWF and GFS builds                                             *
   !   Marian Harustak, 12.5.2017                                               *
+  !*****************************************************************************
+  !  Changes Anne Tipka June 2023:                                             *
+  !    sum up precipitation fields over number of available fields in a single *
+  !    time interval (newWetDepoScheme)                                        *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -1295,8 +1309,8 @@ subroutine calcpar_nest(n)
 
         call getvdep_nest(n,ix,jy,ustarn(ix,jy,1,n,l), &
              tt2n(ix,jy,1,n,l),psn(ix,jy,1,n,l),1./olin(ix,jy,1,n,l), &
-             ssrn(ix,jy,1,n,l),rh,lsprecn(ix,jy,1,n,l)+ &
-             convprecn(ix,jy,1,n,l),sdn(ix,jy,1,n,l),vd,l)
+             ssrn(ix,jy,1,n,l),rh,sum(lsprecn(ix,jy,1,:,n,l))+ &
+             sum(convprecn(ix,jy,1,:,n,l)),sdn(ix,jy,1,n,l),vd,l)
 
         do i=1,nspec
           vdepn(ix,jy,i,n,l)=vd(i)
@@ -1426,8 +1440,8 @@ real function obukhov(ps,tsfc,tdsfc,tlev,ustar,hf,akm,bkm,plev)
   tv=tsfc*(1.+0.378*e/ps)               ! virtual temperature
   rhoa=ps/(r_air*tv)                      ! air density
   if (metdata_format.eq.GRIBFILE_CENTRE_ECMWF) then
-  ak1=(akm(1)+akm(2))/2.
-  bk1=(bkm(1)+bkm(2))/2.
+  ak1=(akm(1)+akm(2))*0.5
+  bk1=(bkm(1)+bkm(2))*0.5
   plev=ak1+bk1*ps                        ! Pressure level 1
   end if
   theta=tlev*(100000./plev)**(r_air/cpa) ! potential temperature

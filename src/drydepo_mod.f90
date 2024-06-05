@@ -85,16 +85,19 @@ subroutine assignland
 
   implicit none
 
-  integer :: ix,jy,k,l,li,nrefine,iix,jjy
+  integer :: ix,jy,k,l,li,nrefine,iix,jjy,stat
   integer,parameter :: lumaxx=1200,lumaxy=600
   integer,parameter :: xlon0lu=-180,ylat0lu=-90
   real,parameter :: dxlu=0.3
   real :: xlon,ylat,sumperc,p,xi,yj
-  real :: xlandusep(lumaxx,lumaxy,numclass)
+  real,allocatable,dimension(:,:,:) :: xlandusep
   ! character*2 ck
 
   if (.not.DRYDEP) return
   
+  allocate( xlandusep(lumaxx,lumaxy,numclass), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate xlandusep in assignland"
+
   do ix=1,lumaxx
     do jy=1,lumaxy
        do k=1,numclass
@@ -329,12 +332,12 @@ subroutine drydepo_massloss(ipart,ks,ldeltat,drydepopart)
   else
     decfact=1.
   endif
-  drydepopart=part(ipart)%mass(ks)*part(ipart)%prob(ks)*decfact
+  drydepopart=mass(ipart,ks)*prob(ipart,ks)*decfact
   
-  part(ipart)%drydepo(ks)=part(ipart)%drydepo(ks)+ &
-    part(ipart)%mass(ks)*part(ipart)%prob(ks)*decfact
+  drydeposit(ipart,ks)=drydeposit(ipart,ks)+ &
+    mass(ipart,ks)*prob(ipart,ks)*decfact
 
-  part(ipart)%mass(ks)=part(ipart)%mass(ks)*(1.-part(ipart)%prob(ks))*decfact
+  mass(ipart,ks)=mass(ipart,ks)*(1.-prob(ipart,ks))*decfact
 
   if (decay(ks).gt.0.) then   ! correct for decay (see wetdepo)
     drydepopart=drydepopart*exp(real(abs(ldeltat))*decay(ks))
@@ -717,7 +720,7 @@ subroutine part0(dquer,dsigma,density,ni,fract,schmi,cun,vsh)
   !stop 'part0' 
 end subroutine part0
 
-subroutine get_vdep_prob(itime,xt,yt,zt,prob,ithread)
+subroutine get_vdep_prob(itime,xt,yt,zt,tmpprob,ithread)
   !                    i     i  i  i  o
   !*****************************************************************************
   !                                                                            *
@@ -750,7 +753,7 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob,ithread)
 
   real,intent(in) :: xt,yt,zt
   integer,intent(in) :: itime,ithread !ithread starting at 1
-  real,intent(out) :: prob(maxspec)
+  real,intent(out) :: tmpprob(maxspec)
   integer :: ks,m,memindnext!nix,njy,
   real :: vdepo(maxspec),vdeptemp(2)
   real :: eps
@@ -760,7 +763,7 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob,ithread)
   if (DRYDEP) then    ! reset probability for deposition
     do ks=1,nspec
       depoindicator(ks,ithread)=.true.
-      prob(ks)=0.
+      tmpprob(ks)=0.
     end do
   endif
 
@@ -806,7 +809,7 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob,ithread)
   ! correction by Petra Seibert, 10 April 2001
   !   this formulation means that prob(n) = 1 - f(0)*...*f(n)
   !   where f(n) is the exponential term
-        prob(ks)=vdepo(ks)
+        tmpprob(ks)=vdepo(ks)
   !               prob(ks)=vdepo(ks)/2./href
   ! instead of prob - return vdepo -> result kg/m2/s
       endif
@@ -814,16 +817,17 @@ subroutine get_vdep_prob(itime,xt,yt,zt,prob,ithread)
   endif
 end subroutine get_vdep_prob
 
-subroutine drydepo_probability(prob,dt,zts,vdepo,ithread)
+subroutine drydepo_probability(ipart,dt,zts,vdepo,ithread)
   use par_mod
   use com_mod
   use interpol_mod
+  use particle_mod
 
   implicit none
 
   integer,intent(in) :: ithread ! OMP thread starting at 1
-  real,intent(inout) :: prob(maxspec)
-  real,intent(inout) :: vdepo(maxspec)  ! deposition velocities for all species
+  integer,intent(in) :: ipart ! particle index
+  real,intent(out) :: vdepo(maxspec)  ! deposition velocities for all species
   real,intent(in) :: dt,zts             ! real(ldt), real(zt)
   integer :: ns,m                      ! loop variable over species
   real :: vdeptemp(2)
@@ -846,7 +850,7 @@ subroutine drydepo_probability(prob,dt,zts,vdepo,ithread)
   ! correction by Petra Seibert, 10 April 2001
   !   this formulation means that prob(n) = 1 - f(0)*...*f(n)
   !   where f(n) is the exponential term
-        prob(ns)=1.+(prob(ns)-1.)*exp(-vdepo(ns)*abs(dt)/(2.*href))
+        prob(ipart,ns)=1.+(prob(ipart,ns)-1.)*exp(-vdepo(ns)*abs(dt)/(2.*href))
         !if (pp.eq.535) write(*,*) 'advance1', ks,dtt,p1,vdep(ix,jy,ks,1)
       endif
     end do
@@ -902,7 +906,7 @@ subroutine getvdep(n,ix,jy,ust,temp,pa,L,gr,rh,rr,snow,vdepo)
 
   ylat=jy*dy+ylat0
   if (ylat.lt.0) then
-      jul=jul+365/2
+      jul=jul+365.*0.5
   endif
 
 
@@ -1089,7 +1093,7 @@ subroutine getvdep_nest(n,ix,jy,ust,temp,pa, &
 
   ylat=jy*dy+ylat0
   if (ylat.lt.0) then
-      jul=jul+365/2
+      jul=jul+365.*0.5
   endif
 
 
@@ -1300,11 +1304,35 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep_tmp)
       do j=1,ndia(ic)         ! loop over all diameter intervals
         if (ustar.gt.eps) then          
           if (ishape(ic).eq.0) then
-                  
+
+            reynolds=dquer(ic)/1.e6*vset(ic,j)/nyl
+            settling_old=-1.0*vset(ic,j)
+
+            do i=1,20
+
+              if (reynolds.le.0.02) then
+                c_d=(24.0/reynolds)
+
+              else ! Clif and Gauvin scheme is used
+                c_d=(24.0/reynolds)*(1+0.15*(reynolds**0.687))+ &
+                  0.42/(1.0+42500.0/(reynolds**1.16))
+              endif
+
+
+            ! Settling velocity of a particle is defined by the Newton's impact law:
+              settling=-1.* &
+                      sqrt(4.*ga*dquer(ic)/1.e6*density(ic)*cunningham(ic)/ &
+                      (3.*c_d*rhoa))
+
+              if (abs((settling-settling_old)/settling).lt.0.01) exit     
+              reynolds=dquer(ic)/1.e6*abs(settling)/nyl
+              settling_old=settling
+            end do
+      
             ! Stokes number for each diameter interval
             !*****************************************
             ! Use this stokes number for different shapes
-            stokes=vset(ic,j)/ga*ustar*ustar/nyl
+            stokes=abs(settling)/ga*ustar*ustar/nyl
             alpha=-3./stokes
 
             ! Deposition layer resistance
@@ -1316,7 +1344,7 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep_tmp)
               rdp=1./((schmi(ic,j)+10.**alpha)*ustar)
             endif
 
-            vdepj=vset(ic,j)+1./(ra+rdp+ra*rdp*vset(ic,j))
+            vdepj=abs(settling)+1./(ra+rdp+ra*rdp*abs(settling))
 
           else ! Daria Tatsii: Drag coefficient scheme by Bagheri & Bonadonna 2016
                ! Settling velocities of other shapes
@@ -1345,8 +1373,8 @@ subroutine partdep(nc,density,fract,schmi,vset,ra,ustar,nyl,rhoa,vdep_tmp)
               alpha1=0.45+10.0/(exp(2.5*log10(dfdr))+30.0)
               beta1=1.-37.0/(exp(3.0*log10(dfdr))+100.0)
               kn1=10.**(alpha1*(-log10(Fn(ic)))**beta1)
-              ks=(ks1(ic)+ks2(ic))/2.
-              kn=(kn1+kn2(ic))/2.
+              ks=(ks1(ic)+ks2(ic))*0.5
+              kn=(kn1+kn2(ic))*0.5
             endif
 
             do i=1,20

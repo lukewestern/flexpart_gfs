@@ -62,19 +62,19 @@ subroutine init_output(itime,filesize)
         jul=bdate+real(itime,kind=dp)/86400._dp
         call caldate(jul,jjjjmmdd,ihmmss)      
       endif
-      if ((mdomainfill.eq.0).and.(ipin.le.1)) then
-        if (itime_init.ne.0) then
-          if (ldirect.eq.1) then
-            call create_particles_initialoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
-          else
-            call create_particles_initialoutput(ihmmss,jjjjmmdd,ietime,iedate)
-          endif
-        else if (ldirect.eq.1) then
-          call create_particles_initialoutput(ibtime,ibdate,ibtime,ibdate)
-        else
-          call create_particles_initialoutput(ietime,iedate,ietime,iedate)
-        endif
-      endif
+      ! if ((mdomainfill.eq.0).and.(ipin.le.1)) then
+      !   if (itime_init.ne.0) then
+      !     if (ldirect.eq.1) then
+      !       call create_particles_initialoutput(ihmmss,jjjjmmdd,ibtime,ibdate)
+      !     else
+      !       call create_particles_initialoutput(ihmmss,jjjjmmdd,ietime,iedate)
+      !     endif
+      !   else if (ldirect.eq.1) then
+      !     call create_particles_initialoutput(ibtime,ibdate,ibtime,ibdate)
+      !   else
+      !     call create_particles_initialoutput(ietime,iedate,ietime,iedate)
+      !   endif
+      ! endif
       ! Create header files for files that store the particle dump output
       if (itime_init.ne.0) then
         if (ldirect.eq.1) then
@@ -197,7 +197,7 @@ subroutine output_particles(itime,initial_output)
   logical :: cartxyz_comp
 
 #ifdef USE_NCF
-  integer  :: ncid
+  integer  :: ncid,ncid_tmp
 #else
   error stop 'NETCDF missing! Please compile with netcdf if you want the particle dump.'
 #endif
@@ -230,8 +230,8 @@ subroutine output_particles(itime,initial_output)
       output(:,i) = -1
       masstemp(i,:) = -1
       masstemp_av(i,:) = -1
-      wetdepotemp(i,:) = -1
-      drydepotemp(i,:) = -1
+      if (wetdep) wetdepotemp(i,:) = -1
+      if (drydep) drydepotemp(i,:) = -1
       cycle
     endif
     !*****************************************************************************
@@ -260,6 +260,7 @@ subroutine output_particles(itime,initial_output)
           output(np,i)=ylat0+real(part(i)%ylat)*dy
           cycle
         case ('TO') ! Topography
+          if (topo_written) cycle
           if (ngrid.le.0) then
             call hor_interpol(oro,output(np,i))
           else
@@ -303,27 +304,22 @@ subroutine output_particles(itime,initial_output)
           output(np,i)=part(i)%settling
           cycle
         case ('MA') ! Mass
-          do ns=1,nspec
-            masstemp(i,ns)=part(i)%mass(ns)
-          end do
+          if (mass_written) cycle
+          masstemp(i,:)=mass(i,:)
           cycle
         case ('ma') ! Mass averaged
           do ns=1,nspec
-            masstemp_av(i,ns)=part(i)%val_av(i_av+(ns-1))/part(i)%ntime
+            masstemp_av(i,ns)=val_av(i, i_av+(ns-1))/part(i)%ntime
           end do
           cycle
         case ('WD') ! Wet deposition
           if (wetdep) then
-            do ns=1,nspec
-              wetdepotemp(i,ns)=part(i)%wetdepo(ns)
-            end do
+            wetdepotemp(i,:)=wetdeposit(i,:)
           endif
           cycle
         case ('DD') ! dry deposition
           if (drydep) then 
-            do ns=1,nspec
-              drydepotemp(i,ns)=part(i)%drydepo(ns)
-            end do
+            drydepotemp(i,:)=drydeposit(i,:)
           endif
           cycle
         case ('lo')
@@ -350,7 +346,7 @@ subroutine output_particles(itime,initial_output)
           if (.not. partopt(np)%average) then
             call interpol_partoutput_val(partopt(np)%name,output(np,i),i)
           else
-            output(np,i) = part(i)%val_av(i_av)/part(i)%ntime
+            output(np,i) = val_av(i,i_av)/part(i)%ntime
           endif
       end select
     end do
@@ -360,7 +356,7 @@ subroutine output_particles(itime,initial_output)
     cartxyz_comp=.false.
 
     if ((.not. init_out).and.(n_average.gt.0)) then
-      part(i)%val_av = 0.
+      val_av(i,:) = 0.
       part(i)%ntime = 0.
       part(i)%cartx_av = 0.
       part(i)%carty_av = 0.
@@ -397,67 +393,79 @@ subroutine output_particles(itime,initial_output)
   write(adate,'(i8.8)') jjjjmmdd
   write(atime,'(i6.6)') ihmmss
   j=1
-  if (lnetcdfout.eq.1) then
+  ! if (lnetcdfout.eq.1) then
   ! open output file
-    if (init_out) then
-      call open_partinit_file(ncid)
-    else
+  if (init_out) then
+    call open_partinit_file(ncid)
+  else 
+    if (.not. lpartoutputperfield) then
       call open_partoutput_file(ncid)
 
       ! First allocate the time and particle dimensions within the netcdf file
-      call partoutput_netcdf(itime,dummy,'TI',j,ncid)
-      call partoutput_netcdf(itime,dummy,'PA',j,ncid)
+    else
+      do np=1,num_partopt
+        if (.not. partopt(np)%print) cycle
+        call open_partoutput_file(partopt(np)%ncid,np)
+      end do
     endif
 
-    ! Fill the fields in parallel
-    if (numpart.gt.0) then
-    ! OpenMP output does not work on all systems depending on how they are set-up
-! !$OMP PARALLEL PRIVATE(np,ns)
+    call update_partoutput_pointers(itime, ncid)
+    !ppointer_part = count%allocated
+  endif
+  ! Fill the fields in parallel
+  if (numpart.gt.0) then
+
+  ! OpenMP output does not work on all systems depending on how they are set-up
+! !$OMP PARALLEL PRIVATE(np,ns,ncid_tmp)
 ! !$OMP DO SCHEDULE(dynamic)
-      do np=1,num_partopt
-        !write(*,*) partopt(np)%name, output(np,1)
-        if (.not. partopt(np)%print) cycle
-        if (init_out.and.(partopt(np)%i_average.ne.0)) cycle ! no averages for initial particle output
-        !write(*,*) partopt(np)%name
-        if (partopt(np)%name.eq.'MA') then
-          do ns=1,nspec
-            if (init_out) then
-              call partinit_netcdf(masstemp(:,ns),'MA',ns,ncid)
-            else
-              call partoutput_netcdf(itime,masstemp(:,ns),'MA',ns,ncid)
-            endif
-          end do
-        else if (partopt(np)%name.eq.'ma') then
-          do ns=1,nspec
-            call partoutput_netcdf(itime,masstemp_av(:,ns),'ma',ns,ncid)
-          end do
-        else if ((.not. init_out).and.(partopt(np)%name.eq.'WD').and.wetdep) then
-          do ns=1,nspec
-            call partoutput_netcdf(itime,wetdepotemp(:,ns),'WD',ns,ncid)
-          end do
-        else if ((.not. init_out).and.(partopt(np)%name.eq.'DD').and.drydep) then
-          do ns=1,nspec
-            call partoutput_netcdf(itime,drydepotemp(:,ns),'DD',ns,ncid)
-          end do
-        else
+    do np=1,num_partopt
+      if (.not. partopt(np)%print) cycle
+      if (init_out.and.(partopt(np)%i_average.ne.0)) cycle ! no averages for initial particle output
+      if (lpartoutputperfield.and. (.not. init_out)) then
+        ncid_tmp=partopt(np)%ncid
+      else
+        ncid_tmp = ncid
+      endif
+      if (partopt(np)%name.eq.'MA') then
+        do ns=1,nspec
           if (init_out) then
-            call partinit_netcdf(output(np,:),partopt(np)%name,j,ncid)
+            call partinit_netcdf(masstemp(:,ns),'MA',ns,ncid_tmp)
           else
-            call partoutput_netcdf(itime,output(np,:),partopt(np)%name,j,ncid)
+            call partoutput_netcdf(itime,masstemp(:,ns),np,ns,ncid_tmp)
           endif
+        end do
+      else if (partopt(np)%name.eq.'ma') then
+        do ns=1,nspec
+          call partoutput_netcdf(itime,masstemp_av(:,ns),np,ns,ncid_tmp)
+        end do
+      else if ((.not. init_out).and.(partopt(np)%name.eq.'WD').and.wetdep) then
+        do ns=1,nspec
+          call partoutput_netcdf(itime,wetdepotemp(:,ns),np,ns,ncid_tmp)
+        end do
+      else if ((.not. init_out).and.(partopt(np)%name.eq.'DD').and.drydep) then
+        do ns=1,nspec
+          call partoutput_netcdf(itime,drydepotemp(:,ns),np,ns,ncid_tmp)
+        end do
+      else
+        if (init_out) then
+          call partinit_netcdf(output(np,:),partopt(np)%name,j,ncid_tmp)
+        else
+          call partoutput_netcdf(itime,output(np,:),np,j,ncid_tmp)
         endif
-      end do
+      endif
+      if (lpartoutputperfield) call close_partoutput_file(ncid_tmp)
+    end do
 ! !$OMP END DO
 ! !$OMP END PARALLEL
-    endif
-    call close_partoutput_file(ncid)
-    if (.not. init_out) then
-      mass_written=.true. ! needs to be reduced within openmp loop
-      topo_written=.true. ! same
-    endif
-  else
-    ! Put binary function here
   endif
+  if (.not. lpartoutputperfield) call close_partoutput_file(ncid)
+  if (mdomainfill.ge.1 .and. (.not. init_out)) then
+    mass_written=.true. ! needs to be reduced within openmp loop
+    topo_written=.true. ! same
+  endif
+  !else
+    ! Put binary function here
+  !endif
 #else
     ! Put binary function here
 #endif
@@ -531,7 +539,8 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
   ! If necessary, first sample of new grid is also taken
   !*****************************************************
   if ((iout.le.3.).or.(iout.eq.5)) then
-    if (sfc_only.ne.1) then
+    if (linversionout.eq.0) then
+      ! regular output format
       if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
         call concoutput_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
@@ -540,39 +549,32 @@ subroutine output_conc(itime,loutstart,loutend,loutnext,outnum)
         call concoutput(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
       endif
     else
+      ! inversion output - one file each release
       if (lnetcdfout.eq.1) then
-#ifdef USE_NCF
-        ! call concoutput_sfc_netcdf(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-        error stop 'Netcdf output for surface only not yet implemented'
-#endif
+        write(*,*) 'FLEXPART ERROR: netcdf output not avaiable yet for inversion format'
+        error stop
       else
-        if (linversionout.eq.1) then
-          call concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-        else
-          call concoutput_sfc(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
-        endif
+        call concoutput_inversion(itime,outnum,gridtotalunc,wetgridtotalunc,drygridtotalunc)
       endif
     endif
 
     if (nested_output .eq. 1) then
-      if (lnetcdfout.eq.1) then
+      if (linversionout.eq.0) then
+        ! regular output format
+        if (lnetcdfout.eq.1) then
 #ifdef USE_NCF
-        if (sfc_only.ne.1) then
           call concoutput_nest_netcdf(itime,outnum)
-        else 
-          error stop 'Netcdf output for surface only not yet implemented'
-          !call concoutput_sfc_nest_netcdf(itime,outnum)
-        endif
 #endif
-      else
-        if (sfc_only.ne.1) then
-          call concoutput_nest(itime,outnum)
         else 
-          if(linversionout.eq.1) then
-            call concoutput_inversion_nest(itime,outnum)
-          else 
-            call concoutput_sfc_nest(itime,outnum)
-          endif
+           call concoutput_nest(itime,outnum)
+        endif
+      else
+        ! inversion output
+        if (lnetcdfout.eq.1) then
+          write(*,*) 'FLEXPART ERROR: netcdf output not avaiable yet for inversion format'
+          error stop
+        else
+          call concoutput_inversion_nest(itime,outnum)
         endif
       endif
     endif
@@ -654,6 +656,7 @@ subroutine conccalc(itime,weight)
 #endif
 !$OMP PARALLEL PRIVATE(i,itage,nage,inage,rhoi,nrelpointer,kz,xl,yl,ks,wx,wy,w,thread,ddx,ddy, &
 !$OMP ix,jy,ixp,jyp)
+
 #if (defined _OPENMP)
     thread = OMP_GET_THREAD_NUM()+1 ! Starts with 1
 #else
@@ -668,16 +671,18 @@ subroutine conccalc(itime,weight)
   ! Determine age class of the particle
     itage=abs(itime-part(i)%tstart)
     nage=1
-    do inage=1,nageclass
-      nage=inage
-      if (itage.lt.lage(nage)) exit
-    end do
+    if (lagespectra.eq.1) then
+      do inage=1,nageclass
+        nage=inage
+        if (itage.lt.lage(nage)) exit
+      end do
+    endif
 
   !  if (xscav_frac1(i,1).lt.0) xscav_count=xscav_count+1
            
+  !************************************************************************
   ! For special runs, interpolate the air density to the particle position
   !************************************************************************
-  !***********************************************************************
   !AF IND_SOURCE switches between different units for concentrations at the source
   !Af    NOTE that in backward simulations the release of particles takes place
   !Af    at the receptor and the sampling at the source.
@@ -686,12 +691,11 @@ subroutine conccalc(itime,weight)
   !Af IND_RECEPTOR switches between different units for concentrations at the receptor
   !Af          1="mass"
   !Af          2="mass mixing ratio"
-
   !Af switches for the conccalcfile:
   !AF IND_SAMP =  0 : xmass * 1
   !Af IND_SAMP = -1 : xmass / rho
-
   !Af ind_samp is defined in readcommand.f
+  !************************************************************************
 
     if ( ind_samp .eq. -1 ) then
 #ifdef ETA
@@ -705,8 +709,6 @@ subroutine conccalc(itime,weight)
   !****************************************************************************
   ! 1. Evaluate grid concentrations using a uniform kernel of bandwidths dx, dy
   !****************************************************************************
-
-
   ! For backward simulations, look from which release point the particle comes from
   ! For domain-filling trajectory option, npoint contains a consecutive particle
   ! number, not the release point information. Therefore, nrelpointer is set to 1
@@ -757,11 +759,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
               gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                    gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
 #else
               gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
 #endif
             end do
           else
@@ -776,17 +778,38 @@ subroutine conccalc(itime,weight)
 #endif
               end do
             else
-              do ks=1,nspec
+              if (llcmoutput) then
+                ! special case LCM output use mass ratio species to airtracer
+                ! species 1 is always airtracer
+                do ks=2,nspec
 #ifdef _OPENMP
-                gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
-                     gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight
+                  gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                       gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                       mass(i,ks)/mass(i,1)*weight
 #else
-                gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
-                     gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight
+                  gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                       gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                       mass(i,ks)/mass(i,1)*weight
 #endif
-              end do
+                end do
+#ifdef _OPENMP
+                gridcnt_omp(ix,jy,kz,thread)=gridcnt_omp(ix,jy,kz,thread)+weight
+#else
+                gridcnt(ix,jy,kz)=gridcnt(ix,jy,kz)+weight
+#endif
+              else
+                do ks=1,nspec
+#ifdef _OPENMP
+                  gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                       gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                       mass(i,ks)/rhoi*weight
+#else
+                  gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                       gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                       mass(i,ks)/rhoi*weight
+#endif
+                end do
+              end if ! llcmoutput
             end if
           endif
         endif
@@ -822,25 +845,46 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                  gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                    gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
 #else
                  gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
 #endif
                end do
             else
-               do ks=1,nspec
+              if (llcmoutput) then
+                ! special case CTM output use mass ratio species to airtracer
+                ! species 1 is always airtracer
+                do ks=2,nspec
 #ifdef _OPENMP
-                 gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
-                   gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*weight*w
+                  gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     mass(i,ks)/mass(i,1)*weight*w
 #else
-                 gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
-                   gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*weight*w
+                  gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                     gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                     mass(i,ks)/mass(i,1)*weight*w
 #endif
-               end do
+                end do
+#ifdef _OPENMP
+                gridcnt_omp(ix,jy,kz,thread)=gridcnt_omp(ix,jy,kz,thread)+w*weight
+#else
+                gridcnt(ix,jy,kz)=gridcnt(ix,jy,kz)+w*weight
+#endif
+              else
+                do ks=1,nspec
+#ifdef _OPENMP
+                  gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     gridunc_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     mass(i,ks)/rhoi*weight*w
+#else
+                  gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                     gridunc(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                     mass(i,ks)/rhoi*weight*w
+#endif
+                 end do
+              endif ! llcmoutput
             endif
           endif
 
@@ -851,26 +895,47 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                  gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                    gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #else
                  gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #endif
-               end do
-             else
-              do ks=1,nspec
+              end do
+            else
+              if (llcmoutput) then
+                ! special case CTM output use mass ratio species to airtracer
+                ! species 1 is always airtracer
+                do ks=2,nspec
 #ifdef _OPENMP
-                 gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
-                   gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*weight*w
+                  gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     mass(i,ks)/mass(i,1)*weight*w
 #else
-                 gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
-                   gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*weight*w
+                  gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                     gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                     mass(i,ks)/mass(i,1)*weight*w
 #endif
-               end do
-             endif
+                end do
+#ifdef _OPENMP
+                gridcnt_omp(ix,jyp,kz,thread)=gridcnt_omp(ix,jyp,kz,thread)+w*weight
+#else
+                gridcnt(ix,jyp,kz)=gridcnt(ix,jyp,kz)+w*weight
+#endif
+              else 
+                do ks=1,nspec
+#ifdef _OPENMP
+                  gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     gridunc_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     mass(i,ks)/rhoi*weight*w
+#else
+                  gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                     gridunc(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                     mass(i,ks)/rhoi*weight*w
+#endif
+                end do
+              endif ! llcmoutput
+            endif
           endif
         endif !ix ge 0
 
@@ -883,25 +948,46 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                  gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                    gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
 #else
                  gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*w*weight*max(xscav_frac1(i,ks),0.0)
 #endif
                end do
             else
-               do ks=1,nspec
+              if (llcmoutput) then
+                ! special case CTM output use mass ratio species to airtracer
+                ! species 1 is always airtracer
+                do ks=2,nspec
 #ifdef _OPENMP
-                 gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
-                   gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*weight*w
+                  gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     mass(i,ks)/mass(i,1)*weight*w
 #else
-                 gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
-                   gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*weight*w
+                  gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                     gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                     mass(i,ks)/mass(i,1)*weight*w
 #endif
-               end do
+                end do
+#ifdef _OPENMP
+                gridcnt_omp(ixp,jyp,kz,thread)=gridcnt_omp(ixp,jyp,kz,thread)+w*weight
+#else
+                gridcnt(ixp,jyp,kz)=gridcnt(ixp,jyp,kz)+w*weight
+#endif
+              else
+                do ks=1,nspec
+#ifdef _OPENMP
+                  gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                     gridunc_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                     mass(i,ks)/rhoi*weight*w
+#else
+                  gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                     gridunc(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                     mass(i,ks)/rhoi*weight*w
+#endif
+                end do
+              endif ! llcmoutput
             endif
           endif
 
@@ -912,25 +998,46 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                  gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                    gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #else
                  gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #endif
                end do
             else
-               do ks=1,nspec
+              if (llcmoutput) then
+                ! special case CTM output use mass ratio species to airtracer
+                ! species 1 is always airtracer
+                do ks=2,nspec
 #ifdef _OPENMP
-                 gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
-                   gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*weight*w
+                  gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                    gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                    mass(i,ks)/mass(i,1)*weight*w
 #else
-                 gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
-                   gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*weight*w
+                  gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                    gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                    mass(i,ks)/mass(i,1)*weight*w
 #endif
-               end do
+                end do
+#ifdef _OPENMP
+                gridcnt_omp(ixp,jy,kz,thread)=gridcnt_omp(ixp,jy,kz,thread)+w*weight
+#else
+                gridcnt(ixp,jy,kz)=gridcnt(ixp,jy,kz)+w*weight
+#endif
+              else
+                do ks=1,nspec
+#ifdef _OPENMP
+                  gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
+                    gridunc_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
+                    mass(i,ks)/rhoi*weight*w
+#else
+                  gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
+                    gridunc(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
+                    mass(i,ks)/rhoi*weight*w
+#endif
+                end do
+              endif ! llcmoutput
             endif
           endif
         endif !ixp ge 0
@@ -966,11 +1073,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                  griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                    griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                   part(i)%mass(ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
 #else            
                  griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                    griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                   part(i)%mass(ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
+                   mass(i,ks)/rhoi*weight*max(xscav_frac1(i,ks),0.0)
 #endif
                end do
             else
@@ -989,11 +1096,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                   griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                        griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                       part(i)%mass(ks)/rhoi*weight
+                       mass(i,ks)/rhoi*weight
 #else            
                   griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                        griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                       part(i)%mass(ks)/rhoi*weight
+                       mass(i,ks)/rhoi*weight
 #endif
                 end do
               endif
@@ -1032,11 +1139,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                    griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                      griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                     mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #else              
                    griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                     mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #endif
                  end do
               else
@@ -1044,11 +1151,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                    griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                      griduncn_omp(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight*w
+                     mass(i,ks)/rhoi*weight*w
 #else            
                    griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ix,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight*w
+                     mass(i,ks)/rhoi*weight*w
 #endif
                  end do
               endif
@@ -1061,11 +1168,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                    griduncn_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                      griduncn_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                     mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #else              
                    griduncn(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                     mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #endif
                  end do
               else
@@ -1073,11 +1180,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                    griduncn_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                      griduncn_omp(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight*w
+                     mass(i,ks)/rhoi*weight*w
 #else              
                    griduncn(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ix,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight*w
+                     mass(i,ks)/rhoi*weight*w
 #endif
                  end do
               endif
@@ -1093,11 +1200,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                    griduncn_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                      griduncn_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                     mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #else              
                    griduncn(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                     mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #endif
                  end do
               else
@@ -1105,11 +1212,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                    griduncn_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                      griduncn_omp(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight*w
+                     mass(i,ks)/rhoi*weight*w
 #else              
                    griduncn(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ixp,jyp,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight*w
+                     mass(i,ks)/rhoi*weight*w
 #endif
                  end do
               endif
@@ -1122,11 +1229,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                    griduncn_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                      griduncn_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                     mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #else              
                    griduncn(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
+                     mass(i,ks)/rhoi*weight*w*max(xscav_frac1(i,ks),0.0)
 #endif
                  end do
               else
@@ -1134,11 +1241,11 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
                     griduncn_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)= &
                      griduncn_omp(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage,thread)+ &
-                     part(i)%mass(ks)/rhoi*weight*w
+                     mass(i,ks)/rhoi*weight*w
 #else              
                     griduncn(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)= &
                      griduncn(ixp,jy,kz,ks,nrelpointer,part(i)%nclass,nage)+ &
-                     part(i)%mass(ks)/rhoi*weight*w
+                     mass(i,ks)/rhoi*weight*w
 #endif
                  end do
               endif
@@ -1157,7 +1264,9 @@ subroutine conccalc(itime,weight)
 #ifdef _OPENMP
   do ithread=1,numthreads_grid
     gridunc(:,:,:,:,:,:,:)=gridunc(:,:,:,:,:,:,:)+gridunc_omp(:,:,:,:,:,:,:,ithread)
+    gridcnt(:,:,:)=gridcnt(:,:,:)+gridcnt_omp(:,:,:,ithread)
     gridunc_omp(:,:,:,:,:,:,:,ithread)=0.
+    gridcnt_omp(:,:,:,ithread)=0.
   end do
   if (nested_output.eq.1) then 
     do ithread=1,numthreads_grid
@@ -1165,61 +1274,9 @@ subroutine conccalc(itime,weight)
       griduncn_omp(:,:,:,:,:,:,:,ithread)=0.
     end do
   endif
+
 #endif
 
-  !***********************************************************************
-  ! 2. Evaluate concentrations at receptor points, using the kernel method
-  !***********************************************************************
-  if (numreceptor.eq.0) return
-
-  do n=1,numreceptor
-
-
-  ! Reset concentrations
-  !*********************
-
-    do ks=1,nspec
-      c(ks)=0.
-    end do
-
-
-  ! Estimate concentration at receptor
-  !***********************************
-
-    do j=1,count%alive
-
-      i=count%ialive(j)
-
-      itage=abs(itime-part(i)%tstart)
-
-      hz=min(50.+0.3*sqrt(real(itage)),hzmax)
-      zd=real(part(i)%z)/hz
-      if (zd.gt.1.) cycle          ! save computing time, leave loop
-
-      hx=min((0.29+2.222e-3*sqrt(real(itage)))*dx+ &
-           real(itage)*1.2e-5,hxmax)                     ! 80 km/day
-      xd=(real(part(i)%xlon)-xreceptor(n))/hx
-      if (xd*xd.gt.1.) cycle       ! save computing time, leave loop
-
-      hy=min((0.18+1.389e-3*sqrt(real(itage)))*dy+ &
-           real(itage)*7.5e-6,hymax)                     ! 80 km/day
-      yd=(real(part(i)%ylat)-yreceptor(n))/hy
-      if (yd*yd.gt.1.) cycle       ! save computing time, leave loop
-      hxyz=hx*hy*hz
-
-      r2=xd*xd+yd*yd+zd*zd
-      if (r2.lt.1.) then
-        xkern=factor*(1.-r2)
-        do ks=1,nspec
-          c(ks)=c(ks)+part(i)%mass(ks)*xkern/hxyz
-        end do
-      endif
-    end do
-
-    do ks=1,nspec
-      creceptor(n,ks)=creceptor(n,ks)+2.*weight*c(ks)/receptorarea(n)
-    end do
-  end do
 end subroutine conccalc
 
 subroutine partpos_avg(itime,j)
@@ -1289,7 +1346,7 @@ subroutine partpos_avg(itime,j)
         else
           call hor_interpol_nest(oron,output)
         endif
-        part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
+        val_av(j,i_av)=val_av(j,i_av)+output
       case ('tr')
         if (ngrid.le.0) then
           do m=1,2
@@ -1301,7 +1358,7 @@ subroutine partpos_avg(itime,j)
           end do
         endif
         call temporal_interpolation(tr(1),tr(2),output)
-        part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
+        val_av(j,i_av)=val_av(j,i_av)+output
       case ('hm')
         if (ngrid.le.0) then
           do m=1,2
@@ -1313,7 +1370,7 @@ subroutine partpos_avg(itime,j)
           end do
         endif
         call temporal_interpolation(hm(1),hm(2),output)
-        part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
+        val_av(j,i_av)=val_av(j,i_av)+output
       case ('lo')
         if (.not. cart_comp) then
           ! Calculate Cartesian 3D coordinates suitable for averaging
@@ -1352,16 +1409,16 @@ subroutine partpos_avg(itime,j)
 #ifdef ETA
         call update_zeta_to_z(itime,j)
 #endif
-        part(j)%val_av(i_av)=part(j)%val_av(i_av)+real(part(j)%z)
+        val_av(j,i_av)=val_av(j,i_av)+real(part(j)%z)
       case ('ma')
         do ns=1,nspec
-          part(j)%val_av(i_av+(ns-1))=part(j)%val_av(i_av+(ns-1))+part(j)%mass(ns)
+          val_av(j,i_av+(ns-1))=val_av(j,i_av+(ns-1))+mass(j,ns)
         end do
       case ('vs')
-        part(j)%val_av(i_av)=part(j)%val_av(i_av)+part(j)%settling
+        val_av(j,i_av)=val_av(j,i_av)+part(j)%settling
       case default
         call interpol_partoutput_val(partopt(np)%name,output,j)
-        part(j)%val_av(i_av)=part(j)%val_av(i_av)+output
+        val_av(j,i_av)=val_av(j,i_av)+output
     end select
   end do
   ! Reset dz1out

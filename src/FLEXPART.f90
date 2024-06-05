@@ -40,6 +40,7 @@ program flexpart
 
   implicit none
 
+  integer :: i
   real :: s_timemanager
   character(len=256) ::   &
     inline_options          ! pathfile, flexversion, arg2
@@ -50,10 +51,10 @@ program flexpart
   CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
   s_total = (count_clock - count_clock0)/real(count_rate)
 
-
   ! FLEXPART version string
   flexversion_major = '11' ! Major version number, also used for species file names
-  flexversion='Version '//trim(flexversion_major)
+
+  flexversion='Version '//trim(flexversion_major)//'.0 (2023-07-11)'
   verbosity=0
 
   call update_gitversion(gitversion_tmp)
@@ -119,6 +120,21 @@ program flexpart
   CALL SYSTEM_CLOCK(count_clock, count_rate, count_max)
   s_total = (count_clock - count_clock0)/real(count_rate) - s_total
   
+  if (verbosity.gt.0) then
+! NIK 16.02.2005 
+    do i=1,nspec
+      if (icnt_incld(i).gt.0) then
+         write(*,*) '**********************************************'
+         write(*,*) 'Scavenging statistics for species ', species(i), ':'
+         write(*,*) 'Total number of occurences of below-cloud scavenging', &
+           & icnt_belowcld(i)
+         write(*,*) 'Total number of occurences of in-cloud    scavenging', &
+           & icnt_incld(i)
+         write(*,*) '**********************************************'
+      endif
+    end do
+  endif
+  
   write(*,*) 'Read wind fields: ', s_readwind, ' seconds'
   write(*,*) 'Timemanager: ', s_timemanager, ' seconds,', 'first timestep: ',s_firstt, 'seconds'
   write(*,*) 'Write particle files: ', s_writepart, ' seconds'
@@ -154,10 +170,16 @@ subroutine read_options_and_initialise_flexpart
   use initialise_mod
   use drydepo_mod
   use getfields_mod
-  use interpol_mod, only: alloc_interpol
+  use interpol_mod,         only: alloc_interpol
   use outgrid_mod
   use binary_output_mod
-  use omp_lib, only: OMP_GET_MAX_THREADS
+  use omp_lib,              only: OMP_GET_MAX_THREADS
+#ifdef USE_NCF
+  use chemistry_mod,        only: readreagents
+  use totals_mod
+  use receptor_netcdf_mod,  only: read_satellite_info, receptorout_init
+#endif
+  use receptor_mod,         only: alloc_receptor
 
   implicit none
 
@@ -172,7 +194,7 @@ subroutine read_options_and_initialise_flexpart
   ! Read pathnames from file in working director that specify I/O directories
   !**************************************************************************
   call readpaths
-
+  
   ! Read the user specifications for the current model run
   !*******************************************************
   call readcommand
@@ -214,7 +236,6 @@ subroutine read_options_and_initialise_flexpart
   ! Read the age classes to be used
   !********************************
   call readageclasses
-
 
   ! ! Allocate memory for windfields
   ! !*******************************
@@ -276,21 +297,38 @@ subroutine read_options_and_initialise_flexpart
 
   ! Read the receptor points for which extra concentrations are to be calculated
   !*****************************************************************************
+  numreceptor=0
+  numsatreceptor=0
+  nlayermax=1
+#ifdef USE_NCF
+  call read_satellite_info
+#endif
   call readreceptors
-
-  ! Read the physico-chemical species property table
-  !*************************************************
-  !SEC: now only needed SPECIES are read in readreleases.f
-  !call readspecies
 
   ! Read the landuse inventory
   !***************************
   call readlanduse ! CHECK ETA
 
+  ! Read chemical reagent information
+  !**********************************
+  ! default settings
+  nreagent=0
+  reagents(:)=""
+#ifdef USE_NCF
+  call readreagents
+#endif 
+
   ! For continuation of previous run or from user defined initial 
   ! conditions, read in particle positions
   !*************************************************************************
   call initialise_particles
+
+  ! Initialize variables for totals calculations
+  !*********************************************
+#ifdef USE_NCF
+  call alloc_totals
+  call totals_init
+#endif 
 
   ! Convert the release point coordinates from geografical to grid coordinates
   !***************************************************************************
@@ -308,29 +346,30 @@ subroutine read_options_and_initialise_flexpart
   call alloc_interpol
 #ifdef USE_NCF
   if (lnetcdfout.eq.1) call alloc_netcdf
-#endif USE_NCF
+#endif 
 
   ! Assign fractional cover of landuse classes to each ECMWF grid point
   !********************************************************************
   call assignland
 
   ! Calculate volume, surface area, etc., of all output grid cells
-  ! Allocate fluxes and OHfield if necessary
   !***************************************************************
   if (iout.ne.0) then
     call outgrid_init
     if (nested_output.eq.1) call outgrid_init_nest ! CHECK ETA
   endif
 
-  ! Read the OH field
-  !******************
-  if (OHREA) then
-    call readOHfield
-  endif
+  ! Initialize receptor output
+  !***************************
 
-  ! Binary receptor output when lnetcdfout is set to zero, otherwise
-  ! added to gridded output
-  if (lnetcdfout.eq.0) call openreceptors
+  call alloc_receptor
+  if (lnetcdfout.eq.1) then
+#ifdef USE_NCF
+    call receptorout_init
+#endif  
+  else
+    call receptorout_init_binary
+  endif
 
   if ((iout.eq.4).or.(iout.eq.5)) call openouttraj ! CHECK ETA
 
@@ -348,6 +387,7 @@ subroutine read_options_and_initialise_flexpart
   !************************************
   allocate(nan_count(numthreads), stat=stat)
   if (stat.ne.0) error stop "Could not allocate nan_count"
+
 end subroutine read_options_and_initialise_flexpart
 
 subroutine initialise_particles
@@ -393,6 +433,8 @@ subroutine initialise_particles
 
   if (ipin.le.2) then 
     call readreleases
+    ! needs to be called after maxspec is defined in readreleases or readinitconditions
+    if (ipout.ne.0) call readpartoptions 
   else
 #ifdef USE_NCF
     call readinitconditions_netcdf
@@ -400,8 +442,6 @@ subroutine initialise_particles
     error stop 'Compile with netCDF if you would like to use the ipin=3,4 options.'
 #endif
   endif
-
-  if (ipout.ne.0) call readpartoptions
 
   if (iout.ne.0) then
     call alloc_grid

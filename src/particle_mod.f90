@@ -11,7 +11,8 @@
   !*****************************************************************************
 
 module particle_mod
-  use com_mod, only: maxspec,DRYDEP,WETDEP,DRYBKDEP,WETBKDEP,iout,n_average,nspec
+  use com_mod, only: maxspec,DRYDEP,WETDEP,DRYBKDEP,WETBKDEP,iout, &
+    n_average,nspec,ipout,ipin
   use par_mod, only: dp
 
   implicit none
@@ -52,7 +53,7 @@ module particle_mod
       zeta_prev                     ! Previous position
 #endif
     type(velocities)   ::         &
-      vel,                        & ! Velocities from interpolated windfields
+      !vel,                        & ! Velocities from interpolated windfields
       turbvel,                    & ! Random turbulent velocities
       mesovel                       ! Mesoscale turbulent velocities
     real               ::         &
@@ -75,15 +76,15 @@ module particle_mod
       nclass,                     &
       !species(maxspec),           & ! the number of the corresponding species file of the particle
       idt                           ! internal time of the particle
-    real,allocatable,dimension(:) ::  &
-      mass,                       & ! Particle mass for each particle species
-      mass_init,                  & ! Initial mass of each particle
-      wetdepo,                    & ! Wet deposition (cumulative)
-      drydepo,                    & ! Dry deposition (cumulative)
-      prob                          ! Probability of absorption at ground due to dry deposition
+    ! real,allocatable,dimension(:) ::  &
+    !   mass,                       & ! Particle mass for each particle species
+    !   mass_init,                  & ! Initial mass of each particle
+    !   wetdepo,                    & ! Wet deposition (cumulative)
+    !   drydepo,                    & ! Dry deposition (cumulative)
+    !   prob                          ! Probability of absorption at ground due to dry deposition
     
-    real,allocatable   ::         &
-      val_av(:)                     ! Averaged values; only used when average_output=.true.
+    ! real,allocatable   ::         &
+    !   val_av(:)                     ! Averaged values; only used when average_output=.true.
     real               ::         &
       ntime=0.,                   & ! Number of timesteps to average over
       cartx_av=0.,                & ! Averaged x pos;
@@ -98,11 +99,13 @@ module particle_mod
       spawned=0,                  & ! Total number of spawned particles
       terminated=0,               & ! Total number of particles that have been terminated
       allocated=0,                & ! Number of total allocated particle spaces
+      iterm_max=0,                & ! Number of empty spaces for overwriting particles
       ninmem=0                      ! Number of particles currently in memory
     logical,allocatable  ::       &
       inmem(:)                      ! Logical to keep track which particle numbers are allocated
     integer,allocatable  ::       &                  
-      ialive(:)                     ! Array that stores alive particle numbers up to count%alive for OMP loops 
+      ialive(:),                  & ! Array that stores alive particle numbers up to count%alive for OMP loops 
+      iterm(:)                      ! Array that stores terminated particle numbers up to count%allocated
   end type
 
   type(particle), allocatable ::  &
@@ -110,7 +113,14 @@ module particle_mod
   type(particlecount)         ::  &
     count                           ! Keeping track of global particle number within the simulation
   real,allocatable            ::  &
-    xscav_frac1(:,:)                ! Only allocated when wet or dry deposit backward mode is switched on
+    val_av(:,:),                  &  ! Averaged values; only used when average_output=.true.
+    xscav_frac1(:,:),             &  ! Only allocated when wet or dry deposit backward mode is switched on
+    mass(:,:),                    &  ! mass 
+    mass_init(:,:),               &
+    wetdeposit(:,:),                 &
+    drydeposit(:,:),                 &
+    prob(:,:)
+
   real,allocatable            ::  &
     xplum(:),yplum(:),zplum(:)      ! Only allocated for iout=4 or 5 (plumetraj)
   integer,allocatable         ::  &
@@ -125,6 +135,8 @@ module particle_mod
     dealloc_particle,             &
     dealloc_all_particles,        &
     terminate_particle,           &
+    rewrite_ialive,               &
+    rewrite_iterm,                &
     spawn_particle,               &
     spawn_particles,              &
     get_totalpart_num,            &
@@ -134,7 +146,18 @@ module particle_mod
     update_xlon,                  &
     update_ylat,                  &
     update_z,                     &
-    count
+    count,                        &
+    val_av,                       &
+    xscav_frac1,                  &
+    mass,                         &
+    mass_init,                    &
+    wetdeposit,                   &
+    drydeposit,                   &
+    prob,                         &
+    xplum,                        &
+    yplum,                        &
+    zplum,                        &
+    nclust                       
 
   interface update_xlon
     procedure update_xlon_dp, update_xlon_sp, update_xlon_int
@@ -189,15 +212,35 @@ contains
     endif
   end function particle_allocated
 
-  subroutine get_newpart_index(ipart)
+  subroutine get_newpart_index(ipart,iterm_index)
     !**************************************************
     ! Returns the first free spot to put a new particle
     !**************************************************
     implicit none
 
     integer, intent(inout) :: ipart   ! First free index
+    integer, intent(inout) :: iterm_index
+    integer :: i
 
-    ipart = count%spawned + 1
+    if (ipin.le.1 .and. ipout.eq.0) then
+      if ((ipin.eq.0 .and. count%terminated.eq.0) .or. &
+        (count%allocated.gt.count%spawned)) then
+        ipart = count%spawned + 1
+      else if (iterm_index.le.count%iterm_max) then
+        ! Find dead particles to replace
+        if (count%iterm(iterm_index).eq.-1) then
+          error stop 'BUG: Attempting to overwrite particle: get_newpart_index.'
+        endif
+        ipart=count%iterm(iterm_index)
+        count%iterm(iterm_index) = -1
+        iterm_index = iterm_index+1
+      else
+        write(*,*) ipart
+        ipart=count%allocated + 1
+      endif
+    else
+      ipart = count%spawned + 1
+    endif
   end subroutine get_newpart_index
 
   subroutine get_totalpart_num(npart)
@@ -285,7 +328,10 @@ contains
     !*******************************************
     if (.not. particle_allocated(ipart)) call alloc_particle(ipart)
 
-    if (part(ipart)%alive) error stop 'Attempting to overwrite existing particle'
+    if (part(ipart)%alive) then
+      write(*,*) ipart, count%alive, count%terminated, count%allocated
+      error stop 'Attempting to overwrite existing particle'
+    endif
 
     ! Update the number of particles that are currently alive
     !********************************************************
@@ -319,9 +365,6 @@ contains
     integer, intent(in) :: &
       ipart,               & ! to be terminated particle index
       itime                  ! Time at which particle is terminated
-    integer ::             &
-      i,                   & ! loop variable
-      iloc                   ! location of ipart in count%ialive
 
     ! Flagging the particle as having been terminated
     !************************************************
@@ -331,24 +374,74 @@ contains
     ! Update the number of current particles that are alive
     !******************************************************
     count%alive = count%alive - 1
+
+    ! Update the total number of terminated particles during the whole run
+    !**********************************************************************
+    count%terminated = count%terminated + 1
+  end subroutine terminate_particle
+
+  subroutine rewrite_ialive()
+    implicit none
+
+    integer :: i,j
+
+    j=1
+    do i=1,count%allocated
+      if (part(i)%alive) then
+        count%ialive(j)=i
+        j=j+1
+      endif
+    end do
+
+    count%alive=j-1
+
+    if (ipin.le.1 .and. ipout.eq.0) call rewrite_iterm
+  end subroutine rewrite_ialive
+
+  subroutine rewrite_iterm()
+    implicit none
+
+    integer :: i,j
+
+    j=1
+    do i=1,count%allocated
+      if (.not. part(i)%alive) then
+        count%iterm(j)=i
+        j=j+1
+      endif
+    end do
+
+    count%iterm_max=j-1
+
+  end subroutine rewrite_iterm
+
+  subroutine rewrite_ialive_single(ipart)
+    implicit none
+
+    integer, intent(in) :: &
+      ipart                  ! to be terminated particle index    
+    integer ::             &
+      i,                   & ! loop variable
+      iloc                   ! location of ipart in count%ialive
+
     ! And remove from the ialive array
     !*********************************
     ! iloc=findloc(count%ialive,ipart,1) ! findloc not supported in gcc<v9
     iloc=count%allocated
-    do i=1,count%alive+1
+    do i=1,count%alive+2
       if (count%ialive(i).eq.ipart) then
         iloc=i
         exit
       endif
     end do
     if (iloc.ne.count%allocated) then
+!$OMP PARALLEL
+!$OMP WORKSHARE
       count%ialive(iloc:count%allocated-1)=count%ialive(iloc+1:count%allocated)
+!$OMP END WORKSHARE
+!$OMP END PARALLEL
     endif
-
-    ! Update the total number of terminated particles during the whole run
-    !**********************************************************************
-    count%terminated = count%terminated + 1
-  end subroutine terminate_particle
+  end subroutine rewrite_ialive_single
  
   subroutine alloc_particles(nmpart)
 
@@ -357,7 +450,7 @@ contains
     integer, intent(in)        :: nmpart
     type(particle),allocatable :: tmppart(:)
     logical, allocatable       :: tmpcount(:)
-    real, allocatable          :: tmpxscav(:,:)
+    real, allocatable          :: tmpxscav(:,:),tmpval_av(:,:),tmpmass(:,:),tmpdepo(:,:)
     real, allocatable          :: tmpxl(:),tmpyl(:),tmpzl(:)
     integer, allocatable       :: tmpnclust(:)
     integer                    :: i,stat
@@ -377,36 +470,68 @@ contains
     if (count%allocated.gt.0) tmpnclust(1:count%allocated) = count%ialive
     call move_alloc(tmpnclust,count%ialive)
 
+    if (ipin.le.1 .and. ipout.eq.0) then
+      allocate( tmpnclust(count%allocated+nmpart),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate tmpnclust"
+      if (count%allocated.gt.0) tmpnclust(1:count%allocated) = count%iterm
+      call move_alloc(tmpnclust,count%iterm)
+    endif 
+
     count%inmem(count%allocated+1:count%allocated+nmpart) = .true.
 
     ! Allocating new particle spaces
     !*******************************
     allocate( tmppart(count%allocated+nmpart),stat=stat)
     if (stat.ne.0) error stop "Could not allocate tmppart"
-    if (n_average.gt.0) then 
-      do i=1,count%allocated+nmpart
-        allocate( tmppart(i)%val_av(n_average) )
-        tmppart(i)%val_av = 0
-      end do
-    endif
 
     do i=1,count%allocated+nmpart
-      allocate( tmppart(i)%mass(maxspec),tmppart(i)%mass_init(maxspec),stat=stat)
-      if (stat.ne.0) error stop "Could not allocate tmppart"
-      if (DRYDEP) then
-        allocate( tmppart(i)%drydepo(maxspec),tmppart(i)%prob(maxspec),stat=stat)
-        if (stat.ne.0) error stop "Could not allocate tmppart"
-        tmppart(i)%drydepo(maxspec)=0.
-      endif
-      if (WETDEP) then 
-        allocate( tmppart(i)%wetdepo(maxspec),stat=stat)
-        if (stat.ne.0) error stop "Could not allocate tmppart"
-        tmppart(i)%wetdepo(maxspec)=0.
-      endif
+      ! allocate( tmppart(i)%mass(maxspec),tmppart(i)%mass_init(maxspec),stat=stat)
+      ! if (stat.ne.0) error stop "Could not allocate tmppart"
+      ! if (DRYDEP) then
+      !   allocate( tmppart(i)%drydepo(maxspec),tmppart(i)%prob(maxspec),stat=stat)
+      !   if (stat.ne.0) error stop "Could not allocate tmppart"
+      !   tmppart(i)%drydepo(maxspec)=0.
+      ! endif
+      ! if (WETDEP) then 
+      !   allocate( tmppart(i)%wetdepo(maxspec),stat=stat)
+      !   if (stat.ne.0) error stop "Could not allocate tmppart"
+      !   tmppart(i)%wetdepo(maxspec)=0.
+      ! endif
       tmppart(i)%ntime=0 ! Preventing particles to be written to partoutput when they just spawned
     end do
     if (count%allocated.gt.0) tmppart(1:count%allocated) = part
     call move_alloc(tmppart,part)
+
+    allocate( tmpmass(count%allocated+nmpart,maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate tmpmass"
+    if (count%allocated.gt.0) tmpmass(1:count%allocated,:) = mass
+    call move_alloc(tmpmass,mass)
+
+    allocate( tmpmass(count%allocated+nmpart,maxspec),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate tmpmass_init"
+    if (count%allocated.gt.0) tmpmass(1:count%allocated,:) = mass_init
+    call move_alloc(tmpmass,mass_init)
+
+    if (DRYDEP) then
+      allocate( tmpdepo(count%allocated+nmpart,maxspec),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate drydeposit"
+      if (count%allocated.gt.0) tmpdepo(1:count%allocated,:) = drydeposit
+      call move_alloc(tmpdepo,drydeposit)
+      drydeposit(count%allocated+1:count%allocated+nmpart,:)=0.
+
+      allocate( tmpdepo(count%allocated+nmpart,maxspec),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate prob"
+      if (count%allocated.gt.0) tmpdepo(1:count%allocated,:) = prob
+      call move_alloc(tmpdepo,prob)
+      prob(count%allocated+1:count%allocated+nmpart,:)=0.
+    endif
+    if (WETDEP) then 
+      allocate( tmpdepo(count%allocated+nmpart,maxspec),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate wetdeposit"
+      if (count%allocated.gt.0) tmpdepo(1:count%allocated,:) = wetdeposit
+      call move_alloc(tmpdepo,wetdeposit)
+      wetdeposit(count%allocated+1:count%allocated+nmpart,:)=0.
+    endif
 
     ! If wet or dry deposition backward mode is switched on, xscav_frac1
     ! needs to be allocated
@@ -418,6 +543,14 @@ contains
       call move_alloc(tmpxscav,xscav_frac1)
       ! Initialise it here
       xscav_frac1(count%allocated+1:count%allocated+nmpart,:) = -1.
+    endif
+
+    if (n_average.gt.0) then 
+      allocate( tmpval_av(count%allocated+nmpart,n_average),stat=stat)
+      if (stat.ne.0) error stop "Could not allocate val_av"
+      if (count%allocated.gt.0) tmpval_av(1:count%allocated,:) = val_av
+      tmpval_av(count%allocated+1:count%allocated+nmpart,:) = 0
+      call move_alloc(tmpval_av, val_av)
     endif
 
     if ((iout.eq.4).or.(iout.eq.5)) then
@@ -490,18 +623,19 @@ contains
 
     integer :: i
 
-    if (n_average.gt.0) then 
-      do i=1,count%allocated
-        deallocate( part(i)%val_av )
-      end do
-    endif
+    if (n_average.gt.0) deallocate( val_av )
     deallocate( part )
     deallocate( count%inmem )
     deallocate( count%ialive )
+    if (ipin.le.1 .and. ipout.eq.0) deallocate( count%iterm )
+    deallocate( mass, mass_init )
 
     if (WETBKDEP.or.DRYBKDEP) then
       deallocate( xscav_frac1 )
     endif
+
+    if (WETDEP) deallocate( wetdeposit )
+    if (DRYDEP) deallocate( drydeposit,prob )
 
     if ((iout.eq.4).or.(iout.eq.5)) then
       deallocate( xplum )

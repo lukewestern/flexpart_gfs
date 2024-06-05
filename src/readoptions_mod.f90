@@ -180,7 +180,6 @@ subroutine readavailable
     tmpwfname
   character(len=255),allocatable,dimension(:,:) :: wfname1n,tmpwfnamen
 
-
   ! Windfields are only used, if they are within the modelling period.
   ! However, 1 additional day at the beginning and at the end is used for
   ! interpolation. -> Compute beginning and ending date for the windfields.
@@ -254,14 +253,14 @@ subroutine readavailable
         jul=juldate(ldat,ltim)
         if ((jul.ge.beg).and.(jul.le.endl)) then
           numbwfn(k)=numbwfn(k)+1
-          allocate( tmpwfnamen(numbnests,numbwf),tmpwftimen(numbnests,numbwf), &
+          allocate( tmpwfnamen(numbnests,numbwfn(k)),tmpwftimen(numbnests,numbwfn(k)), &
             stat=stat)
           if (stat.ne.0) error stop 'ERROR: could not allocate tmpwfnamen'
           if (numbwfn(k).gt.1) then
-            tmpwfnamen(:,1:numbwf-1)=wfname1n
-            tmpwftimen(:,1:numbwf-1)=wftime1n
+            tmpwfnamen(:,1:numbwfn(k)-1)=wfname1n
+            tmpwftimen(:,1:numbwfn(k)-1)=wftime1n
           endif
-          tmpwfnamen(k,numbwfn(k))=fname
+          tmpwfnamen(k,numbwfn(k))=fname(1:index(fname,' '))
           tmpwftimen(k,numbwfn(k))=nint((jul-bdate)*86400._dp)
           call move_alloc(tmpwfnamen,wfname1n)
           call move_alloc(tmpwftimen,wftime1n)
@@ -426,6 +425,10 @@ subroutine readcommand
   !     18 May 1996                                                            *
   !     HSO, 1 July 2014                                                       *
   !     Added optional namelist input                                          *
+  !                                                                            * 
+  !                                                                            *
+  !     January 2024 Rona Thompson                                             *
+  !     Added new variables for LCM                                            *
   !                                                                            *
   !*****************************************************************************
   !                                                                            *
@@ -454,6 +457,9 @@ subroutine readcommand
   ! loutsample [s]       average is computed from samples taken every [s]      *
   !                      seconds                                               *
   ! loutstep [s]         time interval of concentration output                 *
+  ! lrecoutstep [s]      time interval of receptor output                      *
+  ! lrecoutaver [s]      receptor output is an average of lrecoutaver seconds  *
+  ! lrecoutsample [s]    average is computed from samples taken every [s]      *
   ! lsynctime [s]        synchronisation time interval for all particles       *
   ! lagespectra          switch to turn on (1)/off (0) calculation of age      *
   !                      spectra                                               *
@@ -476,7 +482,8 @@ subroutine readcommand
 
   character(len=50) :: line
   integer :: ios
-  integer :: lturbulence_meso
+  integer :: lturbulence_meso,lcmoutput
+  character(len=50) :: ohfields_path ! deprecated
 
   namelist /command/ &
   ldirect, &
@@ -486,6 +493,9 @@ subroutine readcommand
   loutaver, &
   loutsample, &
   loutrestart, &
+  lrecoutstep, &
+  lrecoutaver, &
+  lrecoutsample, &
   lsynctime, &
   ctl, &
   ifine, &
@@ -511,13 +521,15 @@ subroutine readcommand
   surf_only, &
   cblflag, &
   linversionout, &
-  ohfields_path, &
   d_trop, &
   d_strat, &
   nxshift, &
   maxthreadgrid, &
   maxfilesize, &
-  logvertinterp
+  logvertinterp, &
+  ohfields_path, &
+  lcmoutput, &
+  itsplit  ! deprecated: only for IO back compatibility  
 
   ! Presetting namelist command
   ldirect=0
@@ -528,6 +540,9 @@ subroutine readcommand
   loutstep=10800
   loutaver=10800
   loutsample=900
+  lrecoutstep=-1
+  lrecoutaver=-1
+  lrecoutsample=-1
   loutrestart=-1
   lsynctime=900
   ctl=-5.0
@@ -554,15 +569,18 @@ subroutine readcommand
   surf_only=-1
   cblflag=0 ! if using old-style COMMAND file, set to 1 here to use mc cbl routine
   linversionout=0
-  ohfields_path="../../flexin/"
   nxshift=-9999
   maxthreadgrid=1
   maxfilesize=10000
   logvertinterp=0
+  ohfields_path=''
+  lcmoutput=0
+  itsplit=999999999 ! deprecated: only for IO back compatibility  
 
   !Af set release-switch
   WETBKDEP=.false.
   DRYBKDEP=.false.
+
 
   ! Open the command file and read user options
   ! Namelist input first: try to read as namelist file
@@ -656,6 +674,14 @@ subroutine readcommand
   !Af          2 = mass mixing ratio units
   !            3 = wet deposition in outputfield
   !            4 = dry deposition in outputfield
+
+  ! Settings for LCM output
+  !************************************************************
+  ! MDOMAINFILL  = 1 | LLCMOUTPUT = true
+  ! IND_SOURCE   = 1 | IND_SAMP   = 0
+  ! IND_RECEPTOR = 1 | calculates mass ratio mixing ratio
+  ! IOUT         = 2 | as ratio species_mass to airtracer_mass 
+  !------------------------------------------------------------
 
   if ( ldirect .eq. 1 ) then  ! FWD-Run
   !Af set release-switch
@@ -804,6 +830,30 @@ subroutine readcommand
     error stop 'FLEXPART not compiled with NetCDF'
   endif
 #endif
+
+  ! Check whether RECEPTOR commands are given, otherwise give them default values
+  !******************************************************************************
+
+  if (lrecoutstep.eq.-1) then
+    write(*,*) 'WARNING: FILE COMMAND LRECOUTSTEP not provided,'
+    write(*,*) 'value of LOUTSTEP will be used if RECEPTORS are'
+    write(*,*) 'required.'
+    lrecoutstep=loutstep
+  endif
+
+  if (lrecoutaver.eq.-1) then
+    write(*,*) 'WARNING: FILE COMMAND LRECOUTAVER not provided,'
+    write(*,*) 'value of LOUTAVER will be used if RECEPTORS are'
+    write(*,*) 'required.'
+    lrecoutaver=loutaver
+  endif
+
+  if (lrecoutsample.eq.-1) then
+    write(*,*) 'WARNING: FILE COMMAND LRECOUTSTEP not provided,'
+    write(*,*) 'value of LOUTSAMPLE will be used if RECEPTORS are'
+    write(*,*) 'required.'
+    lrecoutsample=loutsample
+  endif
 
   ! Check whether a valid option for gridded model output has been chosen
   !**********************************************************************
@@ -1028,6 +1078,95 @@ subroutine readcommand
     error stop
   endif
 
+  ! Check consistency of the intervals for receptors
+  ! ************************************************
+  ! only if ldirect=1 
+
+  if (ldirect.eq.1) then
+
+    if (lrecoutaver.eq.0) then
+      write(*,*) ' #### FLEXPART MODEL ERROR! TIME AVERAGE OF   #### '
+      write(*,*) ' #### RECEPTOR OUTPUT MUST NOT BE ZERO        #### '
+      write(*,*) ' #### CHANGE INPUT IN FILE COMMAND.           #### '
+      stop
+    endif
+
+    if (lrecoutaver.gt.lrecoutstep) then
+      write(*,*) ' #### FLEXPART MODEL ERROR! TIME AVERAGE OF   #### '
+      write(*,*) ' #### RECEPTOR OUTPUT MUST NOT BE             #### '
+      write(*,*) ' #### GREATER THAN INTERVAL OF OUTPUT.        #### '
+      write(*,*) ' #### CHANGE INPUT IN FILE COMMAND.           #### '
+      stop
+    endif
+
+    if (lrecoutsample.gt.lrecoutaver) then
+      write(*,*) ' #### FLEXPART MODEL ERROR! SAMPLING TIME OF  #### '
+      write(*,*) ' #### RECEPTOR OUTPUT MUST NOT BE             #### '
+      write(*,*) ' #### GREATER THAN TIME AVERAGE OF OUTPUT.    #### '
+      write(*,*) ' #### CHANGE INPUT IN FILE COMMAND.           #### '
+      stop
+    endif
+
+    if (mod(lrecoutaver,lsynctime).ne.0) then
+      write(*,*) ' #### FLEXPART MODEL ERROR! AVERAGING TIME OF #### '
+      write(*,*) ' #### RECEPTOR OUTPUT MUST BE A MULTIPLE      #### '
+      write(*,*) ' #### OF THE SYNCHRONISATION INTERVAL         #### '
+      stop
+    endif
+
+    if ((lrecoutaver/lsynctime).lt.2) then
+      write(*,*) ' #### FLEXPART MODEL ERROR! AVERAGING TIME OF #### '
+      write(*,*) ' #### RECEPTOR OUTPUT MUST BE AT LEAST        #### '
+      write(*,*) ' #### TWICE THE SYNCHRONISATION INTERVAL      #### '
+      stop
+    endif
+
+    if (mod(lrecoutstep,lsynctime).ne.0) then
+      write(*,*) ' #### FLEXPART MODEL ERROR! INTERVAL BETWEEN  #### '
+      write(*,*) ' #### RECEPTOR OUTPUT MUST BE A MULTIPLE      #### '
+      write(*,*) ' #### OF THE SYNCHRONISATION INTERVAL         #### '
+      stop
+    endif
+
+    if ((lrecoutstep/lsynctime).lt.2) then
+      write(*,*) ' #### FLEXPART MODEL ERROR! INTERVAL BETWEEN  #### '
+      write(*,*) ' #### RECEPTOR OUTPUT MUST BE AT LEAST        #### '
+      write(*,*) ' #### TWICE THE SYNCHRONISATION INTERVAL      #### '
+      stop
+    endif
+
+    if (mod(lrecoutsample,lsynctime).ne.0) then
+      write(*,*) ' #### FLEXPART MODEL ERROR! SAMPLING TIME OF  #### '
+      write(*,*) ' #### RECEPTOR OUTPUT MUST BE A MULTIPLE      #### '
+      write(*,*) ' #### OF THE SYNCHRONISATION INTERVAL         #### '
+      stop
+    endif
+
+  endif ! ldirect
+
+  ! Switch for LCM mode
+  !*******************************************************************
+
+  if ( (lcmoutput.ne.0) .and. ((.not. ind_source.eq.1).or. &
+    (.not. ind_receptor.eq.1).or.(.not. iout.eq.2).or. &
+    (.not. ldirect.eq.1).or.(.not. mdomainfill.eq.1)) ) then
+    write(*,*) 'LCM output requested, but one of the following options'
+    write(*,*) 'is not correctly set in COMMAND:'
+    write(*,*) 'ind_source =', ind_source, 'should be set to 1'
+    write(*,*) 'ind_receptor =', ind_receptor, 'should be set to 1'
+    write(*,*) 'iout =', iout, 'should be set to 2'
+    write(*,*) 'ldirect =', ldirect, 'should be set to 1'
+    write(*,*) 'mdomainfill =', mdomainfill, 'should be set to 1'
+    error stop
+  endif
+  if (lcmoutput.eq.0) then
+    llcmoutput=.false.
+  else
+    llcmoutput=.true.
+  endif
+
+  write(*,*) 'Switch for LCM output LCMOUTPUT = ',llcmoutput
+
   ! Compute modeling time in seconds and beginning date in Julian date
   !*******************************************************************
 
@@ -1195,85 +1334,6 @@ subroutine readdepo
   write(*,*) '### sfcdepo.t DOES NOT EXIST.        ###'
   error stop
 end subroutine readdepo
-
-subroutine readOHfield
-
-  !*****************************************************************************
-  !                                                                            *
-  ! Reads the OH field into memory                                             *
-  !                                                                            *
-  ! AUTHOR: R.L. Thompson, Nov 2014                                            *
-  !                                                                            *
-  ! UPDATES:                                                                   *
-  !   03/2018 SEC: Converted original netCDF files to binary format            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  !                                                                            *
-  ! path(numpath)              contains the path names                         *
-  ! lonOH(nxOH)                longitude of OH fields                          *
-  ! latOH(nyOH)                latitude of OH fields                           *
-  ! altOH(nzOH)                altitude of OH fields                           *
-  ! etaOH(nzOH)                eta-levels of OH fields                         *
-  ! OH_field(nxOH,nyOH,nzOH,m) OH concentration (molecules/cm3)                *
-  !                                                                            *
-  !                                                                            *
-  !*****************************************************************************
-
-  use ohr_mod
-
-  implicit none
-
-  integer :: i,j,k,l,ierr,stat
-  real, dimension(:), allocatable :: etaOH
-
-  !  real, parameter :: gasct=8.314   ! gas constant
-  !  real, parameter :: mct=0.02894   ! kg mol-1
-  !  real, parameter :: g=9.80665     ! m s-2
-  !  real, parameter :: lrate=0.0065  ! K m-1
-  real, parameter :: scalehgt=7000. ! scale height in metres
-
-
-  open(unitOH,file=trim(ohfields_path) &
-       //'OH_FIELDS/OH_variables.bin',status='old', &
-       form='UNFORMATTED', iostat=ierr, convert='little_endian')
-
-  if(ierr.ne.0) then
-    write(*,*) 'Cannot read binary OH fields in ', &
-      trim(ohfields_path)//'OH_FIELDS/OH_variables.bin'
-    error stop
-  endif
-
-  read(unitOH) nxOH
-  read(unitOH) nyOH
-  read(unitOH) nzOH
-  write(*,*) nxOH,nyOH,nzOH
-
-  ! allocate variables
-  allocate(lonOH(nxOH),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate lonOH"
-  allocate(latOH(nyOH),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate latOH"
-  allocate(etaOH(nzOH),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate etaOH"
-  allocate(altOH(nzOH),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate altOH"
-  allocate(OH_field(nxOH,nyOH,nzOH,12),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate OH_field"
-  allocate(OH_hourly(nxOH,nyOH,nzOH,2),stat=stat)
-  if (stat.ne.0) error stop "Could not allocate OH_hourly"
-
-  read(unitOH) (lonjr(i),i=1,360)
-  read(unitOH) (latjr(i),i=1,180)
-  read(unitOH) (((jrate_average(i,j,k),i=1,360),j=1,180),k=1,12)
-  read(unitOH) (lonOH(i),i=1,nxOH)
-  read(unitOH) (latOH(i),i=1,nyOH)
-  read(unitOH) (lonOH(i),i=1,nxOH)
-
-  read(unitOH) (altOH(i),i=1,nzOH)
-  read(unitOH) ((((OH_field(i,j,k,l),i=1,nxOH),j=1,nyOH),k=1,nzOH),l=1,12)
-  read(unitOH) ((((OH_hourly(i,j,k,l),i=1,nxOH),j=1,nyOH),k=1,nzOH),l=1,2)
-end subroutine readOHfield
 
 subroutine readlanduse
 
@@ -1611,9 +1671,9 @@ subroutine readoutgrid
   ! Determine the half levels, i.e. middle levels of the output grid
   !*****************************************************************
 
-  outheighthalf(1)=outheight(1)/2.
+  outheighthalf(1)=outheight(1)*0.5
   do j=2,numzgrid
-    outheighthalf(j)=(outheight(j-1)+outheight(j))/2.
+    outheighthalf(j)=(outheight(j-1)+outheight(j))*0.5
   end do
 
   xoutshift=xlon0-outlon0
@@ -1881,22 +1941,25 @@ subroutine readreceptors
   real :: xm,ym
   character(len=16) :: receptor
 
-  integer :: ios,stat
-  real :: lon,lat   ! for namelist input, lon/lat are used instead of x,y
-  real,allocatable,dimension(:) :: tmpxrec,tmpyrec,tmprecarea
-  character(len=16),allocatable,dimension(:) :: tmprecname
+  integer :: ios
+  real :: lon,lat,alt   ! for namelist input, lon/lat are used instead of x,y
+  real(kind=dp) :: time
+
+!  real,allocatable,dimension(:) :: tmpxrec,tmpyrec,tmprecarea
+!  character(len=16),allocatable,dimension(:) :: tmprecname
+
   ! declare namelist
-  namelist /receptors/ receptor, lon, lat
+  namelist /receptors/ &
+    receptor, lon, lat, alt, time
 
   numreceptor=0 ! Initialise numreceptor
-!CPS I comment this out - why should we not have receptor output in bwd runs? 
-  ! For backward runs, do not allow receptor output. Thus, set number of
-  ! receptors to zero
-  !  if (ldirect.lt.0) then
-  !    numreceptor=0
-  !    return
-  !  endif
 
+  ! For backward runs no receptor output
+  !*************************************
+
+  if (ldirect.lt.0) then
+    return
+  endif
 
   ! Open the RECEPTORS file and read output grid specifications
   !************************************************************
@@ -1906,153 +1969,105 @@ subroutine readreceptors
 
   lon = -999.
   lat = -999.
+  time = -999.
+  lrecregular = .false.
 
   ! try namelist input
   read(unitreceptor,receptors,iostat=ios)
   close (unitreceptor)
 
-  ! prepare namelist output if requested
-  if (nmlout) open(unitreceptorout,file=trim(path(2))// &
-    'RECEPTORS.namelist',err=1000)
+  if ((lon.lt.-900).or.(ios.ne.0)) then
+    go to 999
+  else ! only namelist input possible
 
+    ! prepare namelist output if requested
+    if (nmlout) open(unitreceptorout,file=trim(path(2))// &
+      'RECEPTORS.namelist',status='replace',err=1000)  
 
-  if (ios .ne. 0) then ! read as regular text file
-
-    goto 991 ! wrong variable name in namelist
-
-  elseif (ios .eq. 0) then ! read as namelist
-
-    if (nint(lon) .eq. -999 .or. nint(lat) .eq. -999) goto 993
-
-    ! PS: reopen file otherwise first receptor is skipped!
+    ! Get number of receptors
+    !************************
     open (unitreceptor,file=trim(path(1))//'RECEPTORS',status='old',err=999)
-
-    ! Read the names and coordinates of the receptors
-    !************************************************
     j=0
-    do while (ios .eq. 0)
-      j=j+1
+    do while (ios.eq.0)
+      lon=-999.9
       read(unitreceptor,receptors,iostat=ios)
-      if (ios .eq. 0) then
-        numreceptor = j
-        allocate( tmprecname(j),tmpxrec(j),tmpyrec(j),tmprecarea(j),stat=stat)
-        if (stat.ne.0) error stop 'ERROR: could not allocate tmp arrays in readrec'
-        if (j.gt.1) then
-          tmprecname(1:j-1)=receptorname
-          tmpxrec(1:j-1)=xreceptor
-          tmpyrec(1:j-1)=yreceptor
-          tmprecarea(1:j-1)=receptorarea
-        endif
-        tmprecname(j)=receptor
-        tmpxrec(j)=(lon-xlon0)/dx       ! transform to grid coordinates
-        tmpyrec(j)=(lat-ylat0)/dy
-        xm=r_earth*cos(lat*pi/180.)*dx/180.*pi
-        ym=r_earth*dy/180.*pi
-        tmprecarea(j)=xm*ym
+      if ((lon.lt.-900).or.(ios.ne.0)) exit    
+      ! skip receptors for which a timestamp is given but are not in simulation window 
+      if ((time.ne.-999.).and.((time.lt.bdate).or.(time.ge.edate))) cycle 
+      j=j+1
+    end do
+    numreceptor=j
+    write(*,*) 'Number of receptors: ',numreceptor
+    close (unitreceptor)
 
-        call move_alloc(tmprecname,receptorname)
-        call move_alloc(tmpxrec,xreceptor)
-        call move_alloc(tmpyrec,yreceptor)
-        call move_alloc(tmprecarea,receptorarea)
+    ! Allocate arrays
+    !****************
 
-      ! write receptors in namelist format to output directory if requested
-        if (nmlout) write(unitreceptorout,nml=receptors)
-!        if (nmlout) write(unitreceptorout,nml=nml_receptors)
-      elseif (ios .gt. 0) then
-        write(*,*) ' ### FLEXPART MODEL ERROR! Error in RECEPTORS namelist ###'
-        error stop 'Error in RECEPTORS namelist'
-      ! else
-      !   write (*,*) 'receptor read in nml format, ios<0', ios
-      !   write (*,receptors)
-      endif
-    end do ! end nml receptors reading loop
-
-  else ! ios<0 = EOF, read as conventional input file
-
-    open (unitreceptor,file=trim(path(1))//'RECEPTORS',status='old',err=999)
-    call skplin(5,unitreceptor)
+    allocate(receptorname(numreceptor),xreceptor(numreceptor),&
+              yreceptor(numreceptor),zreceptor(numreceptor),&
+              treceptor(numreceptor),receptorarea(numreceptor))
 
     ! Read the names and coordinates of the receptors
     !************************************************
 
-    j=1
-100 continue
-      read(unitreceptor,*,end=99)
-      read(unitreceptor,*,end=99)
-      read(unitreceptor,*,end=99)
-      read(unitreceptor,'(4x,a16)',end=99) receptor
-      call skplin(3,unitreceptor)
-      read(unitreceptor,'(4x,f11.4)',end=99) lon
-      call skplin(3,unitreceptor)
-      read(unitreceptor,'(4x,f11.4)',end=99) lat
-      if (lon.eq.0. .and. lat.eq.0. .and. &
-         (receptor .eq. '                ')) then
-        write(*,*) 'WARNING: looks like empty receptor at south pole;'// &
-          ' will be skipped'
-        j=j-1
-        goto 100
+    open (unitreceptor,file=trim(path(1))//'RECEPTORS',status='old',iostat=ios)
+    j=0
+    do while (ios.eq.0)
+      lon=-999.9
+      read(unitreceptor,receptors,iostat=ios)
+      if ((lon.lt.-900).or.(ios.ne.0)) exit          ! read error
+      ! skip receptors for which a timestamp is given but are not in simulation window 
+      if ((time.ne.-999.).and.((time.lt.bdate).or.(time.ge.edate))) cycle 
+      j=j+1
+      receptorname(j)=receptor
+      xreceptor(j)=(lon-xlon0)/dx       ! transform to grid coordinates
+      yreceptor(j)=(lat-ylat0)/dy
+      zreceptor(j)=alt
+      if (time.ne.-999.) then
+        treceptor(j)=int((time-bdate)*24.*3600.) ! time in sec
+        ! round to nearest 10 seconds
+        treceptor(j)=nint(real(treceptor(j))/10.)*10
+      else
+        treceptor(j)=-999
       endif
-
-      numreceptor = j
-      allocate( tmprecname(j),tmpxrec(j),tmpyrec(j),tmprecarea(j),stat=stat)
-      if (stat.ne.0) write(*,*)'ERROR: could not allocate tmp arrays in readrec'
-      if (j.gt.1) then
-        tmprecname(1:j-1)=receptorname
-        tmpxrec(1:j-1)=xreceptor
-        tmpyrec(1:j-1)=yreceptor
-        tmprecarea(1:j-1)=receptorarea
-      endif
-      tmprecname(j)=receptor
-      tmpxrec(j)=(lon-xlon0)/dx       ! transform to grid coordinates
-      tmpyrec(j)=(lat-ylat0)/dy
       xm=r_earth*cos(lat*pi/180.)*dx/180.*pi
       ym=r_earth*dy/180.*pi
-      tmprecarea(j)=xm*ym
-
-      call move_alloc(tmprecname,receptorname)
-      call move_alloc(tmpxrec,xreceptor)
-      call move_alloc(tmpyrec,yreceptor)
-      call move_alloc(tmprecarea,receptorarea)
-      ! write receptors file in namelist format to output directory if requested
+      receptorarea(j)=xm*ym
+      ! write receptors in namelist format to output directory if requested
       if (nmlout) write(unitreceptorout,nml=receptors)
-!      if (nmlout) write(unitreceptorout,nml=nml_receptors)
-    goto 100
+    end do
+    close (unitreceptor)
+    if (nmlout) close (unitreceptorout)
 
-99  continue
+  endif 
 
-  endif ! end no-nml / nml bloc
+  ! if not timestamp given in namelist assume regular output
+  ! according to COMMAND file settings
+  if (.not.any(treceptor.ne.-999)) then
+    lrecregular=.true.
+  endif
 
-  close (unitreceptor)
-  if (nmlout) close (unitreceptorout)
+  !! testing
+!  write(*,*) 'readreceptors: '
+!  do j=1,numreceptor
+!    print*, 'receptorname = ',receptorname(j)
+!    print*, 'xreceptor, yreceptor, zreceptor = ',xreceptor(j), yreceptor(j), zreceptor(j)
+!    print*, 'treceptor = ',treceptor(j)
+!  end do
+  !!
 
-  write(*,*) 'Number of receptors: ',numreceptor
   return
 
-991 continue
-  write(*,*) '#### FLEXPART ERROR: wrong variable names present'
-  write(*,*) '#### in namelist in file RECEPTORS'
-  write(*,*) '#### note that in v11+ coordinate names are lon and lat'
-
-  error stop
-
-993 continue
-  write(*,*) '#### FLEXPART ERROR: namelist in file RECEPTORS'
-  write(*,*) '#### first receptor point did not contain lon and/or lat'
-  write(*,*) '#### Check your namelist!'
-  error stop
-
-999 write(*,*) 'INFORMATION: input file RECEPTORS cannot be opened'
-    write(*,*) 'in directory '//trim(path(1))
-    write(*,*) 'Continuing without RECEPTOR'
-
+999 write(*,*) ' #### FLEXPART WARNING: File RECEPTORS cannot be opened #### '
+    write(*,*) ' #### in directory '//trim(path(1))//' #### '
+    write(*,*) ' #### continuing without RECEPTOR output #### '
   numreceptor=0
   return
 
 1000 write(*,*) ' #### FLEXPART MODEL ERROR! File "RECEPTORS"      #### '
   write(*,*)    ' #### cannot be opened in the output directory    #### '
   write(*,'(a)') ' #### '//trim(path(2))
-  write(*,*)    ' #### either write perm missing or old file exists ###'
-
+  write(*,*)    ' #### either write perm missing or old file exists ####'
   error stop
 
 end subroutine readreceptors
@@ -2269,7 +2284,8 @@ subroutine readreleases
   DEP=.false.
   DRYDEP=.false.
   WETDEP=.false.
-  OHREA=.false.
+  CLREA=.false.
+  LDECAY=.false.
   do i=1,maxspec
     DRYDEPSPEC(i)=.false.
     WETDEPSPEC(i)=.false.
@@ -2307,9 +2323,10 @@ subroutine readreleases
 
   ! Radioactive decay
   !******************
-
-    decay(i)=0.693147/decay(i) !conversion half life to decay constant
-
+    if (decay(i).gt.0) then
+      LDECAY=.true.
+      decay(i)=0.693147/decay(i) !conversion half life to decay constant
+    endif
 
   ! Dry deposition of gases
   !************************
@@ -2339,8 +2356,8 @@ subroutine readreleases
 
     dryvel(i)=dryvel(i)*0.01         ! conversion to m/s
 
-  ! Check if wet deposition or OH reaction shall be calculated
-  !***********************************************************
+  ! Check if wet deposition shall be calculated
+  !*********************************************
 
   ! ESO 04.2016 check for below-cloud scavenging (gas or aerosol)
     if ((dquer(i).le.0..and.(weta_gas(i).gt.0. .or. wetb_gas(i).gt.0.)) .or. &
@@ -2368,11 +2385,6 @@ subroutine readreleases
       if (lroot) write (*,*) '  In-cloud scavenging: OFF' 
     endif
 
-    if (ohcconst(i).gt.0.) then
-      OHREA=.true.
-      if (lroot) write (*,*) '  OHreaction switched on: ',ohcconst(i),i
-    endif
-
     if ((reldiff(i).gt.0.).or.(density(i).gt.0.).or.(dryvel(i).gt.0.)) then
       DRYDEP=.true.
       DRYDEPSPEC(i)=.true.
@@ -2382,6 +2394,22 @@ subroutine readreleases
   end do ! end loop over species
 
   if (WETDEP.or.DRYDEP) DEP=.true.
+
+  ! Check if chemical reaction shall be calculated
+  !***********************************************
+
+  if (any(reaccconst(:,:).gt.0.)) then
+    CLREA=.true.
+    if (lroot) write (*,*) '  Chemical reactions switched on'
+  endif
+
+  ! Check if emissions shall be used
+  !*********************************
+
+  if (any(emis_path(:).ne."")) then
+    LEMIS=.true.
+    if (lroot) write(*,*) '  Emissions switched on'
+  endif
 
   ! Not necessary to read releases when using part_ic.nc
   !*****************************************************
@@ -2468,7 +2496,7 @@ subroutine readreleases
 
   jul1=juldate(id1,it1)
   jul2=juldate(id2,it2)
-  julm=(jul1+jul2)/2.
+  julm=(jul1+jul2)*0.5
   if (jul1.gt.jul2) then
     write(*,*) 'FLEXPART MODEL ERROR'
     write(*,*) 'Release stops before it begins.'
@@ -2639,6 +2667,9 @@ subroutine readspecies(id_spec,pos_spec)
   !   HSO, 13 August 2013
   !   added optional namelist input
   !                                                                            *
+  !   R. Thompson, 18.01.2024                                                  *
+  !   variables for LCM                                                        *
+  !                                                                            *
   !*****************************************************************************
   !                                                                            *
   ! Variables:                                                                 *
@@ -2647,12 +2678,11 @@ subroutine readspecies(id_spec,pos_spec)
   ! weta_gas, wetb_gas    Parameters for below-cloud scavenging of gasses      *
   ! crain_aero,csnow_aero Parameters for below-cloud scavenging of aerosols    *
   ! ccn_aero,in_aero      Parameters for in-cloud scavenging of aerosols       *
-  ! ohcconst              OH reaction rate constant C                          *
-  ! ohdconst              OH reaction rate constant D                          *
-  ! ohnconst              OH reaction rate constant n                          *
+  ! reaccconst            Chemical reaction rate constant C                    *
+  ! reacdconst            Chemical reaction rate constant D                    *
+  ! reacnconst            Chemical reaction rate constant n                    *
   ! id_spec               SPECIES number as referenced in RELEASE file         *
-  ! id_pos                position where SPECIES data shall be stored          *
-  ! ni                    Number of diameter classes of particles              *                                                              *
+  ! id_pos                position where SPECIES data shall be stored          *                                                        
   ! Constants:                                                                 *
   !                                                                            *
   !*****************************************************************************
@@ -2663,13 +2693,19 @@ subroutine readspecies(id_spec,pos_spec)
   integer :: idow,ihour,id_spec
   character(len=3) :: aspecnumb
 
-  character(len=16) :: pspecies
+  character(len=16)  :: pspecies, pemis_name
+  character(len=256) :: pemis_path, pemis_file
+  integer :: pemis_unit
+  real :: pemis_coeff
   character(len=50) :: line
   real :: pdecay, pweta_gas, pwetb_gas, preldiff, phenry, pf0, pdensity, pdquer
-  real :: pdsigma, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst
+  real :: pdsigma, pdryvel, pweightmolar, pdia
+  character(len=10), allocatable, dimension(:) :: preactions
+  real, allocatable, dimension(:) :: pcconst, pdconst, pnconst
   real :: pcrain_aero, pcsnow_aero, pccn_aero, pin_aero
+  real :: pohcconst,pohdconst,pohnconst ! deprecated
   real :: parea_dow(7), parea_hour(24), ppoint_dow(7), ppoint_hour(24)
-  integer :: pndia
+  !integer :: pndia
   integer :: ios
   integer :: pshape,porient
   ! Daria Tatsii: species shape properties
@@ -2679,10 +2715,31 @@ subroutine readspecies(id_spec,pos_spec)
   namelist /species_params/ &
        pspecies, pdecay, pweta_gas, pwetb_gas, &
        pcrain_aero, pcsnow_aero, pccn_aero, pin_aero, &
-       preldiff, phenry, pf0, pdensity, pdquer, &
-       pdsigma, pndia, pdryvel, pweightmolar, pohcconst, pohdconst, pohnconst, &
+       preldiff, phenry, pf0, pdensity, pdquer, pdia, &
+       pdsigma, pdryvel, pweightmolar, pohnconst, &
+       preactions, pcconst, pdconst, pnconst, pohcconst, pohdconst, &
+       pemis_path, pemis_file, pemis_name, pemis_unit, pemis_coeff, &
        parea_dow, parea_hour, ppoint_dow, ppoint_hour, &
-       pshape, paspectratio, pla, pia, psa, porient
+       pshape, paspectratio, pla, pia, psa, porient !pndia, 
+
+  ! allocate reaction variables
+  allocate(preactions(maxreagent))
+  allocate(pcconst(maxreagent))
+  allocate(pdconst(maxreagent))
+  allocate(pnconst(maxreagent))
+  if (.not.allocated(reaccconst)) then
+    allocate(reaccconst(maxreagent,nspec))
+    allocate(reacdconst(maxreagent,nspec))
+    allocate(reacnconst(maxreagent,nspec))
+    reaccconst(:,:)=-9.99e-9
+    reacdconst(:,:)=-9.99
+    reacnconst(:,:)=-9.99
+    allocate(emis_path(nspec))
+    allocate(emis_file(nspec))
+    allocate(emis_name(nspec))
+    allocate(emis_unit(nspec))
+    allocate(emis_coeff(nspec))
+  endif
 
   pspecies="" ! read failure indicator value
   pdecay=-999.9
@@ -2693,16 +2750,21 @@ subroutine readspecies(id_spec,pos_spec)
   pccn_aero=-9.9E-09
   pin_aero=-9.9E-09
   preldiff=-9.9
-  phenry=0.0
+  phenry=-9.9
   pf0=0.0
   pdensity=-9.9E09
-  pdquer=0.0
+  pdquer=-9.9
+  pdia=-9.9
   pdsigma=0.0
-  pndia=1
+  !pndia=1
   pdryvel=-9.99
+  preactions(:)=""
+  pcconst(:)=-9.99e-9
+  pdconst(:)=-9.99
+  pnconst(:)=-9.99
   pohcconst=-9.99
-  pohdconst=-9.9E-09
-  pohnconst=2.0
+  pohdconst=-9.99
+  pohnconst=-9.99
   pweightmolar=-999.9
   parea_dow=-999.9
   parea_hour=-999.9
@@ -2714,7 +2776,11 @@ subroutine readspecies(id_spec,pos_spec)
   pia=-1. ! Intermediate axis
   psa=-1. ! Smallest axis
   porient=0 ! 0 for horizontal, 1 for random
-
+  pemis_path="" ! read failure indicator value
+  pemis_file="" ! read failure indicator value
+  pemis_name="" ! read failure indicator value
+  pemis_unit=0
+  pemis_coeff=1.
 
   do j=1,24           ! initialize everything to no variation
     parea_hour(j)=1.
@@ -2739,9 +2805,8 @@ subroutine readspecies(id_spec,pos_spec)
 
   ASSSPEC=.FALSE.
 
-  ! try namelist input
   read(unitspecies,species_params,iostat=ios)
-  !CGZ add check on which line of species file problem occurs
+  ! check on which line of species file problem occurs
   if (ios.ne.0) then
     backspace(unitspecies)
     read(unitspecies,fmt='(A)') line
@@ -2751,232 +2816,188 @@ subroutine readspecies(id_spec,pos_spec)
   close(unitspecies)
 
   if ((len(trim(pspecies)).eq.0).or.(ios.ne.0)) then ! no namelist found
-    if (lroot) write(*,*) "SPECIES file not in NAMELIST format, attempting to &
-         &read as fixed format"
+    if (lroot) then
+      write(*,*) "FLEXPART ERROR: SPECIES file not in NAMELIST format"
+      write(*,*) "fixed format no longer supported"
+    endif
+    error stop
+  endif
 
-    ios=1
+  if ((pohcconst.ne.-9.99).or.(pohdconst.ne.-9.99).or.(pohnconst.ne.-9.99)) then
+    write(*,*) "ERROR: POHCCONST,POHDCONST, and POHNCONST in SPECIES file are deprecated."
+    error stop
+  endif
+  species(pos_spec)=pspecies
+  decay(pos_spec)=pdecay
+  weta_gas(pos_spec)=pweta_gas
+  wetb_gas(pos_spec)=pwetb_gas
+  crain_aero(pos_spec)=pcrain_aero
+  csnow_aero(pos_spec)=pcsnow_aero
+  ccn_aero(pos_spec)=pccn_aero
+  in_aero(pos_spec)=pin_aero
+  reldiff(pos_spec)=preldiff
+  henry(pos_spec)=phenry
+  f0(pos_spec)=pf0
+  density(pos_spec)=pdensity
+  if (pdia.ne.-9.9) then
+    dquer(pos_spec)=pdia
+  else if (pdquer.ne.-9.9) then
+    write(*,*) 'WARNING: PDQUER will be depricated, please use PDIA instead.'
+    dquer(pos_spec)=pdquer ! For backwards compatibility
+  else
+    dquer(pos_spec)=0.0
+  endif
+  dsigma(pos_spec)=pdsigma
+  ! ndia(pos_spec)=pndia
+  dryvel(pos_spec)=pdryvel
+  weightmolar(pos_spec)=pweightmolar
+  emis_path(pos_spec)=pemis_path
+  emis_file(pos_spec)=pemis_file
+  emis_name(pos_spec)=pemis_name
+  emis_unit(pos_spec)=pemis_unit
+  emis_coeff(pos_spec)=pemis_coeff
+  ishape(pos_spec)=pshape
+  orient(pos_spec)=porient
 
-    open(unitspecies,file=path(1)(1:length(1))//'SPECIES/SPECIES_'//aspecnumb, &
-      status='old',err=998)
+  ! Daria Tatsii 2023: compute particle shape dimensions
+  if (ishape(pos_spec).ge.1) then ! Compute shape according to given axes
+    select case (ishape(pos_spec))
+      case (1)
+        write(*,*) "Particle shape USER-DEFINED for particle", id_spec
+        if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
+          write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, &
+            &but no valid axes are provided."
+          write(*,*) "#### SPECIES file requires SA, IA, and LA parameter &
+            &greater than zero."
+          error stop
+        endif
+        write(*,*) "SA,IA,LA:",psa,pia,pla
+      case (2) ! Cylinders (fibers) !
+        if (paspectratio.le.0.0) then
+          write(*,*) "#### ERROR: Shape=2 cylinder is chosen, but no valid apect ratio is provided."
+          write(*,*) "#### SPECIES file requires ASPECTRATIO parameter greater than zero."
+          error stop
+        endif
+        psa=(((dquer(pos_spec)**3.0)*2.0)/ &
+                (3.0*paspectratio))**(1.0/3.0)
+        pia=psa
+        pla=psa*paspectratio
+        write(*,*) "Particle shape CYLINDER for particle", id_spec
+        write(*,*) "SA,IA,LA:",psa,pia,pla
+      case (3) ! Cubes !
+        write(*,*) "Particle shape CUBE for particle", id_spec
+        psa=((dquer(pos_spec)**3)*pi/6.0)**(1.0/3.0)
+        pia=(2.0**0.5)*psa
+        pla=(3.0**0.5)*psa
+        if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
+          write(*,*) "#### ERROR: Shape=3 (user-defined) is chosen, but no valid axes are provided."
+          write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
+          error stop
+        endif
+        write(*,*) "SA,IA,LA:",psa,pia,pla
+      case (4) ! Tetrahedrons !
+        write(*,*) "Particle shape TETRAHEDRON for particle", id_spec
+        pla=((dquer(pos_spec)**3)*pi*2**(0.5))**(1.0/3.0)
+        pia=pla*((3.0/4.0)**(0.5))
+        psa=pla*((2.0/3.0)**(0.5))
+        if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
+          write(*,*) "#### ERROR: Shape=4 (user-defined) is chosen, but no valid axes are provided."
+          write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
+          error stop
+        endif
+        write(*,*) "SA,IA,LA:",psa,pia,pla
+      case (5) ! Octahedrons !
+        write(*,*) "Particle shape OCTAHEDRON for particle", id_spec
+        psa=dquer(pos_spec)*(pi/(2.0*2.0**(0.5)))**3
+        pia=psa
+        pla=psa*(2.0**(0.5))
+        if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
+          write(*,*) "#### ERROR: Shape=5 (user-defined) is chosen, but no valid axes are provided."
+          write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
+          error stop
+        endif
+        write(*,*) "SA,IA,LA:",psa,pia,pla
+      case (6) ! Ellipsoids !
+        write(*,*) "Particle shape ELLIPSOID for particle", id_spec
+        psa=dquer(pos_spec)/(2.0**(1.0/3.0)) 
+        pia=psa
+        pla=2*pia
+        if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
+          write(*,*) "#### ERROR: Shape=6 (user-defined) is chosen, but no valid axes are provided."
+          write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
+          error stop
+        endif
+        write(*,*) "SA,IA,LA:",psa,pia,pla
+    end select
 
-    do i=1,6
-      read(unitspecies,*)
-    end do
+    ! When using the shape option, dquer is the sphere equivalent diameter
+     
+    f=psa/pia
+    e=pia/pla
+    ! Drag coefficient scheme by Bagheri & Bonadonna, 2016 to define settling velocities of other shapes (by D.Tatsii)
+    if ((ishape(pos_spec).eq.2).or.((ishape(pos_spec).eq.1).and. &
+      (pia.eq.psa).and.(pla.ge.20.0*pia))) then
 
-    read(unitspecies,'(a10)',end=22) species(pos_spec)
-  !  write(*,*) species(pos_spec)
-    read(unitspecies,'(f18.1)',end=22) decay(pos_spec)
-  !  write(*,*) decay(pos_spec)
-    read(unitspecies,'(e18.1)',end=22) weta_gas(pos_spec)
-  !  write(*,*) weta_gas(pos_spec)
-    read(unitspecies,'(f18.2)',end=22) wetb_gas(pos_spec)
-  !  write(*,*) wetb_gas(pos_spec)
-    read(unitspecies,'(e18.1)',end=22) crain_aero(pos_spec)
-  !  write(*,*) crain_aero(pos_spec)
-    read(unitspecies,'(f18.2)',end=22) csnow_aero(pos_spec)
-  !  write(*,*) csnow_aero(pos_spec)
-  !*** NIK 31.01.2013: including in-cloud scavening parameters
-    read(unitspecies,'(e18.1)',end=22) ccn_aero(pos_spec)
-  !  write(*,*) ccn_aero(pos_spec)
-    read(unitspecies,'(f18.2)',end=22) in_aero(pos_spec)
-  !  write(*,*) in_aero(pos_spec)
-    read(unitspecies,'(f18.1)',end=22) reldiff(pos_spec)
-  !  write(*,*) reldiff(pos_spec)
-    read(unitspecies,'(e18.1)',end=22) henry(pos_spec)
-  !  write(*,*) henry(pos_spec)
-    read(unitspecies,'(f18.1)',end=22) f0(pos_spec)
-  !  write(*,*) f0(pos_spec)
-    read(unitspecies,'(e18.1)',end=22) density(pos_spec)
-  !  write(*,*) density(pos_spec)
-    read(unitspecies,'(e18.1)',end=22) dquer(pos_spec)
-  !  write(*,*) 'dquer(pos_spec):', dquer(pos_spec)
-    read(unitspecies,'(e18.1)',end=22) dsigma(pos_spec)
-  !  write(*,*) dsigma(pos_spec)
-    read(unitspecies,'(i16)',end=22) ndia(pos_spec)
-    ! write(*,*) ndia(pos_spec)
-    read(unitspecies,'(f18.2)',end=22) dryvel(pos_spec)
-  !  write(*,*) dryvel(pos_spec)
-    read(unitspecies,'(f18.2)',end=22) weightmolar(pos_spec)
-  !  write(*,*) weightmolar(pos_spec)
-    read(unitspecies,'(e18.2)',end=22) ohcconst(pos_spec)
-  !  write(*,*) ohcconst(pos_spec)
-    read(unitspecies,'(f8.2)',end=22) ohdconst(pos_spec)
-  !  write(*,*) ohdconst(pos_spec)
-    read(unitspecies,'(f8.2)',end=22) ohnconst(pos_spec)
-  !  write(*,*) ohnconst(pos_spec)
-
-  ! Read in daily and day-of-week variation of emissions, if available
-  !*******************************************************************
-
-    read(unitspecies,*,end=22)
-    do j=1,24     ! 24 hours, starting with 0-1 local time
-      read(unitspecies,*) ihour,area_hour(pos_spec,j),point_hour(pos_spec,j)
-    end do
-    read(unitspecies,*)
-    do j=1,7      ! 7 days of the week, starting with Monday
-      read(unitspecies,*) idow,area_dow(pos_spec,j),point_dow(pos_spec,j)
-    end do
-
-    pspecies=species(pos_spec)
-    pdecay=decay(pos_spec)
-    pweta_gas=weta_gas(pos_spec)
-    pwetb_gas=wetb_gas(pos_spec)
-    pcrain_aero=crain_aero(pos_spec)
-    pcsnow_aero=csnow_aero(pos_spec)
-    pccn_aero=ccn_aero(pos_spec)
-    pin_aero=in_aero(pos_spec)
-    preldiff=reldiff(pos_spec)
-    phenry=henry(pos_spec)
-    pf0=f0(pos_spec)
-    pdensity=density(pos_spec)
-    pdquer=dquer(pos_spec)
-    pdsigma=dsigma(pos_spec)
-    pndia=ndia(pos_spec)
-    pdryvel=dryvel(pos_spec)
-    pweightmolar=weightmolar(pos_spec)
-    pohcconst=ohcconst(pos_spec)
-    pohdconst=ohdconst(pos_spec)
-    pohnconst=ohnconst(pos_spec)
-
-
-    do j=1,24     ! 24 hours, starting with 0-1 local time
-      parea_hour(j)=area_hour(pos_spec,j)
-      ppoint_hour(j)=point_hour(pos_spec,j)
-    end do
-    do j=1,7      ! 7 days of the week, starting with Monday
-      parea_dow(j)=area_dow(pos_spec,j)
-      ppoint_dow(j)=point_dow(pos_spec,j)
-    end do
-
-  else ! namelist available
-
-    species(pos_spec)=pspecies
-    decay(pos_spec)=pdecay
-    weta_gas(pos_spec)=pweta_gas
-    wetb_gas(pos_spec)=pwetb_gas
-    crain_aero(pos_spec)=pcrain_aero
-    csnow_aero(pos_spec)=pcsnow_aero
-    ccn_aero(pos_spec)=pccn_aero
-    in_aero(pos_spec)=pin_aero
-    reldiff(pos_spec)=preldiff
-    henry(pos_spec)=phenry
-    f0(pos_spec)=pf0
-    density(pos_spec)=pdensity
-    dquer(pos_spec)=pdquer
-    dsigma(pos_spec)=pdsigma
-    ndia(pos_spec)=pndia
-    dryvel(pos_spec)=pdryvel
-    weightmolar(pos_spec)=pweightmolar
-    ohcconst(pos_spec)=pohcconst
-    ohdconst(pos_spec)=pohdconst
-    ohnconst(pos_spec)=pohnconst
-    ishape(pos_spec)=pshape
-    orient(pos_spec)=porient
-
-
-    ! Daria Tatsii 2023: compute particle shape dimensions
-    if (ishape(pos_spec).ge.1) then ! Compute shape according to given axes
-      select case (ishape(pos_spec))
-        case (1)
-          write(*,*) "Particle shape USER-DEFINED for particle", id_spec
-          if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=1 (user-defined) is chosen, &
-              &but no valid axes are provided."
-            write(*,*) "#### SPECIES file requires SA, IA, and LA parameter &
-              &greater than zero."
-            error stop
-          endif
-          write(*,*) "SA,IA,LA:",psa,pia,pla
-        case (2) ! Cylinders (fibers) !
-          if (paspectratio.le.0.0) then
-            write(*,*) "#### ERROR: Shape=2 cylinder is chosen, but no valid apect ratio is provided."
-            write(*,*) "#### SPECIES file requires ASPECTRATIO parameter greater than zero."
-            error stop
-          endif
-          psa=(((dquer(pos_spec)**3.0)*2.0)/ &
-                  (3.0*paspectratio))**(1.0/3.0)
-          pia=psa
-          pla=psa*paspectratio
-          write(*,*) "Particle shape CYLINDER for particle", id_spec
-          write(*,*) "SA,IA,LA:",psa,pia,pla
-        case (3) ! Cubes !
-          write(*,*) "Particle shape CUBE for particle", id_spec
-          psa=((dquer(pos_spec)**3)*pi/6.0)**(1.0/3.0)
-          pia=(2.0**0.5)*psa
-          pla=(3.0**0.5)*psa
-          if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=3 (user-defined) is chosen, but no valid axes are provided."
-            write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            error stop
-          endif
-          write(*,*) "SA,IA,LA:",psa,pia,pla
-        case (4) ! Tetrahedrons !
-          write(*,*) "Particle shape TETRAHEDRON for particle", id_spec
-          pla=((dquer(pos_spec)**3)*pi*2**(0.5))**(1.0/3.0)
-          pia=pla*((3.0/4.0)**(0.5))
-          psa=pla*((2.0/3.0)**(0.5))
-          if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=4 (user-defined) is chosen, but no valid axes are provided."
-            write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            error stop
-          endif
-          write(*,*) "SA,IA,LA:",psa,pia,pla
-        case (5) ! Octahedrons !
-          write(*,*) "Particle shape OCTAHEDRON for particle", id_spec
-          psa=dquer(pos_spec)*(pi/(2.0*2.0**(0.5)))**3
-          pia=psa
-          pla=psa*(2.0**(0.5))
-          if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=5 (user-defined) is chosen, but no valid axes are provided."
-            write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            error stop
-          endif
-          write(*,*) "SA,IA,LA:",psa,pia,pla
-        case (6) ! Ellipsoids !
-          write(*,*) "Particle shape ELLIPSOID for particle", id_spec
-          psa=dquer(pos_spec)/(2.0**(1.0/3.0)) 
-          pia=psa
-          pla=2*pia
-          if ((psa.le.0.0).or.(pia.le.0.0).or.(pla.le.0.0)) then
-            write(*,*) "#### ERROR: Shape=6 (user-defined) is chosen, but no valid axes are provided."
-            write(*,*) "#### SPECIES file requires SA, IA, and LA parameter greater than zero."
-            error stop
-          endif
-          write(*,*) "SA,IA,LA:",psa,pia,pla
-      end select
-
-      ! When using the shape option, dquer is the sphere equivalent diameter
-      
-      f=psa/pia
-      e=pia/pla
-      ! Drag coefficient scheme by Bagheri & Bonadonna, 2016 to define settling velocities of other shapes (by D.Tatsii)
-      if ((ishape(pos_spec).eq.2).or.((ishape(pos_spec).eq.1).and. &
-        (pia.eq.psa).and.(pla.ge.20.0*pia))) then
-
-        Fn(pos_spec)=f*f*e  ! simplified equation, validated by experiments with fibers
-        Fs(pos_spec)=f*e**(1.3)   ! simplified equation, validated by experiments with fibers
-      else
-        Fn(pos_spec)=f*f*e*((dquer(pos_spec))**3)/(psa*pia*pla) ! Newton's regime  
-        Fs(pos_spec)=f*e**(1.3)*(dquer(pos_spec)**3/(psa*pia*pla)) ! Stokes' regime
-      endif
-      ! Pre-compute ks and kn values needed for horizontal and average orientation (B&B Figure 12 k_(s,max))
-      ks1(pos_spec)=(Fs(pos_spec)**(1./3.) + Fs(pos_spec)**(-1./3.))/2.
-      ks2(pos_spec)=0.5*((Fs(pos_spec)**0.05)+(Fs(pos_spec)**(-0.36)))
-      kn2(pos_spec)=10.**(alpha2*(-log10(Fn(pos_spec)))**beta2)
-
-    else ! Spheres
-      write(*,*) "Particle shape SPHERE for particle", id_spec
+      Fn(pos_spec)=f*f*e  ! simplified equation, validated by experiments with fibers
+      Fs(pos_spec)=f*e**(1.3)   ! simplified equation, validated by experiments with fibers
+    else
+      Fn(pos_spec)=f*f*e*((dquer(pos_spec))**3)/(psa*pia*pla) ! Newton's regime  
+      Fs(pos_spec)=f*e**(1.3)*(dquer(pos_spec)**3/(psa*pia*pla)) ! Stokes' regime
     endif
 
-    do j=1,24     ! 24 hours, starting with 0-1 local time
-      area_hour(pos_spec,j)=parea_hour(j)
-      point_hour(pos_spec,j)=ppoint_hour(j)
-    end do
-    do j=1,7      ! 7 days of the week, starting with Monday
-      area_dow(pos_spec,j)=parea_dow(j)
-      point_dow(pos_spec,j)=ppoint_dow(j)
+    ! Pre-compute ks and kn values needed for horizontal and average orientation (B&B Figure 12 k_(s,max))
+    ks1(pos_spec)=(Fs(pos_spec)**(1./3.) + Fs(pos_spec)**(-1./3.))/2.
+    ks2(pos_spec)=0.5*((Fs(pos_spec)**0.05)+(Fs(pos_spec)**(-0.36)))
+    kn2(pos_spec)=10.**(alpha2*(-log10(Fn(pos_spec)))**beta2)
+
+  else ! Spheres
+    write(*,*) "Particle shape SPHERE for particle", id_spec
+  endif
+
+  ! assign chemical reaction rate constants to table
+  !*************************************************
+
+  print*, 'readspecies: preactions = ',preactions
+
+  if (any(preactions.ne."")) then
+    do j=1,maxreagent
+      if ( preactions(j).eq."" ) cycle
+      do i=1,maxreagent
+        if (preactions(j).eq.reagents(i)) then
+          reaccconst(i,pos_spec)=pcconst(j)
+          reacdconst(i,pos_spec)=pdconst(j)
+          reacnconst(i,pos_spec)=pnconst(j)
+          exit
+        endif
+      end do
+      if (i.gt.nreagent) then
+        write(*,*) '#### FLEXPART MODEL ERROR       ####'
+        write(*,*) '#### REAGENT NOT FOUND FOR      ####'
+        write(*,*) '#### REACTION '//trim(preactions(j))//' ####'
+        error stop
+      endif
     end do
   endif
+
+  ! Check reaction rates
+  if (lroot) then
+    write(*,*) 'Reaction rates for ',species(pos_spec),':'
+    do j=1,nreagent
+      if (reaccconst(j,pos_spec).lt.0.) reaccconst(j,pos_spec)=0.
+      if (reacdconst(j,pos_spec).lt.0.) reacdconst(j,pos_spec)=0.
+      if (reacnconst(j,pos_spec).lt.0.) reacnconst(j,pos_spec)=0.
+      write(*,*) reagents(j),': C, D, N = ',reaccconst(j,pos_spec),reacdconst(j,pos_spec),reacnconst(j,pos_spec)
+    end do
+  endif
+
+  do j=1,24     ! 24 hours, starting with 0-1 local time
+    area_hour(pos_spec,j)=parea_hour(j)
+    point_hour(pos_spec,j)=ppoint_hour(j)
+  end do
+  do j=1,7      ! 7 days of the week, starting with Monday
+    area_dow(pos_spec,j)=parea_dow(j)
+    point_dow(pos_spec,j)=ppoint_dow(j)
+  end do
 
   i=pos_spec
 
@@ -3070,11 +3091,10 @@ subroutine readspecies(id_spec,pos_spec)
     end if
   end if
 
-  if (ndia(pos_spec).gt.maxndia) then
-    maxndia=ndia(pos_spec)
-    ! write(*,*) 'NDIA in SPECIES file', pos_spec, 'set to', ndia(pos_spec), 'larger than maxndia', &
-    !   maxndia, 'set in par_mod.f90'
-  endif
+  !if (ndia(pos_spec).gt.maxndia) then
+  !  maxndia=ndia(pos_spec)
+  !endif
+  ndia(pos_spec)=maxndia ! Setting all ndia to maxndia (par_mod.f90)
   !  if (dsigma(i).eq.0.) dsigma(i)=1.0001   ! avoid floating exception
   if (dquer(i).gt.0 .and. dsigma(i).le.1.) then !dsigma(i)=1.0001   ! avoid floating exception
     !write(*,*) '#### FLEXPART MODEL ERROR!                      ####'
@@ -3251,156 +3271,191 @@ subroutine readpartoptions
   ! Save values in particle options derived type
   !*********************************************
   partopt(1)%long_name='longitude'
+  partopt(1)%short_name='lon'
   partopt(1)%name='LO'
   partopt(1)%print=longitude
 
   partopt(2)%long_name='longitude_average'
+  partopt(2)%short_name='lon_av'
   partopt(2)%name='lo'
   partopt(2)%print=longitude_average
   partopt(2)%average=.true.
 
   partopt(3)%long_name='latitude'
+  partopt(3)%short_name='lat'
   partopt(3)%name='LA'
   partopt(3)%print=latitude
 
   partopt(4)%long_name='latitude_average'
+  partopt(4)%short_name='lat_av'
   partopt(4)%name='la'
   partopt(4)%print=latitude_average
   partopt(4)%average=.true.
 
   partopt(5)%long_name='height'
+  partopt(5)%short_name='z'
   partopt(5)%name='ZZ'
   partopt(5)%print=height
 
   partopt(6)%long_name='height_average'
+  partopt(6)%short_name='z_av'
   partopt(6)%name='zz'
   partopt(6)%print=height_average
   partopt(6)%average=.true.
 
-  partopt(7)%long_name='pv'
+  partopt(7)%long_name='potential_vorticity'
+  partopt(7)%short_name='pv'
   partopt(7)%name='PV'
   partopt(7)%print=pv
 
-  partopt(8)%long_name='pv_average'
+  partopt(8)%long_name='potential_vorticity_average'
+  partopt(8)%short_name='pv_av'
   partopt(8)%name='pv'
   partopt(8)%print=pv_average
   partopt(8)%average=.true.
 
-  partopt(9)%long_name='qv'
+  partopt(9)%long_name='specific_humidity'
+  partopt(9)%short_name='qv'
   partopt(9)%name='QV'
   partopt(9)%print=qv
 
-  partopt(10)%long_name='qv_average'
+  partopt(10)%long_name='specific_humidity_average'
+  partopt(10)%short_name='qv_av'
   partopt(10)%name='qv'
   partopt(10)%print=qv_average
   partopt(10)%average=.true.
 
   partopt(11)%long_name='density'
+  partopt(11)%short_name='rho'
   partopt(11)%name='RH'
   partopt(11)%print=density
 
   partopt(12)%long_name='density_average'
+  partopt(12)%short_name='rho_av'
   partopt(12)%name='rh'
   partopt(12)%print=density_average
   partopt(12)%average=.true.
 
   partopt(13)%long_name='temperature'
+  partopt(13)%short_name='T'
   partopt(13)%name='TT'
   partopt(13)%print=temperature
 
   partopt(14)%long_name='temperature_average'
+  partopt(14)%short_name='T_av'
   partopt(14)%name='tt'
   partopt(14)%print=temperature_average
   partopt(14)%average=.true.
 
   partopt(15)%long_name='pressure'
+  partopt(15)%short_name='prs'
   partopt(15)%name='PR'
   partopt(15)%print=pressure
 
   partopt(16)%long_name='pressure_average'
+  partopt(16)%short_name='prs_av'
   partopt(16)%name='pr'
   partopt(16)%print=pressure_average
   partopt(16)%average=.true.
 
   partopt(17)%long_name='mixingheight'
+  partopt(17)%short_name='hmix'
   partopt(17)%name='HM'
   partopt(17)%print=mixingheight
 
   partopt(18)%long_name='mixingheight_average'
+  partopt(18)%short_name='hmix_av'
   partopt(18)%name='hm'
   partopt(18)%print=mixingheight_average
   partopt(18)%average=.true.
 
   partopt(19)%long_name='tropopause'
+  partopt(19)%short_name='tro'
   partopt(19)%name='TR'
   partopt(19)%print=tropopause
 
   partopt(20)%long_name='tropopause_average'
+  partopt(20)%short_name='tro_av'
   partopt(20)%name='tr'
   partopt(20)%print=tropopause_average
   partopt(20)%average=.true.
 
   partopt(21)%long_name='topography'
+  partopt(21)%short_name='to'
   partopt(21)%name='TO'
   partopt(21)%print=topography
 
   partopt(22)%long_name='topography_average'
+  partopt(22)%short_name='to_av'
   partopt(22)%name='to'
   partopt(22)%print=topography_average
   partopt(22)%average=.true.
 
   partopt(23)%long_name='mass'
+  partopt(23)%short_name='m'
   partopt(23)%name='MA'
   partopt(23)%print=mass
 
   partopt(24)%long_name='mass_average'
+  partopt(24)%short_name='m_av'
   partopt(24)%name='ma'
   partopt(24)%print=mass_average
   partopt(24)%average=.true.
   
-  partopt(25)%long_name='u'
+  partopt(25)%long_name='longitudinal_velocity'
+  partopt(25)%short_name='u'
   partopt(25)%name='UU'
   partopt(25)%print=u
 
-  partopt(26)%long_name='u_average'
+  partopt(26)%long_name='longitudinal_velocity_average'
+  partopt(26)%short_name='u_av'
   partopt(26)%name='uu'
   partopt(26)%print=u_average
   partopt(26)%average=.true.
 
-  partopt(27)%long_name='v'
+  partopt(27)%long_name='latitudinal_velocity'
+  partopt(27)%short_name='v'
   partopt(27)%name='VV'
   partopt(27)%print=v
 
-  partopt(28)%long_name='v_average'
+  partopt(28)%long_name='latitudinal_velocity_average'
+  partopt(28)%short_name='v_av'
   partopt(28)%name='vv'
   partopt(28)%print=v_average
   partopt(28)%average=.true.
 
-  partopt(29)%long_name='w'
+  partopt(29)%long_name='vertical_velocity'
+  partopt(29)%short_name='w'
   partopt(29)%name='WW'
   partopt(29)%print=w
 
-  partopt(30)%long_name='w_average'
+  partopt(30)%long_name='vertical_velocity_average'
+  partopt(30)%short_name='w_av'
   partopt(30)%name='ww'
   partopt(30)%print=w_average
   partopt(30)%average=.true.
 
-  partopt(31)%long_name='vsettling'
+  partopt(31)%long_name='settling_velocity'
+  partopt(31)%short_name='vset'
   partopt(31)%name='VS'
   partopt(31)%print=vsettling
 
-  partopt(32)%long_name='vsettling_average'
+  partopt(32)%long_name='settling_velocity_average'
+  partopt(32)%short_name='vset_av'
   partopt(32)%name='vs'
   partopt(32)%print=vsettling_average
   partopt(32)%average=.true.
 
   partopt(33)%long_name='wetdeposition'
+  partopt(33)%short_name='wetdepo'
   partopt(33)%name='WD'
   partopt(33)%print=wetdeposition
 
   partopt(34)%long_name='drydeposition'
+  partopt(34)%short_name='drydepo'
   partopt(34)%name='DD'
   partopt(34)%print=drydeposition
+
   ! Numbers are assigned to the averaged fields for proper
   ! allocation and reading in particle_mod and output_mod
   !******************************************************
