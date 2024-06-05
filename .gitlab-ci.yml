@@ -175,6 +175,8 @@ etex-test:
 documentation:
   image: harbor.wolke.img.univie.ac.at/podman/mkdocs-computer:latest
   stage: build
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "master"'
   script:
     - cd ./documentation && mkdocs build -c --verbose
-    - sshpass -p "$WOLKE_PASSWORD" rsync -autv --delete -e "ssh -o StrictHostKeyChecking=no" /tmp/cr-site/* "$WOLKE_USER@wolke.img.univie.ac.at:/var/www/html/documentation/flexpart"
+    - sshpass -p "$WOLKE_PASSWORD" rsync -autv --delete -e "ssh -o StrictHostKeyChecking=no" /tmp/cr-site/* "$WOLKE_USER@wolke.img.univie.ac.at:/var/www/flexpart/docs"
