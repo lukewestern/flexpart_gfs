@@ -1,6 +1,5 @@
 stages:
   - build
-  - setup
   - test
   - compare
   # - container
@@ -8,12 +7,11 @@ stages:
 default:
   tags:
     - podman
-
-cache:
-  key: testdata
-  paths:
-    - ./tests/testdata
-  policy: pull-push
+  cache:
+    key: testdata
+    paths:
+      - ./tests/testdata
+    policy: pull-push
 
 alma8-build:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -52,7 +50,7 @@ rocky9-build:
     expire_in: 1d
 
 setup:
-  stage: setup
+  stage: build
   image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   script:
     - mkdir ./tests/testdata
@@ -65,7 +63,6 @@ options-test:
   needs:
     - alma8-build
     - rocky9-build
-    - setup
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
@@ -86,7 +83,6 @@ nests-test:
   needs:
     - alma8-build
     - rocky9-build
-    - setup
 
   script:
     - ulimit -s unlimited
@@ -104,7 +100,6 @@ openmp-simulation:
   needs:
     - alma8-build
     - rocky9-build
-    - setup
 
   script:
     - ulimit -s unlimited
@@ -127,7 +122,6 @@ etex-simulation:
   needs:
     - alma8-build
     - rocky9-build
-    - setup
 
   script:
     - ulimit -s unlimited
