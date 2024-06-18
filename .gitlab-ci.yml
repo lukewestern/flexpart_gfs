@@ -9,6 +9,8 @@ default:
   tags:
     - podman
 
+cache:
+  key: testdata
 
 alma8-build:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -28,7 +30,9 @@ alma8-build:
     expire_in: 1d
 
 rocky9-build:
-  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
+  image: 
+    name: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
+    pull_policy: always
   stage: build
 
   script:
@@ -44,23 +48,14 @@ rocky9-build:
       - ./src/FLEXPART_ETA
     expire_in: 1d
 
-.download:
-  cache:
-    paths:
-      - ./tests/testdata
-    policy: pull
-
 setup:
   stage: setup
   image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   script:
-    - mkdir ./tests/testdata && cd ./tests/testdata
-    - curl -O "https://webdata.wolke.img.univie.ac.at/flexpart/*"
-  extends: .download
+    - mkdir ./tests/testdata
+    - wget -r -nH --cut-dirs=2 --no-parent --reject="index.html*" -P ./tests/testdata "https://webdata.wolke.img.univie.ac.at/flexpart/"
   cache:
-    policy: pull-push
-  artifacts:
-    expire_in: never
+    key: testdata
     paths:
       - ./tests/testdata
 
@@ -71,8 +66,7 @@ options-test:
   needs:
     - alma8-build
     - rocky9-build
-
-  extends: .download
+    - setup
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
@@ -93,6 +87,7 @@ nests-test:
   needs:
     - alma8-build
     - rocky9-build
+    - setup
 
   script:
     - ulimit -s unlimited
@@ -110,6 +105,7 @@ openmp-simulation:
   needs:
     - alma8-build
     - rocky9-build
+    - setup
 
   script:
     - ulimit -s unlimited
@@ -132,6 +128,7 @@ etex-simulation:
   needs:
     - alma8-build
     - rocky9-build
+    - setup
 
   script:
     - ulimit -s unlimited
