@@ -5,11 +5,18 @@ stages:
   # - container
 
 default:
+  image: 
+    name: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
+    pull_policy: always
+
   tags:
     - podman
   cache:
     paths:
       - testdata/
+  before_script:
+    - mkdir testdata/
+    - wget -r -nH --cut-dirs=2 --no-parent --reject="index.html*" -P testdata/ "https://webdata.wolke.img.univie.ac.at/flexpart/"
 
 alma8-build:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -29,9 +36,6 @@ alma8-build:
     expire_in: 1d
 
 rocky9-build:
-  image: 
-    name: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
-    pull_policy: always
   stage: build
 
   script:
@@ -47,16 +51,9 @@ rocky9-build:
       - ./src/FLEXPART_ETA
     expire_in: 1d
 
-setup:
-  stage: build
-  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
-  script:
-    - mkdir testdata/
-    - wget -r -nH --cut-dirs=2 --no-parent --reject="index.html*" -P testdata/ "https://webdata.wolke.img.univie.ac.at/flexpart/"
+
 
 options-test:
-  # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
-  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   stage: test
   needs:
     - alma8-build
@@ -75,8 +72,6 @@ options-test:
     expire_in: 5 mins
 
 nests-test:
-  # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
-  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   stage: test
   when: manual
   needs:
@@ -93,8 +88,6 @@ nests-test:
     expire_in: 5 mins
 
 openmp-simulation:
-  # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
-  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   stage: test
   needs:
     - alma8-build
@@ -114,8 +107,6 @@ openmp-simulation:
     expire_in: 5 mins
 
 etex-simulation:
-  # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
-  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   stage: test
   when: manual
   needs:
