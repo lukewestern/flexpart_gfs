@@ -66,6 +66,9 @@ options-test:
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
+  cache:
+    key: testdata
+    policy: pull
   artifacts:
     when: on_success
     paths:
