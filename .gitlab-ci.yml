@@ -59,7 +59,7 @@ rocky9-build:
 options-test:
   stage: test
   needs:
-    - build
+    - rocky9-build
 
   script:
     - ulimit -s unlimited
@@ -78,7 +78,7 @@ nests-test:
   stage: test
   when: manual
   needs:
-    - build
+    - rocky9-build
 
   script:
     - ulimit -s unlimited
@@ -92,7 +92,7 @@ nests-test:
 openmp-simulation:
   stage: test
   needs:
-    - build
+    - rocky9-build
 
   script:
     - ulimit -s unlimited
@@ -111,7 +111,7 @@ etex-simulation:
   stage: test
   when: manual
   needs:
-    - build
+    - rocky9-build
 
   script:
     - ulimit -s unlimited
