@@ -53,8 +53,8 @@ setup:
   stage: test
   image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
   script:
-    - mkdir ./tests/testdata
-    - wget -P ./tests/testdata "https://webdata.wolke.img.univie.ac.at/flexpart/*"
+    - mkdir ./tests/testdata && cd ./tests/testdata
+    - curl -O "https://webdata.wolke.img.univie.ac.at/flexpart/*"
   extends: .download
   cache:
     policy: pull-push
