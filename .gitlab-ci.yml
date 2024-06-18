@@ -65,7 +65,6 @@ options-test:
 
   script:
     - ulimit -s unlimited
-    - ls /tests/testdata
     - bash ./tests/run_default_options_test.sh
   artifacts:
     when: on_success
