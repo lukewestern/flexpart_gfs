@@ -2,10 +2,12 @@ stages:
   - build
   - test
   - compare
+  # - container
 
 default:
   tags:
     - podman
+
 
 alma8-build:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -22,7 +24,7 @@ alma8-build:
     paths:
       - ./src/FLEXPART
       - ./src/FLEXPART_ETA
-    expire_in: never
+    expire_in: 1d
 
 rocky9-build:
   image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
@@ -39,7 +41,27 @@ rocky9-build:
     paths:
       - ./src/FLEXPART
       - ./src/FLEXPART_ETA
+    expire_in: 1d
+
+.download:
+  cache:
+    paths:
+      - ./tests/testdata
+    policy: pull
+
+setup:
+  stage: test
+  image: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
+  script:
+    - mkdir ./tests/testdata
+    - wget -P ./tests/testdata "https://webdata.wolke.img.univie.ac.at/flexpart/*"
+  extends: .download
+  cache:
+    policy: pull-push
+  artifacts:
     expire_in: never
+    paths:
+      - ./tests/testdata
 
 options-test:
   # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -49,6 +71,7 @@ options-test:
     - alma8-build
     - rocky9-build
 
+  extends: .download
   script:
     - ulimit -s unlimited
     - bash ./tests/run_default_options_test.sh
@@ -76,6 +99,8 @@ nests-test:
   artifacts:
     when: on_success
     paths:
+      - ./tests/output_nests
+    expire_in: 5 mins
 
 openmp-simulation:
   # image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
@@ -180,3 +205,7 @@ documentation:
   script:
     - cd ./documentation && mkdocs build -c --verbose
     - sshpass -p "$WOLKE_PASSWORD" rsync -autv --delete -e "ssh -o StrictHostKeyChecking=no" /tmp/cr-site/* "$WOLKE_USER@wolke.img.univie.ac.at:/var/www/flexpart/docs"
+
+# base:
+#   stage: container
+#   image: 

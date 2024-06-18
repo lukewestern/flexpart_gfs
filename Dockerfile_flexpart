@@ -15,7 +15,11 @@ ARG COMMIT=0
 ENV COMMIT=$COMMIT
 COPY ./src /src
 COPY ./tests/default_options /options
-COPY ./tests/default_winds /inputs
+
+# since the new data set is larger, we download the data for the container
+RUN wget -P /inputs "https://webdata.wolke.img.univie.ac.at/flexpart/*"
+# COPY ./tests/default_winds /inputs
+
 COPY ./entrypoint.sh /entrypoint.sh
 WORKDIR /src
 #
