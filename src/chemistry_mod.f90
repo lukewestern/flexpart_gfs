@@ -31,8 +31,9 @@ module chemistry_mod
   real, allocatable, dimension(:,:,:,:)   :: clfield_cur        ! chemical loss fields current hour
   integer, dimension(2)                   :: memCLtime          ! time of fields in memory (sec)  
   integer                                 :: curCLhour          ! current hour since start of simulation
+  real(kind=dp)                           :: memCLday           ! current day of simulation
   real(kind=dp), dimension(2)             :: CL_time            ! julian date of fields in memory
-  real, allocatable, dimension(:,:,:)     :: jrate_average      ! monthly average actinic flux 
+  real, allocatable, dimension(:,:)       :: jrate_average      ! daily average actinic flux 
   real, allocatable, dimension(:)         :: lonjr, latjr
 
   private :: zenithangle, photo_O1D
@@ -219,25 +220,6 @@ module chemistry_mod
           error stop
         endif
 
-        if (reag_hourly(nr).gt.0) then
-
-          ! Read average jrates and store in 2nd position
-          !**********************************************
-
-          write(jr_name,'(A)') trim(reag_path(nr))//'jrate_average.nc'
-          inquire(file=jr_name,exist=lexist)
-          if (lexist) then
-            write(*,*) 'Reading jrate field: ',jr_name
-            call readjrate(jr_name, memid, mm)
-          else
-            write(*,*) '#### FLEXPART ERROR                ####'
-            write(*,*) '#### JRATE_AVERAGE NOT FOUND       ####'
-            write(*,*) '#### '//trim(jr_name)//' ####'
-            error stop
-          endif
-
-        endif
-
       end do ! nreagent
 
     else
@@ -278,8 +260,6 @@ module chemistry_mod
               CL_time(memid)=jdmid
             endif
           endif
-          !! testing
-          print*, 'getchemfield: memid, jd, jdmid, CL_time = ',memid,jd,jdmid,CL_time(1)
         else
           call caldate(jd, jjjjmmdd, hhmmss)
           eomday=calceomday(jjjjmmdd/100)
@@ -314,24 +294,6 @@ module chemistry_mod
             error stop
           endif
  
-          ! Read average jrates
-          !********************
-
-          if (reag_hourly(nr).gt.0) then
-            ! Read average jrates into memory 
-            write(jr_name,'(A)') trim(reag_path(nr))//'jrate_average.nc'
-            inquire(file=jr_name,exist=lexist)
-            if (lexist) then
-              write(*,*) 'Reading jrate field: ',jr_name
-              call readjrate(jr_name, memid, mm)
-            else
-              write(*,*) '#### FLEXPART ERROR                ####'
-              write(*,*) '#### JRATE_AVERAGE NOT FOUND       ####'
-              write(*,*) '#### '//trim(jr_name)//' ####'
-              error stop
-            endif
-          endif ! reag_hourly
-
         end do ! nreagent
 
       end do ! memid
@@ -452,44 +414,85 @@ module chemistry_mod
 
     integer            :: itime, curhour, interp_time
     integer            :: nr, kz, ix, jy, ixm, jym, ixp, jyp, indz, indzm, ii
-    real               :: dt1, dt2, dtt, sza, jrate, jrate_cur, r
+    real               :: dt1, dt2, dtt, sza, jrate, r
     real, dimension(2) :: r1
     real               :: dz1, dz2, dz, ddx, ddy, rddx, rddy, p1, p2, p3, p4
-    integer            :: jjjjmmdd, hhmmss
-    integer            :: jrx, jry
-    real(kind=dp)      :: jul
+    integer            :: jjjjmmdd, hhmmss, hh
+    real(kind=dp)      :: jul, curday
     real, parameter    :: avog = 6.02214e23 ! Avogadro constant (1/mol)
     !! testing
-!    character(len=4) :: atime
-!    character(len=20) :: frmt
-!    real, dimension(nxjr,nyjr) :: jscalar, sza_grid
-    
+    character(len=4) :: atime
+    real, dimension(nxCL(1),nyCL(1)) :: jscalar
+    character(len=20) :: frmt
+
     !! testing
-!    jscalar(:,:)=1.
-!    sza_grid(:,:)=0.
+    jscalar(:,:)=0.
 
     ! current hour of simulation
     curhour=itime/3600
     write(*,*) 'getchemhourly: curhour, curCLhour = ',curhour, curCLhour
 
-    jul=bdate+real(itime,kind=dp)/86400._dp
-    call caldate(jul,jjjjmmdd,hhmmss)
-
     if ((ldirect*curCLhour.eq.ldirect*curhour).and.(ldirect*itime.gt.0)) then
       ! chemical field is for current hour -> don't do anything
       return
     else
+
+      ! interpolate chemical field
+      !*****************************
+
+      jul=bdate+real(itime,kind=dp)/86400._dp
+      call caldate(jul,jjjjmmdd,hhmmss)
       ! interpolate to middle of hour
       curCLhour=curhour
       interp_time=curhour*3600+1800
       dt1=float(interp_time-memCLtime(1))
       dt2=float(memCLtime(2)-interp_time)
       dtt=1./(dt1+dt2)
-      !! testing
-      print*, 'getchemhourly: dt1, dt2, dtt = ',dt1,dt2,dtt 
+
+      if (any(reag_hourly.gt.0)) then
+        ! interpolate using rate of O3 + hv -> O1D 
+        ! check if daily mean rate exists for current day
+        ! note: assume that all chemical fields using hourly interpolation
+        ! are on the same grid
+        do nr=1,nreagent
+          if (reag_hourly(nr).gt.0) exit
+        end do
+        curday=bdate+real(itime,kind=dp)/86400._dp
+        curday=floor(curday)
+        write(*,*) 'getchemhourly: curday, memCLday = ',curday, memCLday
+        if (memCLday.ne.curday) then
+          if (.not.allocated(jrate_average)) then
+            allocate(jrate_average(nxCL(1),nyCL(1)))
+          endif
+          memCLday=curday
+          jrate_average(:,:)=0.
+!$OMP PARALLEL &
+!$OMP PRIVATE(jy,ix,hh,sza,jrate) &
+!$OMP REDUCTION(+:jrate_average)
+!$OMP DO
+          do jy=1,nyCL(nr)
+            do ix = 1,nxCL(nr)
+              do hh=0,23
+                sza=zenithangle(latCL(jy,nr),lonCL(ix,nr),jjjjmmdd,hh*10000)
+                jrate=photo_O1D(sza)
+                jrate_average(ix,jy)=jrate_average(ix,jy)+jrate
+              end do
+            end do
+          end do
+!$OMP END DO
+!$OMP END PARALLEL
+          jrate_average=jrate_average/24.
+        end if
+        !! testing
+!        print*, 'getchemhourly: range(jrate_average) = ',minval(jrate_average),maxval(jrate_average)
+      endif
+
+      ! loop over reagents
       do nr=1,nreagent
+
         write(*,*) 'Interpolating fields for reagent: ',reagents(nr)
         clfield_cur(:,:,:,nr)=(dt2*CL_field(:,:,:,nr,1) + dt1*CL_field(:,:,:,nr,2))*dtt
+
         if (reag_unit(nr).eq.'mol/mol') then
           ! convert to molecule/cm3
 !$OMP PARALLEL &
@@ -522,11 +525,6 @@ module chemistry_mod
                 p2=ddx*rddy
                 p3=rddx*ddy
                 p4=ddx*ddy
-                !! testing
-!                if ((ix.lt.5).and.(jy.gt.10.and.jy.lt.20).and.kz.eq.1) then
-!                  print*, 'getchemhourly: lonCL, xlon, latCL, ylat = ',lonCL(ix,nr), xlon0+ixm*dx, latCL(jy,nr), ylat0+jyp*dy
-!                  print*, 'getchemhourly: altCL, height = ',altCL(kz,nr), (dz2*height(indzm)+dz1*height(indzm+1))*dz
-!                endif
                 ! take density from first field (accurate enough)
                 do ii=1,2
                   indz=indzm+ii-1
@@ -545,38 +543,24 @@ module chemistry_mod
 !$OMP END DO
 !$OMP END PARALLEL
         endif
+
         if (reag_hourly(nr).gt.0) then
-          ! use actinic flux (jrate) for interpolation
+          ! interpolate using rate of O3 + hv -> O1D 
 !$OMP PARALLEL &
-!$OMP PRIVATE(kz,jy,jry,ix,jrx,sza,jrate,jrate_cur) 
+!$OMP PRIVATE(kz,jy,ix,sza,jrate) 
 !$OMP DO
           do kz=1,nzCL(nr)
             do jy=1,nyCL(nr)
-              ! jrate_average dimensions given as grid midpoints
-              jry=int((latCL(jy,nr)-(latjr(1)-0.5*dyjr))/dyjr)+1
-              jry=min(jry,nyCL(nr))
-              !! testing
-!              if (kz.eq.1.and.jy.lt.10) print*, 'latCL, latjr = ',latCL(jy), latjr(jry)
               do ix=1,nxCL(nr)
-                ! jrate_average dimensions given as grid midpoints
-                jrx=int((lonCL(ix,nr)-(lonjr(1)-0.5*dxjr))/dxjr)+1
-                jrx=min(jrx,nxCL(nr))
-                !! testing
-!                if (kz.eq.1.and.jy.lt.10.and.ix.lt.10) print*, 'lonCL, lonjr = ',lonCL(ix), lonjr(jrx)
                 ! solar zenith angle
-                sza=zenithangle(latjr(jry),lonjr(jrx),jjjjmmdd,hhmmss)
+                sza=zenithangle(latCL(jy,nr),lonCL(ix,nr),jjjjmmdd,hhmmss)
                 ! calculate J(O1D) (jrate)
                 jrate=photo_O1D(sza)
-                jrate_cur=(dt2*jrate_average(jrx,jry,1) + &
-                           dt1*jrate_average(jrx,jry,2))*dtt
-                ! apply hourly correction to chem field
-                if(jrate_cur.gt.0.) then
-                  clfield_cur(ix,jy,kz,nr)=clfield_cur(ix,jy,kz,nr)*jrate/jrate_cur
+                ! hourly correction
+                if (jrate_average(ix,jy).ne.0) then
+                  clfield_cur(ix,jy,kz,nr)=clfield_cur(ix,jy,kz,nr)*jrate/jrate_average(ix,jy)
                   !! testing
-!                  if (kz.eq.1) then
-!                    jscalar(ix,jy)=jrate/jrate_cur
-!                    sza_grid(ix,jy)=sza
-!                  endif
+!                  jscalar(ix,jy)=jrate/jrate_average(ix,jy)
                 endif
               end do
             end do
@@ -588,29 +572,17 @@ module chemistry_mod
     endif ! curhour
 
     !! testing
-!    write(frmt,fmt='(A,I4,A)') '(',nxCL,'(E14.6))'
 !    write(atime,fmt='(I4.4)') curhour
-!    open(600,file=path(2)(1:length(2))//'clfield_'//atime//'.txt',action='write',status='replace')
-!    do kz=1,nzCL
-!      do jy=1,nyCL
-!        write(600,fmt=frmt) clfield_cur(:,jy,kz,1)
-!      end do
-!    end do
-!    close(600)
-!    write(frmt,fmt='(A,I4,A)') '(',nxjr,'(E14.6))'
+!    write(frmt,fmt='(A,I4,A)') '(',nxCL(1),'(E14.6))'
 !    open(600,file=path(2)(1:length(2))//'jscalar_'//atime//'.txt',action='write',status='replace')
-!    do jy=1,nyjr
+!    do jy=1,nyCL(1)
 !      write(600,fmt=frmt) jscalar(:,jy)
 !    end do
 !    close(600)
-!    write(frmt,fmt='(A,I4,A)') '(',nxjr,'(E14.6))'
-!    open(600,file=path(2)(1:length(2))//'sza_'//atime//'.txt',action='write',status='replace')
-!    do jy=1,nyjr
-!      write(600,fmt=frmt) sza_grid(:,jy)
-!    end do
-!    close(600)
+    !!
 
   end subroutine getchemhourly
+
 
   subroutine chemreaction(itime)
 
@@ -817,73 +789,13 @@ module chemistry_mod
   end subroutine chemreaction
 
 
-  subroutine readjrate(jr_name,memid,mm)
-
-  !*****************************************************************************
-  !                                                                            *
-  !    Reads the average actinic flux rates into memory                        *
-  !                                                                            *
-  !    Author: Rona Thompson, Sep 2023                                         *
-  !                                                                            *
-  !*****************************************************************************
-  !                                                                            *
-  ! Variables:                                                                 *
-  !                                                                            *
-  ! jr_name           name of the file                                         *
-  ! memid             time index to chemical field variable                    *
-  ! mm                month to read                                            *
-  !                                                                            * 
-  !*****************************************************************************
-
-    implicit none
-
-    character(len=256) :: jr_name
-    integer            :: memid,mm
-    integer            :: ncid,dimid,varid
-
-    ! Read netcdf file
-    !******************
-
-    ! open file
-    call nf90_err( nf90_open(trim(jr_name),nf90_NOWRITE,ncid) )
-
-    ! longitude
-    call nf90_err( nf90_inq_dimid(ncid,'longitude',dimid) )
-    call nf90_err( nf90_inquire_dimension(ncid,dimid,len=nxjr) )
-    if (.not.allocated(lonjr)) allocate(lonjr(nxjr))
-    call nf90_err( nf90_inq_varid(ncid,'longitude',varid) )
-    call nf90_err( nf90_get_var(ncid,varid,lonjr) )
-    dxjr=abs(lonjr(2)-lonjr(1))
-
-    ! latitude
-    call nf90_err( nf90_inq_dimid(ncid,'latitude',dimid) )
-    call nf90_err( nf90_inquire_dimension(ncid,dimid,len=nyjr) )
-    if (.not.allocated(latjr)) allocate(latjr(nyjr))
-    call nf90_err( nf90_inq_varid(ncid,'latitude',varid) )
-    call nf90_err( nf90_get_var(ncid,varid,latjr) )
-    dyjr=abs(latjr(2)-latjr(1))
-
-    ! jrate field
-    call nf90_err( nf90_inq_varid(ncid,'jrate',varid) )
-    if (.not.allocated(jrate_average)) then
-      allocate(jrate_average(nxjr,nyjr,2))
-    endif
-    call nf90_err( nf90_get_var(ncid,varid,jrate_average(:,:,memid),start=(/1,1,mm/),count=(/nxjr,nyjr,1/)) )
-
-    ! close file
-    call nf90_err( nf90_close(ncid) )
-
-    return
-
-  end subroutine readjrate
-
   function photo_O1D(sza) result(jrate)
 
   !*****************************************************************************
   !                                                                            *
   !    Calculates J(O1D) photolysis rate based on solar zenith angle           *
   !                                                                            *
-  !    Author: A. Stohl, Nov 2014                                              *
+  !    Ref: Hamer, P. D., et al. Atmos. Chem. Phys. 2015
   !                                                                            *
   !*****************************************************************************
   !                                                                            *
@@ -898,37 +810,17 @@ module chemistry_mod
     implicit none
 
     real, intent(in)  :: sza
-    real :: jrate
-    integer :: iz,ik
-    real :: z1,z2,zg,f1,f2,dummy
-    real :: photo_NO2
-    integer, parameter :: nzenith=11
+    real :: sun, jrate
     real, parameter :: pi=3.1415927
-    real, dimension(nzenith) :: zangle,fact_photo
 
-    ! zangle: zenith angles for which fact_photo is tabulated
-    ! fact_photo: conversion of photolysis rate of NO2 to photolysis 
-    !     rate of O3 into O1D as a function of solar zenith angle
-
-    zangle=(/0.,10.,20.,30.,40.,50.,60.,70.,78.,86.,90.0001/)
-    fact_photo=(/0.4616E-02,0.4478E-02,0.4131E-02,0.3583E-02,0.2867E-02,&
-      &0.2081E-02,0.1235E-02,0.5392E-03,0.2200E-03,0.1302E-03,0.0902E-03/)
-
-    if (sza.lt.90.) then
-      do iz=1,nzenith-1
-        if(sza.ge.zangle(iz)) ik=iz
-      end do
-      z1=1./cos(zangle(ik)*pi/180.)
-      z2=1./cos(zangle(ik+1)*pi/180.)
-      zg=1./cos(sza*pi/180.)
-      dummy=(zg-z1)/(z2-z1)
-      f1=alog(fact_photo(ik))
-      f2=alog(fact_photo(ik+1))
-      photo_NO2=1.45e-2*exp(-0.4/cos(sza*pi/180.))
-      jrate=photo_NO2*exp(f1+(f2-f1)*dummy)
+    sun=sza*pi/180.
+    if (sun.le.(pi/2.)) then
+      sun=cos(sun)
     else
-      jrate=0.
+      sun=0.
     endif
+
+    jrate=(8.978e-5*(sun**1.436)*exp(-0.936/sun))
 
   end function photo_O1D
 
