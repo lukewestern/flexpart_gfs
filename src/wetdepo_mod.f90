@@ -324,7 +324,7 @@ subroutine get_wetscav(itime,jpart,ks,gridfract,wetscav)
 #endif
   
   ! Interpolate cloud information
-	call interpol_rain(itime,kz,lsp,convp,cc,t_particle,cl,icbot,ictop,icmv)
+  call interpol_rain(itime,kz,lsp,convp,cc,t_particle,cl,icbot,ictop,icmv)
   ! cc = total cloud cover
   ! cl = ctwc
 
