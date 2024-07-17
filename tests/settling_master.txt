@@ -42,10 +42,10 @@
              to ETA:	mean abs: 3.23776725e+02	max abs: 1.12415088e+03
               to_av:	mean abs: 3.23853500e+02	max abs: 1.11385352e+03
           to_av ETA:	mean abs: 3.23850750e+02	max abs: 1.11391602e+03
-               m001:	mean abs: 9.87321079e-05	max abs: 9.99999975e-05
-           m001 ETA:	mean abs: 9.86580849e-05	max abs: 9.99999975e-05
-            m_av001:	mean abs: 9.90111351e-05	max abs: 9.99999975e-05
-        m_av001 ETA:	mean abs: 9.89460289e-05	max abs: 9.99999975e-05
+               m001:	mean abs: 9.87682223e-05	max abs: 9.99999975e-05
+           m001 ETA:	mean abs: 9.86909986e-05	max abs: 9.99999975e-05
+            m_av001:	mean abs: 9.90379214e-05	max abs: 9.99999975e-05
+        m_av001 ETA:	mean abs: 9.89701509e-05	max abs: 9.99999975e-05
                   u:	mean abs: 2.09955020e+00	max abs: 7.07874107e+00
               u ETA:	mean abs: 2.10246445e+00	max abs: 7.08939075e+00
                u_av:	mean abs: 2.10357930e+00	max abs: 7.12824345e+00
@@ -62,13 +62,13 @@
            vset ETA:	mean abs: 3.55858743e-05	max abs: 3.88668086e-05
             vset_av:	mean abs: 3.55930209e-05	max abs: 3.88597255e-05
         vset_av ETA:	mean abs: 3.55931044e-05	max abs: 3.88595618e-05
-         wetdepo001:	mean abs: 4.97677177e-07	max abs: 3.10084833e-05
-     wetdepo001 ETA:	mean abs: 5.72570320e-07	max abs: 3.10087562e-05
-         drydepo001:	mean abs: 7.70202093e-07	max abs: 4.90112552e-06
-     drydepo001 ETA:	mean abs: 7.69326324e-07	max abs: 4.90110233e-06
- Concentrations:		mean abs: 4.52316050e-05	max abs: 3.61591275e-03
- Concentrations ETA:	mean abs: 4.52076445e-05	max abs: 3.61591345e-03
- WET deposition:		mean abs: 6.56905919e-05	max abs: 2.21248250e-02
- WET deposition ETA:	mean abs: 7.84755508e-05	max abs: 3.06908134e-02
- DRY deposition:		mean abs: 9.38503127e-05	max abs: 2.49430700e-03
- DRY deposition ETA:	mean abs: 9.37944732e-05	max abs: 2.47154129e-03
+         wetdepo001:	mean abs: 4.61518299e-07	max abs: 3.10084833e-05
+     wetdepo001 ETA:	mean abs: 5.39635122e-07	max abs: 3.10087562e-05
+         drydepo001:	mean abs: 7.70252058e-07	max abs: 4.90112552e-06
+     drydepo001 ETA:	mean abs: 7.69361248e-07	max abs: 4.90110233e-06
+ Concentrations:		mean abs: 4.52393320e-05	max abs: 3.61609785e-03
+ Concentrations ETA:	mean abs: 4.52144060e-05	max abs: 3.61609808e-03
+ WET deposition:		mean abs: 6.11802410e-05	max abs: 2.14200709e-02
+ WET deposition ETA:	mean abs: 7.44685328e-05	max abs: 3.03334985e-02
+ DRY deposition:		mean abs: 9.38545093e-05	max abs: 2.49640574e-03
+ DRY deposition ETA:	mean abs: 9.37973320e-05	max abs: 2.47306679e-03
