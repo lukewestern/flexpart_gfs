@@ -43,6 +43,8 @@ alma8-build:
 
 rocky9-build:
   stage: build
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'
 
   script:
     - export FC=gfortran
