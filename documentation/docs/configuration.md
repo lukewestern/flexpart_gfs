@@ -329,6 +329,8 @@ When using nested areas, the third and fourth line can be repeated with the resp
 The meteorological input data, one file for each input time, are stored in GRIB format in a common directory (specified in line 3 of pathnames). To enable FLEXPART to find these files, a file usually named AVAILABLE (given in line 4 of pathnames) contains a list of all available meteorological input files and their corresponding time stamps. Additional files containing nested input data may also be provided. In this case, a separate file containing the input file names (e.g., named AVAILABLE_NESTED) must be given. Date and time entries in the AVAILABLE* files for mother and nested
 fields must be identical.
 
+ECMWF data can be retrieved using [flex_extract](https://flexpart.img.univie.ac.at/flexextract/index.html)
+
 ## <a name="ic"></a>User-defined initial conditions
 A simulation can be started using a NetCDF file listing all particles to be released. This option can be switched on by specifying [IPIN](configuration.md#ipin)=3 in the [COMMAND](configuration.md#command) option file. This file should be called **part_ic.nc** and located in the output directory defined in [Pathnames file](configuration.md#pathnames). It should have the following structure:
 

@@ -28,8 +28,9 @@ FLEXPART accepts two command line options:
 The introduction of `error stop` in Fortran 2008 now garantees FLEXPART to only exit with code `0` for successful runs. Any other exit code indicates a failed run.
 
 ## Input data
+FLEXPART advances particles based on interpolated meteorological fields, namely grid-scale three-dimensional fields of wind velocities, density, temperature, specific humidity, cloud liquid water and ice content, as well as precipitation and various surface fields. In principle, any gridded data set could be used. Data formats and coordinate systems used as well as differences in the meteorological variables provided, however, would make a generic input interface rather complex. The main FLEXPART code described here supports two input formats, data from ECMWF's and from NCEP's forecast systems (IFS and GFS, respectively). For ECMWF data, the [flex_extract](https://flexpart.img.univie.ac.at/flexextract/index.html) software package ([Tipka et al. 2020](https://gmd.copernicus.org/articles/13/5277/2020/)) is provided to extract, process, and store the required fields for use as FLEXPART input, including support for ECMWF's reanalyses.
 
-To run FLEXPART, there are three important (sets) of files that need to be specified.
+In addition, to run FLEXPART, there are three important (sets) of files that need to be specified.
 These are:
 
 - the [**option files**](configuration.md#options), defining the set-up of the run,
@@ -37,6 +38,7 @@ These are:
 - the [**AVAILABLE file**](configuration.md#available), listing all available [meteorological input files](running.md#meteodata).
 
 A full description of these files can be found in [Configuration](configuration.md#config).
+
 
 ### <a name="meteodata"></a>Meteorological input data
 
