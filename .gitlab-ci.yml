@@ -195,14 +195,19 @@ base:
   stage: container
   image: quay.io/podman/stable
   when: manual
+  tags:
+    - privileged
   script:
-    - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest" -f ./tests/Dockerfile
+    - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:$(date +"v%Y.%m")" -t "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest" -f ./tests/Dockerfile
     - podman push "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest"
+    - podman push "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:$(date +"v%Y.%m")"
 
 post:
   stage: container
   image: quay.io/podman/stable
   when: manual
+  tags:
+    - privileged
   script:
     - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39" -f ./tests/Dockerfile.python
     - podman push "harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39"
@@ -211,16 +216,11 @@ flexpart:
   stage: container
   image: quay.io/podman/stable
   when: manual
+  variables:
+    MAJOR_VERSION: "v11"
+  tags:
+    - privileged
   script:
-    - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/flexpartv11-${CI_COMMIT_REF_NAME}:${CI_COMMIT_SHA:0:8}" --build-arg COMMIT=${CI_COMMIT_SHA:0:8} -f ./containers/Dockerfile ../
-    - podman push "harbor.wolke.img.univie.ac.at/flexpart/flexpartv11-${CI_COMMIT_REF_NAME}:${CI_COMMIT_SHA:0:8}"
-
-flexpartv10:
-  stage: container
-  image: quay.io/podman/stable
-  when: manual
-  script:
-    - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/flexpartv10.4:latest" -f ./containers/Dockerfile.v10.4 ../
-    - podman push "harbor.wolke.img.univie.ac.at/flexpart/flexpartv10.4:latest"
-
-# add a build for apptainer ?
+    - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}:${CI_COMMIT_SHA:0:8}" --build-arg COMMIT=${CI_COMMIT_SHA:0:8} -f ./containers/Dockerfile .
+    - podman push "harbor.wolke.img.univie.ac.at/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}:${CI_COMMIT_SHA:0:8}"
+    - podman push "harbor.wolke.img.univie.ac.at/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}:${CI_COMMIT_SHA:0:8}" "harbor.wolke.img.univie.ac.at/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}:latest"

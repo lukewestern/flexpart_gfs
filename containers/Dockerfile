@@ -1,24 +1,6 @@
-FROM rockylinux:9-minimal
-RUN microdnf install -y epel-release && \
-	microdnf install -y --enablerepo=crb make netcdf-fortran-devel.x86_64 netcdf.x86_64 eccodes eccodes-devel cmake tar gcc-c++ perl git wget && \
-	microdnf clean all -y && \
-	rm -rf /var/cache/yum
-#
-# Download ECCODES Version 
-# note 2.30.0 has an issue!!!
-# ENV ECCODES=2.31.0
-# RUN curl https://confluence.ecmwf.int/download/attachments/45757960/eccodes-${ECCODES}-Source.tar.gz | tar xz
-# RUN mkdir build && \
-# 	cd build && \
-# 	cmake -DENABLE_ECCODES_OMP_THREADS=ON ../eccodes-*/ && \
-# 	make -j8 && \
-# 	make install
-#
-# set environment variables
-#
-ENV FC=gfortran
-ENV LIBRARY_PATH=/usr/lib64:/usr/local/lib64
-ENV CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules
+# can build that image locally before if needed
+# podman build -t harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest -f ../tests/Dockerfile
+FROM harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
 # cmd Arguments for COMMIT ID/tag
 ARG COMMIT=0
 ENV COMMIT=$COMMIT
@@ -31,7 +13,8 @@ WORKDIR /src
 # compile using a standardized 
 # need to fix march to x86_64_v3 , remove mtune
 # here generic means core_avx2
-RUN make -f makefile_gfortran eta=no arch=generic \
+RUN make -f makefile_gfortran clean \
+	&& make -f makefile_gfortran eta=no arch=generic \
 	&& make -f makefile_gfortran arch=generic \
 	&& mkdir -p /output \
 	&& echo -e "/options/\n/output/\n/inputs/\n/inputs/AVAILABLE" > /pathnames
