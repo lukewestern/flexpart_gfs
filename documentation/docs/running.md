@@ -46,16 +46,17 @@ Necessary fields from Eularian models:
 | ------------- | ----------- | --------- |
 **3D fields**
 |horizontal velocities  | grid scale velocities used for, e.g., particle propagation  | m/s |
-|vertical velocity      |Vertical velocities on model levels used for, e.g., particle propagation. | etadot (IFS), m/s (GFS)|
-|Temperature            |Air temperature used for parameterisation schemes. | K |
-|Specific (IFS) or relative (GFS) humidity |Internal use of specific humidity for parameterisation schemes. | kg/kg (IFS), \% (GFS) |
+|vertical velocity      |Vertical velocities on model levels used for, e.g., particle propagation. | Pa/s (IFS, flex_extract), m/s (GFS)|
+|Temperature            |Air temperature used in convection, chemical loss, relative humidity, and vertical transformation calculation | K |
+|Specific (IFS) or relative (GFS) humidity |Internal use of specific humidity for convection, relative humidity, vertical transformation, and dry air density calculation
+ | kg/kg (IFS), \% (GFS) |
 **2D fields**
 |Surface pressure |Pressure at the ground level. | Pa |
 |Snow depth |Thickness of snow layer necessary for dry deposition calculation. | m |
 |Cloud cover |Fraction of the grid cell that is covered by cloud, used for wet deposition calculations. | 0-1 |
 |10 meter horizontal velocities |Used to compute surface stress if not available. | m/s |
-|2 meter temperature |Used for parameterisation. | K |
-|2 meter dew point (ECMWF only) |Used for parameterisation, for GFS, this is computed according to \cite{bolton1980}. | K |
+|2 meter temperature |Used to calculate friction velocity, obukhov length, convection, and vertical transformation | K |
+|2 meter dew point (ECMWF only) |Used to calculate friction velocity, obukhov length, convection, and vertical transformation, for GFS, this is computed according to \cite{bolton1980}. | K |
 |Large scale precipitation |Used in the wet deposition scheme. | mm/h |
 |Convective precipitation |Used in the wet deposition scheme. | mm/h |
 |Sensible heat flux (ECMWF only)  | Used to compute Obukhov length, for GFS this is computed using the profile method \citep{berkowicz1982}. | J m^2 |
@@ -76,6 +77,13 @@ Where most of FLEXPART's computational time is spent is very dependent on the sp
 We parallelised all particle based computations, apart from their initial release in the \texttt{releaseparticles} subroutine. On top of that, we parallelised the reading and computations on the meteorological fields, including the convection, wet and dry deposition, and the vertical coordinate transformation of the fields. Lastly, we parallelised the computations needed for the output, both for the gridded output and the particle dump.
 
 One drawback of OpenMP parallelisation is that it is more difficult for users to make changes than in serial code, since they also are likely to have to update OpenMP regions. To minimise errors, we therefore strongly recommend users to make changes in the form of subroutines and functions and avoid the use of global variables.
+
+We advise users to test their application using different number of threads in order to find the optimal set-up. The figure below (from [Bakels et al. 2024](https://egusphere.copernicus.org/preprints/2024/egusphere-2024-1713/)) serves as a guideline for deciding how many threads one should use given the three examples laid out in [Example cases](examples.md#cases).
+<figure>
+	<img src="images/OPTeta.png"
+		alt="Benchmarking">
+	<figcaption>Demonstration of the strong scalability of the OpenMP parallelisation of FLEXPART 11. Shown is the computation time as a function of the number of cores used. Perfect strong scalability is represented by the slope of the straight dotted thin black lines. The left column of panels, shaded in blue, show results for globally distributed passive tracer particles. The middle column, shaded in magenta, shows results for globally distributed aerosols. The right column, shaded in maroon, shows results for xenon-133 emitted from a single point source. In black, the total of 5 hour running time is plotted for FLEXPART 11 (black solid lines). The MPI parallelised FLEXPART 10.4 equivalent is plotted for reference (solid grey lines). The coloured dashed lines represent the break-down of computational time spent in different components of FLEXPART 11: the blue lines represent the total computational time per hourly time-steps minus the I/O operations (green lines), and initialisation of the run (orange lines). Note that the black lines are not the sum of all other lines, since the black lines show the total time the simulation took, while both the I/O operations and computations are shown per hour of simulation time.</figcaption>
+</figure>
 
 ## HPC systems
 

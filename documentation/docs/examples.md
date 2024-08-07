@@ -2,7 +2,7 @@
 
 Since its inception, FLEXPART has proven to be a valuable tool for studying a wide range of environmental problems both for the research community as well as in operational settings. Some examples where FLEXPART was used in the literature are: 
 
-- Studying the transport of heat and water in the atmosphere: [Baier et al.](https://doi.org/10.1029/2022GL100906),[Peng et al. 2022](https://doi.org/10.1175/JCLI-D-21-0289.1).
+- Studying the transport of heat and water in the atmosphere: [Baier et al. 2022](https://doi.org/10.1029/2022GL100906), [Peng et al. 2022](https://doi.org/10.1175/JCLI-D-21-0289.1).
 - Volcanic and wildfire plumes: [Stohl et al. 2006](https://doi.org/10.1029/2006JD007216), [Stohl et al. 2011](https://doi.org/10.5194/acpd-11-5541-2011), [Moxnes et al. 2014](https://doi.org/10.1002/2013JD021129).
 - Transport and fall-out after nuclear accidents or explosions: [Stohl et al. 2012](https://doi.org/10.5194/acp-12-2313-2012), [Arnold et al. 2015](https://doi.org/10.1016/j.jenvrad.2014.02.013).
 - Transport of aerosols such as dust: [Zwaaftink et al. 2017](https://doi.org/10.5194/acp-17-10865-2017), [Ryder et al. 2019](https://doi.org/10.5194/acp-19-15353-2019).
@@ -11,7 +11,7 @@ Since its inception, FLEXPART has proven to be a valuable tool for studying a wi
 - The interpretation of ice cores: [Eckhardt et al. 2023](https://doi.org/10.1038/s41467-022-35660-0).
 - Modelling emission sensitivities of greenhouse gases: [Vojta et al. 2022](https://doi.org/10.5194/gmd-15-8295-2022).
 
-## Example cases
+## <a name="cases"></a>Example cases
 The range of FLEXPART capabilities comes with a complicated set of option files (see [**option files**](configuration.md#options)), which can be overwhelming to new users. Therefore, we have outlined the settings of three common groups of simulations below, which correspond to the test cases used in the publication of FLEXPART 11.
 
 Each set of option files can be found in the repository in the 'examples' directory. The `IGBP_int1.dat`, `sfcdata.t`, `sfcdepo.t` files are not present here, but can be found in the 'options' directory in the repository.

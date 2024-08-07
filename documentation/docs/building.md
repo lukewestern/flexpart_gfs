@@ -1,6 +1,6 @@
 # Building
 
-## Download FLEXPART
+## <a name="download"></a>Download FLEXPART
 There are two options to download _FLEXPART_:
 
   - **tar ball**
@@ -15,7 +15,7 @@ There are two options to download _FLEXPART_:
 
         $ git clone --single-branch --branch master https://gitlab.phaidra.org/flexpart/flexpart.git
 
-## Compiler
+### Compiler
 _FLEXPART_ 11 is written in Fortran 2018. The following compilers can be used to compile _FLEXPART_:
 
   - GNU Fortran compiler version 8+ (`gfortran`)
@@ -23,7 +23,7 @@ _FLEXPART_ 11 is written in Fortran 2018. The following compilers can be used to
 
 For running _FLEXPART_ in parallel mode, a compiler supporting [OpenMP](https://www.openmp.org/) is required. In addition, libraries (in particular hdf5) should be compiled threadsafe.
 
-## Libraries
+### Libraries
 _FLEXPART_ uses the following libraries:
 
   - [ecCodes](https://confluence.ecmwf.int/display/ECC)
@@ -34,7 +34,15 @@ These libraries are usually available as packages in most Linux distributions an
   - In Debian/Ubuntu: `sudo apt install libeccodes-dev libnetcdff` 
   - In MacOS + Homebrew: `brew install eccodes netcdf`
 
-## Parameters
+## <a name="compiling"></a>Compiling FLEXPART
+_FLEXPART_ is compiled with [make](https://www.gnu.org/software/make/), which uses the makefile in the `src` subdirectory. Starting from the root directory, you can then compile _FLEXPART_ with the following steps:
+
+    $ cd src/
+    $ make -j -f <prefered_makefile>
+
+This will create the executable `FLEXPART_ETA`. Note that this executable can only be used on ECMWF data.
+
+### Parameters
 Before compiling FLEXPART, you might want to change parameters defined in par_mod.f90
 
 - `dp`, `sp`, `dep_prec`: Setting the precision of the simulation.
@@ -43,14 +51,6 @@ Before compiling FLEXPART, you might want to change parameters defined in par_mo
 - `numpf`: Number of precipitation fields read by the executable. This should correspond with the number of precipitation fields present in the meteorological data. Default: **1**.
 - `lpartoutputperfield`: When using particle output (IPOUT=1), this switch sets if all selected fields are written to one netcdf file or a separate one for each field.
 - Many parameters that govern the different parameter schemes within FLEXPART.
-
-## <a name="compiling"></a>Compiling FLEXPART
-_FLEXPART_ is compiled with [make](https://www.gnu.org/software/make/), which uses the makefile in the `src` subdirectory. Starting from the root directory, you can then compile _FLEXPART_ with the following steps:
-
-    $ cd src/
-    $ make -j -f <prefered_makefile>
-
-This will create the executable `FLEXPART_ETA`. Note that this executable can only be used on ECMWF data.
 
 ### Compiling FLEXPART without eta coordinates
 

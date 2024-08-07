@@ -28,4 +28,4 @@ To run the LCM the following OPTIONS files are used and need to be edited (see a
 
 - RECEPTORS (optional): specifies the locations and times of receptors where mixing ratios should be output.
 
-- SATELLITES (optional): specifies paths and input file names of satellite retrievals for which mixing ratios should be output.
+- SATELLITES (optional): specifies paths and input file names of satellite retrievals for which mixing ratios should be output. Input files need to be generated from a satellite pre-processor, prep_satellite, and can be created using software obtainable from [flexinvertplus](https://git.nilu.no/flexpart/flexinvertplus).

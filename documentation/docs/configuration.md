@@ -79,6 +79,7 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="MAXTHREADGRID"></a>MAXTHREADGRID | Set maximum number of threads for doing grid computations. Recommended to set this to max 16. High numbers create more overhead and a larger memory footprint  | **1 (default=no parallelisation on grid)** integer |
 | <a name="MAXFILESIZE"></a>MAXFILESIZE | Maximum output of each partoutput NetCDF-4 file in Mb before a new one is created  | *10000 (default=10GB)** integer |
 | <a name="LOGVERTINTERP"></a>LOGVERTINTERP| Flag to set all vertical interpolation to logarithmic instead of linear  | *0=off (default)**, 1=on |
+| <a name="NXSHIFT"></a>NXSHIFT|  Shift of the global meteorological data by number of grid cells. | Default 359 for ECMWF and 0 for GFS if not given |
 
 <br/>
 
@@ -104,7 +105,7 @@ And for each release:
 |ITIME1 | Release start time in UTC | integers in the form of HHMISS: HH hours, MI=minutes, SS=seconds|
 |IDATE2 | Release end date | same as IDATE1|
 |ITIME2 | Release end time | same as ITIME1|
-|LON1 | Left longitude of release box -180 < LON1 <180| real |
+|LON1 | Left longitude of release box -180(NXSHIFT$\Delta$lon) < LON1 <180(NXSHIFT$\Delta$lon)| real |
 |LON2 | Right longitude of release box, same as LON1| real |
 |LAT1 | Lower latitude of release box, -90 < LAT1 < 90| real |
 |LAT2 | Upper latitude of release box same format as LAT1 | real |
