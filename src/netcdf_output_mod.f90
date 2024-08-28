@@ -2577,7 +2577,7 @@ subroutine readinitconditions_netcdf()
   endif
 
   ! Open part_ic.nc file
-  call nf90_err(nf90_open(trim(path(1)(1:length(2))//'part_ic.nc'), mode=NF90_NOWRITE,ncid=ncidend))
+  call nf90_err(nf90_open(trim(path(1)(1:length(1))//'part_ic.nc'), mode=NF90_NOWRITE,ncid=ncidend))
 
   ! How many species are contained in each particle?
   call nf90_err(nf90_inquire_attribute(ncid=ncidend,name='nspecies',varid=NF90_GLOBAL))
