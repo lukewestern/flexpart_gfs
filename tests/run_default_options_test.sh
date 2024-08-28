@@ -288,7 +288,7 @@ sed -i "/IOUT=/c\ IOUT=  1," ./current/COMMAND
 sed -i "/IBTIME=/c\ IBTIME=  020000," ./current/COMMAND
 sed -i "/LOUTSTEP=/c\ LOUTSTEP=  3600," ./current/COMMAND
 sed -i "/LOUTAVER=/c\ LOUTAVER=  3600," ./current/COMMAND
-cp -rf part_ic.nc output/
+cp -rf part_ic.nc current/
 ./FLEXPART pathnames
 report "[$MM] TEST $TESTRUN (IPIN=3)"
 STATUS=$((STATUS + $?))
