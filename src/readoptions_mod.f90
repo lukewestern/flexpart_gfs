@@ -3315,12 +3315,12 @@ subroutine readpartoptions
   partopt(8)%average=.true.
 
   partopt(9)%long_name='specific_humidity'
-  partopt(9)%short_name='qv'
+  partopt(9)%short_name='sh'
   partopt(9)%name='QV'
   partopt(9)%print=qv
 
   partopt(10)%long_name='specific_humidity_average'
-  partopt(10)%short_name='qv_av'
+  partopt(10)%short_name='sh_av'
   partopt(10)%name='qv'
   partopt(10)%print=qv_average
   partopt(10)%average=.true.

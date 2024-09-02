@@ -2014,10 +2014,10 @@ subroutine writeheader_partoutput_vars(np,ncid,totpart,timeDimID,partDimID,latDi
         varid,(/ 1,totpart /),'Pa',.false.,'pressure_average','averaged pressure')
     case ('QV') ! Specific humidity
       call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
-        varid,(/ 1,totpart /),'',.false.,'specific_humidity','specific humidity')
+        varid,(/ 1,totpart /),'kg/kg',.false.,'specific_humidity','specific humidity')
     case ('qv') ! Specific humidity averaged
       call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
-        varid,(/ 1,totpart /),'',.false.,'specific_humidity_average','averaged specific humidity')
+        varid,(/ 1,totpart /),'kg/kg',.false.,'specific_humidity_average','averaged specific humidity')
     case ('RH') ! Density
       call write_to_file(ncid,trim(partopt(np)%short_name),nf90_float,(/ timeDimID,partDimID /), &
         varid,(/ 1,totpart /),'kg/m3',.true.,'density','density')
@@ -2162,7 +2162,7 @@ subroutine writeheader_partoutput_grid(ncid,lonDimID,latDimID)
 
   ! lat
   call write_to_file(ncid,'latitude',nf90_float,(/ latDimID /),latID,(/ 1 /), &
-    'degrees_east',.false.,'grid_latitude','latitude in degree north')
+    'degrees_north',.false.,'grid_latitude','latitude in degree north')
   call nf90_err(nf90_put_att(ncid, latID, 'axis', 'Lat'))
   call nf90_err(nf90_put_att(ncid, latID, 'description', 'grid cell centers'))
 
