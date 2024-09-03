@@ -2167,15 +2167,15 @@ subroutine writeheader_partoutput_grid(ncid,lonDimID,latDimID)
   call nf90_err(nf90_put_att(ncid, latID, 'description', 'grid cell centers'))
 
   if (.not.allocated(coord)) allocate(coord(nx))
-  do i = 0,nx-1
-    coord(i) = xlon0 + i*dx
+  do i = 1,nx
+    coord(i) = xlon0 + (i-1)*dx
   enddo
   call nf90_err(nf90_put_var(ncid, lonID, coord(1:nx)))
   deallocate(coord)
 
   if (.not.allocated(coord)) allocate(coord(ny))
-  do i = 0,ny-1
-    coord(i) = ylat0 + i*dy
+  do i = 1,ny
+    coord(i) = ylat0 + (i-1)*dy
   enddo
   call nf90_err(nf90_put_var(ncid, latID, coord(1:ny)))
   deallocate(coord)
