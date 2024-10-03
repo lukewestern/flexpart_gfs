@@ -3,7 +3,7 @@
 Here we provide a list of common problems and their solutions. 
 
 <span style="color:seagreen;">
-If you have a problem that is not listed or clearly explained by an error message, please create a ticket on our gitlab page.
+If you have a problem that is not listed or clearly explained by an error message, please create a ticket on our gitlab page by emailing flexpart-support.img-wien@univie.ac.at.
 </span>
 
 #### **My application crashes with a segmentation fault shortly after its launch**
