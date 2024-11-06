@@ -12,7 +12,7 @@ Other references:
 
 * This repository contains versions of the Lagrangian model FLEXPART
 * Development versions
-* Issues on the FLEXPART model, [tickets](https://gitlab.phaidra.org/flexpart/flexpart/-/issues)/[mail](mailto:flexpart-support.img-wien@univie.ac.at)
+* Issues on the FLEXPART model, [tickets](https://gitlab.phaidra.org/flexpart/flexpart/-/issues)/[mail](mailto:gitlab.phaidra+flexpart-flexpart-456-issue-@univie.ac.at)
 * Feature requests for future versions
 
 ## Getting started with Flexpart
@@ -30,5 +30,5 @@ The model is written in Fortran. It needs to be compiled for the architecture th
    An essential test consists of a set of input files and directories that allow FLEXPART to run.
    A test can be accompanied by output files for verification
 * Code review
-* report issues via mail to [support](mailto:flexpart-support.img-wien@univie.ac.at)
+* report issues via mail to [support](mailto:gitlab.phaidra+flexpart-flexpart-456-issue-@univie.ac.at)
 * become an active developer and request a user account on gitlab.
