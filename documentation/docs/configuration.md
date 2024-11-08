@@ -53,7 +53,7 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="LRECOUTAVER"></a>LRECOUTAVER | Concentration averaging interval for receptors, instantaneous for value of zero (seconds) | **LOUTAVER** |
 | <a name="LRECOUTSAMPLE"></a>LRECOUTSAMPLE | Numerical sampling rate of receptor output (seconds) | **LOUTSAMPLE** |
 | <a name="LOUTRESTART"></a>LOUTRESTART | Time interval when a restart file is written (seconds) | **-1** |
-| <a name="LSYNCTIME"></a>LSYNCTIME | All processes are synchronized to this time interval; all values above should be dividable by this number (seconds) | **900** |
+| <a name="LSYNCTIME"></a>LSYNCTIME | All processes are synchronized to this time interval; all values above (and for radioactive decay also LOUTSTEP/2) should be dividable by this number (seconds) | **900** |
 | <a name="CTL"></a>CTL | Factor by which particle transport time step in the ABL must be smaller than the Lagrangian timescale t l ; resulting time steps can be shorter than LSYNCTIME; LSYNCTIME is used if CTL < 0 | **-5.0** |
 | <a name="IFINE"></a>IFINE | Additional reduction factor for time step used for vertical transport only considered if CTL > 1 | **4** |
 | <a name="IOUT"></a>IOUT | Switch determining the gridded output type | 0 (no gridded output), **1 (forward: mass concentration; backwards: residence time)**, 2 (volume mixing ratio), 3 (1 and 2 combined), 4 (plume trajectories), 5 (1 and 4 combined), Add 8 for NetCDF output |
