@@ -11,6 +11,7 @@ default:
 
   tags:
     - podman
+    - dev
 
 setup:
   stage: build
@@ -26,8 +27,9 @@ setup:
 alma8-build:
   image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
   stage: build
-  when: manual
-
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'
+  
   script:
     - export FC=gfortran
     - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
