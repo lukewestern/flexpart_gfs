@@ -2004,8 +2004,8 @@ end subroutine redist
   if (nconvtop < nconvlevmax-1) then 
     nconvtop=nconvtop+1
   else
-    write(*,'(A,I5,A)') ' WARNING: Convection reaches top level of input data.'&
-    // ' More than', nconvlevmax, ' levels are needed.'
+    error stop 'Convection reaches top level of input data. &
+      More levels are needed.'
   end if
   RETURN
   !
