@@ -2001,7 +2001,7 @@ end subroutine redist
       if (fmass(j,i,ithread).gt.EPSILON) nconvtop=MAX(nconvtop,i,j)
     end do
   end do
-  if (nconvtop < nconvlevmax-1) then 
+  if (nconvtop.lt.nconvlevmax-1) then 
     nconvtop=nconvtop+1
   else
     error stop 'Convection reaches top level of input data. &
