@@ -156,14 +156,13 @@ subroutine timemanager
   if (itime_init.ne.0) then
     loutnext=loutnext_init
     lrecoutnext=lrecoutnext_init
-    outnum=outnum_init
   else
     loutnext=loutstep/2
     lrecoutnext=lrecoutstep/2
-    outnum=0.
-    recoutnum(:)=0.
-!    recoutnumsat(:,:)=0.
   endif
+  outnum=0.
+  recoutnum(:)=0.
+!  recoutnumsat(:,:)=0.
   loutstart=loutnext-loutaver/2
   loutend=loutnext+loutaver/2
   lrecoutstart=lrecoutnext-lrecoutaver/2
@@ -208,12 +207,6 @@ subroutine timemanager
     if (itime.eq.itime_init) then
       call SYSTEM_CLOCK(count_clock, count_rate, count_max)
       s_firstt = real(count_clock)/real(count_rate)
-    endif
-
-  ! Writing restart file
-  !*********************
-    if ((itime.ne.itime_init).and.(loutrestart.ne.-1).and.(mod(itime,loutrestart).eq.0)) then
-      call output_restart(itime,loutnext,lrecoutnext,outnum)
     endif
 
     call init_output(itime,filesize)
@@ -413,6 +406,12 @@ subroutine timemanager
           ((numreceptor.gt.0.).or.(numsatreceptor.gt.0)).and. &
           (ldirect*itime.le.ldirect*lrecoutend)) then
       call receptoroutput(itime,lrecoutstart,lrecoutend,lrecoutnext,recoutnum,recoutnumsat)
+    endif
+
+  ! Writing restart file
+  !*********************
+    if ((itime.ne.itime_init).and.(loutrestart.ne.-1).and.(mod(itime,loutrestart).eq.0)) then
+      call output_restart(itime,loutnext,lrecoutnext)
     endif
 
     if (itime.eq.ideltas) exit         ! almost finished
