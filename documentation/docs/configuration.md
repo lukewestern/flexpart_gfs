@@ -332,7 +332,7 @@ fields must be identical.
 ECMWF data can be retrieved using [flex_extract](https://flexpart.img.univie.ac.at/flexextract/index.html)
 
 ## <a name="ic"></a>User-defined initial conditions
-A simulation can be started using a NetCDF file listing all particles to be released. This option can be switched on by specifying [IPIN](configuration.md#ipin)=3 in the [COMMAND](configuration.md#command) option file. This file should be called **part_ic.nc** and located in the output directory defined in [Pathnames file](configuration.md#pathnames). It should have the following structure:
+A simulation can be started using a NetCDF file listing all particles to be released. This option can be switched on by specifying [IPIN](configuration.md#ipin)=3 in the [COMMAND](configuration.md#command) option file. This file should be called **part_ic.nc** and located in the options directory defined in [Pathnames file](configuration.md#pathnames). It should have the following structure:
 
 **Header**
 
