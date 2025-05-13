@@ -9,9 +9,6 @@ default:
     name: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
     pull_policy: always
 
-  tags:
-    - podman
-
 setup:
   stage: build
   artifacts:
