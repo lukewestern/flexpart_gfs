@@ -1,21 +1,22 @@
-FROM rockylinux:9-minimal
+ARG RL_RELEASE=${RL_RELEASE:-9.1}
+FROM quay.io/rockylinux/rockylinux:${RL_RELEASE}-minimal
+LABEL maintainer="Flexpart Developers"
+COPY <<"EOF" /etc/yum.repos.d/epel-ar.repo
+[epel-ar]
+name=Extra Packages for Enterprise Linux $releasever - $basearch
+baseurl=https://archives.fedoraproject.org/pub/archive/epel/RL_RELEASE/Everything/$basearch/
+enabled=1
+gpgcheck=0
+priority=10
+EOF
+# this fixes the correct version of the repo, even if just 9 or 8 are used.
+# allows to install older version of eccodes and netcdf
+RUN export RL_RELEASE=$(cat /etc/redhat-release | awk '{print $4}') && sed -i "s/RL_RELEASE/${RL_RELEASE}/" /etc/yum.repos.d/epel-ar.repo
 RUN microdnf install -y epel-release && \
 	microdnf install -y --enablerepo=crb make netcdf-fortran-devel.x86_64 netcdf.x86_64 eccodes eccodes-devel cmake tar gcc-c++ perl git wget && \
-	microdnf clean all -y && \
-	rm -rf /var/cache/yum
-#
-# Download ECCODES Version 
-# note 2.30.0 has an issue!!!
-# ENV ECCODES=2.31.0
-# RUN curl https://confluence.ecmwf.int/download/attachments/45757960/eccodes-${ECCODES}-Source.tar.gz | tar xz
-# RUN mkdir build && \
-# 	cd build && \
-# 	cmake -DENABLE_ECCODES_OMP_THREADS=ON ../eccodes-*/ && \
-# 	make -j8 && \
-# 	make install
-#
+ 	microdnf clean all -y && \
+ 	rm -rf /var/cache/yum
 # set environment variables
-#
 ENV FC=gfortran
 ENV LIBRARY_PATH=/usr/lib64:/usr/local/lib64
 ENV CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules

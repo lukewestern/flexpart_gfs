@@ -1,16 +1,51 @@
 stages:
+  - images
   - build
   - test
   - compare
   - container
 
-default:
-  image: 
-    name: harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest
-    pull_policy: always
+variables:
+  # could be changed to depending on the containers available
+  IMAGE_TAG: "latest"
+  # 9 or 8 assume the latest of the major version
+  # 9.1 or 8.2 is more specific
+  OS_VERSION: "9"
+  PY_VERSION: "3.9"
+
+base:
+  stage: images
+  image: quay.io/podman/stable
+  rules:
+    - changes:
+      - tests/Dockerfile
+    - when: manual
+  tags:
+    - privileged
+  script:
+    - podman build -t "registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:$(date +"v%Y.%m")" -t "registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}" --build-arg RL_RELEASE=$OS_VERSION -f ./tests/Dockerfile
+    - podman login registry.phaidra.org -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
+    - podman push "registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}"
+    - podman push "registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:$(date +"v%Y.%m")"
+
+post:
+  stage: images
+  image: quay.io/podman/stable
+  rules:
+    - changes: 
+      - tests/Dockerfile.python
+    - when: manual
+  tags:
+    - privileged
+  script:
+    - podman build -t "registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:$(date +"v%Y.%m")" -t "registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:${IMAGE_TAG}" -f ./tests/Dockerfile.python
+    - podman login registry.phaidra.org -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
+    - podman push "registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:$(date +"v%Y.%m")" 
+    - podman push "registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:${IMAGE_TAG}"
 
 setup:
   stage: build
+  image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
   artifacts:
     paths:
       - tests/testdata/
@@ -20,31 +55,9 @@ setup:
     - mkdir tests/testdata/
     - wget -r -nH --cut-dirs=2 --no-parent --reject="index.html*" -P tests/testdata/ "https://webdata.wolke.img.univie.ac.at/flexpart/"
 
-alma8-build:
-  image: harbor.wolke.img.univie.ac.at/flexpart/almalinux8:latest
+rocky-build:
   stage: build
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'
-  
-  script:
-    - export FC=gfortran
-    - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
-    - export CPATH=/usr/include:/usr/local/include:/usr/lib64/gfortran/modules
-    - codes_info -v
-    - nc-config --version
-    - nf-config --version
-    - h5dump --version
-    - make -j -C src -f makefile_gfortran eta=no arch=x86-64
-    - make -j -C src -f makefile_gfortran arch=x86-64
-  artifacts:
-    when: on_success
-    paths:
-      - ./src/FLEXPART
-      - ./src/FLEXPART_ETA
-    expire_in: 30 mins
-
-rocky9-build:
-  stage: build
+  image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'
 
@@ -66,9 +79,10 @@ rocky9-build:
     expire_in: 30 mins
 
 options-test:
+  image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
   stage: test
   needs:
-    - rocky9-build
+    - rocky-build
     - setup
 
   script:
@@ -84,10 +98,11 @@ options-test:
     expire_in: 10 mins
 
 nests-test:
+  image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
   stage: test
   when: manual
   needs:
-    - rocky9-build
+    - rocky-build
 
   script:
     - ulimit -s unlimited
@@ -100,8 +115,9 @@ nests-test:
 
 openmp-simulation:
   stage: test
+  image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
   needs:
-    - rocky9-build
+    - rocky-build
     - setup
 
   script:
@@ -119,9 +135,10 @@ openmp-simulation:
 
 etex-simulation:
   stage: test
+  image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
   when: manual
   needs:
-    - rocky9-build
+    - rocky-build
 
   script:
     - ulimit -s unlimited
@@ -134,7 +151,7 @@ etex-simulation:
     expire_in: 10 mins
 
 settling-test:
-  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  image: registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:${IMAGE_TAG}
   stage: compare
   needs:
     - job: options-test
@@ -149,7 +166,7 @@ settling-test:
     expire_in: never
 
 bkw-test:
-  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  image: registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:${IMAGE_TAG}
   stage: compare
   needs:
     - job: options-test
@@ -164,7 +181,7 @@ bkw-test:
     expire_in: never
 
 openmp-test:
-  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  image: registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:${IMAGE_TAG}
   stage: compare
   needs:
     - job: openmp-simulation
@@ -174,7 +191,7 @@ openmp-test:
     - python3 ./openmp_test.py
 
 etex-test:
-  image: harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39
+  image: registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:${IMAGE_TAG}
   stage: compare
   needs:
     - job: etex-simulation
@@ -189,7 +206,7 @@ etex-test:
     expire_in: never
 
 documentation:
-  image: harbor.wolke.img.univie.ac.at/podman/mkdocs-computer:latest
+  image: registry.phaidra.org/imgw/computer-resources:latest
   stage: build
   rules:
     - if: '$CI_COMMIT_REF_NAME == "master"'
@@ -217,26 +234,6 @@ ford:
     - ford project.md -o ./ford
     - sshpass -p "$WOLKE_PASSWORD" rsync -autv --delete -e "ssh -o StrictHostKeyChecking=no" ./ford/* "$WOLKE_USER@wolke.img.univie.ac.at:/var/www/flexpart/ford"
 
-base:
-  stage: container
-  image: quay.io/podman/stable
-  when: manual
-  tags:
-    - privileged
-  script:
-    - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:$(date +"v%Y.%m")" -t "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest" -f ./tests/Dockerfile
-    - podman push "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:latest"
-    - podman push "harbor.wolke.img.univie.ac.at/flexpart/rockylinux9:$(date +"v%Y.%m")"
-
-post:
-  stage: container
-  image: quay.io/podman/stable
-  when: manual
-  tags:
-    - privileged
-  script:
-    - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39" -f ./tests/Dockerfile.python
-    - podman push "harbor.wolke.img.univie.ac.at/flexpart/postprocessing:py39"
 
 flexpart:
   stage: container
@@ -247,6 +244,6 @@ flexpart:
   tags:
     - privileged
   script:
-    - podman build -t "harbor.wolke.img.univie.ac.at/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}:${CI_COMMIT_SHA:0:8}" --build-arg COMMIT=${CI_COMMIT_SHA:0:8} -f ./containers/Dockerfile .
-    - podman push "harbor.wolke.img.univie.ac.at/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}:${CI_COMMIT_SHA:0:8}"
-    - podman push "harbor.wolke.img.univie.ac.at/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}:${CI_COMMIT_SHA:0:8}" "harbor.wolke.img.univie.ac.at/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}:latest"
+    - podman build -t "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${CI_COMMIT_SHA:0:8}" --build-arg COMMIT=${CI_COMMIT_SHA:0:8} --build-arg OS_VERSION=${OS_VERSION} --build-arg IMAGE_TAG=${IMAGE_TAG} -f ./containers/Dockerfile .
+    - podman push "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${CI_COMMIT_SHA:0:8}"
+    - podman push "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${CI_COMMIT_SHA:0:8}" "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${IMAGE_TAG}"
