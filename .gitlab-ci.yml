@@ -40,6 +40,10 @@ post:
 setup:
   stage: build
   image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
+  rules:
+    - changes:
+        - src/*
+        - tests/*
   artifacts:
     paths:
       - tests/testdata/
@@ -54,7 +58,9 @@ rocky-build:
   image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'
-
+    - changes:
+        - src/*
+        - tests/*
   script:
     - export FC=gfortran
     - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
@@ -204,6 +210,8 @@ documentation:
   stage: build
   rules:
     - if: '$CI_COMMIT_REF_NAME == "master"'
+    - changes: 
+      - documentation/**/*
   script:
     - cd ./documentation && mkdocs build -c --verbose
     - sshpass -p "$WOLKE_PASSWORD" rsync -autv --delete -e "ssh -o StrictHostKeyChecking=no" /tmp/cr-site/* "$WOLKE_USER@wolke.img.univie.ac.at:/var/www/flexpart/docs"
@@ -213,6 +221,8 @@ ford:
   stage: build
   rules:
     - if: '$CI_COMMIT_REF_NAME == "master"'
+    - changes:
+      - src/*
   script:
     - apk add --update --no-cache openssh sshpass rsync
     - pip install --no-cache-dir ford
@@ -237,5 +247,6 @@ flexpart:
     MAJOR_VERSION: "v11"
   script:
     - podman build -t "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${CI_COMMIT_SHA:0:8}" --build-arg COMMIT=${CI_COMMIT_SHA:0:8} --build-arg OS_VERSION=${OS_VERSION} --build-arg IMAGE_TAG=${IMAGE_TAG} -f ./containers/Dockerfile .
+    - podman login registry.phaidra.org -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD 
     - podman push "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${CI_COMMIT_SHA:0:8}"
     - podman push "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${CI_COMMIT_SHA:0:8}" "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${IMAGE_TAG}"
