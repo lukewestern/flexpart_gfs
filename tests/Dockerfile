@@ -12,8 +12,9 @@ EOF
 # this fixes the correct version of the repo, even if just 9 or 8 are used.
 # allows to install older version of eccodes and netcdf
 RUN export RL_RELEASE=$(cat /etc/redhat-release | awk '{print $4}') && sed -i "s/RL_RELEASE/${RL_RELEASE}/" /etc/yum.repos.d/epel-ar.repo
-RUN microdnf install -y epel-release && \
-	microdnf install -y --enablerepo=crb make netcdf-fortran-devel.x86_64 netcdf.x86_64 eccodes eccodes-devel cmake tar gcc-c++ perl git wget && \
+RUN export EXTRA_REPO=$((microdnf  repolist --all | grep crb ) && echo crb || echo powertools) && \
+	microdnf install -y epel-release && \
+	microdnf install -y --enablerepo=${EXTRA_REPO} make netcdf-fortran-devel.x86_64 netcdf.x86_64 eccodes eccodes-devel cmake tar gcc-c++ perl git wget && \
  	microdnf clean all -y && \
  	rm -rf /var/cache/yum
 # set environment variables

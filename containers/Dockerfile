@@ -10,7 +10,7 @@ ENV COMMIT=$COMMIT
 COPY ./src /src
 # since the new data set is larger, we download the data for the container
 # EC 2009 01 01 00 - 06
-RUN wget  -r -np -nd -A 'EC*' -P /inputs "https://webdata.wolke.img.univie.ac.at/flexpart/"
+RUN wget  -r -np -nd -A 'EC2009*' -P /inputs "https://webdata.wolke.img.univie.ac.at/flexpart/"
 WORKDIR /src
 #
 # compile using a standardized 

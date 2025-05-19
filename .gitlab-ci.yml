@@ -41,10 +41,10 @@ rocky-build:
   stage: build
   image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'
     - changes:
         - src/*
         - tests/*
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"'
   script:
     - export FC=gfortran
     - export LIBRARY_PATH=/usr/lib64:/usr/local/lib64
@@ -210,9 +210,9 @@ documentation:
   image: registry.phaidra.org/imgw/computer-resources:latest
   stage: build
   rules:
-    - if: '$CI_COMMIT_REF_NAME == "master"'
     - changes: 
       - documentation/**/*
+    - if: '$CI_COMMIT_REF_NAME == "master"'
   script:
     - cd ./documentation && mkdocs build -c --verbose
     - sshpass -p "$WOLKE_PASSWORD" rsync -autv --delete -e "ssh -o StrictHostKeyChecking=no" /tmp/cr-site/* "$WOLKE_USER@wolke.img.univie.ac.at:/var/www/flexpart/docs"
@@ -221,9 +221,9 @@ ford:
   image: docker.io/library/python:3.10-alpine
   stage: build
   rules:
-    - if: '$CI_COMMIT_REF_NAME == "master"'
     - changes:
       - src/*
+    - if: '$CI_COMMIT_REF_NAME == "master"'
   script:
     - apk add --update --no-cache openssh sshpass rsync
     - pip install --no-cache-dir ford
@@ -251,3 +251,15 @@ flexpart:
     - podman login registry.phaidra.org -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD 
     - podman push "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${CI_COMMIT_SHA:0:8}"
     - podman push "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${CI_COMMIT_SHA:0:8}" "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-${CI_COMMIT_REF_NAME}-${OS_VERSION}:${IMAGE_TAG}"
+
+flexpart-legacy:
+  stage: container
+  image: quay.io/podman/stable
+  when: manual
+  variables:
+    MAJOR_VERSION: "v10"
+  script:
+    - podman build -t "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-master-8:latest"  -f ./containers/Dockerfile.v10.4 .
+    - podman login registry.phaidra.org -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD 
+    - podman push "registry.phaidra.org/flexpart/flexpart/flexpart${MAJOR_VERSION}-master-8:latest"
+  
