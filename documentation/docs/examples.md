@@ -17,8 +17,7 @@ The range of FLEXPART capabilities comes with a complicated set of option files 
 Each set of option files can be found in the repository in the 'examples' directory. The `IGBP_int1.dat`, `sfcdata.t`, `sfcdepo.t` files are not present here, but can be found in the 'options' directory in the repository.
 
 ### Case Tracer
-This case is useful for studying transport of heat and water through the global atmosphere. It is a domain-filling simulation, with 10 million particles representing a passive air tracer distributed across the globe following air density. Every hour, all particle in-
-formation but no gridded output is written to NetCDF files. The example runs for only 5 hours, using 10 minute time-steps, and the turbulence options are set to CTL=10 and IFINE=10.
+This case is useful for studying transport of heat and water through the global atmosphere. It is a domain-filling simulation, with 10 million particles representing a passive air tracer distributed across the globe following air density. Every hour, all particle information but no gridded output is written to NetCDF files. The example runs for only 5 hours, using 10 minute time-steps, and the turbulence options are set to CTL=10 and IFINE=10.
 
 ### Case Aerosol
 This case serves as a template for option files using aerosol particles, i.e. tracing pollutants. Case Aerosol simulations generally take much longer than Case Tracer simulations, on one hand because of the extra computations in the wet and dry deposition and gravitational settling routines and on the other hand because of all particles starting within the ABL, where solving the Langevin equations of the turbulence parameterisation requires very short time steps. 

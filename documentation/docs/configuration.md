@@ -35,9 +35,9 @@ Sets the behaviour of the run (time range, backward or forward, output frequency
 
 - **Time variables**: Flexpart can be run in forward or backward mode. In forward mode, particles are being traced forward in time, while in backward more, the origin of particles are being traced, going backward in time. This can be set by the [LDIRECT](configuration.md#ldirect) variable. The start and end of the simulation are set by [IBDATE](configuration.md#IBDATE):[IBTIME](configuration.md#IBTIME) and [IEDATE](configuration.md#IEDATE):[IETIME](configuration.md#IETIME). [IEDATE](configuration.md#IEDATE):[IETIME](configuration.md#IETIME) is always at a later time than [IBDATE](configuration.md#IBDATE):[IBTIME](configuration.md#IBTIME), also for backwards simulations. Output variables can be written at specified times: [LOUTSTEP](configuration.md#LOUTSTEP), and restart files will be written at every [LOUTRESTART](configuration.md#LOUTRESTART) interval.
 - **Numerical variables**: [LSYNCTIME](configuration.md#LSYNCTIME) and LOUTSAMPLE set the integration interval, smaller generally giving better results, although below a certain number, not much will be gained. With the [CTL](configuration.md#CTL) and [IFINE](configuration.md#IFINE) setting, you can make integration steps even smaller for the turbulence computations.
-- **Output variables**: The output is written at every [LOUTSTEP](configuration.md#LOUTSTEP) interval. Both gridded data ([IOUT](configuration.md#IOUT)>0) and particle based data ([IPOUT](configuration.md#IPOUT)=1) can be written to NetCDF files (binary option for gridded data). Nested output can be set by the [NESTED_OUTPUT](configuration.md#NESTED_OUTPUT) switched. Note that for gridded output, the [OUTGRID](configuration.md#OUTGRID) for ([IOUT](configuration.md#IOUT)>0) and [OUTGRID_NESTED](configuration.md#OUTGRID_NESTED) (for [NESTED_OUTPUT](configuration.md#NESTED_OUTPUT)=1) option files should be specified. Other output variables can be set in the par_mod.f90 file. Namely, the size of the NetCDF files that contain the particle based data (max_partoutput_filesize). [IND_RECEPTOR](configuration.md#IND_RECEPTOR) can be set to get concentrations or mixing ratios at specified receptor points set in the RECEPTORS options file. For backward simulations, [IND_RECEPTOR](configuration.md#IND_RECEPTOR) can be used to get wet or dry deposition gridded data. [SFC_ONLY](configuration.md#SFC_ONLY) and [LINIT_COND](configuration.md#LINIT_COND) are only working for binary output. 
+- **Output variables**: The output is written at every [LOUTSTEP](configuration.md#LOUTSTEP) interval. Both gridded data ([IOUT](configuration.md#IOUT)>0) and particle based data ([IPOUT](configuration.md#IPOUT)=1) can be written to NetCDF files (binary option for gridded data). Nested output can be set by the [NESTED_OUTPUT](configuration.md#NESTED_OUTPUT) switch. Note that for gridded output, the [OUTGRID](configuration.md#OUTGRID) for ([IOUT](configuration.md#IOUT)>0) and [OUTGRID_NESTED](configuration.md#OUTGRID_NESTED) (for [NESTED_OUTPUT](configuration.md#NESTED_OUTPUT)=1) option files should be specified. [MAXFILESIZE](configuration.md#MAXFILESIZE) can be set to limit the size of the NetCDF files that contain the particle based data. [IND_RECEPTOR](configuration.md#IND_RECEPTOR) can be set to get concentrations or mixing ratios at specified receptor points set in the RECEPTORS options file. For backward simulations, [IND_RECEPTOR](configuration.md#IND_RECEPTOR) can be used to get wet or dry deposition gridded data. [SFC_ONLY](configuration.md#SFC_ONLY) and [LINIT_COND](configuration.md#LINIT_COND) are only working for binary output. 
 - **Input variables**: IPIN can be set to chose the input type: either initial conditions from particles come from the [RELEASES](configuration.md#releases) file ([IPIN](configuration.md#IPIN)=0), from restart files of a previous run ([IPIN](configuration.md#IPIN)=1),
-from a particle netCDF file written in a previous run (only works when the correct fields in [PARTOPTIONS](configuration.md#PARTOPTIONS) are chosen) ([IPIN](configuration.md#IPIN)=2), or from user-defined initial particle conditions ([IPIN](configuration.md#IPIN)=3). [MDOMAINFILL](configuration.md#MDOMAINFILL) can be set to distribute particles according to the air density or stratospheric ozone density profiles. This option overwrites the vertical levels set in the [RELEASES](configuration.md#releases) option file.
+from a particle netCDF file written in a previous run (only works when the corresponding fields in [PARTOPTIONS](configuration.md#PARTOPTIONS) are chosen) ([IPIN](configuration.md#IPIN)=2), or from user-defined initial particle conditions ([IPIN](configuration.md#IPIN)=3). [MDOMAINFILL](configuration.md#MDOMAINFILL) can be set to distribute particles according to the air density or stratospheric ozone density profiles. This option overwrites the vertical levels set in the [RELEASES](configuration.md#releases) option file.
 
 | Variable name | Description | Possible values and **default** (bold) |
 | ----------- | ----------- | ----------- |
@@ -49,7 +49,7 @@ from a particle netCDF file written in a previous run (only works when the corre
 | <a name="LOUTSTEP"></a>LOUTSTEP | Interval of model output. Average concentrations are calculated every LOUTSTEP (seconds) | **10800** |
 | <a name="LOUTAVER"></a>LOUTAVER | Concentration averaging interval, instantaneous for value of zero (seconds) | **10800** |
 | <a name="LOUTSAMPLE"></a>LOUTSAMPLE | Numerical sampling rate of output, higher statistical accuracy with shorter intervals (seconds) | **900** |
-| <a name="LRECOUTSTEP"></a>LRECOUTSTEP | Interval of receptor output. LCM: mixing ratios are calculated every LRECOUTSTEP (seconds) | **LOUTSTEP** |
+| <a name="LRECOUTSTEP"></a>LRECOUTSTEP | Interval of receptor output. Mixing ratios are calculated every LRECOUTSTEP (seconds) | **LOUTSTEP** |
 | <a name="LRECOUTAVER"></a>LRECOUTAVER | Concentration averaging interval for receptors, instantaneous for value of zero (seconds) | **LOUTAVER** |
 | <a name="LRECOUTSAMPLE"></a>LRECOUTSAMPLE | Numerical sampling rate of receptor output (seconds) | **LOUTSAMPLE** |
 | <a name="LOUTRESTART"></a>LOUTRESTART | Time interval when a restart file is written (seconds) | **-1** |
@@ -85,7 +85,7 @@ from a particle netCDF file written in a previous run (only works when the corre
 
 ### <a name="releases"></a>RELEASES
 This file contains the information about the particles initial conditions: how many, where and when they will be released, their mass and what species they are (defined in the SPECIES files).
-The RELEASES file contains at two types of namelists: 
+The RELEASES file contains two types of namelists: 
  
  1. `&RELEASES_CTRL` namelist, specifying the total number of species and the specific species file associated (see [SPECIES](configuration.md#species)). There is only one of this namelist and it is found at the top of the file. 
 
@@ -124,20 +124,20 @@ The subdirectory options/SPECIES/ needs to contain one or more files named SPECI
 
 The following specifies the parameters associated with each physicochemical process simulated.
 
-- Radioactive or chemical decay: set with pdecay; off if pdecay<0.
-- Wet deposition for gases: set with pweta_gas, pwetb_gas (for below-cloud) and phenry (for in-cloud). Switch off for both in- and below-cloud if either pweta_gas or pwetb_gas is negative.
-- Wet deposition for aerosols: set with pccn_aero, pin_aero for in-cloud scavenging and pcrain_aero, pcsnow_aero and pdquer for below-cloud scavenging.
-- Dry deposition for aerosols: set with pdensity, pdquer, pndia, and psigma; off if pdensity < 0. 
-- Dry deposition for gases: set with phenry, pf0 and preldiff; off if preldiff < 0. Alternatively, a constant dry deposition velocity pdryvel can be given. 
-- Settling of particles: set with pdensity and pdquer.
-- Shape of particles: set with PSHAPE, PASPECTRATIO, PLA, PIA, PSA, and PORIENT
-- OH reaction: chemical reaction with the OH radical can be turned on by giving parameter pohcconst (cm^3 molecule^-1 s^-1 ), pohdconst (K) and pohnconst (no unit) positive values; defined by Eq. (13) in Pisso et al. (2019).
-- Emission variation: emission variation during the hours (local time) of the day and during the days of the week can be specified. Factors should be 1.0 on average to obtain unbiased emissions overall. The area source factors (useful, e.g., for traffic emissions) are applied to emis sions with a lower release height below 0.5 m above ground level (a.g.l.) and the point source factors (useful, e.g., for power plant emissions) to emissions with a lower release height than 0.5 m a.g.l. Default values are 1.0.
+- Radioactive or chemical decay: set with PDECAY; off if PDECAY<0.
+- Wet deposition for gases: set with PWETA_GAS, PWETB_GAS (for below-cloud) and PHENRY (for in-cloud). Switch off for both in- and below-cloud if either PWETA_GAS or PWETB_GAS is negative.
+- Wet deposition for aerosols: set with PCCN_AERO, PIN_AERO for in-cloud scavenging and PCRAIN_AERO, PCSNOW_AERO and PDIA for below-cloud scavenging.
+- Dry deposition for aerosols: set with PDENSITY, PDIA, PNDIA, and PDSIGMA; off if PDENSITY < 0. 
+- Dry deposition for gases: set with PHENRY, PF0 and PRELDIFF; off if PRELDIFF < 0. Alternatively, a constant dry deposition velocity pdryvel can be given. 
+- Settling of particles: set with PDENSITY and PDIA.
+- Shape of particles: set with PSHAPE, PASPECTRATIO, PLA, PIA, PSA, and PORIENT.
+- OH reaction: chemical reaction with the OH radical can be turned on by giving parameter PCCONST (cm^3 molecule^-1 s^-1 ), PDCONST (K) and PNCONST (no unit) positive values; defined by Eq. (13) in Pisso et al. (2019).
+- Emission variation: emission variation during the hours (local time) of the day and during the days of the week can be specified. Factors should be 1.0 on average to obtain unbiased emissions overall. The area source factors (useful, e.g., for traffic emissions) are applied to emissions with a lower release height below 0.5 m above ground level (a.g.l.) and the point source factors (useful, e.g., for power plant emissions) to emissions with a lower release height than 0.5 m a.g.l. Default values are 1.0.
 
 | Variable name | Description | Data type |
 | ----------- | ----------- | --------- |
 |PSPECIES | Tracer name | character(len=16) |
-|PDECAY | Species half life | real |
+|<a name="PDECAY"></a>PDECAY | Species half life | real |
 |PWETA_GAS | Below-cloud scavenging (gases) - A (weta_gas) | real |
 |PWETB_GAS | Below-cloud scavenging (gases) - B (wetb_gas) | real |
 |PCRAIN_AERO | Below-cloud scavenging (particles) - Crain (crain_aero) | real |
@@ -154,9 +154,9 @@ The following specifies the parameters associated with each physicochemical proc
 |PF0 | Dry deposition (gases) - f0 (reactivity) | real |
 |PWEIGHTMOLAR | molweight | real |
 |PREACTIONS | List of reactions, must correspond to names in REAGENTS | string |
-|PCCONST | OH Reaction rate - C [cm^3/molecule/sec], in order of PREACTIONS | real |
-|PDCONST | OH Reaction rate - D [K], in order of PREACTIONS | real |
-|PNCONST | OH Reaction rate - N [dimensionless], in order of PREACTIONS | real |
+|<a name="PCCONST"></a>PCCONST | OH Reaction rate - C [cm^3/molecule/sec], in order of PREACTIONS | real |
+|<a name="PDCONST"></a>PDCONST | OH Reaction rate - D [K], in order of PREACTIONS | real |
+|<a name="PNCONST"></a>PNCONST | OH Reaction rate - N [dimensionless], in order of PREACTIONS | real |
 |PEMIS_PATH | Emissions path, if empty, no emissions | string |
 |PEMIS_FILE | Generic file name for emissions, if empty, no emissions | string |
 |PEMIS_NAME | Variable name for emissions, if empty, no emissions | string |
@@ -241,10 +241,10 @@ The file should contain two namelist:
 | Variable name | Description | Data type |
 | ------------- | ------------ | --------- |
 |PATH_NAME | Path to initial concentration files | character string |
-|FILE_NAME | Name of the receptor point | character string |
-|VAR_NAME | Generic name of file (using YYYY[MM][DD]) for dates  | character string |
-|HYA_NAME | Name of concentration variable in file  | character string |
-|HYB_NAME | Name of hybrid pressure coord A (use "" if none)| character string |
+|FILE_NAME | Generic name of file (using YYYY[MM][DD] for dates)  | character string |
+|VAR_NAME | Name of concentration variable in file  | character string |
+|HYA_NAME | Name of hybrid pressure coord A (use "" if none)| character string |
+|HYB_NAME | Name of hybrid pressure coord B (use "" if none)| character string |
 |PS_NAME | Name of surface pressure variable (use "" if none)  | character string |
 |Q_NAME | Name of specific humidity variable (use "" if none, then assumes dry air mixing ratio) | character string |
 |PRS_NAME | Name of vertical pressure coordinate (use "" if none) | character string |
@@ -285,9 +285,9 @@ The file should contain two namelist:
 Each property can also be printed out as an average instead of an instantaneous value. For example, if one makes internal time steps of 600 seconds each,
 and writes properties to files every hour, the outputted value will be the average of the 6 previous values of the particle of the past hour. Note that this comes with an additional computational cost.
 
-If the particle output is switched on (IPOUT=1), terminated particles are kept in the simulation, but values associated with them are set to`NaN' instead of being overwritten by newly released particles in the NetCDF output.
+If the particle output is switched on (IPOUT=1), terminated particles are kept in the simulation, but values associated with them are set to `NaN` instead of being overwritten by newly released particles in the NetCDF output.
 This comes with no additional computational cost, but it may need more memory than when running without the particle output option switched on. 
-As some applications might use a large number of short-lived particles during a longer simulation, the behaviour of overwriting terminated particles can be restored by removing \texttt{ipout.eq.0} from the \texttt{get\_newpart\_index} subroutine, located in the \texttt{particle\_mod.f90}.
+As some applications might use a large number of short-lived particles during a longer simulation, the behaviour of overwriting terminated particles can be restored by removing `ipout.eq.0` from the `get_newpart_index` subroutine, located in the file `particle_mod.f90`.
 <br/>
 
 ### <a name="reagents"></a>REAGENTS
@@ -295,7 +295,7 @@ As some applications might use a large number of short-lived particles during a 
 
 | Variable name | Description | Data type |
 | ------------- | ----------- | --------- |
-| PREAGENT | Reagent name, must be the same as variable name and match those used in reations list in SPECIES file | string |
+| PREAGENT | Reagent name, must be the same as variable name and match those used in reactions list in SPECIES file | string |
 | PREAG_PATH | path to reagent file | string |
 | PHOURLY | Interpolate field to hourly based on solar zenith angle | integer: 0=no, 1=yes | 
 
@@ -353,7 +353,7 @@ A simulation can be started using a NetCDF file listing all particles to be rele
 | `height` | Initial height of each particle (meter above reference level) | 1D-array of reals with dimension `particle` |
 | `time` | Release time of each particle seconds after simulation start (IBDATE/IBTIME for forward runs, IEDATE/IETIME for backward runs, set in [COMMAND](configuration.md#command)) | 1D-array of integers with dimension `particle` |
 | `mass` | Initial mass of each particle (kg) | 2D-array of reals with dimension `species` and `particle` |
-| `release` | Release ID of each particle, giving separate concentration fields for each ID when [IOUTPUTFOREACHRELEASE](configuration.md#ioutputforeachrelease) in [COMMAND](configuration.md#command) is set | 1D-array of integers with dimension `particle` |
+| `release` | Release ID of each particle, giving separate concentration fields for each release ID when [IOUTPUTFOREACHRELEASE](configuration.md#ioutputforeachrelease) in [COMMAND](configuration.md#command) is set | 1D-array of integers with dimension `particle` |
 
 <br/>
 

@@ -1,5 +1,5 @@
 # Linear Chemistry Module
-The Linear Chemistry Module (LCM) is based on the initial work of [Henne et al.](https://doi.org/10.5281/zenodo.1249190) who developed the FLEXPART-CTM model from FLEXPART 8, and was first described in [Groot Zwaaftink et al.](https://gmd.copernicus.org/articles/11/4469/2018/). This model was an extension of the domain-filling capability of FLEXPART and added the possibility to initialise particles' mixing ratio from pre-defined fields, account for the influence of surface fluxes and simple linear chemistry on the particles' mass, and sample the particle mixing ratios at user-defined receptor locations.
+The Linear Chemistry Module (LCM) is based on the initial work of [Henne et al.](https://doi.org/10.5281/zenodo.1249190) who developed the FLEXPART-CTM model from FLEXPART 8, and was first described in [Groot Zwaaftink et al.](https://gmd.copernicus.org/articles/11/4469/2018/). This model was an extension of the domain-filling capability of FLEXPART and added the possibility to initialise particles' mixing ratio from pre-defined fields and to account for the influence of surface fluxes and simple linear chemistry on the particles' mass.
 
 ## How to run LCM
 To run the LCM the following OPTIONS files are used and need to be edited (see also the Appendix for example OPTIONS files):
