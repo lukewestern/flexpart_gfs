@@ -25,11 +25,12 @@ module restart_mod
 
 contains
 
-subroutine output_restart(itime,loutnext,lrecoutnext)
+subroutine output_restart(itime,loutnext,lrecoutnext,outnum)
 
   implicit none
 
   integer, intent(in) :: itime,loutnext,lrecoutnext
+  real, intent(in) :: outnum
   integer :: imax,i,j,jjjjmmdd,ihmmss,ipart,iwritten
   integer :: ks,kp,kz,nage,jy,ix,l,n
   real(kind=dp) :: jul
@@ -84,6 +85,7 @@ subroutine output_restart(itime,loutnext,lrecoutnext)
   write(unitrestart) iwritten
   write(unitrestart) loutnext
   write(unitrestart) lrecoutnext
+  write(unitrestart) outnum
 
   do ipart=1,imax
     if ((ipout.gt.0).and.(n_average.gt.0)) then
@@ -214,6 +216,7 @@ subroutine readrestart
   read(unitpartin) numpart
   read(unitpartin) loutnext_init
   read(unitpartin) lrecoutnext_init
+  read(unitpartin) outnum_init
 
   count%alive=numpart
   if (ipin.eq.1) then

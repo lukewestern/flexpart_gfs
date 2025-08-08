@@ -156,11 +156,12 @@ subroutine timemanager
   if (itime_init.ne.0) then
     loutnext=loutnext_init
     lrecoutnext=lrecoutnext_init
+    outnum=outnum_init
   else
     loutnext=loutstep/2
     lrecoutnext=lrecoutstep/2
+    outnum=0.
   endif
-  outnum=0.
   recoutnum(:)=0.
 !  recoutnumsat(:,:)=0.
   loutstart=loutnext-loutaver/2
@@ -411,7 +412,7 @@ subroutine timemanager
   ! Writing restart file
   !*********************
     if ((itime.ne.itime_init).and.(loutrestart.ne.-1).and.(mod(itime,loutrestart).eq.0)) then
-      call output_restart(itime,loutnext,lrecoutnext)
+      call output_restart(itime,loutnext,lrecoutnext,0.)
     endif
 
     if (itime.eq.ideltas) exit         ! almost finished

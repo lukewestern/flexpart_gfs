@@ -60,6 +60,7 @@ module com_mod
   !********************************************************
 
   integer :: ibdate,ibtime,iedate,ietime,itime_init,loutnext_init,lrecoutnext_init
+  real :: outnum_init
   real(kind=dp) :: bdate,edate
 
 
