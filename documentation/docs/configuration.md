@@ -362,4 +362,4 @@ In case your simulation crashes or if you simply want to extend your simulation 
 
 To run from one of these files, simply rename the desired restart_XXX.bin file to restart.bin, set IPIN=1 (or IPIN=4 when initially running with IPIN=3) and you can restart your run from there.
 
-WARNING: If you chose to use gridded data output (IOUT>0), then new data will be written to this file. If it is not desirable to overwrite a gridded data output file from a previous run, copy this file to another directory.
+**WARNING: If you chose to use gridded data output (IOUT>0), then new data will be written to this file. If it is not desirable to overwrite a gridded data output file from a previous run, copy this file to another directory.**
