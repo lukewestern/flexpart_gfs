@@ -1,0 +1,8 @@
+# CARIBBEAN
+# Output Grid 1 and Grid 2
+Grid1_nX=391
+Grid1_nY=340
+Grid1_dX='0.352'
+Grid1_dY='0.234'
+Grid1_Xmin='-100.012'
+Grid1_Ymin='-26.009'

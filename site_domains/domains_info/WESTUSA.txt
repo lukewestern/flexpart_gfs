@@ -1,0 +1,8 @@
+# WESTUSA
+# Output Grid 1 and Grid 2
+Grid1_nX='140'
+Grid1_nY='200'
+Grid1_dX='0.352'
+Grid1_dY='0.234'
+Grid1_Xmin='-150'
+Grid1_Ymin='20'

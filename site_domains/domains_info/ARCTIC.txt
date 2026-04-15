@@ -1,0 +1,8 @@
+ # ARCTIC
+# Output Grid 1 and Grid 2
+Grid1_nX='1024'
+Grid1_nY='230'
+Grid1_dX='0.3515625'
+Grid1_dY='0.234375'
+Grid1_Xmin='-97.9'
+Grid1_Ymin='36.09375'

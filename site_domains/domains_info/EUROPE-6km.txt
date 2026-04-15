@@ -1,0 +1,7 @@
+# EUROPE-6km grid
+Grid1_nX='448'
+Grid1_nY='520'
+Grid1_dX='0.088'
+Grid1_dY='0.0585'
+Grid1_Xmin='-11.088'
+Grid1_Ymin='34.50925'

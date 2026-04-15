@@ -31,6 +31,17 @@ The introduction of `error stop` in Fortran 2008 now guarantees FLEXPART to only
 FLEXPART advances particles based on interpolated meteorological fields, namely grid-scale three-dimensional fields of wind velocities, density, temperature, specific humidity, cloud liquid water and ice content, as well as precipitation and various surface fields. In principle, any gridded data set could be used. Data formats and coordinate systems used as well as differences in the meteorological variables provided, however, would make a generic input interface rather complex. The main FLEXPART code described here supports two input formats, data from ECMWF's and from NCEP's forecast systems (IFS and GFS, respectively). For ECMWF data, the [flex_extract](https://flexpart.img.univie.ac.at/flexextract/index.html) software package ([Tipka et al. 2020](https://gmd.copernicus.org/articles/13/5277/2020/)) is provided to extract, process, and store the required fields for use as FLEXPART input, including support for ECMWF's reanalyses.
 
 In addition, to run FLEXPART, there are three important (sets) of files that need to be specified.
+
+### Downloading GFS 0.25 degree data
+
+For GFS, FLEXPART can read NCEP files directly if they are listed in the `AVAILABLE` file.
+This repository includes a helper script to download GFS 0.25 degree files from NOMADS,
+rename them to FLEXPART-style names (`GFyymmddhh`), and generate a matching `AVAILABLE` file:
+
+	$ ./tools/download_gfs_0p25.sh --start 2026040100 --end 2026040200 --outdir ./inputs --available ./AVAILABLE
+
+The script chooses the nearest previous 6-hour GFS cycle for each valid timestamp and fetches
+`gfs.tHHz.pgrb2.0p25.fFFF` files from NOMADS.
 These are:
 
 - the [**option files**](configuration.md#options), defining the set-up of the run,

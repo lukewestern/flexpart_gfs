@@ -1,0 +1,8 @@
+# NEW ZEALAMD
+# Output Grid 1 and Grid 2
+Grid1_nX='3246'
+Grid1_nY='2031'
+Grid1_dX='0.352'
+Grid1_dY='0.234'
+Grid1_Xmin='-97.9'
+Grid1_Ymin='10.729'
