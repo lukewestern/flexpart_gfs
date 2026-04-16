@@ -236,6 +236,7 @@ if [[ -d "${OUTPUT_DIR}" ]]; then
     if (( ${#keep_files[@]} == 0 )); then
       echo "WARNING: PRUNE_TO_GRID_FILES=1 but no grid_time_*.nc found in ${OUTPUT_DIR}."
     else
+      # Prune everything in output/ except grid_time_*.nc
       for p in "${OUTPUT_DIR}"/*; do
         keep=false
         for k in "${keep_files[@]}"; do
@@ -248,7 +249,15 @@ if [[ -d "${OUTPUT_DIR}" ]]; then
           rm -rf "${p}"
         fi
       done
-      echo "Pruned output to grid_time_*.nc only in ${OUTPUT_DIR}"
+      
+      # Delete all input/config files from RUN_DIR (keep only output/ subdirectory)
+      for p in "${RUN_DIR}"/*; do
+        if [[ "${p}" != "${OUTPUT_DIR}" ]]; then
+          rm -rf "${p}"
+        fi
+      done
+      
+      echo "Pruned: kept ${#keep_files[@]} grid_time_*.nc file(s); deleted all other run-dir contents (AGECLASSES, AVAILABLE, COMMAND, IGBP_int1.dat, SPECIES, oh_fields, etc.)"
     fi
     shopt -u nullglob
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] completed end_time=${END_TIME}"
