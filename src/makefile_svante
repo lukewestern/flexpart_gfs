@@ -44,8 +44,8 @@ ROOT_DIR = . #MD
 
 #
 # Fortran compiler
-F90 = gfortran
-FC = gfortran
+F90 ?= gfortran
+FC ?= $(F90)
 #
 # CPATH and LIBRARY_PATH setup
 # Priority: 1) Conda environment (CONDA_PREFIX), 2) Manual environment variables
@@ -101,7 +101,7 @@ O_LEV_DBG = g # [0,g]
 # if SERIAL is set to yes, then OpenMP is not used
 # if SERIAL is set to no, then OpenMP is used
 ifeq ($(SERIAL), yes)
-	omp = -fopenmp_stubs
+	omp =
 else
 	omp = -fopenmp
 endif
@@ -111,14 +111,18 @@ endif
 # using skylake (AVX512)
 # using native is the default, which will use whatever it can 
 # (defined by the machine where you are compiling it)
+# Optional debug-info flag for non-debug builds.
+# Some older assemblers cannot parse GCC's newer DWARF directives.
+# Set GFLAG= to disable debug info during compile.
+GFLAG ?= -g
 ifeq ($(arch), generic)
-	FUSER = -g $(omp) -march=core-avx2
+	FUSER = $(GFLAG) $(omp) -march=core-avx2
 else ifeq ($(arch), x86-64)
-	FUSER = -g $(omp) -march=x86-64
+	FUSER = $(GFLAG) $(omp) -march=x86-64
 else ifeq ($(arch), skylake)
-	FUSER = -g $(omp) -march=skylake-avx512
+	FUSER = $(GFLAG) $(omp) -march=skylake-avx512
 else
-	FUSER = -g $(omp) -march=native -mtune=native
+	FUSER = $(GFLAG) $(omp) -march=native -mtune=native
 endif
 # MPI 
 # if we use MPI, then we need to add the -Dusempi flag

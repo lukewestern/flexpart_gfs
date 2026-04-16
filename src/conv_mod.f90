@@ -418,9 +418,11 @@ subroutine convmix(itime)
   ! is not yet supported in most OpenMP versions
   !************************************************************************************
   if (iflux.eq.1) then
+#ifdef _OPENMP
     do ithread=1,numthreads
       flux(:,:,:,:,:,:,:)=flux(:,:,:,:,:,:,:)+flux_omp(:,:,:,:,:,:,:,ithread)
     end do
+#endif
   endif
 
   !*****************************************************************************
@@ -516,9 +518,11 @@ subroutine convmix(itime)
   ! is not yet supported in most OpenMP versions
   !************************************************************************************
   if (iflux.eq.1) then
+#ifdef _OPENMP
     do ithread=1,numthreads
       flux(:,:,:,:,:,:,:)=flux(:,:,:,:,:,:,:)+flux_omp(:,:,:,:,:,:,:,ithread)
     end do
+#endif
   endif
   !--------------------------------------------------------------------------
   ! write(*,*)'############################################'

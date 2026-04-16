@@ -40,7 +40,9 @@ module outgrid_mod
   integer,allocatable, dimension (:) :: sparse_dump_i
 
   real,allocatable, dimension (:,:,:,:,:,:,:) :: flux
+#ifdef _OPENMP
   real,allocatable, dimension (:,:,:,:,:,:,:,:) :: flux_omp
+#endif
 
   real,allocatable, dimension (:,:,:,:,:) :: init_cond
   real,allocatable, dimension (:,:,:,:,:,:) :: init_cond_omp

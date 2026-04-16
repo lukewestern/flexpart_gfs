@@ -71,6 +71,10 @@ if [[ ! -f "${REPO_ROOT}/run_scripts/run_backward_batch.py" ]]; then
   exit 2
 fi
 
+# Increase stack limit to prevent segfaults in deep simulation loops
+# (FLEXPART has large temporary arrays in nested subroutine calls)
+ulimit -s unlimited
+
 # System-specific environment setup (Svante):
 #   source ~/.bashrc
 #   initialize conda shell hook
@@ -86,19 +90,22 @@ fi
 
 if command -v conda >/dev/null 2>&1; then
   # In non-interactive shells, conda activation requires the shell hook.
+  # Some conda activate.d scripts assume unset vars are allowed; run activation
+  # with nounset disabled and restore strict mode immediately afterwards.
+  set +u
+  conda_activate_ok=1
   # shellcheck disable=SC1090
-  eval "$(conda shell.bash hook)"
-  conda activate flexpart || {
+  eval "$(conda shell.bash hook)" || conda_activate_ok=0
+  if [[ "${conda_activate_ok}" -eq 1 ]]; then
+    conda activate flexpart || conda_activate_ok=0
+  fi
+  set -u
+  if [[ "${conda_activate_ok}" -ne 1 ]]; then
     echo "ERROR: failed to run 'conda activate flexpart'."
     exit 2
-  }
+  fi
 else
   echo "WARNING: conda not found in PATH after sourcing ~/.bashrc; continuing without conda activation."
-fi
-
-# Populate runtime linker paths immediately after conda/module setup.
-if [[ -n "${CONDA_PREFIX:-}" && -d "${CONDA_PREFIX}/lib" ]]; then
-  export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 fi
 
 start_epoch="$(date -u -d "${START_DATE:0:8} ${START_DATE:8:2}:00:00" +%s)"

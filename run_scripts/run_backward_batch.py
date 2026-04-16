@@ -65,7 +65,13 @@ def generate_available_from_gf_files(gfs_data_dir, available_path, start_time=No
 
     selected = entries
     if start_time is not None and end_time is not None:
-        in_window = [x for x in entries if start_time <= x[0] <= end_time]
+        # Extend the window by 6 h on each side so FLEXPART always has at least
+        # one wind field before the simulation start and one after the end time.
+        # Without this buffer the field bracketing the release/termination time
+        # may be excluded, causing "NO METEO FIELDS AVAILABLE".
+        buffer = timedelta(hours=6)
+        in_window = [x for x in entries
+                     if (start_time - buffer) <= x[0] <= (end_time + buffer)]
         if in_window:
             selected = in_window
 
@@ -407,8 +413,10 @@ def update_command_file(
     _set_command_value(lines, "SURF_ONLY", "0")
 
     if ipout_override is None:
-        # User requested end-only particle dumps (no time component needed for exits).
-        updates.append(("IPOUT", "2"))
+        # Disable particle position output for backward sensitivity runs — the gridded
+        # sensitivity (grid_time_*.nc) is all that is needed and IPOUT=2 triggers the
+        # partpos_avg interpolation path which segfaults on out-of-domain particles.
+        updates.append(("IPOUT", "0"))
     else:
         updates.append(("IPOUT", str(ipout_override)))
 
@@ -429,7 +437,7 @@ def update_command_file(
     print(f"Set NXSHIFT={nxshift_value} (domain xmax={domain_xmax:.3f})")
     print("Set IOUT=9 for backward gridded sensitivity output (grid_time_*.nc)")
     if ipout_override is None:
-        print("Set IPOUT=2 by default (end-only particle output)")
+        print("Set IPOUT=0 (particle position output disabled; use --ipout 2 to enable)")
     else:
         print(f"Set IPOUT={ipout_override}")
     print("Set IND_RECEPTOR=2, LINIT_COND=0, SFC_ONLY/SURF_ONLY=0")

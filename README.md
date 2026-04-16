@@ -12,22 +12,134 @@ Other references:
 
 ### MIT/Svante install instructions
 
-Build and install on an EDR compute node on Svante (not on login or fsXX nodes).
+The FLEXPART binary must be built **on an EDR compute node** so it is linked against the correct GLIBC and runtime libraries for that architecture.  Building on a login node or fsXX node will produce a binary that fails at runtime with `GLIBC_2.2x not found`.
 
-Start an interactive EDR shell:
-`srun -n 1 -p edr --pty /bin/bash`
+#### 1. Start an interactive EDR session
 
-Create and activate a conda environment:
-`conda create --name flexpart`
-`conda activate flexpart`
+```bash
+srun -n 1 -p edr --pty /bin/bash
+```
 
-Install required packages:
-`conda install -c conda-forge eccodes gfortran_linux-64 netcdf-fortran`
+#### 2. Build ecCodes locally with the system Fortran compiler
 
-Clone this repository (URL omitted here), then build:
-`cd flexpart_gfs/src`
-`make -f makefile_svante clean`
-`make -f makefile_svante eta=no -j4`
+The EDR nodes ship GCC 6 as the default compiler, which is too old to build ecCodes 2.34+ (requires C++17).  Use GCC 11 from the module system, but it requires some missing runtime libraries that can be borrowed from the Julia module.
+
+```bash
+# Load required modules
+source ~/.bashrc
+module purge
+module load cmake/3.26.4 gcc/11.3.0
+
+# GCC 11's Fortran frontend needs libmpfr.so.6; find and expose it
+EXTRA_LIBS="$(
+  for lib in libmpfr.so.6 libmpc.so.3; do
+    find /home/software /usr -name "$lib" 2>/dev/null | head -n 1 | xargs -r dirname
+  done | awk 'NF && !seen[$0]++' | paste -sd:
+)"
+export LD_LIBRARY_PATH="${EXTRA_LIBS}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Verify GCC 11 is active
+hash -r
+gfortran --version   # should say GNU Fortran (GCC) 11.3.0
+```
+
+Clone/install ecbuild (needed by ecCodes 2.23 CMake system):
+
+```bash
+mkdir -p "$HOME/local/src" "$HOME/local/build"
+cd "$HOME/local/src"
+git clone --depth 1 --branch 3.8.2 https://github.com/ecmwf/ecbuild.git
+
+mkdir -p "$HOME/local/build/ecbuild-build"
+cd "$HOME/local/build/ecbuild-build"
+cmake "$HOME/local/src/ecbuild" -DCMAKE_INSTALL_PREFIX="$HOME/local/ecbuild"
+cmake --build . -j 8 && cmake --install .
+```
+
+Download and build ecCodes 2.23.0 with GCC 11:
+
+```bash
+GCC11=/home/software/rhel/8/gcc/11.3.0
+
+cd "$HOME/local/src"
+# Download tarball — check https://confluence.ecmwf.int/display/ECC/Releases for latest 2.23.x
+curl -LO https://confluencehpc.ecmwf.int/eccodes-2.23.0-Source.tar.gz
+# or use: wget https://github.com/ecmwf/eccodes/releases/...
+tar xzf eccodes-2.23.0-Source.tar.gz
+mv eccodes-2.23.0-Source eccodes-2.23.0
+
+mkdir -p "$HOME/local/build/eccodes-gcc11-build"
+cd "$HOME/local/build/eccodes-gcc11-build"
+
+cmake "$HOME/local/src/eccodes-2.23.0" \
+  -DCMAKE_INSTALL_PREFIX="$HOME/local/eccodes-gcc11" \
+  -DCMAKE_C_COMPILER="$GCC11/bin/gcc" \
+  -DCMAKE_CXX_COMPILER="$GCC11/bin/g++" \
+  -DCMAKE_Fortran_COMPILER="$GCC11/bin/gfortran" \
+  -DCMAKE_PREFIX_PATH="$HOME/local/ecbuild" \
+  -DENABLE_FORTRAN=ON \
+  -DBUILD_SHARED_LIBS=ON \
+  -DENABLE_AEC=OFF \
+  -DENABLE_NETCDF=OFF \
+  -DENABLE_JPG=OFF \
+  -DENABLE_PNG=OFF
+
+cmake --build . -j 8
+cmake --install .
+```
+
+> **Note:** GCC 11 on EDR nodes links against a newer libgfortran than the system GLIBC provides.  
+> If the ecCodes build fails with `undefined reference to getentropy@GLIBC_2.25` during the CMake compiler test, GCC 11 is not runtime-compatible here.  
+> In that case fall back to building ecCodes 2.23.0 with GCC 6 (`FC=/usr/bin/gfortran`) — the resulting `grib_api.mod` will be usable for the FLEXPART Fortran build.  
+> The FLEXPART source already contains the necessary `#ifdef _OPENMP` guards so the rank-8 array limitation of GCC 6 is not triggered in serial builds.
+
+#### 3. Set up build environment and compile FLEXPART
+
+```bash
+# Unload GCC 11 if loaded; use system GCC 6 for the FLEXPART link step
+module purge
+hash -r
+
+export ECCODES_PREFIX="$HOME/local/eccodes-gcc11"   # or eccodes-gcc6 if fallback
+export GF=/home/software/rhel/8/gcc/11.3.0/bin/gfortran  # or /usr/bin/gfortran for fallback
+
+export CPATH="/usr/include:${ECCODES_PREFIX}/include:/usr/lib64/gfortran/modules"
+export LIBRARY_PATH="/usr/lib64:${ECCODES_PREFIX}/lib64:${ECCODES_PREFIX}/lib"
+unset CONDA_PREFIX
+unset LD_LIBRARY_PATH   # avoid conda RPATH contamination
+
+cd flexpart_gfs/src
+make -f makefile_svante cleanall
+make -f makefile_svante eta=no ncf=yes SERIAL=yes GFLAG= -j4 FC="$GF" F90="$GF"
+```
+
+`GFLAG=` disables the `-g` debug-info flag which triggers assembler errors with the older `as` on EDR nodes.  
+`SERIAL=yes` disables OpenMP (correct for EDR runs).
+
+#### 4. Validate the binary is runtime-compatible
+
+```bash
+# GLIBC requirement — should show 2.14 or lower, not 2.25/2.27
+readelf -V src/FLEXPART | grep 'Name: GLIBC_' | sort -u
+
+# Should NOT contain conda or home directory lib paths
+readelf -d src/FLEXPART | grep -E 'RPATH|RUNPATH' || true
+
+# All libraries should resolve from /usr/lib64 and $HOME/local/eccodes-gcc*/lib*
+ldd src/FLEXPART | grep -E 'eccodes|netcdf|gfortran|libc\.so'
+```
+
+A passing result looks like:
+
+```
+Name: GLIBC_2.14  ...
+Name: GLIBC_2.2.5 ...
+RPATH: [/usr/lib64:/home/lwestern/local/eccodes-gcc.../lib64:...]
+libnetcdff.so.6 => /usr/lib64/libnetcdff.so.6
+libeccodes.so   => /home/.../eccodes-gcc.../lib64/libeccodes.so
+libgfortran.so.3 => /usr/lib64/libgfortran.so.3
+libc.so.6       => /usr/lib64/libc.so.6
+```
 
 
 ### Running Slurm Array Jobs (Svante/HPC)
