@@ -48,7 +48,7 @@ F90 ?= gfortran
 FC ?= $(F90)
 #
 # CPATH and LIBRARY_PATH setup
-# Priority: 1) Conda environment (CONDA_PREFIX), 2) Manual environment variables
+# Priority: 1) Conda environment (CONDA_PREFIX), 2) system defaults/manual env
 ifdef CONDA_PREFIX
 	# Default to a pure conda toolchain to avoid GLIBC/sysroot mismatches.
 	CPATH ?= $(CONDA_PREFIX)/include
@@ -60,12 +60,13 @@ ifdef CONDA_PREFIX
 		LIBRARY_PATH := $(LIBRARY_PATH):/usr/lib64
 	endif
 else
-  ifndef CPATH
-    $(error CPATH is not set. Either activate a conda environment (conda activate flexpart) or set CPATH manually)
-  endif
-  ifndef LIBRARY_PATH
-    $(error LIBRARY_PATH is not set)
-  endif
+	# Non-conda build path (portable across EDR/FDR): default to system include/lib.
+	CPATH ?= /usr/include:/usr/lib64/gfortran/modules
+	LIBRARY_PATH ?= /usr/lib64
+	ifdef ECCODES_PREFIX
+		CPATH := $(CPATH):$(ECCODES_PREFIX)/include
+		LIBRARY_PATH := $(LIBRARY_PATH):$(ECCODES_PREFIX)/lib64:$(ECCODES_PREFIX)/lib
+	endif
 endif
 # use the environmental variable $INCLUDE
 # split the paths separated by :
@@ -121,8 +122,11 @@ else ifeq ($(arch), x86-64)
 	FUSER = $(GFLAG) $(omp) -march=x86-64
 else ifeq ($(arch), skylake)
 	FUSER = $(GFLAG) $(omp) -march=skylake-avx512
-else
+else ifeq ($(arch), native)
 	FUSER = $(GFLAG) $(omp) -march=native -mtune=native
+else
+	# Default to a portable baseline so binaries run on both EDR/FDR classes.
+	FUSER = $(GFLAG) $(omp) -march=x86-64
 endif
 # MPI 
 # if we use MPI, then we need to add the -Dusempi flag

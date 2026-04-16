@@ -3,7 +3,7 @@
 #SBATCH -n 1
 #SBATCH -N 1
 #SBATCH -t 0:30:00
-#SBATCH -p edr
+#SBATCH -p fdr
 #SBATCH --mem=10G
 #SBATCH -a 1-1%1
 #SBATCH -o slurm-%A_%a.out
@@ -25,11 +25,15 @@ set -euo pipefail
 #   STEP_HOURS: spacing between array timestamps (default: 1)
 #   BACKWARD_DAYS: backward duration in days (default: 20)
 #   NUM_PARTICLES: number of particles (default: 20000)
+#   LSUBGRID: set COMMAND LSUBGRID (default: 0; use 1 for FLEXINVERT-style behavior)
 #   OUTROOT: directory for per-task run folders (default: /net/fs06/d2/$USER/flexpart_outs)
 #   POSTPROCESS_LOWEST_MAGL: low-level footprint cutoff (default: 100)
 #   POSTPROCESS_SOURCE_LAYER_THICKNESS_M: conversion thickness for SRR units (default: 100)
+#   DISABLE_AUTO_POSTPROCESS: set to 1 to skip postprocess in this job (default: 0)
+#   PRUNE_TO_GRID_FILES: set to 1 to keep only output/grid_time_*.nc after FLEXPART (default: 0)
 #   FLEXPART_REPO_ROOT: absolute path to repository root (recommended; auto-set by submit helper)
 #   PYTHON_CMD: Python 3 executable to use when no venv is found (default: python3)
+#   POSTPROCESS_PYTHON_CMD: Python executable for postprocessing (default: PYTHON_CMD)
 #   USE_PROJECT_VENV: set to 1 to activate <repo>/.venv after conda (default: 0)
 #   FLEXPART_EXE: optional absolute path to FLEXPART executable to use in runs
 #   DEBUG_ENV: set to 1 to print environment/linker diagnostics
@@ -39,9 +43,13 @@ RECEPTOR="${RECEPTOR:-GSN}"
 STEP_HOURS="${STEP_HOURS:-1}"
 BACKWARD_DAYS="${BACKWARD_DAYS:-20}"
 NUM_PARTICLES="${NUM_PARTICLES:-20000}"
+LSUBGRID="${LSUBGRID:-0}"
 POSTPROCESS_LOWEST_MAGL="${POSTPROCESS_LOWEST_MAGL:-100}"
 POSTPROCESS_SOURCE_LAYER_THICKNESS_M="${POSTPROCESS_SOURCE_LAYER_THICKNESS_M:-100}"
+DISABLE_AUTO_POSTPROCESS="${DISABLE_AUTO_POSTPROCESS:-0}"
+PRUNE_TO_GRID_FILES="${PRUNE_TO_GRID_FILES:-0}"
 PYTHON_CMD="${PYTHON_CMD:-}"
+POSTPROCESS_PYTHON_CMD="${POSTPROCESS_PYTHON_CMD:-}"
 USE_PROJECT_VENV="${USE_PROJECT_VENV:-0}"
 FLEXPART_EXE="${FLEXPART_EXE:-}"
 DEBUG_ENV="${DEBUG_ENV:-0}"
@@ -74,6 +82,8 @@ fi
 # Increase stack limit to prevent segfaults in deep simulation loops
 # (FLEXPART has large temporary arrays in nested subroutine calls)
 ulimit -s unlimited
+echo "Stack size (soft): $(ulimit -s)"
+echo "Stack size (hard): $(ulimit -Hs)"
 
 # System-specific environment setup (Svante):
 #   source ~/.bashrc
@@ -185,6 +195,9 @@ fi
 
 echo "Python executable: $("${PYTHON_CMD}" -c 'import sys; print(sys.executable)')"
 echo "Python version: $("${PYTHON_CMD}" -c 'import sys; print(sys.version.split()[0])')"
+if [[ -n "${POSTPROCESS_PYTHON_CMD}" ]]; then
+  echo "Postprocess Python: ${POSTPROCESS_PYTHON_CMD}"
+fi
 
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] task=${idx}/${total_tasks} end_time=${END_TIME} receptor=${RECEPTOR} domain=${DOMAIN}"
 
@@ -194,12 +207,22 @@ cmd=("${PYTHON_CMD}" "${REPO_ROOT}/run_scripts/run_backward_batch.py" \
   --end-time "${END_TIME}" \
   --days "${BACKWARD_DAYS}" \
   --num-particles "${NUM_PARTICLES}" \
+  --lsubgrid "${LSUBGRID}" \
   --outdir "${RUN_DIR}" \
   --postprocess-lowest-magl "${POSTPROCESS_LOWEST_MAGL}" \
   --postprocess-source-layer-thickness-m "${POSTPROCESS_SOURCE_LAYER_THICKNESS_M}")
 
+if [[ "${DISABLE_AUTO_POSTPROCESS}" == "1" ]]; then
+  cmd+=(--no-postprocess)
+  echo "Automatic postprocess disabled for this FLEXPART job (DISABLE_AUTO_POSTPROCESS=1)."
+fi
+
 if [[ -n "${FLEXPART_EXE}" ]]; then
   cmd+=(--executable "${FLEXPART_EXE}")
+fi
+
+if [[ -n "${POSTPROCESS_PYTHON_CMD}" ]]; then
+  cmd+=(--postprocess-python "${POSTPROCESS_PYTHON_CMD}")
 fi
 
 "${cmd[@]}"
@@ -207,6 +230,31 @@ fi
 # Keep only the final postprocessed footprint netCDF for this release hour.
 OUTPUT_DIR="${RUN_DIR}/output"
 if [[ -d "${OUTPUT_DIR}" ]]; then
+  if [[ "${PRUNE_TO_GRID_FILES}" == "1" ]]; then
+    shopt -s nullglob
+    keep_files=("${OUTPUT_DIR}"/grid_time_*.nc)
+    if (( ${#keep_files[@]} == 0 )); then
+      echo "WARNING: PRUNE_TO_GRID_FILES=1 but no grid_time_*.nc found in ${OUTPUT_DIR}."
+    else
+      for p in "${OUTPUT_DIR}"/*; do
+        keep=false
+        for k in "${keep_files[@]}"; do
+          if [[ "${p}" == "${k}" ]]; then
+            keep=true
+            break
+          fi
+        done
+        if [[ "${keep}" == false ]]; then
+          rm -rf "${p}"
+        fi
+      done
+      echo "Pruned output to grid_time_*.nc only in ${OUTPUT_DIR}"
+    fi
+    shopt -u nullglob
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] completed end_time=${END_TIME}"
+    exit 0
+  fi
+
   shopt -s nullglob
   keep_files=("${OUTPUT_DIR}"/*_FLEXPART_GFS_"${DOMAIN}"_inert_"${END_TIME}".nc)
   if (( ${#keep_files[@]} == 0 )); then

@@ -378,6 +378,7 @@ def update_command_file(
     domain_config,
     nxshift_override=None,
     ipout_override=None,
+    lsubgrid_value=0,
 ):
     """Update COMMAND for backward sensitivity runs and consistent sampling settings."""
     with open(command_file) as f:
@@ -400,8 +401,8 @@ def update_command_file(
         ("IEDATE", end_time.strftime('%Y%m%d')),
         ("IETIME", end_time.strftime('%H%M%S')),
         ("NXSHIFT", nxshift_value),
-        # FLEXINVERT default; can improve transport realism near complex terrain.
-        ("LSUBGRID", "1"),
+        # Keep configurable; some setups are more stable with LSUBGRID=0.
+        ("LSUBGRID", str(int(lsubgrid_value))),
         # Use receptor mixing-ratio units but keep initial-condition mode off.
         ("IND_RECEPTOR", "2"),
         ("LINIT_COND", "0"),
@@ -441,7 +442,7 @@ def update_command_file(
     else:
         print(f"Set IPOUT={ipout_override}")
     print("Set IND_RECEPTOR=2, LINIT_COND=0, SFC_ONLY/SURF_ONLY=0")
-    print("Set LSUBGRID=1 (FLEXINVERT-style backward default)")
+    print(f"Set LSUBGRID={int(lsubgrid_value)}")
     print(f"Updated COMMAND: {command_file}")
 
 
@@ -489,6 +490,7 @@ def run_postprocess(
     end_time,
     lowest_magl=100.0,
     source_layer_thickness_m=100.0,
+    postprocess_python=None,
 ):
     """Run automatic postprocessing to create an AGAGE-like footprint NetCDF."""
     if not POSTPROCESS_SCRIPT.exists():
@@ -540,8 +542,12 @@ def run_postprocess(
     out_file = output_dir / out_name
     exit_csv = output_dir / out_name.replace(".nc", "_domain_exit_points.csv")
 
+    postprocess_python = str(postprocess_python or sys.executable)
+
     cmd = [
-        sys.executable,
+        postprocess_python,
+        "-X",
+        "faulthandler",
         str(POSTPROCESS_SCRIPT),
         "--grid-file",
         str(grid_file),
@@ -570,13 +576,26 @@ def run_postprocess(
     print("\nRunning automatic postprocessing:")
     print(f"  Grid file: {grid_file}")
     print(f"  Output file: {out_file}")
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        print(f"WARNING: postprocess failed with exit code {result.returncode}")
-        return None
+    print(f"  Python: {postprocess_python}")
 
-    print(f"Postprocessed footprint file: {out_file}")
-    return out_file
+    # Some shared filesystems/HDF5 combinations are unstable with file locking.
+    # Disable locking for this short-lived read/write postprocess subprocess.
+    post_env = os.environ.copy()
+    post_env.setdefault("HDF5_USE_FILE_LOCKING", "FALSE")
+
+    max_attempts = 2
+    for attempt in range(1, max_attempts + 1):
+        result = subprocess.run(cmd, env=post_env)
+        if result.returncode == 0:
+            print(f"Postprocessed footprint file: {out_file}")
+            return out_file
+
+        print(f"WARNING: postprocess attempt {attempt}/{max_attempts} failed with exit code {result.returncode}")
+        if attempt < max_attempts:
+            print("Retrying postprocess once...")
+
+    print("WARNING: automatic postprocessing failed after retry; consider rerunning postprocess as a separate job.")
+    return None
 
 
 def main():
@@ -669,7 +688,15 @@ Examples:
         choices=[0, 1, 2],
         default=None,
         metavar='N',
-        help='Optional IPOUT override in COMMAND (default when omitted: 2=end only; 0=no particle output, 1=every output).',
+        help='Optional IPOUT override in COMMAND (default when omitted: 0=no particle output).',
+    )
+    parser.add_argument(
+        '--lsubgrid',
+        type=int,
+        choices=[0, 1],
+        default=0,
+        metavar='N',
+        help='Set LSUBGRID in COMMAND (default: %(default)s).',
     )
     parser.add_argument(
         '--no-postprocess',
@@ -689,6 +716,13 @@ Examples:
         default=100.0,
         metavar='M',
         help='Source-layer thickness (m) used to convert SRR to m2 s mol-1 in postprocessing (default: %(default)s).',
+    )
+    parser.add_argument(
+        '--postprocess-python',
+        type=Path,
+        default=None,
+        metavar='FILE',
+        help='Python executable used for automatic postprocessing. Default: reuse the current interpreter.',
     )
     parser.add_argument(
         '--executable',
@@ -760,6 +794,7 @@ Examples:
         domain,
         nxshift_override=args.nxshift,
         ipout_override=args.ipout,
+        lsubgrid_value=args.lsubgrid,
     )
     
     # Generate RELEASES and OUTGRID
@@ -839,11 +874,27 @@ Examples:
                     end_time=end_time,
                     lowest_magl=args.postprocess_lowest_magl,
                     source_layer_thickness_m=args.postprocess_source_layer_thickness_m,
+                    postprocess_python=args.postprocess_python,
                 )
             else:
                 print("Automatic postprocessing disabled (--no-postprocess).")
     else:
         print(f"\n✗ FLEXPART failed with exit code {returncode}")
+        if returncode == -4:
+            print(
+                "  Hint: exit -4 = SIGILL (illegal instruction). "
+                "This usually means the binary was compiled with a CPU-specific "
+                "target (for example -march=native) that is unsupported on this node."
+            )
+            print(
+                "  Rebuild with a portable target, e.g. make ... arch=x86-64, "
+                "then retry."
+            )
+        elif returncode == -11:
+            print(
+                "  Hint: exit -11 = SIGSEGV. Check the corresponding Slurm .err file "
+                "for the Fortran backtrace to identify the crashing routine."
+            )
         return 1
     
     return 0

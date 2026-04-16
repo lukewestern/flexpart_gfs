@@ -128,6 +128,7 @@ end subroutine init_interpol
 subroutine find_grid_indices(xt,yt)
 
   real, intent(in) :: xt,yt                 ! particle positions
+  integer :: itmp, jtmp
 
   if (ngrid.gt.0) then ! Nest
     xtn=(xt-xln(ngrid))*xresoln(ngrid)
@@ -144,10 +145,14 @@ subroutine find_grid_indices(xt,yt)
     jyp=jy+1
     return
   else
-    ix=int(xt)
-    jy=int(yt)
-    nix=ix!nint(xt)
-    njy=jy!nint(yt)
+    ! Global grid: wrap longitude periodically and clamp latitude to valid range.
+    itmp=floor(xt)
+    jtmp=floor(yt)
+
+    ix=modulo(itmp,nxmax)
+    jy=max(min(jtmp,nymax-2),0)
+    nix=ix
+    njy=jy
     ixp=ix+1
     jyp=jy+1
   endif
@@ -178,6 +183,12 @@ subroutine find_grid_distances(xt,yt)
     ddx=xtn-real(ix)
     ddy=ytn-real(jy)
   endif
+
+  ! Keep interpolation weights bounded even when trajectory coordinates drift
+  ! outside the meteorological field extent.
+  ddx=max(0.,min(1.,ddx))
+  ddy=max(0.,min(1.,ddy))
+
   rddx=1.-ddx
   rddy=1.-ddy
   p1=rddx*rddy

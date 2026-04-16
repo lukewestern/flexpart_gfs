@@ -12,6 +12,42 @@ Other references:
 
 ### MIT/Svante install instructions
 
+#### Quick setup script (recommended)
+
+Most of the Svante setup/build flow can be automated with:
+
+```bash
+./run_scripts/setup_svante_environment.sh
+```
+
+What it does:
+- builds ecbuild + ecCodes (GCC 11 path used in this README)
+- builds FLEXPART with portable flags (`arch=x86-64`, `SERIAL=yes`)
+- creates/updates a stable postprocess conda env (`flexpart-post`, Python 3.12)
+
+Useful options:
+
+```bash
+# Preview commands only
+./run_scripts/setup_svante_environment.sh --dry-run
+
+# Skip ecCodes build and only rebuild FLEXPART + postprocess env
+./run_scripts/setup_svante_environment.sh --skip-eccodes
+
+# Skip postprocess env creation
+./run_scripts/setup_svante_environment.sh --no-postprocess-env
+```
+
+Then run the Slurm workflow:
+
+Edit `./run_scripts/slurm_array_config.sh` 
+```bash
+./run_scripts/run_slurm_array_backward.sh
+./run_scripts/run_slurm_postprocess_all.sh
+```
+
+> The detailed manual steps remain below for troubleshooting and custom builds.
+
 The FLEXPART binary must be built **on an EDR compute node** so it is linked against the correct GLIBC and runtime libraries for that architecture.  Building on a login node or fsXX node will produce a binary that fails at runtime with `GLIBC_2.2x not found`.
 
 #### 1. Start an interactive EDR session
@@ -110,11 +146,12 @@ unset LD_LIBRARY_PATH   # avoid conda RPATH contamination
 
 cd flexpart_gfs/src
 make -f makefile_svante cleanall
-make -f makefile_svante eta=no ncf=yes SERIAL=yes GFLAG= -j4 FC="$GF" F90="$GF"
+make -f makefile_svante eta=no ncf=yes SERIAL=yes arch=x86-64 GFLAG= -j4 FC="$GF" F90="$GF"
 ```
 
 `GFLAG=` disables the `-g` debug-info flag which triggers assembler errors with the older `as` on EDR nodes.  
 `SERIAL=yes` disables OpenMP (correct for EDR runs).
+`arch=x86-64` avoids node-specific instructions so the binary is portable across EDR/FDR.
 
 #### 4. Validate the binary is runtime-compatible
 
@@ -142,46 +179,81 @@ libc.so.6       => /usr/lib64/libc.so.6
 ```
 
 
-### Running Slurm Array Jobs (Svante/HPC)
+### Running Slurm Jobs (Svante/HPC)
 
-For multi-date production runs, use the Slurm array launcher script:
+Current recommended production workflow is a 2-stage Slurm process:
+
+1. Run FLEXPART array jobs (write grid outputs only)
+2. Run one postprocess Slurm job over all completed outputs
+
+This separation is intentional and avoids postprocess crashes from unstable Python runtime stacks on some nodes.
+
+#### Stage 1: FLEXPART array jobs
+
+Edit `run_scripts/slurm_array_config.sh` and set at least:
+- `START_DATE`, `END_DATE`, `DOMAIN`, `RECEPTOR`
+- `DISABLE_AUTO_POSTPROCESS="1"`
+- `PRUNE_TO_GRID_FILES="1"`
+
+Then submit:
 
 ```bash
 ./run_scripts/run_slurm_array_backward.sh
 ```
 
-How to use it:
-- Edit configuration values in `run_scripts/slurm_array_config.sh`.
-- Set at least: `START_DATE`, `END_DATE`, `DOMAIN`, `RECEPTOR`.
-- Run the script from the repository root.
-
-Default output root is:
+This creates one run directory per timestamp under:
 - `/net/fs06/d2/$USER/flexpart_outs`
 
-After each task completes, the workflow keeps only the final postprocessed footprint file for that release hour:
-- `*_FLEXPART_GFS_<DOMAIN>_inert_<YYYYMMDDHH>.nc`
+With `PRUNE_TO_GRID_FILES="1"`, each run keeps only `output/grid_time_*.nc` after FLEXPART completion.
 
-All other files in that task output folder are deleted automatically.
+#### Stage 2: postprocess all runs in one Slurm job
 
-Advanced usage:
-- Direct submit helper (date range to array spec):
+Submit:
 
 ```bash
-./run_scripts/submit_slurm_array_backward.sh 2018020100 2018022800 20
+./run_scripts/run_slurm_postprocess_all.sh
 ```
 
-- Full override example:
+Recommended one-time setup for a stable postprocess environment:
 
 ```bash
-DOMAIN=EASTASIA \
-RECEPTOR=GSN \
-STEP_HOURS=1 \
-BACKWARD_DAYS=20 \
-NUM_PARTICLES=20000 \
-POSTPROCESS_LOWEST_MAGL=100 \
-POSTPROCESS_SOURCE_LAYER_THICKNESS_M=100 \
-OUTROOT=/net/fs06/d2/$USER/flexpart_outs \
+conda create -n flexpart-post python=3.12 -y
+conda activate flexpart-post
+python -m pip install --upgrade pip
+python -m pip install numpy pandas xarray netCDF4
+```
+
+Then set in `run_scripts/slurm_array_config.sh`:
+- `POSTPROCESS_PYTHON_CMD="/home/$USER/.conda/envs/flexpart-post/bin/python"`
+- `POSTPROCESS_DRIVER_PYTHON="python3"` (or explicit path if needed)
+
+This runs `run_scripts/postprocess_all_outputs.py` over all discovered `output/grid_time_*.nc` files in `OUTROOT`.
+
+Default postprocess-all behavior:
+- writes final footprint files to `FINAL_DIR` (default: `OUTROOT`)
+- moves final files to top-level output directory
+- deletes per-run FLEXPART folders after successful move
+
+The final files are named:
+- `*_FLEXPART_GFS_<DOMAIN>_inert_<YYYYMMDDHH>.nc`
+
+Key postprocess-all config variables in `run_scripts/slurm_array_config.sh`:
+- `POSTPROCESS_DRIVER_PYTHON` (driver interpreter, default `python3`)
+- `POSTPROCESS_PYTHON_CMD` (python used by `postprocess_footprint.py` subprocess)
+- `FINAL_DIR` (destination for final footprint files)
+- `POSTPROCESS_OVERWRITE` (`1` to replace existing final files)
+- `KEEP_RUN_DIRS` (`1` to keep run directories)
+- `LIMIT` (`>0` to process first N discovered files)
+- `DRY_RUN` (`1` for preview-only)
+
+#### Direct submit helpers
+
+```bash
+# FLEXPART array
 ./run_scripts/submit_slurm_array_backward.sh 2018020100 2018022800 20
+
+# Postprocess-all single job
+./run_scripts/submit_slurm_postprocess_all.sh
 ```
 
 
@@ -264,42 +336,25 @@ For more options, run:
 ./run_scripts/run_backward_batch.py --help
 ```
 
-### Running Slurm Array Jobs (Current Workflow)
+### Slurm Workflow Summary
 
-Current default workflow on Svante is:
-- Use a precompiled FLEXPART executable (typically `src/FLEXPART`).
-- Submit date-range array jobs via the Slurm scripts in `run_scripts/`.
-- Manage run settings in `run_scripts/slurm_array_config.sh`.
-
-Recommended submission flow:
+Minimal run sequence:
 
 ```bash
-# 1) Edit run parameters
+# 1) Configure
 vi run_scripts/slurm_array_config.sh
 
-# 2) Submit
+# 2) Run FLEXPART array jobs (stage 1)
 ./run_scripts/run_slurm_array_backward.sh
-```
 
-Optional direct submit (without config file):
-
-```bash
-DOMAIN=EASTASIA \
-RECEPTOR=GSN \
-STEP_HOURS=1 \
-BACKWARD_DAYS=20 \
-NUM_PARTICLES=20000 \
-POSTPROCESS_LOWEST_MAGL=100 \
-POSTPROCESS_SOURCE_LAYER_THICKNESS_M=100 \
-OUTROOT=/net/fs06/d2/$USER/flexpart_outs \
-FLEXPART_EXE=/home/lwestern/work/flexpart_gfs/src/FLEXPART \
-./run_scripts/submit_slurm_array_backward.sh 2018020100 2018022823 30
+# 3) Run postprocess-all job (stage 2)
+./run_scripts/run_slurm_postprocess_all.sh
 ```
 
 Notes:
-- The date range is inclusive.
-- One array task is created per `STEP_HOURS` timestamp.
-- `%30` in the submit command above is the maximum concurrent array tasks.
+- Date range (`START_DATE`..`END_DATE`) is inclusive.
+- FLEXPART stage creates one array task per `STEP_HOURS` timestamp.
+- Postprocess stage is one Slurm job that scans `OUTROOT` for all matching run outputs.
 
 
 ### Contribution guidelines
