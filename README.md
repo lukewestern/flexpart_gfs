@@ -40,7 +40,11 @@ Useful options:
 
 Then run the Slurm workflow:
 
-Edit `./run_scripts/slurm_array_config.sh` 
+Edit
+```bash
+./run_scripts/slurm_array_config.sh
+```
+Then run 
 ```bash
 ./run_scripts/run_slurm_array_backward.sh
 ./run_scripts/run_slurm_postprocess_all.sh
@@ -76,6 +80,9 @@ This creates one run directory per timestamp under:
 
 With `PRUNE_TO_GRID_FILES="1"`, each run keeps only `output/grid_time_*.nc` after FLEXPART completion.
 
+> With `SFC_ONLY=1`, FLEXPART writes binary `grid_time_YYYYMMDDHHMMSS_NNN` files (not `grid_time_*.nc`).
+> In that mode, stage-2 postprocessing now auto-detects binary outputs and converts them to final NetCDF footprints.
+
 #### Stage 2: postprocess all runs in one Slurm job
 
 Submit:
@@ -97,7 +104,12 @@ Then set in `run_scripts/slurm_array_config.sh`:
 - `POSTPROCESS_PYTHON_CMD="/home/$USER/.conda/envs/flexpart-post/bin/python"`
 - `POSTPROCESS_DRIVER_PYTHON="python3"` (or explicit path if needed)
 
-This runs `run_scripts/postprocess_all_outputs.py` over all discovered `output/grid_time_*.nc` files in `OUTROOT`.
+This runs `run_scripts/postprocess_all_outputs.py` over discovered run outputs in `OUTROOT`:
+- NetCDF mode: `output/grid_time_*.nc`
+- Binary fallback mode (`SFC_ONLY=1`): `output/grid_time_YYYYMMDDHHMMSS_NNN`
+
+The binary fallback writes final footprint NetCDF files with `srr` converted to `m2 s mol-1`
+using the configured `POSTPROCESS_SOURCE_LAYER_THICKNESS_M`.
 
 Default postprocess-all behavior:
 - writes final footprint files to `FINAL_DIR` (default: `OUTROOT`)

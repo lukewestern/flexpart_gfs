@@ -12,20 +12,38 @@ SUBMIT_SCRIPT="${SCRIPT_DIR}/submit_slurm_postprocess_all.sh"
 CONFIG_FILE="${1:-${REPO_ROOT}/run_scripts/slurm_array_config.sh}"
 
 OUTROOT="/net/fs06/d2/${USER}/flexpart_outs"
-FINAL_DIR="${OUTROOT}"
+FINAL_DIR=""
 POSTPROCESS_DRIVER_PYTHON="python3"
-POSTPROCESS_PYTHON_CMD="/home/lwestern/.conda/envs/flexpart/bin/python"
+POSTPROCESS_PYTHON_CMD="/home/${USER}/.conda/envs/flexpart-post/bin/python"
 POSTPROCESS_LOWEST_MAGL="100"
 POSTPROCESS_SOURCE_LAYER_THICKNESS_M="100"
 POSTPROCESS_OVERWRITE="0"
 KEEP_RUN_DIRS="0"
 LIMIT="0"
+WRITE_MONTHLY="1"
+MONTHLY_DIR=""
 DRY_RUN="0"
 
 if [[ -f "${CONFIG_FILE}" ]]; then
 	# shellcheck disable=SC1090
 	source "${CONFIG_FILE}"
 	echo "Loaded config overrides from ${CONFIG_FILE}"
+fi
+
+if [[ -z "${FINAL_DIR}" ]]; then
+	if [[ -n "${RECEPTOR:-}" ]]; then
+		FINAL_DIR="${OUTROOT}/$(printf '%s' "${RECEPTOR}" | tr '[:upper:]' '[:lower:]')_hourly"
+	else
+		FINAL_DIR="${OUTROOT}"
+	fi
+fi
+
+if [[ -z "${MONTHLY_DIR}" ]]; then
+	if [[ -n "${RECEPTOR:-}" ]]; then
+		MONTHLY_DIR="${OUTROOT}/$(printf '%s' "${RECEPTOR}" | tr '[:upper:]' '[:lower:]')"
+	else
+		MONTHLY_DIR="${OUTROOT}"
+	fi
 fi
 
 if [[ ! -x "${SUBMIT_SCRIPT}" ]]; then
@@ -42,6 +60,8 @@ export POSTPROCESS_SOURCE_LAYER_THICKNESS_M
 export POSTPROCESS_OVERWRITE
 export KEEP_RUN_DIRS
 export LIMIT
+export WRITE_MONTHLY
+export MONTHLY_DIR
 export DRY_RUN
 
 echo "Submitting postprocess-all Slurm job"
@@ -52,6 +72,8 @@ echo "  POSTPROCESS_PYTHON_CMD=${POSTPROCESS_PYTHON_CMD}"
 echo "  POSTPROCESS_OVERWRITE=${POSTPROCESS_OVERWRITE}"
 echo "  KEEP_RUN_DIRS=${KEEP_RUN_DIRS}"
 echo "  LIMIT=${LIMIT}"
+echo "  WRITE_MONTHLY=${WRITE_MONTHLY}"
+echo "  MONTHLY_DIR=${MONTHLY_DIR}"
 echo "  DRY_RUN=${DRY_RUN}"
 
 "${SUBMIT_SCRIPT}"

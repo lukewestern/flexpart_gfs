@@ -25,7 +25,8 @@ set -euo pipefail
 #   STEP_HOURS: spacing between array timestamps (default: 1)
 #   BACKWARD_DAYS: backward duration in days (default: 20)
 #   NUM_PARTICLES: number of particles (default: 20000)
-#   LSUBGRID: set COMMAND LSUBGRID (default: 0; use 1 for FLEXINVERT-style behavior)
+#   IPOUT: particle-position output mode (0,1,2). Default: 2 for exit diagnostics.
+#   LSUBGRID: set COMMAND LSUBGRID (default: 1; FLEXINVERT-style behavior)
 #   OUTROOT: directory for per-task run folders (default: /net/fs06/d2/$USER/flexpart_outs)
 #   POSTPROCESS_LOWEST_MAGL: low-level footprint cutoff (default: 100)
 #   POSTPROCESS_SOURCE_LAYER_THICKNESS_M: conversion thickness for SRR units (default: 100)
@@ -43,7 +44,8 @@ RECEPTOR="${RECEPTOR:-GSN}"
 STEP_HOURS="${STEP_HOURS:-1}"
 BACKWARD_DAYS="${BACKWARD_DAYS:-20}"
 NUM_PARTICLES="${NUM_PARTICLES:-20000}"
-LSUBGRID="${LSUBGRID:-0}"
+IPOUT="${IPOUT:-2}"
+LSUBGRID="${LSUBGRID:-1}"
 POSTPROCESS_LOWEST_MAGL="${POSTPROCESS_LOWEST_MAGL:-100}"
 POSTPROCESS_SOURCE_LAYER_THICKNESS_M="${POSTPROCESS_SOURCE_LAYER_THICKNESS_M:-100}"
 DISABLE_AUTO_POSTPROCESS="${DISABLE_AUTO_POSTPROCESS:-0}"
@@ -67,6 +69,13 @@ fi
 if ! [[ "${STEP_HOURS}" =~ ^[0-9]+$ ]] || [[ "${STEP_HOURS}" -lt 1 ]]; then
   echo "ERROR: STEP_HOURS must be an integer >= 1."
   exit 2
+fi
+
+if [[ -n "${IPOUT}" ]]; then
+  if [[ ! "${IPOUT}" =~ ^[0-2]$ ]]; then
+    echo "ERROR: IPOUT must be one of 0, 1, 2 when set."
+    exit 2
+  fi
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -211,6 +220,10 @@ cmd=("${PYTHON_CMD}" "${REPO_ROOT}/run_scripts/run_backward_batch.py" \
   --outdir "${RUN_DIR}" \
   --postprocess-lowest-magl "${POSTPROCESS_LOWEST_MAGL}" \
   --postprocess-source-layer-thickness-m "${POSTPROCESS_SOURCE_LAYER_THICKNESS_M}")
+
+if [[ -n "${IPOUT}" ]]; then
+  cmd+=(--ipout "${IPOUT}")
+fi
 
 if [[ "${DISABLE_AUTO_POSTPROCESS}" == "1" ]]; then
   cmd+=(--no-postprocess)

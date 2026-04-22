@@ -378,7 +378,7 @@ def update_command_file(
     domain_config,
     nxshift_override=None,
     ipout_override=None,
-    lsubgrid_value=0,
+    lsubgrid_value=1,
 ):
     """Update COMMAND for backward sensitivity runs and consistent sampling settings."""
     with open(command_file) as f:
@@ -401,25 +401,24 @@ def update_command_file(
         ("IEDATE", end_time.strftime('%Y%m%d')),
         ("IETIME", end_time.strftime('%H%M%S')),
         ("NXSHIFT", nxshift_value),
-        # Keep configurable; some setups are more stable with LSUBGRID=0.
+        # FLEXINVERT-style default: enable subgrid terrain parameterization.
         ("LSUBGRID", str(int(lsubgrid_value))),
         # Use receptor mixing-ratio units but keep initial-condition mode off.
         ("IND_RECEPTOR", "2"),
         ("LINIT_COND", "0"),
-        # FP11 uses SFC_ONLY; older COMMAND templates may use SURF_ONLY.
-        ("SFC_ONLY", "0"),
+        # Surface-layer only output (0–100 m agl) to match flexinvertplus footprints.
+        ("SFC_ONLY", "1"),
+        # FLEXINVERT-style output layout: one inversion-formatted output per release.
+        ("LINVERSIONOUT", "1"),
     ]
 
     # Also try legacy key; no-op if absent.
-    _set_command_value(lines, "SURF_ONLY", "0")
+    _set_command_value(lines, "SURF_ONLY", "1")
 
+    # Default to IPOUT=2 so partoutput_*.nc is available for domain-exit diagnostics.
     if ipout_override is None:
-        # Disable particle position output for backward sensitivity runs — the gridded
-        # sensitivity (grid_time_*.nc) is all that is needed and IPOUT=2 triggers the
-        # partpos_avg interpolation path which segfaults on out-of-domain particles.
-        updates.append(("IPOUT", "0"))
-    else:
-        updates.append(("IPOUT", str(ipout_override)))
+        ipout_override = 2
+    updates.append(("IPOUT", str(ipout_override)))
 
     for key, value in updates:
         _set_command_value(lines, key, value)
@@ -437,11 +436,9 @@ def update_command_file(
 
     print(f"Set NXSHIFT={nxshift_value} (domain xmax={domain_xmax:.3f})")
     print("Set IOUT=9 for backward gridded sensitivity output (grid_time_*.nc)")
-    if ipout_override is None:
-        print("Set IPOUT=0 (particle position output disabled; use --ipout 2 to enable)")
-    else:
-        print(f"Set IPOUT={ipout_override}")
-    print("Set IND_RECEPTOR=2, LINIT_COND=0, SFC_ONLY/SURF_ONLY=0")
+    print(f"Set IPOUT={ipout_override}")
+    print("Set IND_RECEPTOR=2, LINIT_COND=0, SFC_ONLY/SURF_ONLY=1 (surface-layer only)")
+    print("Set LINVERSIONOUT=1 (FLEXINVERT-style inversion output format)")
     print(f"Set LSUBGRID={int(lsubgrid_value)}")
     print(f"Updated COMMAND: {command_file}")
 
@@ -553,8 +550,6 @@ def run_postprocess(
         str(grid_file),
         "--out-file",
         str(out_file),
-        "--lowest-magl",
-        str(lowest_magl),
         "--source-layer-thickness-m",
         str(source_layer_thickness_m),
         "--partoutput",
@@ -688,13 +683,13 @@ Examples:
         choices=[0, 1, 2],
         default=None,
         metavar='N',
-        help='Optional IPOUT override in COMMAND (default when omitted: 0=no particle output).',
+        help='Optional IPOUT override in COMMAND (default when omitted: 2=emit partoutput for exit diagnostics).',
     )
     parser.add_argument(
         '--lsubgrid',
         type=int,
         choices=[0, 1],
-        default=0,
+        default=1,
         metavar='N',
         help='Set LSUBGRID in COMMAND (default: %(default)s).',
     )
