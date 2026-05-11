@@ -8,7 +8,33 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-JOB_SCRIPT="${SCRIPT_DIR}/slurm_postprocess_all.sh"
+
+# If this script is submitted via sbatch, BASH_SOURCE may point to a temp copy
+# under /tmp/slurmd/... where sibling scripts are unavailable.
+resolve_job_script() {
+	local candidate
+	for candidate in \
+		"${SCRIPT_DIR}/slurm_postprocess_all.sh" \
+		"${REPO_ROOT}/run_scripts/slurm_postprocess_all.sh" \
+		"${SLURM_SUBMIT_DIR:-}/run_scripts/slurm_postprocess_all.sh"; do
+		if [[ -n "${candidate}" && -f "${candidate}" ]]; then
+			echo "${candidate}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+JOB_SCRIPT="$(resolve_job_script || true)"
+if [[ -z "${JOB_SCRIPT}" ]]; then
+	echo "ERROR: job script not found: run_scripts/slurm_postprocess_all.sh"
+	echo "       Tried SCRIPT_DIR=${SCRIPT_DIR} and SLURM_SUBMIT_DIR=${SLURM_SUBMIT_DIR:-<unset>}"
+	echo "       Run from repo root as: ./run_scripts/run_slurm_postprocess_all.sh"
+	exit 2
+fi
+
+# Normalize REPO_ROOT from the resolved job script location.
+REPO_ROOT="$(cd "$(dirname "${JOB_SCRIPT}")/.." && pwd)"
 CONFIG_FILE="${1:-${REPO_ROOT}/run_scripts/slurm_array_config.sh}"
 
 OUTROOT="/net/fs06/d2/${USER}/flexpart_outs"
@@ -45,11 +71,6 @@ if [[ -z "${MONTHLY_DIR}" ]]; then
 	else
 		MONTHLY_DIR="${OUTROOT}"
 	fi
-fi
-
-if [[ ! -f "${JOB_SCRIPT}" ]]; then
-	echo "ERROR: job script not found: ${JOB_SCRIPT}"
-  exit 2
 fi
 
 # Backward-compatible alias for older configs.
