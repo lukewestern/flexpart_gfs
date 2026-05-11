@@ -1,7 +1,7 @@
 ![](https://www.flexpart.eu/chrome/site/flexpart_banner.png)
 # Welcome to Flexpart - The Lagrangian particle dispersion model
 
-> **Note:** This is a **forked and adapted version** of FLEXPART optimized for backward simulations of inert particles using GFS meteorological data. Currently configured primarily for use on the **MIT Svante HPC system**. The codebase includes tools for seamless GFS data acquisition and batch processing of backward trajectories.
+> **Note:** This is a **forked and adapted version** of FLEXPART optimized for backward simulations of inert particles using CFSv2 meteorological data. Currently configured primarily for use on the **MIT Svante HPC system**.
 
 The the main development site is @ University of Vienna.
 
@@ -85,9 +85,6 @@ This creates one run directory per timestamp under:
 
 With `PRUNE_TO_GRID_FILES="1"`, each run keeps only `output/grid_time_*.nc` after FLEXPART completion.
 
-> With `SFC_ONLY=1`, FLEXPART writes binary `grid_time_YYYYMMDDHHMMSS_NNN` files (not `grid_time_*.nc`).
-> In that mode, stage-2 postprocessing now auto-detects binary outputs and converts them to final NetCDF footprints.
-
 #### Stage 2: postprocess all runs in one Slurm job
 
 Submit:
@@ -109,12 +106,8 @@ Then set in `run_scripts/slurm_array_config.sh`:
 - `POSTPROCESS_PYTHON_CMD="/home/$USER/.conda/envs/flexpart-post/bin/python"`
 - `POSTPROCESS_DRIVER_PYTHON="python3"` (or explicit path if needed)
 
-This runs `run_scripts/postprocess_all_outputs.py` over discovered run outputs in `OUTROOT`:
-- NetCDF mode: `output/grid_time_*.nc`
-- Binary fallback mode (`SFC_ONLY=1`): `output/grid_time_YYYYMMDDHHMMSS_NNN`
-
-The binary fallback writes final footprint NetCDF files with `srr` converted to `m2 s mol-1`
-using the configured `POSTPROCESS_SOURCE_LAYER_THICKNESS_M`.
+This runs `run_scripts/postprocess_all_outputs.py` over discovered NetCDF run outputs in `OUTROOT`:
+- `output/grid_time_*.nc`
 
 Default postprocess-all behavior:
 - writes final footprint files to `FINAL_DIR` (default: `OUTROOT`)
@@ -122,7 +115,7 @@ Default postprocess-all behavior:
 - deletes per-run FLEXPART folders after successful move
 
 The final files are named:
-- `*_FLEXPART_GFS_<DOMAIN>_inert_<YYYYMMDDHH>.nc`
+- `*_FLEXPART_CFSv2_<DOMAIN>_inert_<YYYYMMDDHH>.nc`
 
 Key postprocess-all config variables in `run_scripts/slurm_array_config.sh`:
 - `POSTPROCESS_DRIVER_PYTHON` (driver interpreter, default `python3`)
@@ -140,7 +133,7 @@ Key postprocess-all config variables in `run_scripts/slurm_array_config.sh`:
 ./run_scripts/submit_slurm_array_backward.sh 2018020100 2018022800 20
 
 # Postprocess-all single job
-./run_scripts/submit_slurm_postprocess_all.sh
+./run_scripts/run_slurm_postprocess_all.sh
 ```
 
 
@@ -155,54 +148,54 @@ Key postprocess-all config variables in `run_scripts/slurm_array_config.sh`:
 
 The model is written in Fortran. It needs to be compiled for the architecture that runs it. Please have a look at the instructions on building FLEXPART available [here](./documentation/docs/building.md) or [online](https://flexpart.img.univie.ac.at/docs). There is also a containerized version of FLEXPART available.
 
-## Downloading Meteorological Data
+## Downloading Meteorological Data (Manual GDEX Workflow)
 
-To run FLEXPART backward simulations, you need meteorological data files. The repository includes a script to download GFS (Global Forecast System) data from NOAA archives:
+Meteorological data acquisition is now manual. A user must download CFSv2 files from GDEX.
 
-### Using the GFS Download Tool
+### 1) Download raw CFSv2 files from GDEX
 
-The `tools/download_gfs_archive_python.py` script fetches historical GFS data from NOAA and generates an AVAILABLE file for FLEXPART.
+1. Log into https://gdex.ucar.edu/datasets/d094000/ to access the NCEP Climate Forecast System Version 2 (CFSv2) 6-hourly products.
+2. Click **Data Access** then **Get a Subset**.
+3. From the Parameter Selection options, select **FLEXPART Model Input: 6-hour Forecasts**.
+4. Select the time range you want.
+5. Click **Continue**.
+6. Under **Gridded Products**, click **All available** and then **Update/Click Here** at the bottom.
+7. Click **1-hour Forecast** through **6-hour Forecast**.
+8. Click **Click Here** again.
+9. Choose either file type, then click **Submit**.
+10. Wait for the email with links to download the meteorological data.
 
-**Installation requirements:**
-- Python 3.6+
-- For AWS S3 downloads (2021-01-01 onward): `pip install boto3`
+Once the download is complete, process these data with the tools in the `/tools/` folder.
 
-**Basic usage:**
+### 2) Prepare FLEXPART inputs and AVAILABLE file
 
-```bash
-# Download data for a date range and create AVAILABLE file
-./tools/download_gfs_archive_python.py \
-  --start 2018021700 \
-  --end 2018022800 \
-  --outdir /path/to/gfs_data \
-  --available /path/to/gfs_data/AVAILABLE
-```
+The repository now contains preparation scripts in `tools/`:
+- `tools/prepare_flexpart_gfs.sh` (serial)
+- `tools/prepare_flexpart_gfs_parallel.sh` (parallel, recommended)
 
-**Options:**
-- `--start YYYYMMDDHH`: Start time (required)
-- `--end YYYYMMDDHH`: End time, inclusive (required)
-- `--outdir DIR`: Output directory for meteorological files (default: `./inputs`)
-- `--available FILE`: Path to AVAILABLE file (default: `./AVAILABLE`)
-- `--step-hours N`: Time step in hours (default: 3)
-- `--source {auto,aws,nomads,ncei}`: Data source (default: `auto`)
-  - `auto`: AWS S3 for dates >= 2021-01-01, NCEI for earlier dates
-  - `aws`: AWS OpenData (0.25°, 2021-01-01+)
-  - `ncei`: NCEI archives (0.5°, historical)
-  - `nomads`: NOAA NOMADS (recent data only)
-- `--force`: Re-download files even if they exist
-- `--retries N`: Number of retry attempts (default: 3)
-- `--timeout SEC`: Download timeout in seconds (default: 60)
-- `--dry-run`: Preview without downloading
-
-**Example: Download recent data with auto-selected source**
+Example (parallel):
 
 ```bash
-./tools/download_gfs_archive_python.py \
-  --start 2026030100 \
-  --end 2026040200 \
-  --outdir ./gfs_data \
-  --available ./gfs_data/AVAILABLE
+./tools/prepare_flexpart_gfs_parallel.sh \
+  /path/to/raw_cfsv2 \
+  /path/to/flexpart_inputs \
+  /path/to/flexpart_inputs/AVAILABLE
 ```
+
+Example (serial):
+
+```bash
+./tools/prepare_flexpart_gfs.sh \
+  /path/to/raw_cfsv2 \
+  /path/to/flexpart_inputs \
+  /path/to/flexpart_inputs/AVAILABLE
+```
+
+Useful environment variables:
+- `NPROC` (parallel script worker count)
+- `REPACK_TO_SIMPLE` (default `1`)
+- `OVERWRITE_EXISTING` (default `0`)
+- `STEP_FILTER_MODE` (default `nonzero_max`)
 
 ### Running FLEXPART Backward Simulations
 
@@ -215,7 +208,7 @@ Once meteorological data is available, use the batch runner script:
   --end-time 2018022800 \
   --num-particles 10000 \
   --days 20 \
-  --gfs-data /path/to/gfs_data
+  --gfs-data /path/to/flexpart_inputs
 ```
 
 For more options, run:

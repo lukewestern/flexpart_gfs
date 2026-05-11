@@ -69,6 +69,18 @@ def _group_by_month(paths: list[Path]) -> dict[tuple[str, str], list[tuple[str, 
     return groups
 
 
+def _high_compression_encoding(ds: xr.Dataset, compression_level: int = 9) -> dict[str, dict]:
+    """Build per-variable NetCDF encoding with strong compression settings."""
+    encoding: dict[str, dict] = {}
+    for name in ds.data_vars:
+        encoding[name] = {
+            "zlib": True,
+            "complevel": int(compression_level),
+            "shuffle": True,
+        }
+    return encoding
+
+
 def _write_monthly(paths: list[Path], out_file: Path) -> None:
     datasets: list[xr.Dataset] = []
     try:
@@ -87,7 +99,8 @@ def _write_monthly(paths: list[Path], out_file: Path) -> None:
 
         out.attrs["aggregation"] = "monthly"
         out.attrs["source_files"] = str(len(paths))
-        out.to_netcdf(out_file)
+        encoding = _high_compression_encoding(out, compression_level=9)
+        out.to_netcdf(out_file, encoding=encoding)
     finally:
         for ds in datasets:
             ds.close()

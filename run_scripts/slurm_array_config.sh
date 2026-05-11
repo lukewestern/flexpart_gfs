@@ -3,8 +3,8 @@
 # Use this file to avoid long inline env var command lines.
 
 # Inclusive date range, format YYYYMMDDHH
-START_DATE="2018020303"
-END_DATE="2018030100"
+START_DATE="2018020101"
+END_DATE="2018022822"
 MAX_CONCURRENT="50"
 
 DOMAIN="EASTASIA"
