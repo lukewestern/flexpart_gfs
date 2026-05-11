@@ -8,17 +8,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SUBMIT_SCRIPT="${SCRIPT_DIR}/submit_slurm_postprocess_all.sh"
+JOB_SCRIPT="${SCRIPT_DIR}/slurm_postprocess_all.sh"
 CONFIG_FILE="${1:-${REPO_ROOT}/run_scripts/slurm_array_config.sh}"
 
 OUTROOT="/net/fs06/d2/${USER}/flexpart_outs"
 FINAL_DIR=""
 POSTPROCESS_DRIVER_PYTHON="python3"
 POSTPROCESS_PYTHON_CMD="/home/${USER}/.conda/envs/flexpart-post/bin/python"
-POSTPROCESS_LOWEST_MAGL="100"
+POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="100"
 POSTPROCESS_SOURCE_LAYER_THICKNESS_M="100"
+POSTPROCESS_WORKERS="8"
 POSTPROCESS_OVERWRITE="0"
-KEEP_RUN_DIRS="0"
+KEEP_RUN_DIRS="1"
 LIMIT="0"
 WRITE_MONTHLY="1"
 MONTHLY_DIR=""
@@ -46,17 +47,23 @@ if [[ -z "${MONTHLY_DIR}" ]]; then
 	fi
 fi
 
-if [[ ! -x "${SUBMIT_SCRIPT}" ]]; then
-  echo "ERROR: submit script not executable: ${SUBMIT_SCRIPT}"
+if [[ ! -f "${JOB_SCRIPT}" ]]; then
+	echo "ERROR: job script not found: ${JOB_SCRIPT}"
   exit 2
+fi
+
+# Backward-compatible alias for older configs.
+if [[ -n "${POSTPROCESS_LOWEST_MAGL:-}" ]]; then
+	POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="${POSTPROCESS_LOWEST_MAGL}"
 fi
 
 export OUTROOT
 export FINAL_DIR
 export POSTPROCESS_DRIVER_PYTHON
 export POSTPROCESS_PYTHON_CMD
-export POSTPROCESS_LOWEST_MAGL
+export POSTPROCESS_FOOTPRINT_OUTHEIGHT_M
 export POSTPROCESS_SOURCE_LAYER_THICKNESS_M
+export POSTPROCESS_WORKERS
 export POSTPROCESS_OVERWRITE
 export KEEP_RUN_DIRS
 export LIMIT
@@ -69,6 +76,8 @@ echo "  OUTROOT=${OUTROOT}"
 echo "  FINAL_DIR=${FINAL_DIR}"
 echo "  POSTPROCESS_DRIVER_PYTHON=${POSTPROCESS_DRIVER_PYTHON}"
 echo "  POSTPROCESS_PYTHON_CMD=${POSTPROCESS_PYTHON_CMD}"
+echo "  POSTPROCESS_FOOTPRINT_OUTHEIGHT_M=${POSTPROCESS_FOOTPRINT_OUTHEIGHT_M}"
+echo "  POSTPROCESS_WORKERS=${POSTPROCESS_WORKERS}"
 echo "  POSTPROCESS_OVERWRITE=${POSTPROCESS_OVERWRITE}"
 echo "  KEEP_RUN_DIRS=${KEEP_RUN_DIRS}"
 echo "  LIMIT=${LIMIT}"
@@ -76,4 +85,6 @@ echo "  WRITE_MONTHLY=${WRITE_MONTHLY}"
 echo "  MONTHLY_DIR=${MONTHLY_DIR}"
 echo "  DRY_RUN=${DRY_RUN}"
 
-"${SUBMIT_SCRIPT}"
+sbatch \
+	--export=ALL,FLEXPART_REPO_ROOT="${REPO_ROOT}" \
+	"${JOB_SCRIPT}"

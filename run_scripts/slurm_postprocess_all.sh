@@ -2,6 +2,7 @@
 #SBATCH -J flexpart_postprocess_all
 #SBATCH -n 1
 #SBATCH -N 1
+#SBATCH --cpus-per-task=8
 #SBATCH -t 1:00:00
 #SBATCH -p fdr
 #SBATCH --mem=8G
@@ -15,8 +16,10 @@ set -euo pipefail
 #   FINAL_DIR: final directory for postprocessed hourly netCDF files (default: OUTROOT/<receptor-lowercase>_hourly when RECEPTOR is set)
 #   POSTPROCESS_DRIVER_PYTHON: python for postprocess_all_outputs.py (default: python3)
 #   POSTPROCESS_PYTHON_CMD: python for postprocess_footprint.py subprocess (default: /home/$USER/.conda/envs/flexpart-post/bin/python)
-#   POSTPROCESS_LOWEST_MAGL: low-level footprint cutoff (default: 100)
+#   POSTPROCESS_FOOTPRINT_OUTHEIGHT_M: cumulative top outheight for footprint integration (default: 100)
+#   POSTPROCESS_LOWEST_MAGL: deprecated alias for POSTPROCESS_FOOTPRINT_OUTHEIGHT_M
 #   POSTPROCESS_SOURCE_LAYER_THICKNESS_M: conversion thickness for SRR units (default: 100)
+#   POSTPROCESS_WORKERS: concurrent NetCDF postprocess workers (default: 8)
 #   POSTPROCESS_OVERWRITE: set to 1 to overwrite existing final files (default: 0)
 #   KEEP_RUN_DIRS: set to 1 to keep per-run directories after successful move (default: 0)
 #   LIMIT: optional max number of grid_time files to process (default: 0 = all)
@@ -36,8 +39,12 @@ else
 fi
 POSTPROCESS_DRIVER_PYTHON="${POSTPROCESS_DRIVER_PYTHON:-python3}"
 POSTPROCESS_PYTHON_CMD="${POSTPROCESS_PYTHON_CMD:-/home/${USER}/.conda/envs/flexpart-post/bin/python}"
-POSTPROCESS_LOWEST_MAGL="${POSTPROCESS_LOWEST_MAGL:-100}"
+POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="${POSTPROCESS_FOOTPRINT_OUTHEIGHT_M:-100}"
+if [[ -n "${POSTPROCESS_LOWEST_MAGL:-}" ]]; then
+  POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="${POSTPROCESS_LOWEST_MAGL}"
+fi
 POSTPROCESS_SOURCE_LAYER_THICKNESS_M="${POSTPROCESS_SOURCE_LAYER_THICKNESS_M:-100}"
+POSTPROCESS_WORKERS="${POSTPROCESS_WORKERS:-${SLURM_CPUS_PER_TASK:-8}}"
 POSTPROCESS_OVERWRITE="${POSTPROCESS_OVERWRITE:-0}"
 KEEP_RUN_DIRS="${KEEP_RUN_DIRS:-0}"
 LIMIT="${LIMIT:-0}"
@@ -87,7 +94,8 @@ cmd=("${POSTPROCESS_DRIVER_PYTHON}" "${POSTPROCESS_ALL_SCRIPT}"
   --root-dir "${OUTROOT}"
   --final-dir "${FINAL_DIR}"
   --python "${POSTPROCESS_PYTHON_CMD}"
-  --postprocess-lowest-magl "${POSTPROCESS_LOWEST_MAGL}"
+  --postprocess-footprint-outheight-m "${POSTPROCESS_FOOTPRINT_OUTHEIGHT_M}"
+  --workers "${POSTPROCESS_WORKERS}"
   --postprocess-source-layer-thickness-m "${POSTPROCESS_SOURCE_LAYER_THICKNESS_M}")
 
 if [[ "${POSTPROCESS_OVERWRITE}" == "1" ]]; then

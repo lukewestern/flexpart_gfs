@@ -4,8 +4,7 @@ Postprocess FLEXPART backward output into practical footprint products.
 
 Features:
 - Reads gridded backward sensitivity from grid_time_*.nc
-- Creates time-integrated 2D column footprint (all heights)
-- Optionally creates time-integrated 2D low-level footprint up to N m agl
+- Creates time-integrated 2D footprint from a selected output height level
 - Optionally derives domain-exit locations from partoutput_*.nc particle data
 
 Notes:
@@ -32,7 +31,7 @@ HEIGHT_BINS_M_AGL = np.array([
     15500.0, 16500.0, 17500.0, 18500.0, 19500.0,
 ], dtype=float)
 
-MOLAR_MASS_AIR_KG_PER_MOL = 0.02897
+MOLAR_MASS_AIR_KG_PER_MOL = 29./1000.
 
 
 def _open_dataset_auto(path):
@@ -93,11 +92,43 @@ def _sum_dims(da, dims):
 
 
 
-def _compute_srr_timeint_2d(ds, var_name):
-    """Compute time-integrated 2D SRR by summing time and non-horizontal dims."""
+def _compute_srr_timeint_2d(ds, var_name, footprint_outheight_m=100.0):
+    """
+    Compute time-integrated 2D SRR cumulatively up to a requested outheight.
+
+    If a height dimension exists, the nearest level to footprint_outheight_m is
+    selected as the top integration level and all lower levels are summed.
+    """
     da = ds[var_name]
+    selected_height = None
+    integrated_height_levels = None
+
+    if "height" in da.dims:
+        if "height" in da.coords:
+            hvals = np.asarray(da["height"].values, dtype=float)
+        elif "height" in ds:
+            hvals = np.asarray(ds["height"].values, dtype=float)
+        else:
+            raise ValueError("Variable has 'height' dimension but no usable height coordinate")
+
+        if hvals.size == 0:
+            raise ValueError("Height coordinate is empty; cannot select footprint outheight")
+
+        hidx = int(np.argmin(np.abs(hvals - float(footprint_outheight_m))))
+        selected_height = float(hvals[hidx])
+        # Integrate all layers from the surface up to the selected top outheight.
+        da = da.isel(height=slice(0, hidx + 1))
+        integrated_height_levels = int(hidx + 1)
+
+        if not np.isclose(selected_height, float(footprint_outheight_m), atol=1e-6):
+            print(
+                "WARNING: requested footprint outheight {:.3f} m not found; using nearest {:.3f} m".format(
+                    float(footprint_outheight_m), selected_height
+                )
+            )
+
     reduce_dims = ["time", "height", "nageclass", "pointspec", "numspec"]
-    return _sum_dims(da, reduce_dims)
+    return _sum_dims(da, reduce_dims), selected_height, integrated_height_levels
 
 
 def _infer_release_time_value(ds):
@@ -502,12 +533,18 @@ def main():
     parser.add_argument("--domain", default="UNKNOWN", help="Domain name for AGAGE-like metadata")
     parser.add_argument("--species", default="inert", help="Species label for AGAGE-like metadata")
     parser.add_argument("--model", default="FLEXPART", help="LPDM model label for AGAGE-like metadata")
-    parser.add_argument("--met-model", default="GFS", help="Meteorological model label for AGAGE-like metadata")
+    parser.add_argument("--met-model", default="CFSv2", help="Meteorological model label for AGAGE-like metadata")
     parser.add_argument(
         "--source-layer-thickness-m",
         type=float,
         default=100.0,
         help="Source-layer thickness (m) for converting SRR to m2 s mol-1 (default: 100).",
+    )
+    parser.add_argument(
+        "--footprint-outheight-m",
+        type=float,
+        default=100.0,
+        help="Outheight layer (m agl) used to derive the footprint (default: 100).",
     )
 
     args = parser.parse_args()
@@ -538,13 +575,26 @@ def main():
         except ValueError as e:
             print("WARNING: {}; output may have dimension naming issues".format(e))
 
-        srr_timeint_2d = _compute_srr_timeint_2d(ds, var_name)
+        srr_timeint_2d, selected_height, integrated_height_levels = _compute_srr_timeint_2d(
+            ds,
+            var_name,
+            footprint_outheight_m=args.footprint_outheight_m,
+        )
         native_units = ds[var_name].attrs.get("units", "")
         srr_timeint_2d, conv_factor = _convert_to_m2s_per_mol(
             srr_timeint_2d,
             native_units,
             args.source_layer_thickness_m,
         )
+        if selected_height is not None:
+            print(
+                "Using cumulative footprint integration up to {:.3f} m agl ({} levels)".format(
+                    selected_height,
+                    integrated_height_levels,
+                )
+            )
+        else:
+            print("No height dimension found in sensitivity variable; footprint computed from native field")
         release_time_value = _infer_release_time_value(ds)
         if release_time_value is None:
             print("WARNING: Could not infer release time from RELSTART or time coordinate; using 0.0")
@@ -565,12 +615,17 @@ def main():
             "loss_lifetime_comment": "lifetime in hours; -9 corresponds to inert",
             "units": "m2 s mol-1",
             "source_variable": var_name,
-            "description": "time-integrated footprint at receptor release time (converted to molar flux sensitivity)",
+            "description": "time-integrated footprint at receptor release time from selected outheight (converted to molar flux sensitivity)",
             "conversion_from_native_units": str(native_units),
             "conversion_factor_applied": float(conv_factor),
             "source_layer_thickness_m": float(args.source_layer_thickness_m),
             "molar_mass_air_kg_per_mol": float(MOLAR_MASS_AIR_KG_PER_MOL),
         })
+        if selected_height is not None:
+            out["srr"].attrs["footprint_outheight_m"] = float(selected_height)
+            out["srr"].attrs["requested_footprint_outheight_m"] = float(args.footprint_outheight_m)
+            out["srr"].attrs["footprint_height_integration"] = "surface_to_outheight_inclusive"
+            out["srr"].attrs["footprint_height_levels_integrated"] = int(integrated_height_levels)
 
         # Optional domain-exit diagnostics from particle output.
         pds = _open_partoutput(partoutput_arg)

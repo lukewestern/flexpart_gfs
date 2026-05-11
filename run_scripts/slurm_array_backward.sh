@@ -2,7 +2,7 @@
 #SBATCH -J run_flexpart_backward
 #SBATCH -n 1
 #SBATCH -N 1
-#SBATCH -t 0:30:00
+#SBATCH -t 3:00:00
 #SBATCH -p fdr
 #SBATCH --mem=10G
 #SBATCH -a 1-1%1
@@ -27,8 +27,10 @@ set -euo pipefail
 #   NUM_PARTICLES: number of particles (default: 20000)
 #   IPOUT: particle-position output mode (0,1,2). Default: 2 for exit diagnostics.
 #   LSUBGRID: set COMMAND LSUBGRID (default: 1; FLEXINVERT-style behavior)
+#   LINIT_COND: set COMMAND LINIT_COND (0,1,2). Default: 2 (flexinvertplus-style)
 #   OUTROOT: directory for per-task run folders (default: /net/fs06/d2/$USER/flexpart_outs)
-#   POSTPROCESS_LOWEST_MAGL: low-level footprint cutoff (default: 100)
+#   POSTPROCESS_FOOTPRINT_OUTHEIGHT_M: cumulative top outheight for footprint integration (default: 100)
+#   POSTPROCESS_LOWEST_MAGL: deprecated alias for POSTPROCESS_FOOTPRINT_OUTHEIGHT_M
 #   POSTPROCESS_SOURCE_LAYER_THICKNESS_M: conversion thickness for SRR units (default: 100)
 #   DISABLE_AUTO_POSTPROCESS: set to 1 to skip postprocess in this job (default: 0)
 #   PRUNE_TO_GRID_FILES: set to 1 to keep only output/grid_time_*.nc after FLEXPART (default: 0)
@@ -46,7 +48,11 @@ BACKWARD_DAYS="${BACKWARD_DAYS:-20}"
 NUM_PARTICLES="${NUM_PARTICLES:-20000}"
 IPOUT="${IPOUT:-2}"
 LSUBGRID="${LSUBGRID:-1}"
-POSTPROCESS_LOWEST_MAGL="${POSTPROCESS_LOWEST_MAGL:-100}"
+LINIT_COND="${LINIT_COND:-2}"
+POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="${POSTPROCESS_FOOTPRINT_OUTHEIGHT_M:-100}"
+if [[ -n "${POSTPROCESS_LOWEST_MAGL:-}" ]]; then
+  POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="${POSTPROCESS_LOWEST_MAGL}"
+fi
 POSTPROCESS_SOURCE_LAYER_THICKNESS_M="${POSTPROCESS_SOURCE_LAYER_THICKNESS_M:-100}"
 DISABLE_AUTO_POSTPROCESS="${DISABLE_AUTO_POSTPROCESS:-0}"
 PRUNE_TO_GRID_FILES="${PRUNE_TO_GRID_FILES:-0}"
@@ -217,8 +223,9 @@ cmd=("${PYTHON_CMD}" "${REPO_ROOT}/run_scripts/run_backward_batch.py" \
   --days "${BACKWARD_DAYS}" \
   --num-particles "${NUM_PARTICLES}" \
   --lsubgrid "${LSUBGRID}" \
+  --linit-cond "${LINIT_COND}" \
   --outdir "${RUN_DIR}" \
-  --postprocess-lowest-magl "${POSTPROCESS_LOWEST_MAGL}" \
+  --postprocess-footprint-outheight-m "${POSTPROCESS_FOOTPRINT_OUTHEIGHT_M}" \
   --postprocess-source-layer-thickness-m "${POSTPROCESS_SOURCE_LAYER_THICKNESS_M}")
 
 if [[ -n "${IPOUT}" ]]; then
@@ -278,7 +285,10 @@ if [[ -d "${OUTPUT_DIR}" ]]; then
   fi
 
   shopt -s nullglob
-  keep_files=("${OUTPUT_DIR}"/*_FLEXPART_GFS_"${DOMAIN}"_inert_"${END_TIME}".nc)
+  keep_files=(
+    "${OUTPUT_DIR}"/*_FLEXPART_CFSv2_"${DOMAIN}"_inert_"${END_TIME}".nc
+    "${OUTPUT_DIR}"/*_FLEXPART_GFS_"${DOMAIN}"_inert_"${END_TIME}".nc
+  )
   if (( ${#keep_files[@]} == 0 )); then
     echo "WARNING: no final footprint file found in ${OUTPUT_DIR} for ${END_TIME}."
   else

@@ -26,7 +26,7 @@ DOMAINS_DIR = REPO_ROOT / "site_domains" / "domains_info"
 OPTIONS_DIR = REPO_ROOT / "options"
 FLEXPART_EXE_DEFAULT = REPO_ROOT / "src" / "FLEXPART"
 FLEXPART_EXE_ETA = REPO_ROOT / "src" / "FLEXPART_ETA"
-GFS_DATA_DIR = Path("/net/fs01/data/AGAGE/meteorology/gfs_grib")
+GFS_DATA_DIR = Path("/net/fs01/data/AGAGE/meteorology/cfsv2/flexpart_inputs")
 GFS_AVAILABLE = GFS_DATA_DIR / "AVAILABLE"
 POSTPROCESS_SCRIPT = REPO_ROOT / "run_scripts" / "postprocess_footprint.py"
 
@@ -194,7 +194,7 @@ def select_species_number(options_dir):
     if not species_dir.exists():
         raise FileNotFoundError(f"Missing SPECIES directory: {species_dir}")
 
-    preferred = [24, 50]
+    preferred = [50]
 
     # 1) Preferred IDs that are already valid.
     for sid in preferred:
@@ -299,7 +299,7 @@ def generate_outgrid_file(domain_config, outfile):
     """
     Generate OUTGRID file based on domain configuration.
 
-    GFS data is normalised to -180/180 by FLEXPART internally (NCEP convention),
+    CFSv2 data is normalised to -180/180 by FLEXPART internally (NCEP convention),
     so the output grid right edge must not exceed 180°.  If the domain definition
     crosses the dateline we clip the grid and warn.
     """
@@ -313,7 +313,7 @@ def generate_outgrid_file(domain_config, outfile):
         nX_clipped = int((180.0 - xmin) / dx)
         xmax_clipped = xmin + nX_clipped * dx
         print(
-            f"WARNING: domain right edge {xmax:.3f}° exceeds GFS model domain (180°). "
+            f"WARNING: domain right edge {xmax:.3f}° exceeds CFSv2 model domain (180°). "
             f"Clipping NUMXGRID from {nX} to {nX_clipped} (xmax={xmax_clipped:.3f}°)."
         )
         nX = nX_clipped
@@ -325,7 +325,7 @@ def generate_outgrid_file(domain_config, outfile):
  NUMYGRID=   {config['nY']},
  DXOUT=      {dx:.3f},
  DYOUT=      {config['dY']:.3f},
- OUTHEIGHTS= 100.0, 500.0, 1000.0, 50000.0,
+ OUTHEIGHTS= 50.0, 100.0,
  /
 """
 
@@ -379,15 +379,16 @@ def update_command_file(
     nxshift_override=None,
     ipout_override=None,
     lsubgrid_value=1,
+    linit_cond_value=1,
 ):
     """Update COMMAND for backward sensitivity runs and consistent sampling settings."""
     with open(command_file) as f:
         lines = f.readlines()
 
     domain_xmax = domain_config['Xmin'] + domain_config['nX'] * domain_config['dX']
-    # GFS GRIB files start at 0°E and cover 0→360° natively, so NXSHIFT=0 is
-    # always correct for GFS regardless of whether the domain crosses 180°E.
-    # (ECMWF default would be 359; this script targets GFS only.)
+    # CFSv2 GRIB files start at 0°E and cover 0→360° natively, so NXSHIFT=0 is
+    # always correct for CFSv2 regardless of whether the domain crosses 180°E.
+    # (ECMWF default would be 359; this script targets CFSv2 only.)
     if nxshift_override is None:
         nxshift_value = "0"
     else:
@@ -405,9 +406,9 @@ def update_command_file(
         ("LSUBGRID", str(int(lsubgrid_value))),
         # Use receptor mixing-ratio units but keep initial-condition mode off.
         ("IND_RECEPTOR", "2"),
-        ("LINIT_COND", "0"),
+        ("LINIT_COND", str(int(linit_cond_value))),
         # Surface-layer only output (0–100 m agl) to match flexinvertplus footprints.
-        ("SFC_ONLY", "1"),
+        ("SFC_ONLY", "0"),
         # FLEXINVERT-style output layout: one inversion-formatted output per release.
         ("LINVERSIONOUT", "1"),
     ]
@@ -437,7 +438,7 @@ def update_command_file(
     print(f"Set NXSHIFT={nxshift_value} (domain xmax={domain_xmax:.3f})")
     print("Set IOUT=9 for backward gridded sensitivity output (grid_time_*.nc)")
     print(f"Set IPOUT={ipout_override}")
-    print("Set IND_RECEPTOR=2, LINIT_COND=0, SFC_ONLY/SURF_ONLY=1 (surface-layer only)")
+    print(f"Set IND_RECEPTOR=2, LINIT_COND={int(linit_cond_value)}, SFC_ONLY/SURF_ONLY=1 (surface-layer only)")
     print("Set LINVERSIONOUT=1 (FLEXINVERT-style inversion output format)")
     print(f"Set LSUBGRID={int(lsubgrid_value)}")
     print(f"Updated COMMAND: {command_file}")
@@ -459,22 +460,45 @@ def run_flexpart(options_dir, gfs_data_dir, gfs_available_file, flexpart_exe):
         if not fpath.exists():
             raise FileNotFoundError(f"Missing required options file: {fpath}")
     
-    # Verify GFS data and AVAILABLE file
+    # Verify CFSv2 data and AVAILABLE file
     if not gfs_data_dir.exists():
-        raise FileNotFoundError(f"GFS data directory not found: {gfs_data_dir}")
+        raise FileNotFoundError(f"CFSv2 data directory not found: {gfs_data_dir}")
     if not gfs_available_file.exists():
         raise FileNotFoundError(f"AVAILABLE file not found: {gfs_available_file}")
     
     print(f"\nRunning FLEXPART from: {options_dir}")
     print(f"Executable: {flexpart_exe}")
-    print(f"GFS data: {gfs_data_dir}")
+    print(f"CFSv2 data: {gfs_data_dir}")
     
     # Change to options directory and run
     original_cwd = os.getcwd()
     try:
         os.chdir(options_dir)
-        result = subprocess.run(cmd)
-        return result.returncode
+        stop_pattern = re.compile(r"^\s*(ERROR STOP|STOP:|STOP\b)")
+        stop_lines = []
+
+        with subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        ) as process:
+            if process.stdout is not None:
+                for line in process.stdout:
+                    print(line, end="")
+                    if stop_pattern.match(line):
+                        stop_lines.append(line.rstrip())
+
+            returncode = process.wait()
+
+        if returncode == 0 and stop_lines:
+            print("\nDetected Fortran STOP/ERROR STOP in FLEXPART output despite zero exit code.")
+            for line in stop_lines[:3]:
+                print(f"  {line}")
+            return 99
+
+        return returncode
     finally:
         os.chdir(original_cwd)
 
@@ -485,7 +509,7 @@ def run_postprocess(
     domain,
     release_height_agl,
     end_time,
-    lowest_magl=100.0,
+    footprint_outheight_m=100.0,
     source_layer_thickness_m=100.0,
     postprocess_python=None,
 ):
@@ -535,7 +559,7 @@ def run_postprocess(
             magl_label = f"{h:.3f}".rstrip("0").rstrip(".")
     except (TypeError, ValueError):
         magl_label = str(release_height_agl)
-    out_name = f"{receptor}-{magl_label}magl_FLEXPART_GFS_{domain}_inert_{end_time.strftime('%Y%m%d%H')}.nc"
+    out_name = f"{receptor}-{magl_label}magl_FLEXPART_CFSv2_{domain}_inert_{end_time.strftime('%Y%m%d%H')}.nc"
     out_file = output_dir / out_name
     exit_csv = output_dir / out_name.replace(".nc", "_domain_exit_points.csv")
 
@@ -552,6 +576,8 @@ def run_postprocess(
         str(out_file),
         "--source-layer-thickness-m",
         str(source_layer_thickness_m),
+        "--footprint-outheight-m",
+        str(footprint_outheight_m),
         "--partoutput",
         str(output_dir),
         "--exit-csv",
@@ -565,12 +591,13 @@ def run_postprocess(
         "--model",
         "FLEXPART",
         "--met-model",
-        "GFS",
+        "CFSv2",
     ]
 
     print("\nRunning automatic postprocessing:")
     print(f"  Grid file: {grid_file}")
     print(f"  Output file: {out_file}")
+    print(f"  Footprint outheight: {footprint_outheight_m} m")
     print(f"  Python: {postprocess_python}")
 
     # Some shared filesystems/HDF5 combinations are unstable with file locking.
@@ -656,14 +683,14 @@ Examples:
         type=Path,
         default=GFS_DATA_DIR,
         metavar='DIR',
-        help=f'GFS meteorological data directory (default: {GFS_DATA_DIR})',
+        help=f'CFSv2 meteorological data directory (default: {GFS_DATA_DIR})',
     )
     parser.add_argument(
         '--gfs-available',
         type=Path,
         default=GFS_AVAILABLE,
         metavar='FILE',
-        help=f'AVAILABLE file for GFS data (default: {GFS_AVAILABLE})',
+        help=f'AVAILABLE file for CFSv2 data (default: {GFS_AVAILABLE})',
     )
     parser.add_argument(
         '--dry-run',
@@ -694,16 +721,31 @@ Examples:
         help='Set LSUBGRID in COMMAND (default: %(default)s).',
     )
     parser.add_argument(
+        '--linit-cond',
+        type=int,
+        choices=[0, 1, 2],
+        default=1,
+        metavar='N',
+        help='Set LINIT_COND in COMMAND (default: %(default)s, flexinvertplus-style).',
+    )
+    parser.add_argument(
         '--no-postprocess',
         action='store_true',
         help='Disable automatic postprocessing of grid_time output into AGAGE-style footprint NetCDF.',
     )
     parser.add_argument(
-        '--postprocess-lowest-magl',
+        '--postprocess-footprint-outheight-m',
         type=float,
         default=100.0,
         metavar='M',
-        help='Low-level integration top (m agl) used in automatic postprocessing (default: %(default)s).',
+        help='Outheight layer (m agl) used to derive the postprocessed footprint (default: %(default)s).',
+    )
+    parser.add_argument(
+        '--postprocess-lowest-magl',
+        type=float,
+        default=None,
+        metavar='M',
+        help='Deprecated alias for --postprocess-footprint-outheight-m.',
     )
     parser.add_argument(
         '--postprocess-source-layer-thickness-m',
@@ -729,12 +771,22 @@ Examples:
     
     args = parser.parse_args()
 
+    footprint_outheight_m = args.postprocess_footprint_outheight_m
+    if args.postprocess_lowest_magl is not None:
+        footprint_outheight_m = args.postprocess_lowest_magl
+        print(
+            "WARNING: --postprocess-lowest-magl is deprecated; use "
+            "--postprocess-footprint-outheight-m instead."
+        )
+
     if args.executable is not None:
         flexpart_exe = args.executable
     elif FLEXPART_EXE_DEFAULT.exists():
         flexpart_exe = FLEXPART_EXE_DEFAULT
+        print("Using non-ETA FLEXPART executable (FLEXPART_EXE_DEFAULT). If you intended to use the ETA version, specify --executable explicitly.")
     else:
         flexpart_exe = FLEXPART_EXE_ETA
+        print("Non-ETA FLEXPART executable not found; using ETA version (FLEXPART_EXE_ETA). If you intended to use the non-ETA version, specify --executable explicitly.")
     
     # Load configurations
     print(f"Loading receptor: {args.receptor}")
@@ -790,6 +842,7 @@ Examples:
         nxshift_override=args.nxshift,
         ipout_override=args.ipout,
         lsubgrid_value=args.lsubgrid,
+        linit_cond_value=args.linit_cond,
     )
     
     # Generate RELEASES and OUTGRID
@@ -808,7 +861,7 @@ Examples:
     # Show what would happen
     print(f"\nReady to run FLEXPART:")
     print(f"  Options: {out_dir}")
-    print(f"  GFS data: {args.gfs_data}")
+    print(f"  CFSv2 data: {args.gfs_data}")
 
     effective_available = args.gfs_available
     if not effective_available.exists():
@@ -867,7 +920,7 @@ Examples:
                     domain=args.domain,
                     release_height_agl=location['release_height_agl'],
                     end_time=end_time,
-                    lowest_magl=args.postprocess_lowest_magl,
+                    footprint_outheight_m=footprint_outheight_m,
                     source_layer_thickness_m=args.postprocess_source_layer_thickness_m,
                     postprocess_python=args.postprocess_python,
                 )
@@ -875,7 +928,12 @@ Examples:
                 print("Automatic postprocessing disabled (--no-postprocess).")
     else:
         print(f"\n✗ FLEXPART failed with exit code {returncode}")
-        if returncode == -4:
+        if returncode == 99:
+            print(
+                "  Hint: FLEXPART printed a Fortran STOP/ERROR STOP message but still exited with code 0. "
+                "The wrapper now treats that as a hard failure."
+            )
+        elif returncode == -4:
             print(
                 "  Hint: exit -4 = SIGILL (illegal instruction). "
                 "This usually means the binary was compiled with a CPU-specific "

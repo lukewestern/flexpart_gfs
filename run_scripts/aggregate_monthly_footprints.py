@@ -21,8 +21,36 @@ import xarray as xr
 RE_HOURLY = re.compile(r"^(?P<prefix>.+)_(?P<ts>\d{10})\.nc$")
 
 
+def _timestamp_from_path(path: Path) -> np.datetime64:
+    m = RE_HOURLY.match(path.name)
+    if not m:
+        raise ValueError(f"cannot parse timestamp from hourly file name: {path.name}")
+    ts10 = m.group("ts")
+    return np.datetime64(f"{ts10[0:4]}-{ts10[4:6]}-{ts10[6:8]}T{ts10[8:10]}:00:00")
+
+
+def _normalize_time_coordinate(ds: xr.Dataset, path: Path) -> xr.Dataset:
+    # Ensure all hourly datasets have a concat-ready time coordinate.
+    if "time" in ds and "time" not in ds.coords:
+        ds = ds.set_coords("time")
+
+    if "time" not in ds.dims:
+        time_value = _timestamp_from_path(path)
+        ds = ds.expand_dims(time=[time_value])
+    elif "time" not in ds.coords:
+        if ds.sizes.get("time", 0) == 1:
+            time_value = _timestamp_from_path(path)
+            ds = ds.assign_coords(time=("time", np.array([time_value], dtype="datetime64[ns]")))
+        else:
+            ds = ds.assign_coords(time=("time", np.arange(ds.sizes["time"], dtype=np.int64)))
+
+    return ds
+
+
 def _discover_hourly_files(input_dir: Path) -> list[Path]:
-    return sorted(input_dir.glob("*_FLEXPART_GFS_*_inert_??????????.nc"))
+    files = set(input_dir.glob("*_FLEXPART_GFS_*_inert_??????????.nc"))
+    files.update(input_dir.glob("*_FLEXPART_CFSv2_*_inert_??????????.nc"))
+    return sorted(files)
 
 
 def _group_by_month(paths: list[Path]) -> dict[tuple[str, str], list[tuple[str, Path]]]:
@@ -46,6 +74,7 @@ def _write_monthly(paths: list[Path], out_file: Path) -> None:
     try:
         for path in paths:
             ds = xr.open_dataset(path)
+            ds = _normalize_time_coordinate(ds, path)
             datasets.append(ds)
 
         if not datasets:

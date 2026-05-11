@@ -50,26 +50,27 @@ CONFIG_FILE="${1:-${REPO_ROOT}/run_scripts/slurm_array_config.sh}"
 # ---------------------------
 # Configuration
 # ---------------------------
-START_DATE="2018020100"   # inclusive, YYYYMMDDHH
-END_DATE="2018020123"     # inclusive, YYYYMMDDHH
-MAX_CONCURRENT="30"       # Slurm array throttle (%N)
+# START_DATE="2018020800"   # inclusive, YYYYMMDDHH
+# END_DATE="2018020801"     # inclusive, YYYYMMDDHH
+# MAX_CONCURRENT="30"       # Slurm array throttle (%N)
 
-DOMAIN="EASTASIA"
-RECEPTOR="GSN"
-STEP_HOURS="1"
-BACKWARD_DAYS="20"
-NUM_PARTICLES="20000"
-IPOUT="2"
-POSTPROCESS_LOWEST_MAGL="100"
-POSTPROCESS_SOURCE_LAYER_THICKNESS_M="100"
-DISABLE_AUTO_POSTPROCESS="0"
-PRUNE_TO_GRID_FILES="0"
-OUTROOT="/net/fs06/d2/${USER}/flexpart_outs"
-FLEXPART_EXE="${REPO_ROOT}/src/FLEXPART"
-PYTHON_CMD=""
-POSTPROCESS_PYTHON_CMD="/home/${USER}/.conda/envs/flexpart-post/bin/python"
-USE_PROJECT_VENV="0"
-DEBUG_ENV="0"
+# DOMAIN="EASTASIA"
+# RECEPTOR="GSN"
+# STEP_HOURS="1"
+# BACKWARD_DAYS="5"
+# NUM_PARTICLES="20000"
+# IPOUT="2"
+# POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="100"
+# POSTPROCESS_SOURCE_LAYER_THICKNESS_M="100"
+# DISABLE_AUTO_POSTPROCESS="1"
+# PRUNE_TO_GRID_FILES="0"
+# OUTROOT="/net/fs06/d2/${USER}/flexpart_outs"
+# FLEXPART_EXE="${REPO_ROOT}/src/FLEXPART"
+# PYTHON_CMD=""
+# POSTPROCESS_PYTHON_CMD="/home/${USER}/.conda/envs/flexpart-post/bin/python"
+# USE_PROJECT_VENV="0"
+# DEBUG_ENV="0"
+# LINIT_COND="2"
 
 # Load user overrides if provided.
 if [[ -f "${CONFIG_FILE}" ]]; then
@@ -87,10 +88,13 @@ export STEP_HOURS
 export BACKWARD_DAYS
 export NUM_PARTICLES
 export IPOUT
+export POSTPROCESS_FOOTPRINT_OUTHEIGHT_M
+# Keep exporting legacy alias for compatibility with any older wrappers.
 export POSTPROCESS_LOWEST_MAGL
 export POSTPROCESS_SOURCE_LAYER_THICKNESS_M
 export DISABLE_AUTO_POSTPROCESS
 export PRUNE_TO_GRID_FILES
+export LINIT_COND
 export OUTROOT
 export FLEXPART_EXE
 export PYTHON_CMD
@@ -109,6 +113,7 @@ echo "  FLEXPART_EXE=${FLEXPART_EXE}"
 echo "  IPOUT=${IPOUT:-<default from run_backward_batch.py>}"
 echo "  PYTHON_CMD=${PYTHON_CMD:-<auto>}"
 echo "  POSTPROCESS_PYTHON_CMD=${POSTPROCESS_PYTHON_CMD:-<same as PYTHON_CMD>}"
+echo "  LINIT_COND=${LINIT_COND}"
 echo "  USE_PROJECT_VENV=${USE_PROJECT_VENV}"
 echo "  DISABLE_AUTO_POSTPROCESS=${DISABLE_AUTO_POSTPROCESS}"
 echo "  PRUNE_TO_GRID_FILES=${PRUNE_TO_GRID_FILES}"
