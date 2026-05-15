@@ -14,6 +14,12 @@ Other references:
 
 #### Quick setup script (recommended)
 
+On Svante, flexpart_gfs must be installed on one of the work nodes.
+To launch an interactive edr node, type:
+```bash
+srun   -n 1 -p edr --pty /bin/bash
+```
+
 Most of the Svante setup/build flow can be automated with:
 
 ```bash
@@ -24,6 +30,8 @@ What it does:
 - builds ecbuild + ecCodes (compiler/toolchain configurable)
 - builds FLEXPART with portable flags (`arch=x86-64`, `SERIAL=yes`)
 - creates/updates a stable postprocess conda env (`flexpart-post`, Python 3.12)
+
+You can now leave the edr node (jobs don't have to be launched in the work node).
 
 Useful options:
 

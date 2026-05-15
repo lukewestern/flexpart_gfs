@@ -7,3 +7,5 @@ output
 FLEXPART
 FLEXPART_MPI
 *.sif
+slurm-*.err
+slurm-*.out

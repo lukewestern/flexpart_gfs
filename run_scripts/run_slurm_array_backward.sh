@@ -60,6 +60,7 @@ CONFIG_FILE="${1:-${REPO_ROOT}/run_scripts/slurm_array_config.sh}"
 # BACKWARD_DAYS="5"
 # NUM_PARTICLES="20000"
 # IPOUT="2"
+# NXSHIFT=""
 # POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="100"
 # POSTPROCESS_SOURCE_LAYER_THICKNESS_M="100"
 # DISABLE_AUTO_POSTPROCESS="1"
@@ -88,6 +89,7 @@ export STEP_HOURS
 export BACKWARD_DAYS
 export NUM_PARTICLES
 export IPOUT
+export NXSHIFT
 export POSTPROCESS_FOOTPRINT_OUTHEIGHT_M
 # Keep exporting legacy alias for compatibility with any older wrappers.
 export POSTPROCESS_LOWEST_MAGL
@@ -111,6 +113,7 @@ echo "  RECEPTOR=${RECEPTOR}"
 echo "  OUTROOT=${OUTROOT}"
 echo "  FLEXPART_EXE=${FLEXPART_EXE}"
 echo "  IPOUT=${IPOUT:-<default from run_backward_batch.py>}"
+echo "  NXSHIFT=${NXSHIFT:-<auto from run_backward_batch.py>}"
 echo "  PYTHON_CMD=${PYTHON_CMD:-<auto>}"
 echo "  POSTPROCESS_PYTHON_CMD=${POSTPROCESS_PYTHON_CMD:-<same as PYTHON_CMD>}"
 echo "  LINIT_COND=${LINIT_COND}"

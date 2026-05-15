@@ -17,7 +17,9 @@ import argparse
 import csv
 import datetime as dt
 import glob
+import importlib
 import os
+import re
 import sys
 
 import numpy as np
@@ -32,6 +34,7 @@ HEIGHT_BINS_M_AGL = np.array([
 ], dtype=float)
 
 MOLAR_MASS_AIR_KG_PER_MOL = 29./1000.
+DEFAULT_CFSV2_GRIB_DIR = "/net/fs01/data/AGAGE/meteorology/cfsv2/flexpart_inputs"
 
 
 def _open_dataset_auto(path):
@@ -189,7 +192,7 @@ def _build_time_attrs(ds):
     return attrs
 
 
-def _append_agage_style_variables(out, ds, site, domain, species, model, met_model):
+def _append_agage_style_variables(out, ds, site, domain, species, model, met_model, release_meteo=None):
     """Append AGAGE-like variables and metadata for compatibility with existing tooling."""
     ntime = int(out.sizes.get("time", 0))
 
@@ -222,7 +225,7 @@ def _append_agage_style_variables(out, ds, site, domain, species, model, met_mod
         attrs={"units": "m", "long_name": "Release height above model ground"},
     )
 
-    # Present in AGAGE files; fill with NaN if unavailable from FLEXPART grid output.
+    # Present in AGAGE files; fill with extracted release-time meteo where available.
     missing_series = [
         ("air_temperature", "K", "air temperature at release"),
         ("air_pressure", "hPa", "air pressure at release"),
@@ -230,9 +233,11 @@ def _append_agage_style_variables(out, ds, site, domain, species, model, met_mod
         ("wind_from_direction", "degree", "wind direction at release"),
         ("atmosphere_boundary_layer_thickness", "m", "atmospheric boundary layer thickness at release"),
     ]
+    release_meteo = release_meteo or {}
     for name, units, long_name in missing_series:
+        value = release_meteo.get(name, np.nan)
         out[name] = xr.DataArray(
-            np.full(ntime, np.nan, dtype=np.float32),
+            np.full(ntime, value, dtype=np.float32),
             dims=("time",),
             coords={"time": out["time"]},
             attrs={"units": units, "long_name": long_name},
@@ -250,6 +255,202 @@ def _append_agage_style_variables(out, ds, site, domain, species, model, met_mod
         "author": "FLEXPART postprocess_footprint.py",
         "created": dt.datetime.utcnow().isoformat() + "Z",
     })
+
+
+def _parse_release_datetime_from_grid_filename(path):
+    """Parse release datetime from grid_time_YYYYMMDDHHMMSS.nc filename."""
+    m = re.match(r"^grid_time_(\d{14})\.nc$", os.path.basename(path))
+    if not m:
+        return None
+    try:
+        return dt.datetime.strptime(m.group(1), "%Y%m%d%H%M%S")
+    except ValueError:
+        return None
+
+
+def _infer_release_location(ds):
+    """Infer release longitude/latitude from grid metadata."""
+    rel_lon = np.nan
+    rel_lat = np.nan
+    if "RELLNG1" in ds:
+        rel_lon = float(np.ravel(ds["RELLNG1"].values)[0])
+    if "RELLAT1" in ds:
+        rel_lat = float(np.ravel(ds["RELLAT1"].values)[0])
+    return rel_lon, rel_lat
+
+
+def _find_gf_file_for_time(grib_dir, release_dt):
+    """Find nearest GFyymmddhh file to the release timestamp."""
+    if release_dt is None or grib_dir is None or not os.path.isdir(grib_dir):
+        return None
+
+    best_path = None
+    best_delta = None
+    for name in os.listdir(grib_dir):
+        m = re.match(r"^GF(\d{8})$", name)
+        if not m:
+            continue
+        try:
+            ts = dt.datetime.strptime(m.group(1), "%y%m%d%H")
+        except ValueError:
+            continue
+        delta = abs((ts - release_dt).total_seconds())
+        if best_delta is None or delta < best_delta:
+            best_delta = delta
+            best_path = os.path.join(grib_dir, name)
+
+    return best_path
+
+
+def _normalize_lon_to_grid(lon_value, lon_grid):
+    lon = float(lon_value)
+    lon_vals = np.asarray(lon_grid, dtype=float)
+    if lon_vals.size == 0:
+        return lon
+
+    lon_min = float(np.nanmin(lon_vals))
+    lon_max = float(np.nanmax(lon_vals))
+
+    if lon_min >= 0.0 and lon_max > 180.0 and lon < 0.0:
+        return lon % 360.0
+    if lon_max <= 180.0 and lon > 180.0:
+        return ((lon + 180.0) % 360.0) - 180.0
+    return lon
+
+
+def _select_nearest_valid_time(da, target_dt64):
+    """Select nearest valid-time slice when valid_time/time coordinates exist."""
+    if target_dt64 is None:
+        return da
+
+    if "valid_time" in da.coords:
+        vt = da["valid_time"]
+        vt_vals = np.asarray(vt.values)
+        if vt_vals.size > 1:
+            vt_s = vt_vals.astype("datetime64[s]")
+            idx_flat = int(np.argmin(np.abs(vt_s - target_dt64)))
+            idx_multi = np.unravel_index(idx_flat, vt_vals.shape)
+            indexers = {dim: int(i) for dim, i in zip(vt.dims, idx_multi)}
+            return da.isel(indexers)
+
+    if "time" in da.dims and "time" in da.coords:
+        tvals = np.asarray(da["time"].values)
+        if tvals.size > 1 and np.issubdtype(tvals.dtype, np.datetime64):
+            t_s = tvals.astype("datetime64[s]")
+            tidx = int(np.argmin(np.abs(t_s - target_dt64)))
+            da = da.isel(time=tidx)
+
+    if "step" in da.dims and da.sizes.get("step", 1) > 1:
+        da = da.isel(step=0)
+
+    return da
+
+
+def _extract_point_value(da, release_dt64, rel_lon, rel_lat):
+    """Extract nearest scalar value from a gridded field at release time/location."""
+    da = _select_nearest_valid_time(da, release_dt64)
+
+    lat_name = next((n for n in ["latitude", "lat", "y"] if n in da.coords or n in da.dims), None)
+    lon_name = next((n for n in ["longitude", "lon", "x"] if n in da.coords or n in da.dims), None)
+    if lat_name is None or lon_name is None:
+        return np.nan
+
+    lon_target = _normalize_lon_to_grid(rel_lon, da[lon_name].values)
+    try:
+        da = da.sel({lat_name: float(rel_lat), lon_name: float(lon_target)}, method="nearest")
+    except Exception:
+        lat_idx = _nearest_index(da[lat_name].values, rel_lat)
+        lon_idx = _nearest_index(da[lon_name].values, lon_target)
+        da = da.isel({lat_name: lat_idx, lon_name: lon_idx})
+
+    remaining = [d for d in da.dims if d not in [lat_name, lon_name]]
+    for d in remaining:
+        if da.sizes.get(d, 0) > 0:
+            da = da.isel({d: 0})
+
+    arr = np.asarray(da.values, dtype=float).ravel()
+    if arr.size == 0:
+        return np.nan
+    return float(arr[0])
+
+
+def _find_var_ci(datasets, preferred_names):
+    """Find first data variable by case-insensitive preferred name order."""
+    lname_to_da = {}
+    for ds in datasets:
+        for name in ds.data_vars:
+            lname_to_da.setdefault(name.lower(), ds[name])
+
+    for name in preferred_names:
+        da = lname_to_da.get(name.lower())
+        if da is not None:
+            return da
+    return None
+
+
+def _extract_release_meteo_from_grib(grib_file, release_dt, rel_lon, rel_lat):
+    """Extract release-time meteorology from a CFSv2 GRIB file using cfgrib."""
+    release_meteo = {}
+    if grib_file is None:
+        return release_meteo
+    if not np.isfinite(rel_lon) or not np.isfinite(rel_lat):
+        return release_meteo
+
+    try:
+        cfgrib = importlib.import_module("cfgrib")
+    except Exception:
+        print("WARNING: cfgrib not available; leaving release meteorology as NaN")
+        return release_meteo
+
+    try:
+        datasets = cfgrib.open_datasets(grib_file)
+    except Exception as e:
+        print("WARNING: failed to open GRIB file '{}': {}".format(grib_file, e))
+        return release_meteo
+
+    if not datasets:
+        print("WARNING: no datasets found in GRIB file '{}'".format(grib_file))
+        return release_meteo
+
+    release_dt64 = np.datetime64(release_dt, "s") if release_dt is not None else None
+
+    t_da = _find_var_ci(datasets, ["t2m", "2t", "tmp", "t"])
+    p_da = _find_var_ci(datasets, ["sp", "pres", "surface_pressure", "msl", "prmsl"])
+    u_da = _find_var_ci(datasets, ["u10", "10u", "u"])
+    v_da = _find_var_ci(datasets, ["v10", "10v", "v"])
+    blh_da = _find_var_ci(datasets, ["blh", "hpbl", "boundary_layer_height"])
+
+    if t_da is not None:
+        t_val = _extract_point_value(t_da, release_dt64, rel_lon, rel_lat)
+        if np.isfinite(t_val):
+            release_meteo["air_temperature"] = t_val
+
+    if p_da is not None:
+        p_val = _extract_point_value(p_da, release_dt64, rel_lon, rel_lat)
+        if np.isfinite(p_val):
+            p_units = str(p_da.attrs.get("units", "")).strip().lower()
+            if p_units in ["pa", "pascal", "pascals"] or p_val > 20000.0:
+                p_val = p_val / 100.0
+            release_meteo["air_pressure"] = p_val
+
+    u_val = np.nan
+    v_val = np.nan
+    if u_da is not None:
+        u_val = _extract_point_value(u_da, release_dt64, rel_lon, rel_lat)
+    if v_da is not None:
+        v_val = _extract_point_value(v_da, release_dt64, rel_lon, rel_lat)
+    if np.isfinite(u_val) and np.isfinite(v_val):
+        speed = float(np.hypot(u_val, v_val))
+        direction = float((270.0 - np.degrees(np.arctan2(v_val, u_val))) % 360.0)
+        release_meteo["wind_speed"] = speed
+        release_meteo["wind_from_direction"] = direction
+
+    if blh_da is not None:
+        blh_val = _extract_point_value(blh_da, release_dt64, rel_lon, rel_lat)
+        if np.isfinite(blh_val):
+            release_meteo["atmosphere_boundary_layer_thickness"] = blh_val
+
+    return release_meteo
 
 
 def _find_particle_vars(ds):
@@ -518,6 +719,24 @@ def main():
         default=None,
         help="Output NetCDF for derived footprints (default: <grid-file stem>_footprints.nc)",
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing output file if present.",
+    )
+    parser.add_argument(
+        "--skip-existing",
+        dest="skip_existing",
+        action="store_true",
+        default=True,
+        help="Skip processing when output file already exists (default).",
+    )
+    parser.add_argument(
+        "--no-skip-existing",
+        dest="skip_existing",
+        action="store_false",
+        help="Do not skip existing output file; process and replace it.",
+    )
 
     parser.add_argument(
         "--partoutput",
@@ -546,6 +765,21 @@ def main():
         default=100.0,
         help="Outheight layer (m agl) used to derive the footprint (default: 100).",
     )
+    parser.add_argument(
+        "--meteo-grib-dir",
+        default=DEFAULT_CFSV2_GRIB_DIR,
+        help="Directory containing GFyymmddhh GRIB files for release-time meteorology extraction.",
+    )
+    parser.add_argument(
+        "--meteo-grib-file",
+        default=None,
+        help="Optional explicit GRIB file path to use for release-time meteorology extraction.",
+    )
+    parser.add_argument(
+        "--disable-grib-meteo",
+        action="store_true",
+        help="Disable GRIB-based extraction of release-time meteorology.",
+    )
 
     args = parser.parse_args()
 
@@ -556,6 +790,10 @@ def main():
     if out_file is None:
         base, _ = os.path.splitext(args.grid_file)
         out_file = base + "_footprints.nc"
+
+    if os.path.exists(out_file) and not args.overwrite and args.skip_existing:
+        print("SKIP output exists: {}".format(out_file))
+        return 0
 
     partoutput_arg = args.partoutput
     if partoutput_arg is None:
@@ -599,6 +837,22 @@ def main():
         if release_time_value is None:
             print("WARNING: Could not infer release time from RELSTART or time coordinate; using 0.0")
             release_time_value = 0.0
+
+        release_dt = _parse_release_datetime_from_grid_filename(args.grid_file)
+        rel_lon, rel_lat = _infer_release_location(ds)
+        release_meteo = {}
+        if not args.disable_grib_meteo:
+            grib_file = args.meteo_grib_file
+            if grib_file is None:
+                grib_file = _find_gf_file_for_time(args.meteo_grib_dir, release_dt)
+            if grib_file is not None and os.path.isfile(grib_file):
+                release_meteo = _extract_release_meteo_from_grib(grib_file, release_dt, rel_lon, rel_lat)
+                if release_meteo:
+                    print("Extracted release meteorology from GRIB: {}".format(grib_file))
+                else:
+                    print("WARNING: could not extract release meteorology from GRIB {}; keeping NaNs".format(grib_file))
+            else:
+                print("WARNING: no suitable GRIB file found for release meteorology; keeping NaNs")
 
         out = xr.Dataset()
         out["time"] = xr.DataArray(
@@ -746,7 +1000,10 @@ def main():
             species=args.species,
             model=args.model,
             met_model=args.met_model,
+            release_meteo=release_meteo,
         )
+        if release_meteo:
+            out.attrs["release_meteo_source"] = os.path.abspath(grib_file)
 
         encoding = _set_netcdf_compression(out, compression_level=4)
         out.to_netcdf(out_file, encoding=encoding)

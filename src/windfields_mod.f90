@@ -2963,7 +2963,9 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
       call grib_get_real8(igrib,'latitudeOfLastGridPointInDegrees', &
            yauxin,iret)
       !  call grib_check(iret,gribFunction,gribErrorMsg)
-      xaux=real(xauxin)+real(nxshift)*dx
+      xaux=real(xauxin)
+      if(xaux.eq.0.) xaux=-180.0     ! NCEP DATA
+      xaux=xaux+real(nxshift)*dx
       yaux=real(yauxin)
 
       ! CHECK GRID SPECIFICATIONS
@@ -2973,8 +2975,6 @@ subroutine readwind_gfs(indj,n,uuh,vvh,wwh)
       ! if(xaux.eq.0.) xaux=-179.0     ! NCEP DATA
       ! IPfixgfs11: revert to working v10.4 settings
 
-      if(xaux.eq.0.) xaux=-180.0     ! NCEP DATA
-      
       xaux0=xlon0
       yaux0=ylat0
       if(xaux.lt.0.) xaux=xaux+360.

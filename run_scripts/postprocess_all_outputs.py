@@ -22,6 +22,7 @@ from pathlib import Path
 
 
 RE_GRID_TIME = re.compile(r"^grid_time_(\d{14})\.nc$")
+DEFAULT_GFS_DATA_DIR = Path("/net/fs01/data/AGAGE/meteorology/cfsv2/flexpart_inputs")
 
 
 def _run_postprocess_cmd(cmd: list[str]) -> int:
@@ -102,6 +103,12 @@ def main() -> int:
         help="Deprecated alias for --postprocess-footprint-outheight-m.",
     )
     parser.add_argument("--postprocess-source-layer-thickness-m", type=float, default=100.0)
+    parser.add_argument(
+        "--gfs-data-dir",
+        type=Path,
+        default=DEFAULT_GFS_DATA_DIR,
+        help="Directory containing GFyymmddhh GRIB files used for release-time meteorology extraction.",
+    )
     parser.add_argument(
         "--final-dir",
         type=Path,
@@ -253,7 +260,11 @@ def main() -> int:
                 "FLEXPART",
                 "--met-model",
                 "CFSv2",
+                "--meteo-grib-dir",
+                str(args.gfs_data_dir),
             ]
+            if args.overwrite:
+                cmd.append("--overwrite")
             task["needs_run"] = True
             task["cmd"] = cmd
 

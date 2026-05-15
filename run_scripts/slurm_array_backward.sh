@@ -26,6 +26,7 @@ set -euo pipefail
 #   BACKWARD_DAYS: backward duration in days (default: 20)
 #   NUM_PARTICLES: number of particles (default: 20000)
 #   IPOUT: particle-position output mode (0,1,2). Default: 2 for exit diagnostics.
+#   NXSHIFT: optional explicit NXSHIFT override passed to run_backward_batch.py
 #   LSUBGRID: set COMMAND LSUBGRID (default: 1; FLEXINVERT-style behavior)
 #   LINIT_COND: set COMMAND LINIT_COND (0,1,2). Default: 2 (flexinvertplus-style)
 #   OUTROOT: directory for per-task run folders (default: /net/fs06/d2/$USER/flexpart_outs)
@@ -47,6 +48,7 @@ STEP_HOURS="${STEP_HOURS:-1}"
 BACKWARD_DAYS="${BACKWARD_DAYS:-20}"
 NUM_PARTICLES="${NUM_PARTICLES:-20000}"
 IPOUT="${IPOUT:-2}"
+NXSHIFT="${NXSHIFT:-}"
 LSUBGRID="${LSUBGRID:-1}"
 LINIT_COND="${LINIT_COND:-2}"
 POSTPROCESS_FOOTPRINT_OUTHEIGHT_M="${POSTPROCESS_FOOTPRINT_OUTHEIGHT_M:-100}"
@@ -230,6 +232,10 @@ cmd=("${PYTHON_CMD}" "${REPO_ROOT}/run_scripts/run_backward_batch.py" \
 
 if [[ -n "${IPOUT}" ]]; then
   cmd+=(--ipout "${IPOUT}")
+fi
+
+if [[ -n "${NXSHIFT}" ]]; then
+  cmd+=(--nxshift "${NXSHIFT}")
 fi
 
 if [[ "${DISABLE_AUTO_POSTPROCESS}" == "1" ]]; then

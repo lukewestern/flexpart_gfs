@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import subprocess
+import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import re
@@ -29,6 +30,9 @@ FLEXPART_EXE_ETA = REPO_ROOT / "src" / "FLEXPART_ETA"
 GFS_DATA_DIR = Path("/net/fs01/data/AGAGE/meteorology/cfsv2/flexpart_inputs")
 GFS_AVAILABLE = GFS_DATA_DIR / "AVAILABLE"
 POSTPROCESS_SCRIPT = REPO_ROOT / "run_scripts" / "postprocess_footprint.py"
+
+# CFSv2 FLEXPART input grid is global and cyclic at 0.5°.
+CFSV2_GLOBAL_MET_DX_DEG = 0.5
 
 
 def _gf_timestamp_from_name(filename):
@@ -309,14 +313,14 @@ def generate_outgrid_file(domain_config, outfile):
     dx = config['dX']
 
     xmax = xmin + nX * dx
-    if xmax > 180.0:
-        nX_clipped = int((180.0 - xmin) / dx)
-        xmax_clipped = xmin + nX_clipped * dx
-        print(
-            f"WARNING: domain right edge {xmax:.3f}° exceeds CFSv2 model domain (180°). "
-            f"Clipping NUMXGRID from {nX} to {nX_clipped} (xmax={xmax_clipped:.3f}°)."
-        )
-        nX = nX_clipped
+    # if xmax > 180.0:
+    #     nX_clipped = int((180.0 - xmin) / dx)
+    #     xmax_clipped = xmin + nX_clipped * dx
+    #     print(
+    #         f"WARNING: domain right edge {xmax:.3f}° exceeds CFSv2 model domain (180°). "
+    #         f"Clipping NUMXGRID from {nX} to {nX_clipped} (xmax={xmax_clipped:.3f}°)."
+    #     )
+    #     nX = nX_clipped
 
     content = f"""&OUTGRID
  OUTLON0=    {xmin:.3f},
@@ -371,6 +375,29 @@ def _get_command_int(lines, key):
     return None
 
 
+def auto_select_nxshift(domain_config, met_dx=CFSV2_GLOBAL_MET_DX_DEG):
+    """Choose NXSHIFT for cyclic global CFSv2 fields so OUTGRID fits model bounds.
+
+    For NCEP/CFSv2, FLEXPART's default mother-grid longitude window is typically
+    [-180, 180] when NXSHIFT=0. If OUTGRID right edge exceeds 180°, shift the
+    cyclic mother grid eastward by enough met-grid columns so the full OUTGRID
+    lies inside [xlon0, xlon0 + 360].
+    """
+    xmin = float(domain_config['Xmin'])
+    xmax = xmin + float(domain_config['nX']) * float(domain_config['dX'])
+
+    if xmax <= 180.0:
+        return 0
+
+    if met_dx <= 0:
+        raise ValueError(f"Invalid met_dx={met_dx}; must be > 0")
+
+    full_cycle_cols = int(round(360.0 / met_dx))
+    shift_cols = int(math.ceil((xmax - 180.0) / met_dx))
+    shift_cols = max(0, min(shift_cols, full_cycle_cols - 1))
+    return shift_cols
+
+
 def update_command_file(
     command_file,
     start_time,
@@ -386,11 +413,8 @@ def update_command_file(
         lines = f.readlines()
 
     domain_xmax = domain_config['Xmin'] + domain_config['nX'] * domain_config['dX']
-    # CFSv2 GRIB files start at 0°E and cover 0→360° natively, so NXSHIFT=0 is
-    # always correct for CFSv2 regardless of whether the domain crosses 180°E.
-    # (ECMWF default would be 359; this script targets CFSv2 only.)
     if nxshift_override is None:
-        nxshift_value = "0"
+        nxshift_value = str(auto_select_nxshift(domain_config))
     else:
         nxshift_value = str(nxshift_override)
 
@@ -509,6 +533,7 @@ def run_postprocess(
     domain,
     release_height_agl,
     end_time,
+    gfs_data_dir=None,
     footprint_outheight_m=100.0,
     source_layer_thickness_m=100.0,
     postprocess_python=None,
@@ -593,6 +618,8 @@ def run_postprocess(
         "--met-model",
         "CFSv2",
     ]
+    if gfs_data_dir is not None:
+        cmd.extend(["--meteo-grib-dir", str(gfs_data_dir)])
 
     print("\nRunning automatic postprocessing:")
     print(f"  Grid file: {grid_file}")
@@ -702,7 +729,7 @@ Examples:
         type=int,
         default=None,
         metavar='N',
-        help='Override NXSHIFT in COMMAND. If omitted, auto-select based on domain extent.',
+        help='Override NXSHIFT in COMMAND. If omitted, auto-select for CFSv2 based on OUTGRID right edge.',
     )
     parser.add_argument(
         '--ipout',
@@ -920,6 +947,7 @@ Examples:
                     domain=args.domain,
                     release_height_agl=location['release_height_agl'],
                     end_time=end_time,
+                    gfs_data_dir=args.gfs_data,
                     footprint_outheight_m=footprint_outheight_m,
                     source_layer_thickness_m=args.postprocess_source_layer_thickness_m,
                     postprocess_python=args.postprocess_python,

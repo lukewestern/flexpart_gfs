@@ -24,6 +24,7 @@ DRY_RUN="0"
 SKIP_ECCODES="0"
 SKIP_FLEXPART="0"
 SETUP_POSTPROCESS_ENV="1"
+BUILD_MODULE_INIT="module load cmake/3.26.4 || true"
 
 usage() {
   cat <<'EOF'
@@ -61,6 +62,7 @@ run_cmd() {
     echo "+ $*"
     return 0
   fi
+  echo "+ $*"
   "$@"
 }
 
@@ -69,7 +71,36 @@ run_shell() {
     echo "+ $*"
     return 0
   fi
+  echo "+ bash -lc $*"
   bash -lc "$*"
+}
+
+run_with_build_modules() {
+  local cmd="$*"
+  run_shell "source ~/.bashrc >/dev/null 2>&1 || true; ${BUILD_MODULE_INIT}; ${cmd}"
+}
+
+run_clean_conda_shell() {
+  local cmd="$*"
+  run_shell "env -u CONDA_PREFIX -u CONDA_DEFAULT_ENV -u CONDA_EXE -u CONDA_PYTHON_EXE -u CONDA_SHLVL -u _CE_M -u _CE_CONDA CONDA_AUTO_ACTIVATE_BASE=false CONDA_NO_PLUGINS=true bash -lc 'source ~/.bashrc >/dev/null 2>&1 || true; ${cmd}'"
+}
+
+require_file() {
+  local path="$1"
+  local label="$2"
+  if [[ ! -f "${path}" ]]; then
+    echo "ERROR: missing ${label}: ${path}" >&2
+    exit 2
+  fi
+}
+
+require_executable() {
+  local path="$1"
+  local label="$2"
+  if [[ ! -x "${path}" ]]; then
+    echo "ERROR: missing ${label} executable: ${path}" >&2
+    exit 2
+  fi
 }
 
 while [[ $# -gt 0 ]]; do
@@ -138,6 +169,119 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+compiler_can_link() {
+  local lang="$1"
+  local compiler="$2"
+  local src bin logf
+
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    return 0
+  fi
+
+  case "${lang}" in
+    fortran)
+      src="$(mktemp /tmp/fp_link_XXXXXX.f90)"
+      cat > "${src}" <<'EOF'
+program fp_link_test
+  print *, 1
+end program fp_link_test
+EOF
+      ;;
+    c)
+      src="$(mktemp /tmp/fp_link_XXXXXX.c)"
+      cat > "${src}" <<'EOF'
+int main(void) { return 0; }
+EOF
+      ;;
+    cxx)
+      src="$(mktemp /tmp/fp_link_XXXXXX.cpp)"
+      cat > "${src}" <<'EOF'
+int main() { return 0; }
+EOF
+      ;;
+    *)
+      echo "ERROR: unsupported language for compiler_can_link: ${lang}" >&2
+      exit 2
+      ;;
+  esac
+
+  bin="${src%.*}"
+  logf="${bin}.log"
+  if "${compiler}" "${src}" -o "${bin}" >"${logf}" 2>&1; then
+    rm -f "${src}" "${bin}" "${logf}"
+    return 0
+  fi
+
+  log "Compiler link test failed for ${lang} compiler: ${compiler}"
+  head -n 20 "${logf}" || true
+  rm -f "${src}" "${bin}" "${logf}"
+  return 1
+}
+
+compiler_supports_pthread() {
+  local lang="$1"
+  local compiler="$2"
+  local src bin logf
+
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    return 0
+  fi
+
+  case "${lang}" in
+    c)
+      src="$(mktemp /tmp/fp_pth_XXXXXX.c)"
+      cat > "${src}" <<'EOF'
+#include <pthread.h>
+void* worker(void* x) { return x; }
+int main(void) {
+  pthread_t t;
+  return pthread_create(&t, 0, worker, 0);
+}
+EOF
+      ;;
+    cxx)
+      src="$(mktemp /tmp/fp_pth_XXXXXX.cpp)"
+      cat > "${src}" <<'EOF'
+#include <pthread.h>
+void* worker(void* x) { return x; }
+int main() {
+  pthread_t t;
+  return pthread_create(&t, 0, worker, 0);
+}
+EOF
+      ;;
+    *)
+      echo "ERROR: unsupported language for compiler_supports_pthread: ${lang}" >&2
+      exit 2
+      ;;
+  esac
+
+  bin="${src%.*}"
+  logf="${bin}.log"
+  if "${compiler}" -pthread "${src}" -o "${bin}" >"${logf}" 2>&1; then
+    rm -f "${src}" "${bin}" "${logf}"
+    return 0
+  fi
+
+  log "Compiler pthread test failed for ${lang} compiler: ${compiler}"
+  head -n 20 "${logf}" || true
+  rm -f "${src}" "${bin}" "${logf}"
+  return 1
+}
+
+toolchain_can_link() {
+  local f="$1"
+  local c="$2"
+  local cxx="$3"
+
+  compiler_can_link fortran "${f}" || return 1
+  compiler_can_link c "${c}" || return 1
+  compiler_can_link cxx "${cxx}" || return 1
+  compiler_supports_pthread c "${c}" || return 1
+  compiler_supports_pthread cxx "${cxx}" || return 1
+  return 0
+}
+
 resolve_compilers() {
   if [[ -n "${FORTRAN_COMPILER}" ]]; then
     GF="${FORTRAN_COMPILER}"
@@ -175,6 +319,43 @@ resolve_compilers() {
   if [[ -z "${CXX}" || ! -x "${CXX}" ]]; then
     echo "ERROR: no usable C++ compiler found. Set --cxx-compiler PATH or --gcc-prefix DIR." >&2
     exit 2
+  fi
+
+  if ! toolchain_can_link "${GF}" "${CC}" "${CXX}"; then
+    explicit_compiler_overrides=0
+    if [[ -n "${FORTRAN_COMPILER}" || -n "${C_COMPILER}" || -n "${CXX_COMPILER}" ]]; then
+      explicit_compiler_overrides=1
+    fi
+
+    if [[ "${explicit_compiler_overrides}" == "1" ]]; then
+      echo "ERROR: selected compilers cannot link test programs on this node." >&2
+      echo "This is often a GLIBC/toolchain mismatch (e.g., libgfortran built against newer GLIBC than node provides)." >&2
+      echo "Try different compiler paths for --fortran-compiler/--c-compiler/--cxx-compiler." >&2
+      exit 2
+    fi
+
+    fallback_gf="$(command -v gfortran || true)"
+    fallback_cc="$(command -v gcc || true)"
+    fallback_cxx="$(command -v g++ || true)"
+
+    if [[ -n "${fallback_gf}" && -n "${fallback_cc}" && -n "${fallback_cxx}" ]] && \
+       [[ "${fallback_gf}" != "${GF}" || "${fallback_cc}" != "${CC}" || "${fallback_cxx}" != "${CXX}" ]]; then
+      log "Primary toolchain failed link test; trying system compilers as fallback."
+      if toolchain_can_link "${fallback_gf}" "${fallback_cc}" "${fallback_cxx}"; then
+        GF="${fallback_gf}"
+        CC="${fallback_cc}"
+        CXX="${fallback_cxx}"
+        log "Using fallback compiler toolchain from PATH."
+      else
+        echo "ERROR: both preferred and fallback compilers failed link tests." >&2
+        echo "Likely GLIBC/toolchain mismatch on this node. Try running on a compatible build node or pass explicit compiler paths." >&2
+        exit 2
+      fi
+    else
+      echo "ERROR: selected compilers cannot link test programs and no alternate toolchain was found in PATH." >&2
+      echo "Likely GLIBC/toolchain mismatch on this node. Try a different --gcc-prefix or explicit compiler paths." >&2
+      exit 2
+    fi
   fi
 
   export GF CC CXX
@@ -235,8 +416,15 @@ EOF
 
 resolve_compilers
 
+if [[ "${GF}" == "${GCC11_PREFIX}"/* || "${CC}" == "${GCC11_PREFIX}"/* || "${CXX}" == "${GCC11_PREFIX}"/* ]]; then
+  BUILD_MODULE_INIT="module load cmake/3.26.4 || true; module load gcc/11.3.0 || true"
+  log "Build modules: cmake/3.26.4 + gcc/11.3.0"
+else
+  log "Build modules: cmake/3.26.4 (gcc module not loaded; using selected compilers directly)"
+fi
+
 HOST_SHORT="$(hostname -s || true)"
-if [[ "${HOST_SHORT}" != *edr* && "${HOST_SHORT}" != *fdr* ]]; then
+if [[ "${HOST_SHORT}" != c* && "${HOST_SHORT}" != c* ]]; then
   log "WARNING: hostname '${HOST_SHORT}' does not look like an EDR/FDR compute node."
   log "         Continue only if this node has the expected build/runtime libraries."
 fi
@@ -244,15 +432,24 @@ fi
 if [[ "${SKIP_ECCODES}" != "1" ]]; then
   log "Building ecbuild + ecCodes ${ECCODES_VERSION}"
 
-  run_shell "source ~/.bashrc >/dev/null 2>&1 || true; module purge || true; module load cmake/3.26.4 || true; module load gcc/11.3.0 || true"
+  run_with_build_modules "cmake --version | head -n 1"
 
   if [[ "${DRY_RUN}" != "1" ]]; then
-    EXTRA_LIBS="$({
-      for lib in libmpfr.so.6 libmpc.so.3; do
-        find /home/software /usr -name "${lib}" 2>/dev/null | head -n 1 | xargs -r dirname
-      done
-    } | awk 'NF && !seen[$0]++' | paste -sd:)"
-    export LD_LIBRARY_PATH="${EXTRA_LIBS}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+    # Avoid recursive filesystem scans on shared storage (can appear hung for minutes).
+    # Use known toolchain/system lib paths and include only directories that exist.
+    # If we fell back to non-GCC11 compilers, avoid forcing GCC11 runtime libs.
+    extra_lib_dirs=()
+    if [[ "${GF}" == "${GCC11_PREFIX}"/* || "${CC}" == "${GCC11_PREFIX}"/* || "${CXX}" == "${GCC11_PREFIX}"/* ]]; then
+      [[ -d "${GCC11_PREFIX}/lib64" ]] && extra_lib_dirs+=("${GCC11_PREFIX}/lib64")
+      [[ -d "${GCC11_PREFIX}/lib" ]] && extra_lib_dirs+=("${GCC11_PREFIX}/lib")
+    fi
+    [[ -d "/usr/lib64" ]] && extra_lib_dirs+=("/usr/lib64")
+    [[ -d "/usr/lib" ]] && extra_lib_dirs+=("/usr/lib")
+    EXTRA_LIBS="$(printf '%s\n' "${extra_lib_dirs[@]}" | awk 'NF && !seen[$0]++' | paste -sd: -)"
+    if [[ -n "${EXTRA_LIBS}" ]]; then
+      export LD_LIBRARY_PATH="${EXTRA_LIBS}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+    fi
+    log "Using LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
   fi
 
   SRC_BASE="${HOME}/local/src"
@@ -266,9 +463,9 @@ if [[ "${SKIP_ECCODES}" != "1" ]]; then
   fi
 
   run_cmd mkdir -p "${BUILD_BASE}/ecbuild-build"
-  run_cmd cmake -S "${SRC_BASE}/ecbuild" -B "${BUILD_BASE}/ecbuild-build" -DCMAKE_INSTALL_PREFIX="${ECBUILD_PREFIX}"
-  run_cmd cmake --build "${BUILD_BASE}/ecbuild-build" -j "${BUILD_JOBS}"
-  run_cmd cmake --install "${BUILD_BASE}/ecbuild-build"
+  run_with_build_modules "cmake -S '${SRC_BASE}/ecbuild' -B '${BUILD_BASE}/ecbuild-build' -DCMAKE_INSTALL_PREFIX='${ECBUILD_PREFIX}'"
+  run_with_build_modules "cmake --build '${BUILD_BASE}/ecbuild-build' -j '${BUILD_JOBS}'"
+  run_with_build_modules "cmake --install '${BUILD_BASE}/ecbuild-build'"
 
   ECCODES_SRC_DIR="${SRC_BASE}/eccodes-${ECCODES_VERSION}"
   ECCODES_TARBALL="${SRC_BASE}/eccodes-${ECCODES_VERSION}-Source.tar.gz"
@@ -292,24 +489,38 @@ if [[ "${SKIP_ECCODES}" != "1" ]]; then
     log "ecCodes source already exists: ${ECCODES_SRC_DIR}"
   fi
 
-  ECCODES_BUILD_DIR="${BUILD_BASE}/eccodes-gcc11-build"
+  if [[ "${GF}" == "${GCC11_PREFIX}"/* || "${CC}" == "${GCC11_PREFIX}"/* || "${CXX}" == "${GCC11_PREFIX}"/* ]]; then
+    ECCODES_BUILD_DIR="${BUILD_BASE}/eccodes-gcc11-build"
+  else
+    ECCODES_BUILD_DIR="${BUILD_BASE}/eccodes-system-build"
+  fi
   run_cmd mkdir -p "${ECCODES_BUILD_DIR}"
 
-  run_cmd cmake -S "${ECCODES_SRC_DIR}" -B "${ECCODES_BUILD_DIR}" \
-    -DCMAKE_INSTALL_PREFIX="${ECCODES_PREFIX}" \
-    -DCMAKE_C_COMPILER="${CC}" \
-    -DCMAKE_CXX_COMPILER="${CXX}" \
-    -DCMAKE_Fortran_COMPILER="${GF}" \
-    -DCMAKE_PREFIX_PATH="${ECBUILD_PREFIX}" \
-    -DENABLE_FORTRAN=ON \
-    -DBUILD_SHARED_LIBS=ON \
-    -DENABLE_AEC=OFF \
-    -DENABLE_NETCDF=OFF \
-    -DENABLE_JPG=ON \
-    -DENABLE_PNG=OFF
+  # Always clear CMake cache before configure to avoid stale compiler/toolchain
+  # state when switching between GCC11 and fallback system compilers.
+  if [[ -f "${ECCODES_BUILD_DIR}/CMakeCache.txt" ]]; then
+    run_cmd rm -f "${ECCODES_BUILD_DIR}/CMakeCache.txt"
+  fi
+  if [[ -d "${ECCODES_BUILD_DIR}/CMakeFiles" ]]; then
+    run_cmd rm -rf "${ECCODES_BUILD_DIR}/CMakeFiles"
+  fi
 
-  run_cmd cmake --build "${ECCODES_BUILD_DIR}" -j "${BUILD_JOBS}"
-  run_cmd cmake --install "${ECCODES_BUILD_DIR}"
+  run_with_build_modules "cmake -S '${ECCODES_SRC_DIR}' -B '${ECCODES_BUILD_DIR}' -DCMAKE_INSTALL_PREFIX='${ECCODES_PREFIX}' -DCMAKE_C_COMPILER='${CC}' -DCMAKE_CXX_COMPILER='${CXX}' -DCMAKE_Fortran_COMPILER='${GF}' -DCMAKE_PREFIX_PATH='${ECBUILD_PREFIX}' -DENABLE_FORTRAN=ON -DBUILD_SHARED_LIBS=ON -DENABLE_AEC=OFF -DENABLE_NETCDF=OFF -DENABLE_JPG=ON -DENABLE_PNG=OFF"
+
+  run_with_build_modules "cmake --build '${ECCODES_BUILD_DIR}' -j '${BUILD_JOBS}'"
+  run_with_build_modules "cmake --install '${ECCODES_BUILD_DIR}'"
+
+  if [[ "${DRY_RUN}" != "1" ]]; then
+    require_file "${ECCODES_PREFIX}/include/eccodes.h" "ecCodes header"
+    if [[ -f "${ECCODES_PREFIX}/lib64/libeccodes.so" ]]; then
+      require_file "${ECCODES_PREFIX}/lib64/libeccodes_f90.so" "ecCodes Fortran library"
+      log "Verified ecCodes artifacts under ${ECCODES_PREFIX}/lib64"
+    else
+      require_file "${ECCODES_PREFIX}/lib/libeccodes.so" "ecCodes shared library"
+      require_file "${ECCODES_PREFIX}/lib/libeccodes_f90.so" "ecCodes Fortran library"
+      log "Verified ecCodes artifacts under ${ECCODES_PREFIX}/lib"
+    fi
+  fi
 fi
 
 if [[ "${SKIP_FLEXPART}" != "1" ]]; then
@@ -334,6 +545,11 @@ if [[ "${SKIP_FLEXPART}" != "1" ]]; then
 
   run_cmd make -C "${REPO_ROOT}/src" -f makefile_svante cleanall
   run_cmd make -C "${REPO_ROOT}/src" -f makefile_svante eta=no ncf=yes SERIAL=yes arch=x86-64 GFLAG= -j "${BUILD_JOBS}" FC="${GF}" F90="${GF}"
+
+  if [[ "${DRY_RUN}" != "1" ]]; then
+    require_executable "${REPO_ROOT}/src/FLEXPART" "FLEXPART"
+    log "Verified FLEXPART executable: ${REPO_ROOT}/src/FLEXPART"
+  fi
 fi
 
 if [[ "${SETUP_POSTPROCESS_ENV}" == "1" ]]; then
@@ -344,8 +560,8 @@ if [[ "${SETUP_POSTPROCESS_ENV}" == "1" ]]; then
     exit 2
   fi
 
-  run_shell "source ~/.bashrc >/dev/null 2>&1 || true; eval \"\$(conda shell.bash hook)\"; conda create -y -n '${POSTPROCESS_ENV_NAME}' python=3.12"
-  run_shell "source ~/.bashrc >/dev/null 2>&1 || true; eval \"\$(conda shell.bash hook)\"; conda activate '${POSTPROCESS_ENV_NAME}'; python -m pip install --upgrade pip; python -m pip install numpy pandas xarray netCDF4"
+  run_clean_conda_shell "conda create -y -n '${POSTPROCESS_ENV_NAME}' python=3.12"
+  run_clean_conda_shell "conda run -n '${POSTPROCESS_ENV_NAME}' python -m pip install --upgrade pip && conda run -n '${POSTPROCESS_ENV_NAME}' python -m pip install numpy pandas xarray netCDF4"
 fi
 
 log "Setup complete."

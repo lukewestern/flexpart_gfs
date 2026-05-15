@@ -3,16 +3,18 @@
 # Use this file to avoid long inline env var command lines.
 
 # Inclusive date range, format YYYYMMDDHH
-START_DATE="2018020101"
-END_DATE="2018022822"
+START_DATE="2018020100"
+END_DATE="2018020101"
 MAX_CONCURRENT="50"
 
 DOMAIN="EASTASIA"
 RECEPTOR="GSN"
-STEP_HOURS="3"
+STEP_HOURS="1"
 BACKWARD_DAYS="20"
 NUM_PARTICLES="20000"
 IPOUT="1"
+# Optional: force NXSHIFT. Leave empty to auto-select in run_backward_batch.py.
+# NXSHIFT="25"
 LSUBGRID="1"
 LINIT_COND="1"
 # Preferred name (legacy alias POSTPROCESS_LOWEST_MAGL is still accepted by scripts)
