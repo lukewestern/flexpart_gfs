@@ -580,6 +580,26 @@ def _derive_exit_points(part_ds, lon_var, lat_var, z_var=None):
     return exits, int(npart)
 
 
+def _load_exit_points_csv(path):
+    """Load previously written domain-exit CSV rows into exit tuples."""
+    exits = []
+    with open(path, "r", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                pidx = int(row.get("particle_index", ""))
+                tval = float(row.get("exit_time", "nan"))
+                lon = float(row.get("exit_longitude", "nan"))
+                lat = float(row.get("exit_latitude", "nan"))
+                z_raw = row.get("exit_height_magl", "nan")
+                z = float(z_raw) if z_raw not in [None, "", "nan", "NaN"] else np.nan
+            except Exception:
+                continue
+            if np.isfinite(lon) and np.isfinite(lat):
+                exits.append((pidx, tval, lon, lat, z))
+    return exits
+
+
 def _nearest_index(values, value):
     arr = np.asarray(values, dtype=float)
     return int(np.argmin(np.abs(arr - float(value))))
@@ -780,6 +800,11 @@ def main():
         action="store_true",
         help="Disable GRIB-based extraction of release-time meteorology.",
     )
+    parser.add_argument(
+        "--use-existing-exit-csv",
+        action="store_true",
+        help="Reuse --exit-csv if it exists instead of recomputing domain-exit points from particle output.",
+    )
 
     args = parser.parse_args()
 
@@ -790,6 +815,11 @@ def main():
     if out_file is None:
         base, _ = os.path.splitext(args.grid_file)
         out_file = base + "_footprints.nc"
+
+    exit_csv = args.exit_csv
+    if exit_csv is None:
+        base, _ = os.path.splitext(out_file)
+        exit_csv = base + "_domain_exit_points.csv"
 
     if os.path.exists(out_file) and not args.overwrite and args.skip_existing:
         print("SKIP output exists: {}".format(out_file))
@@ -882,104 +912,108 @@ def main():
             out["srr"].attrs["footprint_height_levels_integrated"] = int(integrated_height_levels)
 
         # Optional domain-exit diagnostics from particle output.
-        pds = _open_partoutput(partoutput_arg)
-        try:
-            if pds is None:
-                print("No partoutput files supplied/found; skipping domain-exit diagnostics.")
-            else:
-                lon_var, lat_var, z_var = _find_particle_vars(pds)
-                if lon_var is None or lat_var is None:
-                    print("Could not find particle longitude/latitude vars; skipping domain exits.")
+        exits = None
+        reused_exit_csv = False
+        if args.use_existing_exit_csv and os.path.isfile(exit_csv):
+            exits = _load_exit_points_csv(exit_csv)
+            reused_exit_csv = True
+            print("Using existing domain exit points CSV: {} ({} rows)".format(exit_csv, len(exits)))
+        else:
+            pds = _open_partoutput(partoutput_arg)
+            try:
+                if pds is None:
+                    print("No partoutput files supplied/found; skipping domain-exit diagnostics.")
                 else:
-                    exits, npart = _derive_exit_points(pds, lon_var, lat_var, z_var=z_var)
-                    print("Derived {} particle exit points".format(len(exits)))
+                    lon_var, lat_var, z_var = _find_particle_vars(pds)
+                    if lon_var is None or lat_var is None:
+                        print("Could not find particle longitude/latitude vars; skipping domain exits.")
+                    else:
+                        exits, _ = _derive_exit_points(pds, lon_var, lat_var, z_var=z_var)
+                        print("Derived {} particle exit points".format(len(exits)))
+            finally:
+                if pds is not None:
+                    pds.close()
 
-                    lon_centers = np.asarray(ds["longitude"].values, dtype=float)
-                    lat_centers = np.asarray(ds["latitude"].values, dtype=float)
-                    exit_count = _build_exit_histogram(exits, lon_centers, lat_centers)
+        if exits is not None:
+            lon_centers = np.asarray(ds["longitude"].values, dtype=float)
+            lat_centers = np.asarray(ds["latitude"].values, dtype=float)
+            _ = _build_exit_histogram(exits, lon_centers, lat_centers)
 
-                    out["height"] = xr.DataArray(
-                        HEIGHT_BINS_M_AGL.astype(np.float32),
-                        dims=("height",),
-                        attrs={
-                            "long_name": "height at layer midpoints",
-                            "units": "m",
-                            "positive": "up",
-                        },
-                    )
+            out["height"] = xr.DataArray(
+                HEIGHT_BINS_M_AGL.astype(np.float32),
+                dims=("height",),
+                attrs={
+                    "long_name": "height at layer midpoints",
+                    "units": "m",
+                    "positive": "up",
+                },
+            )
 
-                    time_vals = np.asarray(out["time"].values, dtype=float)
-                    frac_n, frac_e, frac_s, frac_w = _build_boundary_exit_fractions(
-                        exits,
-                        time_vals=time_vals,
-                        lon_centers=lon_centers,
-                        lat_centers=lat_centers,
-                        height_centers=HEIGHT_BINS_M_AGL,
-                    )
+            time_vals = np.asarray(out["time"].values, dtype=float)
+            frac_n, frac_e, frac_s, frac_w = _build_boundary_exit_fractions(
+                exits,
+                time_vals=time_vals,
+                lon_centers=lon_centers,
+                lat_centers=lat_centers,
+                height_centers=HEIGHT_BINS_M_AGL,
+            )
 
-                    out["particle_locations_n"] = xr.DataArray(
-                        frac_n,
-                        dims=("time", "height", "longitude"),
-                        coords={"time": out["time"], "height": out["height"], "longitude": out["longitude"]},
-                        attrs={
-                            "long_name": "Fraction of exiting particles leaving domain (N side)",
-                            "units": "1",
-                        },
-                    )
-                    out["particle_locations_e"] = xr.DataArray(
-                        frac_e,
-                        dims=("time", "height", "latitude"),
-                        coords={"time": out["time"], "height": out["height"], "latitude": out["latitude"]},
-                        attrs={
-                            "long_name": "Fraction of exiting particles leaving domain (E side)",
-                            "units": "1",
-                        },
-                    )
-                    out["particle_locations_s"] = xr.DataArray(
-                        frac_s,
-                        dims=("time", "height", "longitude"),
-                        coords={"time": out["time"], "height": out["height"], "longitude": out["longitude"]},
-                        attrs={
-                            "long_name": "Fraction of exiting particles leaving domain (S side)",
-                            "units": "1",
-                        },
-                    )
-                    out["particle_locations_w"] = xr.DataArray(
-                        frac_w,
-                        dims=("time", "height", "latitude"),
-                        coords={"time": out["time"], "height": out["height"], "latitude": out["latitude"]},
-                        attrs={
-                            "long_name": "Fraction of exiting particles leaving domain (W side)",
-                            "units": "1",
-                        },
-                    )
+            out["particle_locations_n"] = xr.DataArray(
+                frac_n,
+                dims=("time", "height", "longitude"),
+                coords={"time": out["time"], "height": out["height"], "longitude": out["longitude"]},
+                attrs={
+                    "long_name": "Fraction of exiting particles leaving domain (N side)",
+                    "units": "1",
+                },
+            )
+            out["particle_locations_e"] = xr.DataArray(
+                frac_e,
+                dims=("time", "height", "latitude"),
+                coords={"time": out["time"], "height": out["height"], "latitude": out["latitude"]},
+                attrs={
+                    "long_name": "Fraction of exiting particles leaving domain (E side)",
+                    "units": "1",
+                },
+            )
+            out["particle_locations_s"] = xr.DataArray(
+                frac_s,
+                dims=("time", "height", "longitude"),
+                coords={"time": out["time"], "height": out["height"], "longitude": out["longitude"]},
+                attrs={
+                    "long_name": "Fraction of exiting particles leaving domain (S side)",
+                    "units": "1",
+                },
+            )
+            out["particle_locations_w"] = xr.DataArray(
+                frac_w,
+                dims=("time", "height", "latitude"),
+                coords={"time": out["time"], "height": out["height"], "latitude": out["latitude"]},
+                attrs={
+                    "long_name": "Fraction of exiting particles leaving domain (W side)",
+                    "units": "1",
+                },
+            )
 
-                    exit_csv = args.exit_csv
-                    if exit_csv is None:
-                        base, _ = os.path.splitext(out_file)
-                        exit_csv = base + "_domain_exit_points.csv"
-
-                    with open(exit_csv, "w", newline="") as f:
-                        writer = csv.writer(f)
-                        writer.writerow([
-                            "particle_index",
-                            "exit_time",
-                            "exit_longitude",
-                            "exit_latitude",
-                            "exit_height_magl",
-                            "exit_side",
-                        ])
-                        lon_min = float(np.min(lon_centers))
-                        lon_max = float(np.max(lon_centers))
-                        lat_min = float(np.min(lat_centers))
-                        lat_max = float(np.max(lat_centers))
-                        for pidx, tval, lon, lat, z in exits:
-                            side = _classify_exit_side(lon, lat, lon_min, lon_max, lat_min, lat_max)
-                            writer.writerow([pidx, tval, lon, lat, z, side])
-                    print("Wrote domain exit points CSV: {}".format(exit_csv))
-        finally:
-            if pds is not None:
-                pds.close()
+            if not reused_exit_csv:
+                with open(exit_csv, "w", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([
+                        "particle_index",
+                        "exit_time",
+                        "exit_longitude",
+                        "exit_latitude",
+                        "exit_height_magl",
+                        "exit_side",
+                    ])
+                    lon_min = float(np.min(lon_centers))
+                    lon_max = float(np.max(lon_centers))
+                    lat_min = float(np.min(lat_centers))
+                    lat_max = float(np.max(lat_centers))
+                    for pidx, tval, lon, lat, z in exits:
+                        side = _classify_exit_side(lon, lat, lon_min, lon_max, lat_min, lat_max)
+                        writer.writerow([pidx, tval, lon, lat, z, side])
+                print("Wrote domain exit points CSV: {}".format(exit_csv))
 
         out.attrs.update({
             "title": "Derived FLEXPART footprint products",

@@ -19,6 +19,7 @@ import xarray as xr
 
 
 RE_HOURLY = re.compile(r"^(?P<prefix>.+)_(?P<ts>\d{10})\.nc$")
+RE_MONTH = re.compile(r"^\d{6}$")
 
 
 def _timestamp_from_path(path: Path) -> np.datetime64:
@@ -115,8 +116,20 @@ def main() -> int:
         default=None,
         help="Directory where monthly files are written (default: --input-dir)",
     )
+    parser.add_argument(
+        "--month",
+        type=str,
+        default=None,
+        help="Optional month filter in YYYYMM format; only this month is written",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing monthly files")
     args = parser.parse_args()
+
+    target_month: str | None = None
+    if args.month is not None:
+        if not RE_MONTH.match(args.month):
+            raise ValueError(f"--month must match YYYYMM, got: {args.month}")
+        target_month = args.month
 
     input_dir = args.input_dir.resolve()
     if not input_dir.is_dir():
@@ -131,12 +144,23 @@ def main() -> int:
         return 0
 
     groups = _group_by_month(hourly_files)
+    if target_month is not None:
+        groups = {
+            key: entries
+            for key, entries in groups.items()
+            if key[1] == target_month
+        }
     if not groups:
-        print(f"No monthly groups built from files in {input_dir}")
+        if target_month is None:
+            print(f"No monthly groups built from files in {input_dir}")
+        else:
+            print(f"No monthly groups for {target_month} built from files in {input_dir}")
         return 0
 
     print(f"Discovered {len(hourly_files)} hourly files in {input_dir}")
     print(f"Building {len(groups)} monthly files in {output_dir}")
+    if target_month is not None:
+        print(f"Applying month filter: {target_month}")
 
     wrote = 0
     skipped = 0

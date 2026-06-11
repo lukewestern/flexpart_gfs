@@ -218,6 +218,11 @@ fi
 
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] task=${idx}/${total_tasks} end_time=${END_TIME} receptor=${RECEPTOR} domain=${DOMAIN}"
 
+# Force per-run AVAILABLE generation scoped to this run window.
+# This avoids accidentally reusing a stale/shared AVAILABLE file with limited date coverage.
+RUN_AVAILABLE="${RUN_DIR}/AVAILABLE"
+rm -f "${RUN_AVAILABLE}"
+
 cmd=("${PYTHON_CMD}" "${REPO_ROOT}/run_scripts/run_backward_batch.py" \
   --domain "${DOMAIN}" \
   --receptor "${RECEPTOR}" \
@@ -227,6 +232,7 @@ cmd=("${PYTHON_CMD}" "${REPO_ROOT}/run_scripts/run_backward_batch.py" \
   --lsubgrid "${LSUBGRID}" \
   --linit-cond "${LINIT_COND}" \
   --outdir "${RUN_DIR}" \
+  --gfs-available "${RUN_AVAILABLE}" \
   --postprocess-footprint-outheight-m "${POSTPROCESS_FOOTPRINT_OUTHEIGHT_M}" \
   --postprocess-source-layer-thickness-m "${POSTPROCESS_SOURCE_LAYER_THICKNESS_M}")
 

@@ -561,7 +561,7 @@ if [[ "${SETUP_POSTPROCESS_ENV}" == "1" ]]; then
   fi
 
   run_clean_conda_shell "conda create -y -n '${POSTPROCESS_ENV_NAME}' python=3.12"
-  run_clean_conda_shell "conda run -n '${POSTPROCESS_ENV_NAME}' python -m pip install --upgrade pip && conda run -n '${POSTPROCESS_ENV_NAME}' python -m pip install numpy pandas xarray netCDF4"
+  run_clean_conda_shell "conda install -y -n '${POSTPROCESS_ENV_NAME}' -c conda-forge 'numpy<2.0' 'pandas<2.2' 'xarray<2025' netcdf4"
 fi
 
 log "Setup complete."

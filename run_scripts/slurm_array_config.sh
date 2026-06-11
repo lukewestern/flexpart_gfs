@@ -3,8 +3,8 @@
 # Use this file to avoid long inline env var command lines.
 
 # Inclusive date range, format YYYYMMDDHH
-START_DATE="2018010100"
-END_DATE="2019010100"
+START_DATE="2018020100"
+END_DATE="2018020200"
 MAX_CONCURRENT="50"
 
 DOMAIN="EASTASIA"
@@ -36,6 +36,8 @@ DEBUG_ENV="0"
 # Postprocess-all (single Slurm job) options
 POSTPROCESS_DRIVER_PYTHON="python3"
 POSTPROCESS_WORKERS="8"
+# Max concurrent month tasks for run_slurm_postprocess_monthly_array.sh
+POSTPROCESS_MONTHLY_MAX_CONCURRENT="6"
 FINAL_DIR="${OUTROOT}/${RECEPTOR,,}_hourly"
 POSTPROCESS_OVERWRITE="0"
 KEEP_RUN_DIRS="1"

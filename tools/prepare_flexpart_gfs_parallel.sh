@@ -6,7 +6,7 @@
 # Uses GNU parallel when available, otherwise falls back to xargs -P.
 #
 # Additional env var:
-#   NPROC   number of parallel workers (default: all available CPUs)
+#   NPROC   number of parallel workers (default: 8)
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ AVAILABLE_FILE=${3:-$OUTPUT_DIR/AVAILABLE}
 REPACK_TO_SIMPLE=${REPACK_TO_SIMPLE:-1}
 OVERWRITE_EXISTING=${OVERWRITE_EXISTING:-0}
 STEP_FILTER_MODE=${STEP_FILTER_MODE:-nonzero_max}
-NPROC=${NPROC:-$(nproc)}
+NPROC=${NPROC:-8}
 REQUIRED_FIELDS=${REQUIRED_FIELDS:-"2t@heightAboveGround@2 2r@heightAboveGround@2 10u@heightAboveGround@10 10v@heightAboveGround@10 sp@surface@0"}
 
 mkdir -p "$OUTPUT_DIR"

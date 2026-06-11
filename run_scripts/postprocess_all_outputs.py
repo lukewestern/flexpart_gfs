@@ -22,6 +22,7 @@ from pathlib import Path
 
 
 RE_GRID_TIME = re.compile(r"^grid_time_(\d{14})\.nc$")
+RE_MONTH = re.compile(r"^\d{6}$")
 DEFAULT_GFS_DATA_DIR = Path("/net/fs01/data/AGAGE/meteorology/cfsv2/flexpart_inputs")
 
 
@@ -146,9 +147,21 @@ def main() -> int:
         default=None,
         help="Directory where monthly aggregated files are written (default: --final-dir)",
     )
+    parser.add_argument(
+        "--month",
+        type=str,
+        default=None,
+        help="Optional month filter in YYYYMM format; only files from this month are processed",
+    )
     args = parser.parse_args()
 
     workers = max(1, int(args.workers))
+
+    target_month: str | None = None
+    if args.month is not None:
+        if not RE_MONTH.match(args.month):
+            raise ValueError(f"--month must match YYYYMM, got: {args.month}")
+        target_month = args.month
 
     footprint_outheight_m = args.postprocess_footprint_outheight_m
     if args.postprocess_lowest_magl is not None:
@@ -179,6 +192,8 @@ def main() -> int:
         return 0
 
     print(f"Discovered {len(grid_files)} grid_time files under {root_dir}")
+    if target_month is not None:
+        print(f"Applying month filter: {target_month}")
     if workers > 1 and args.dry_run:
         print(f"DRY-RUN: requested workers={workers} (parallel execution disabled in dry-run)")
     elif workers > 1:
@@ -197,6 +212,9 @@ def main() -> int:
             ts = datetime.strptime(ts14, "%Y%m%d%H%M%S")
         except ValueError:
             print(f"SKIP invalid timestamp in filename: {grid_file}")
+            continue
+
+        if target_month is not None and ts.strftime("%Y%m") != target_month:
             continue
 
         output_dir = grid_file.parent
@@ -233,6 +251,7 @@ def main() -> int:
             print(f"USE existing local postprocessed file: {out_file}")
             task["produced_ok"] = True
         else:
+            use_existing_exit_csv = exit_csv.exists() and not args.overwrite
             cmd = [
                 str(args.python),
                 "-X",
@@ -263,6 +282,9 @@ def main() -> int:
                 "--meteo-grib-dir",
                 str(args.gfs_data_dir),
             ]
+            if use_existing_exit_csv:
+                cmd.append("--use-existing-exit-csv")
+                print(f"USE existing domain exit CSV: {exit_csv}")
             if args.overwrite:
                 cmd.append("--overwrite")
             task["needs_run"] = True
@@ -345,6 +367,8 @@ def main() -> int:
                 "--output-dir",
                 str(monthly_dir),
             ]
+            if target_month is not None:
+                monthly_cmd.extend(["--month", target_month])
             if args.overwrite:
                 monthly_cmd.append("--overwrite")
 
