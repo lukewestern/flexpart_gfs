@@ -9,3 +9,4 @@ FLEXPART_MPI
 *.sif
 slurm-*.err
 slurm-*.out
+tools/nohup.out

@@ -531,52 +531,46 @@ def _derive_exit_points(part_ds, lon_var, lat_var, z_var=None):
         tvals = np.arange(lon.shape[0], dtype=float)
 
     ntime, npart = lon.shape
-    
-    # Vectorized: find first invalid (NaN) timestep for each particle
-    # Mark each (time, particle) as invalid if EITHER lon or lat is NaN
-    invalid = ~(np.isfinite(lon) & np.isfinite(lat))  # (ntime, npart) boolean
-    
-    # For each particle, find first row with any invalid value.
-    # Prepend False to handle particles with no invalid values correctly.
-    invalid_padded = np.vstack([np.zeros(npart, dtype=bool), invalid])
-    first_invalid_idx = np.argmax(invalid_padded, axis=0)  # (npart,)
-    
-    exits = []
-    for p in range(npart):
-        first_invalid = int(first_invalid_idx[p])
-        
-        # Check if this particle has ANY valid data
-        has_valid = np.any(np.isfinite(lon[:, p]) & np.isfinite(lat[:, p]))
-        if not has_valid:
-            continue
-        
-        # Determine the last valid index before first invalid (or last timestep if no invalid)
-        if first_invalid == 0:
-            # Particle invalid from start; for IPOUT=2, use last timestep
-            i_prev = ntime - 1
-        elif first_invalid < ntime:
-            # Found first invalid at first_invalid; use previous timestep
-            i_prev = first_invalid - 1
-        else:
-            # No invalid found (particle survived entire trajectory); use last timestep
-            i_prev = ntime - 1
-        
-        # Validate the exit point has valid coordinates
-        if not (np.isfinite(lon[i_prev, p]) and np.isfinite(lat[i_prev, p])):
-            continue
-        
-        z_val = np.nan
-        if z is not None and i_prev < z.shape[0] and np.isfinite(z[i_prev, p]):
-            z_val = float(z[i_prev, p])
-        
-        exits.append((
-            p,
-            float(tvals[i_prev]) if i_prev < len(tvals) else float(i_prev),
-            float(lon[i_prev, p]),
-            float(lat[i_prev, p]),
-            z_val,
-        ))
-    
+
+    valid = np.isfinite(lon) & np.isfinite(lat)
+    invalid = ~valid
+    has_valid = valid.any(axis=0)
+    has_invalid = invalid.any(axis=0)
+
+    first_invalid = np.argmax(invalid, axis=0)
+    exit_idx = np.where(has_invalid, first_invalid - 1, ntime - 1)
+    usable = has_valid & (exit_idx >= 0)
+
+    particles = np.nonzero(usable)[0]
+    exit_idx = exit_idx[usable].astype(np.intp, copy=False)
+    finite_exit = valid[exit_idx, particles]
+    particles = particles[finite_exit]
+    exit_idx = exit_idx[finite_exit]
+
+    exit_times = tvals[exit_idx] if len(tvals) >= ntime else exit_idx.astype(float)
+    z_vals = np.full(len(particles), np.nan, dtype=float)
+    if z is not None:
+        z_at_exit = z[exit_idx, particles]
+        finite_z = np.isfinite(z_at_exit)
+        z_vals[finite_z] = z_at_exit[finite_z]
+
+    exits = [
+        (
+            int(p),
+            float(t),
+            float(x),
+            float(y),
+            float(zz) if np.isfinite(zz) else np.nan,
+        )
+        for p, t, x, y, zz in zip(
+            particles,
+            exit_times,
+            lon[exit_idx, particles],
+            lat[exit_idx, particles],
+            z_vals,
+        )
+    ]
+
     return exits, int(npart)
 
 
@@ -605,6 +599,30 @@ def _nearest_index(values, value):
     return int(np.argmin(np.abs(arr - float(value))))
 
 
+def _nearest_indices(values, targets):
+    arr = np.asarray(values, dtype=float)
+    targets = np.asarray(targets, dtype=float)
+    if arr.size == 0:
+        raise ValueError("Cannot locate nearest indices in an empty coordinate")
+    if arr.size == 1:
+        return np.zeros(targets.shape, dtype=np.intp)
+
+    diffs = np.diff(arr)
+    if np.all(diffs > 0):
+        idx = np.searchsorted(arr, targets)
+        right = np.clip(idx, 0, arr.size - 1)
+        left = np.clip(right - 1, 0, arr.size - 1)
+    elif np.all(diffs < 0):
+        idx = np.searchsorted(-arr, -targets)
+        right = np.clip(idx, 0, arr.size - 1)
+        left = np.clip(right - 1, 0, arr.size - 1)
+    else:
+        return np.argmin(np.abs(targets[:, None] - arr[None, :]), axis=1)
+
+    choose_right = np.abs(arr[right] - targets) < np.abs(arr[left] - targets)
+    return np.where(choose_right, right, left).astype(np.intp, copy=False)
+
+
 def _classify_exit_side(lon, lat, lon_min, lon_max, lat_min, lat_max):
     dist = {
         "w": abs(float(lon) - float(lon_min)),
@@ -631,24 +649,36 @@ def _build_boundary_exit_fractions(exits, time_vals, lon_centers, lat_centers, h
     lat_min = float(np.min(lat_centers))
     lat_max = float(np.max(lat_centers))
 
-    for _, tval, lon, lat, z in exits:
-        tidx = _nearest_index(time_vals, tval)
-        hval = z if np.isfinite(z) else float(height_centers[0])
-        hidx = _nearest_index(height_centers, hval)
+    if exits:
+        exit_arr = np.asarray(exits, dtype=float)
+        tvals = exit_arr[:, 1]
+        lons = exit_arr[:, 2]
+        lats = exit_arr[:, 3]
+        zvals = exit_arr[:, 4]
+        zvals = np.where(np.isfinite(zvals), zvals, float(height_centers[0]))
 
-        side = _classify_exit_side(lon, lat, lon_min, lon_max, lat_min, lat_max)
-        if side == "n":
-            xidx = _nearest_index(lon_centers, lon)
-            n_counts[tidx, hidx, xidx] += 1.0
-        elif side == "s":
-            xidx = _nearest_index(lon_centers, lon)
-            s_counts[tidx, hidx, xidx] += 1.0
-        elif side == "e":
-            yidx = _nearest_index(lat_centers, lat)
-            e_counts[tidx, hidx, yidx] += 1.0
-        else:
-            yidx = _nearest_index(lat_centers, lat)
-            w_counts[tidx, hidx, yidx] += 1.0
+        tidx = _nearest_indices(time_vals, tvals)
+        hidx = _nearest_indices(height_centers, zvals)
+        xidx = _nearest_indices(lon_centers, lons)
+        yidx = _nearest_indices(lat_centers, lats)
+
+        distances = np.column_stack([
+            np.abs(lons - lon_min),
+            np.abs(lons - lon_max),
+            np.abs(lats - lat_min),
+            np.abs(lats - lat_max),
+        ])
+        sides = np.argmin(distances, axis=1)
+
+        west = sides == 0
+        east = sides == 1
+        south = sides == 2
+        north = sides == 3
+
+        np.add.at(w_counts, (tidx[west], hidx[west], yidx[west]), 1.0)
+        np.add.at(e_counts, (tidx[east], hidx[east], yidx[east]), 1.0)
+        np.add.at(s_counts, (tidx[south], hidx[south], xidx[south]), 1.0)
+        np.add.at(n_counts, (tidx[north], hidx[north], xidx[north]), 1.0)
 
     # Normalize by exiting particles so the sum over N/E/S/W boundary fractions is 1.
     denom = float(len(exits)) if len(exits) > 0 else 1.0
@@ -680,8 +710,13 @@ def _build_exit_histogram(exits, lon_centers, lat_centers):
     return hist.astype(np.int32)
 
 
-def _open_partoutput(path_arg):
-    """Open one or more partoutput NetCDF files and concatenate on time."""
+def _open_partoutput(path_arg, particle_start=None, particle_end=None):
+    """Open one or more partoutput NetCDF files and concatenate on time.
+
+    particle_start / particle_end: optional 0-based inclusive index range to
+    select a slice of particles (used in daily-batch mode to isolate the
+    particles belonging to one specific release group).
+    """
     if path_arg is None:
         return None
 
@@ -697,18 +732,31 @@ def _open_partoutput(path_arg):
         return None
 
     if len(paths) == 1:
-        return _open_dataset_auto(paths[0])
+        ds = _open_dataset_auto(paths[0])
+    else:
+        datasets = [_open_dataset_auto(p) for p in paths]
+        try:
+            ds = xr.concat(datasets, dim="time")
+        except Exception:
+            for d in datasets:
+                d.close()
+            raise
+        for d in datasets:
+            d.close()
 
-    datasets = [_open_dataset_auto(p) for p in paths]
-    try:
-        merged = xr.concat(datasets, dim="time")
-    except Exception:
-        for ds in datasets:
-            ds.close()
-        raise
-    for ds in datasets:
-        ds.close()
-    return merged
+    if particle_start is not None or particle_end is not None:
+        part_dim = next((d for d in ds.dims if "part" in d.lower()), None)
+        if part_dim is not None:
+            s = particle_start if particle_start is not None else 0
+            e = (particle_end + 1) if particle_end is not None else ds.dims[part_dim]
+            ds = ds.isel({part_dim: slice(s, e)})
+            print("Particle filter: indices {}–{} (dim '{}', {} particles)".format(
+                s, e - 1, part_dim, e - s))
+        else:
+            print("WARNING: --particle-start/--particle-end specified but no "
+                  "'part*' dimension found in partoutput; using all particles.")
+
+    return ds
 
 
 def _set_netcdf_compression(ds, compression_level=4):
@@ -804,6 +852,21 @@ def main():
         "--use-existing-exit-csv",
         action="store_true",
         help="Reuse --exit-csv if it exists instead of recomputing domain-exit points from particle output.",
+    )
+    parser.add_argument(
+        "--particle-start",
+        type=int,
+        default=None,
+        metavar="N",
+        help="0-based start index (inclusive) of particles to use for exit-point analysis. "
+             "Use with --particle-end to isolate one release group in daily-batch partoutput files.",
+    )
+    parser.add_argument(
+        "--particle-end",
+        type=int,
+        default=None,
+        metavar="N",
+        help="0-based end index (inclusive) of particles to use for exit-point analysis.",
     )
 
     args = parser.parse_args()
@@ -919,7 +982,9 @@ def main():
             reused_exit_csv = True
             print("Using existing domain exit points CSV: {} ({} rows)".format(exit_csv, len(exits)))
         else:
-            pds = _open_partoutput(partoutput_arg)
+            pds = _open_partoutput(partoutput_arg,
+                                   particle_start=args.particle_start,
+                                   particle_end=args.particle_end)
             try:
                 if pds is None:
                     print("No partoutput files supplied/found; skipping domain-exit diagnostics.")

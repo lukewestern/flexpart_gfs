@@ -3,7 +3,7 @@
 #SBATCH -n 1
 #SBATCH -N 1
 #SBATCH -t 3:00:00
-#SBATCH -p fdr
+#SBATCH -p edr,fdr
 #SBATCH --mem=10G
 #SBATCH -a 1-1%1
 #SBATCH -o slurm-%A_%a.out

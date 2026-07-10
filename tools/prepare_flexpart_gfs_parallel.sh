@@ -66,32 +66,27 @@ echo "Found ${#timesteps[@]} timesteps to process"
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT
 
-# Validate one required field triplet in a GRIB file.
-_has_required_triplet() {
-    local file="$1"
-    local short_name="$2"
-    local level_type="$3"
-    local level="$4"
-
-    grib_ls -p shortName,typeOfLevel,level "$file" 2>/dev/null | \
-        awk -v s="$short_name" -v t="$level_type" -v l="$level" '
-            NR > 2 && $1 == s && $2 == t && $3 == l {
-                found = 1
-                exit
-            }
-            END { exit(found ? 0 : 1) }
-        '
-}
-
 # Ensure all required fields are present in the prepared output file.
 _validate_required_fields() {
     local file="$1"
-    local spec short_name level_type level
+    local spec
     local missing=()
+    local present_fields
+
+    present_fields=$(grib_ls -p shortName,typeOfLevel,level "$file" 2>/dev/null | \
+        awk '
+            NR > 2 && NF >= 3 {
+                print $1 "@" $2 "@" $3
+            }
+        ' | sort -u)
+
+    if [[ -z "$present_fields" ]]; then
+        echo "  WARNING: could not read GRIB fields from $(basename "$file")"
+        return 1
+    fi
 
     for spec in $REQUIRED_FIELDS; do
-        IFS='@' read -r short_name level_type level <<< "$spec"
-        if ! _has_required_triplet "$file" "$short_name" "$level_type" "$level"; then
+        if ! grep -Fxq -- "$spec" <<< "$present_fields"; then
             missing+=("$spec")
         fi
     done
@@ -112,35 +107,13 @@ _validate_required_fields() {
 # ---------------------------------------------------------------------------
 _process_one() {
     local ts="$1"
-
-    echo "Processing timestep: $ts"
-
-    # Find available pgrbh cycles for this valid time.
-    local ts_pfiles
-    mapfile -t ts_pfiles < <(printf '%s\n' "$INPUT_DIR"/${ts}.cdas1.*.pgrbh.grb2 2>/dev/null || true)
-    # nullglob may not be set in subshell; filter missing
-    local real_pfiles=()
-    for f in "${ts_pfiles[@]}"; do [[ -f "$f" ]] && real_pfiles+=("$f"); done
-
-    if (( ${#real_pfiles[@]} == 0 )); then
-        echo "  WARNING: no pgrbh files for $ts"
-        echo "skipped" > "$work_dir/${ts}.status"
-        return 0
-    fi
-
-    mapfile -t cycles < <(
-        printf '%s\n' "${real_pfiles[@]}" |
-        sed -E 's#.*\.cdas1\.([0-9]{8})\.pgrbh\.grb2#\1#' |
-        sort -ru
-    )
-
     local yymmddhh=${ts:2:8}
     local outfile="$OUTPUT_DIR/GF${yymmddhh}"
-
-    echo "  Writing $outfile"
-
     local status="written"
     local selected_cycle=""
+
+    echo "Processing timestep: $ts"
+    echo "  Writing $outfile"
 
     if [[ -f "$outfile" && "$OVERWRITE_EXISTING" != "1" ]]; then
         if _validate_required_fields "$outfile"; then
@@ -151,124 +124,156 @@ _process_one() {
         fi
     fi
 
-    if [[ "$status" != "reused" ]]; then
-        local cycle
-        local candidate_ok=0
+    if [[ "$status" == "reused" ]]; then
+        echo "$status" > "$work_dir/${ts}.status"
 
-        for cycle in "${cycles[@]}"; do
-            local pfile="$INPUT_DIR/${ts}.cdas1.${cycle}.pgrbh.grb2"
-            local ipfile="$INPUT_DIR/${ts}.cdas1.${cycle}.ipvgrbh.grb2"
+        local yyyy=${ts:0:4}
+        local mm=${ts:4:2}
+        local dd=${ts:6:2}
+        local hh=${ts:8:2}
+        printf '%s%s%s %s0000      %-12s ON DISK\n' "$yyyy" "$mm" "$dd" "$hh" "GF${yymmddhh}" \
+            > "$work_dir/${ts}.avail"
+        return 0
+    fi
 
-            if [[ ! -f "$pfile" ]]; then
-                continue
-            fi
+    # Find available pgrbh cycles for this valid time.
+    local ts_pfiles
+    mapfile -t ts_pfiles < <(printf '%s\n' "$INPUT_DIR"/${ts}.cdas1.*.pgrbh.grb2 2>/dev/null || true)
+    local real_pfiles=()
+    local f
+    for f in "${ts_pfiles[@]}"; do
+        [[ -f "$f" ]] && real_pfiles+=("$f")
+    done
 
-            echo "  Trying cycle: $cycle"
+    if (( ${#real_pfiles[@]} == 0 )); then
+        echo "  WARNING: no pgrbh files for $ts"
+        echo "skipped" > "$work_dir/${ts}.status"
+        return 0
+    fi
 
-            local tmpfile
-            tmpfile=$(mktemp)
-            local workfile="$tmpfile"
-            local candidate_status="written"
+    local cycles
+    mapfile -t cycles < <(
+        printf '%s\n' "${real_pfiles[@]}" |
+        sed -E 's#.*\.cdas1\.([0-9]{8})\.pgrbh\.grb2#\1#' |
+        sort -ru
+    )
 
-            cp "$pfile" "$tmpfile"
-            if [[ -f "$ipfile" ]]; then
-                cat "$ipfile" >> "$tmpfile"
-            else
-                echo "  WARNING: Missing ipvgrbh file for $ts cycle $cycle (continuing with pgrbh only)"
-            fi
+    local cycle
+    local candidate_ok=0
 
-            if [[ "$STEP_FILTER_MODE" == "nonzero_max" ]]; then
-                local step_info
-                mapfile -t step_info < <(
-                    grib_ls -p stepRange "$tmpfile" 2>/dev/null |
-                    awk '
-                        NR > 2 && NF == 1 && $1 ~ /^[0-9]+$/ {
-                            if (!seen[$1]++) {
-                                unique_count++
-                            }
-                            if (!have_any || $1 > max_any) {
-                                max_any = $1
-                                have_any = 1
-                            }
-                            if ($1 > 0 && (!have_nonzero || $1 > max_nonzero)) {
-                                max_nonzero = $1
-                                have_nonzero = 1
-                            }
+    for cycle in "${cycles[@]}"; do
+        local pfile="$INPUT_DIR/${ts}.cdas1.${cycle}.pgrbh.grb2"
+        local ipfile="$INPUT_DIR/${ts}.cdas1.${cycle}.ipvgrbh.grb2"
+
+        if [[ ! -f "$pfile" ]]; then
+            continue
+        fi
+
+        echo "  Trying cycle: $cycle"
+
+        local tmpfile
+        tmpfile=$(mktemp)
+        local workfile="$tmpfile"
+        local candidate_status="written"
+
+        cp "$pfile" "$tmpfile"
+        if [[ -f "$ipfile" ]]; then
+            cat "$ipfile" >> "$tmpfile"
+        else
+            echo "  WARNING: Missing ipvgrbh file for $ts cycle $cycle (continuing with pgrbh only)"
+        fi
+
+        if [[ "$STEP_FILTER_MODE" == "nonzero_max" ]]; then
+            local step_info
+            mapfile -t step_info < <(
+                grib_ls -p stepRange "$tmpfile" 2>/dev/null |
+                awk '
+                    NR > 2 && NF == 1 && $1 ~ /^[0-9]+$/ {
+                        if (!seen[$1]++) {
+                            unique_count++
                         }
-                        END {
-                            print unique_count + 0
-                            if (have_nonzero) {
-                                print max_nonzero
-                            } else if (have_any) {
-                                print max_any
-                            } else {
-                                print ""
-                            }
+                        if (!have_any || $1 > max_any) {
+                            max_any = $1
+                            have_any = 1
                         }
-                    '
-                )
-                local unique_steps=${step_info[0]:-0}
-                local target_step=${step_info[1]:-}
-                if [[ -n "$target_step" && "$unique_steps" -gt 1 ]]; then
-                    local filtered_tmp
-                    filtered_tmp=$(mktemp)
-                    grib_copy -w stepRange="$target_step" "$tmpfile" "$filtered_tmp"
-                    if [[ -s "$filtered_tmp" ]]; then
-                        echo "  Keeping stepRange=$target_step"
-                        workfile="$filtered_tmp"
-                        candidate_status="filtered"
-                    else
-                        echo "  WARNING: step filter produced empty output; keeping all steps"
-                        rm -f "$filtered_tmp"
-                    fi
-                elif [[ -n "$target_step" ]]; then
-                    echo "  Step filtering not needed (single numeric stepRange=$target_step)"
-                    candidate_status="filter_skipped"
+                        if ($1 > 0 && (!have_nonzero || $1 > max_nonzero)) {
+                            max_nonzero = $1
+                            have_nonzero = 1
+                        }
+                    }
+                    END {
+                        print unique_count + 0
+                        if (have_nonzero) {
+                            print max_nonzero
+                        } else if (have_any) {
+                            print max_any
+                        } else {
+                            print ""
+                        }
+                    }
+                '
+            )
+            local unique_steps=${step_info[0]:-0}
+            local target_step=${step_info[1]:-}
+            if [[ -n "$target_step" && "$unique_steps" -gt 1 ]]; then
+                local filtered_tmp
+                filtered_tmp=$(mktemp)
+                grib_copy -w stepRange="$target_step" "$tmpfile" "$filtered_tmp"
+                if [[ -s "$filtered_tmp" ]]; then
+                    echo "  Keeping stepRange=$target_step"
+                    workfile="$filtered_tmp"
+                    candidate_status="filtered"
                 else
-                    echo "  WARNING: no numeric stepRange values found; keeping all steps"
+                    echo "  WARNING: step filter produced empty output; keeping all steps"
+                    rm -f "$filtered_tmp"
                 fi
-            elif [[ "$STEP_FILTER_MODE" != "off" ]]; then
-                echo "ERROR: unsupported STEP_FILTER_MODE=$STEP_FILTER_MODE"
-                rm -f "$tmpfile"
-                return 2
-            fi
-
-            local candidate_out
-            candidate_out=$(mktemp)
-            if [[ "$REPACK_TO_SIMPLE" == "1" ]]; then
-                grib_set -r -s packingType=grid_simple "$workfile" "$candidate_out"
+            elif [[ -n "$target_step" ]]; then
+                echo "  Step filtering not needed (single numeric stepRange=$target_step)"
+                candidate_status="filter_skipped"
             else
-                cp "$workfile" "$candidate_out"
+                echo "  WARNING: no numeric stepRange values found; keeping all steps"
             fi
+        elif [[ "$STEP_FILTER_MODE" != "off" ]]; then
+            echo "ERROR: unsupported STEP_FILTER_MODE=$STEP_FILTER_MODE"
+            rm -f "$tmpfile"
+            return 2
+        fi
 
-            if _validate_required_fields "$candidate_out"; then
-                mv "$candidate_out" "$outfile"
-                status="$candidate_status"
-                selected_cycle="$cycle"
-                candidate_ok=1
-                if [[ "$workfile" != "$tmpfile" ]]; then
-                    rm -f "$workfile"
-                fi
-                rm -f "$tmpfile"
-                break
-            fi
+        local candidate_out
+        candidate_out=$(mktemp)
+        if [[ "$REPACK_TO_SIMPLE" == "1" ]]; then
+            grib_set -r -s packingType=grid_simple "$workfile" "$candidate_out"
+        else
+            cp "$workfile" "$candidate_out"
+        fi
 
-            rm -f "$candidate_out"
+        if _validate_required_fields "$candidate_out"; then
+            mv "$candidate_out" "$outfile"
+            status="$candidate_status"
+            selected_cycle="$cycle"
+            candidate_ok=1
             if [[ "$workfile" != "$tmpfile" ]]; then
                 rm -f "$workfile"
             fi
             rm -f "$tmpfile"
-            echo "  Cycle $cycle rejected due to missing required fields"
-        done
-
-        if (( candidate_ok == 0 )); then
-            echo "  WARNING: no valid cycle found for $ts; skipping timestep"
-            echo "skipped" > "$work_dir/${ts}.status"
-            return 0
+            break
         fi
 
-        echo "  Selected cycle: $selected_cycle"
+        rm -f "$candidate_out"
+        if [[ "$workfile" != "$tmpfile" ]]; then
+            rm -f "$workfile"
+        fi
+        rm -f "$tmpfile"
+        echo "  Cycle $cycle rejected due to missing required fields"
+    done
+
+    if (( candidate_ok == 0 )); then
+        echo "  WARNING: no valid cycle found for $ts; skipping timestep"
+        echo "skipped" > "$work_dir/${ts}.status"
+        return 0
     fi
+
+    echo "  Selected cycle: $selected_cycle"
 
     echo "$status" > "$work_dir/${ts}.status"
 
@@ -280,7 +285,6 @@ _process_one() {
         > "$work_dir/${ts}.avail"
 }
 
-export -f _has_required_triplet
 export -f _validate_required_fields
 export -f _process_one
 export INPUT_DIR OUTPUT_DIR REPACK_TO_SIMPLE OVERWRITE_EXISTING STEP_FILTER_MODE REQUIRED_FIELDS work_dir

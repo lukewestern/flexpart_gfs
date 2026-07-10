@@ -53,6 +53,8 @@ def generate_available_from_gf_files(gfs_data_dir, available_path, start_time=No
     If start/end are provided, prefer entries in that interval. If none are found,
     fall back to all discovered GF files.
     """
+    MET_INTERVAL = timedelta(hours=3)
+
     entries = []
     for p in gfs_data_dir.iterdir():
         if not p.is_file():
@@ -74,10 +76,39 @@ def generate_available_from_gf_files(gfs_data_dir, available_path, start_time=No
         # Without this buffer the field bracketing the release/termination time
         # may be excluded, causing "NO METEO FIELDS AVAILABLE".
         buffer = timedelta(hours=6)
+        required_start = start_time - timedelta(hours=6)
+        required_end   = end_time   + timedelta(hours=6)
+        # Round required_start down to the nearest 3-hour boundary so the window
+        # lower bound matches the first timestep the completeness cursor will check.
+        # Using start_time - buffer as the window lower bound can exclude the
+        # first aligned 3-hourly slot (e.g. start=01:00, buffer=6h -> lower=19:00
+        # but cursor aligns to 18:00), causing a spurious "missing" error.
+        origin = datetime(required_start.year, required_start.month, required_start.day)
+        offset_h = int((required_start - origin).total_seconds() // 3600)
+        aligned_offset_h = (offset_h // 3) * 3
+        cursor_start = origin + timedelta(hours=aligned_offset_h)
         in_window = [x for x in entries
-                     if (start_time - buffer) <= x[0] <= (end_time + buffer)]
+                     if cursor_start <= x[0] <= required_end]
         if in_window:
             selected = in_window
+
+        # Verify that every expected 3-hourly timestep is present.
+        selected_times = {ts for ts, _ in selected}
+        cursor = cursor_start
+        missing = []
+        while cursor <= required_end:
+            if cursor not in selected_times:
+                missing.append(cursor)
+            cursor += MET_INTERVAL
+        if missing:
+            missing_str = ", ".join(t.strftime("%Y-%m-%d %H:%M") for t in missing[:10])
+            if len(missing) > 10:
+                missing_str += f", ... ({len(missing) - 10} more)"
+            raise RuntimeError(
+                f"Missing 3-hourly met files for simulation "
+                f"{start_time.strftime('%Y-%m-%d %H:%M')} -> {end_time.strftime('%Y-%m-%d %H:%M')} UTC.\n"
+                f"  {len(missing)} timestep(s) absent from {gfs_data_dir}: {missing_str}"
+            )
 
     lines = [
         "XXXXXX EMPTY LINES XXXXXXXXX\n",
