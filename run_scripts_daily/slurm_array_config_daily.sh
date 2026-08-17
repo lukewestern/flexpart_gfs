@@ -3,9 +3,9 @@
 # Use this file to avoid long inline env var command lines.
 
 # Inclusive date range, format YYYYMMDD (no hour — entire day is always run)
-START_DATE="20180101"
-END_DATE="20210101"
-MAX_CONCURRENT="50"
+START_DATE="20210101"
+END_DATE="20230101"
+MAX_CONCURRENT="40"
 
 DOMAIN="WESTUSA"
 RECEPTOR="THD"
@@ -28,6 +28,10 @@ POSTPROCESS_SOURCE_LAYER_THICKNESS_M="100"
 # Enable postprocessing to derive exit-point CSVs for each hourly release.
 # Preserve partoutput_*.nc and postprocessed footprints.
 DISABLE_AUTO_POSTPROCESS="1"
+# Skip rerunning a day if its run directory already exists under OUTROOT.
+SKIP_IF_RUN_DIR_EXISTS="1"
+# If postprocessed daily NetCDF(s) for a date already exist in output/, skip rerunning that day.
+SKIP_IF_POSTPROCESSED_EXISTS="1"
 # PRUNE_OUTPUTS: after postprocessing, delete raw FLEXPART outputs (PARTFXTR, DRYDEP, etc.)
 # and partoutput_*.nc, keeping only postprocessed footprints, exit CSVs, and grid_time.
 PRUNE_OUTPUTS="1"

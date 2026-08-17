@@ -25,6 +25,7 @@ set -euo pipefail
 #   POSTPROCESS_FOOTPRINT_OUTHEIGHT_M, POSTPROCESS_SOURCE_LAYER_THICKNESS_M
 #   DISABLE_AUTO_POSTPROCESS: 1 = skip per-run postprocess (default: 0)
 #   PRUNE_OUTPUTS: 1 = after postprocessing, delete raw FLEXPART outputs, keep footprints/exit-points (default: 1)
+#   SKIP_IF_RUN_DIR_EXISTS: 1 = skip task when ${OUTROOT}/${DOMAIN}_${RECEPTOR}_${DATE} already exists (default: 0)
 #   OUTROOT, FLEXPART_EXE, PYTHON_CMD, POSTPROCESS_PYTHON_CMD
 #   USE_PROJECT_VENV, DEBUG_ENV, FLEXPART_REPO_ROOT
 
@@ -43,6 +44,8 @@ fi
 POSTPROCESS_SOURCE_LAYER_THICKNESS_M="${POSTPROCESS_SOURCE_LAYER_THICKNESS_M:-100}"
 DISABLE_AUTO_POSTPROCESS="${DISABLE_AUTO_POSTPROCESS:-0}"
 PRUNE_OUTPUTS="${PRUNE_OUTPUTS:-1}"
+SKIP_IF_POSTPROCESSED_EXISTS="${SKIP_IF_POSTPROCESSED_EXISTS:-1}"
+SKIP_IF_RUN_DIR_EXISTS="${SKIP_IF_RUN_DIR_EXISTS:-0}"
 PYTHON_CMD="${PYTHON_CMD:-}"
 POSTPROCESS_PYTHON_CMD="${POSTPROCESS_PYTHON_CMD:-}"
 USE_PROJECT_VENV="${USE_PROJECT_VENV:-0}"
@@ -116,6 +119,26 @@ DATE="$(date -u -d "@${target_epoch}" +%Y%m%d)"
 
 RUN_DIR="${OUTROOT}/${DOMAIN}_${RECEPTOR}_${DATE}"
 mkdir -p "${OUTROOT}"
+
+if [[ "${SKIP_IF_RUN_DIR_EXISTS}" == "1" && -d "${RUN_DIR}" ]]; then
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] skip date=${DATE}: existing run directory found at ${RUN_DIR}"
+  exit 0
+fi
+
+# Optional fast-skip: if final daily postprocessed files already exist for this
+# date/site/domain, skip this task before launching FLEXPART.
+if [[ "${SKIP_IF_POSTPROCESSED_EXISTS}" == "1" ]]; then
+  shopt -s nullglob
+  existing_daily_netcdf=(
+    "${RUN_DIR}/output/${RECEPTOR}"_*_FLEXPART_CFSv2_"${DOMAIN}"_inert_"${DATE}"*.nc
+    "${RUN_DIR}/output/${RECEPTOR}"_*_FLEXPART_GFS_"${DOMAIN}"_inert_"${DATE}"*.nc
+  )
+  shopt -u nullglob
+  if (( ${#existing_daily_netcdf[@]} > 0 )); then
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] skip date=${DATE}: found ${#existing_daily_netcdf[@]} existing postprocessed netcdf file(s) in ${RUN_DIR}/output"
+    exit 0
+  fi
+fi
 
 cd "${REPO_ROOT}"
 if [[ "${USE_PROJECT_VENV}" == "1" && -f "${REPO_ROOT}/.venv/bin/activate" ]]; then
